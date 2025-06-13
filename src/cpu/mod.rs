@@ -190,82 +190,127 @@ impl Cpu {
         }
     }
 
+    /// Load byte
     fn lb(&mut self) {
-        let rt = self.op.rt() as usize;
-        let rs = self.op.rs() as usize;
-        let im = self.op.imm16();
+        let rt = self.op.rt();
+        let rs = self.op.rs();
+        let im = self.op.imm16_se();
 
-        let b = self.bus.read8(im + self.regs[rs]) as i8;
+        let addr = self.regs[rs].wrapping_add(im);
+        let data = self.bus.read8(addr) as i8;
 
-        self.regs[rt] = b as u32;
+        self.regs[rt] = data as u32;
     }
 
+    /// Load byte unsigned
     fn lbu(&mut self) {
-        let rt = self.op.rt() as usize;
-        let rs = self.op.rs() as usize;
-        let im = self.op.imm16();
+        let rt = self.op.rt();
+        let rs = self.op.rs();
+        let im = self.op.imm16_se();
 
-        let b = self.bus.read8(im + self.regs[rs]);
+        let addr = self.regs[rs].wrapping_add(im);
+        let data = self.bus.read8(addr);
 
-        self.regs[rt] = b as u32;
+        self.regs[rt] = data as u32;
     }
 
+    /// Load half word
     fn lh(&mut self) {
-        let rt = self.op.rt() as usize;
-        let rs = self.op.rs() as usize;
-        let im = self.op.imm16();
+        let rt = self.op.rt();
+        let rs = self.op.rs();
+        let im = self.op.imm16_se();
 
-        let h = self.bus.read16(im + self.regs[rs]) as i16;
+        let addr = self.regs[rs].wrapping_add(im);
+        let data = self.bus.read16(addr) as i16;
 
-        self.regs[rt] = h as u32;
+        self.regs[rt] = data as u32;
     }
 
+    /// Load half word unsigned
     fn lhu(&mut self) {
-        let rt = self.op.rt() as usize;
-        let rs = self.op.rs() as usize;
-        let im = self.op.imm16();
+        let rt = self.op.rt();
+        let rs = self.op.rs();
+        let im = self.op.imm16_se();
 
-        let h = self.bus.read16(im + self.regs[rs]);
+        let addr = self.regs[rs].wrapping_add(im);
+        let data = self.bus.read16(addr);
 
-        self.regs[rt] = h as u32;
+        self.regs[rt] = data as u32;
     }
 
+    /// Load word
     fn lw(&mut self) {
-        let rt = self.op.rt() as usize;
-        let rs = self.op.rs() as usize;
-        let im = self.op.imm16();
+        let rt = self.op.rt();
+        let rs = self.op.rs();
+        let im = self.op.imm16_se();
 
-        let w = self.bus.read32(im + self.regs[rs]);
+        let addr = self.regs[rs].wrapping_add(im);
+        let data = self.bus.read32(addr);
 
-        self.regs[rt] = w;
+        self.regs[rt] = data;
     }
 
+    /// Store byte
     fn sb(&mut self) {
-        let rt = self.op.rt() as usize;
-        let rs = self.op.rs() as usize;
-        let im = self.op.imm16();
-        self.bus.write8(self.regs[rs] + im, self.regs[rt] as u8);
+        let rt = self.op.rt();
+        let rs = self.op.rs();
+        let im = self.op.imm16_se();
+
+        let addr = self.regs[rs].wrapping_add(im);
+        let data = self.regs[rt] as u8;
+
+        self.bus.write8(addr, data);
     }
 
+    /// Store half word
     fn sh(&mut self) {
-        let rt = self.op.rt() as usize;
-        let rs = self.op.rs() as usize;
-        let im = self.op.imm16();
-        self.bus.write16(self.regs[rs] + im, self.regs[rt] as u16);
+        let rt = self.op.rt();
+        let rs = self.op.rs();
+        let im = self.op.imm16_se();
+
+        let addr = self.regs[rs].wrapping_add(im);
+        let data = self.regs[rt] as u16;
+
+        self.bus.write16(addr, data);
     }
 
+    /// Store word
     fn sw(&mut self) {
-        let rt = self.op.rt() as usize;
-        let rs = self.op.rs() as usize;
-        let im = self.op.imm16();
-        self.bus.write32(self.regs[rs] + im, self.regs[rt]);
+        let rt = self.op.rt();
+        let rs = self.op.rs();
+        let im = self.op.imm16_se();
+
+        let addr = self.regs[rs].wrapping_add(im);
+        let data = self.regs[rt];
+
+        self.bus.write32(addr, data);
     }
 
-    fn lwl(&mut self) {}
+    /// Unaligned left word load
+    fn lwl(&mut self) {
+        let rt = self.op.rt();
+        let rs = self.op.rs();
+        let im = self.op.imm16_se();
 
+        let addr = self.regs[rs].wrapping_add(im);
+        let num_bytes = 4 - ((addr ^ 3) % 4);
+
+        let mut data = self.regs[rt];
+        for i in 0..num_bytes {
+            let byte = self.bus.read8(addr + i) as u32;
+            let mask = 0xFF << (i * 8);
+            data = (data & mask) | (byte << ((3 - i) * 8));
+        }
+
+        self.regs[rt] = data;
+    }
+
+    /// Unaligned right word load
     fn lwr(&mut self) {}
 
+    /// Unaligned left word store
     fn swl(&mut self) {}
 
+    /// Unaligned right word store
     fn swr(&mut self) {}
 }
