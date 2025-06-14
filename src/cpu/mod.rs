@@ -293,24 +293,88 @@ impl Cpu {
         let im = self.op.imm16_se();
 
         let addr = self.regs[rs].wrapping_add(im);
-        let num_bytes = 4 - ((addr ^ 3) % 4);
+        let val = self.regs[rt];
 
-        let mut data = self.regs[rt];
-        for i in 0..num_bytes {
-            let byte = self.bus.read8(addr + i) as u32;
-            let mask = 0xFF << (i * 8);
-            data = (data & mask) | (byte << ((3 - i) * 8));
-        }
+        let aligned_addr = addr & !3;
+        let word = self.bus.read32(aligned_addr);
+
+        let data = match addr & 3 {
+            0 => (val & 0x00FFFFFF) | (word << 24),
+            1 => (val & 0x0000FFFF) | (word << 16),
+            2 => (val & 0x000000FF) | (word << 8),
+            3 => word,
+            _ => unreachable!(),
+        };
 
         self.regs[rt] = data;
     }
 
     /// Unaligned right word load
-    fn lwr(&mut self) {}
+    fn lwr(&mut self) {
+        let rt = self.op.rt();
+        let rs = self.op.rs();
+        let im = self.op.imm16_se();
+
+        let addr = self.regs[rs].wrapping_add(im);
+        let val = self.regs[rt];
+
+        let aligned_addr = addr & !3;
+        let word = self.bus.read32(aligned_addr);
+
+        let data = match addr & 3 {
+            0 => word,
+            1 => (val & 0xFF000000) | (word >> 8),
+            2 => (val & 0xFFFF0000) | (word >> 16),
+            3 => (val & 0xFFFFFF00) | (word >> 24),
+            _ => unreachable!(),
+        };
+
+        self.regs[rt] = data;
+    }
 
     /// Unaligned left word store
-    fn swl(&mut self) {}
+    fn swl(&mut self) {
+        let rt = self.op.rt();
+        let rs = self.op.rs();
+        let im = self.op.imm16_se();
+
+        let addr = self.regs[rs].wrapping_add(im);
+        let val = self.regs[rt];
+
+        let aligned_addr = addr & !3;
+        let word = self.bus.read32(aligned_addr);
+
+        let data = match addr & 3 {
+            0 => (word & 0x00FFFFFF) | (val << 24),
+            1 => (word & 0x0000FFFF) | (val << 16),
+            2 => (word & 0x000000FF) | (val << 8),
+            3 => val,
+            _ => unreachable!(),
+        };
+
+        self.bus.write32(aligned_addr, data);
+    }
 
     /// Unaligned right word store
-    fn swr(&mut self) {}
+    fn swr(&mut self) {
+        let rt = self.op.rt();
+        let rs = self.op.rs();
+        let im = self.op.imm16_se();
+
+        let addr = self.regs[rs].wrapping_add(im);
+        let val = self.regs[rt];
+
+        let aligned_addr = addr & !3;
+        let word = self.bus.read32(aligned_addr);
+
+        let data = match addr & 3 {
+            0 => val,
+            1 => (word & 0xFF000000) | (val >> 8),
+            2 => (word & 0xFFFF0000) | (val >> 16),
+            3 => (word & 0xFFFFFF00) | (val >> 24),
+            _ => unreachable!(),
+        };
+
+        self.bus.write32(aligned_addr, data);
+    }
 }
