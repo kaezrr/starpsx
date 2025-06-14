@@ -1,14 +1,11 @@
+#[derive(Copy, Clone)]
 pub struct Opcode {
     data: u32,
 }
 
 impl Opcode {
-    pub fn new() -> Self {
-        Opcode { data: 0 }
-    }
-
-    pub fn set(&mut self, data: u32) {
-        self.data = data;
+    pub fn new(data: u32) -> Self {
+        Opcode { data }
     }
 
     pub fn pri(&self) -> u8 {

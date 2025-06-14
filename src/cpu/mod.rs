@@ -18,9 +18,6 @@ struct Cpu {
 
     /// Bus interface
     bus: Bus,
-
-    /// Current operation code
-    op: Opcode,
 }
 
 impl Cpu {
@@ -31,7 +28,6 @@ impl Cpu {
         let pc = 0xBFC00000;
         let hi = 0;
         let lo = 0;
-        let op = Opcode::new();
 
         Cpu {
             regs,
@@ -39,24 +35,27 @@ impl Cpu {
             hi,
             lo,
             bus,
-            op,
         }
     }
 
     /// Run a single instruction and return the number of cycles
     fn run_instruction(&mut self) {
-        let instr = self.bus.read32(self.pc);
-        self.op.set(instr);
-        self.pc = self.pc.wrapping_add(4);
-        self.decode_instruction();
+        let pc = self.pc;
+
+        // Fetch opcode and increment program counter
+        let instr = Opcode::new(self.bus.read32(pc));
+        self.pc = pc.wrapping_add(4);
+
+        // Decode and run the instruction
+        self.decode_instruction(instr);
 
         // Register 0 is always 0
         self.regs[0] = 0x0;
     }
 
-    fn decode_instruction(&mut self) {
-        match self.op.pri() {
-            0x00 => match self.op.sec() {
+    fn decode_instruction(&mut self, op: Opcode) {
+        match op.pri() {
+            0x00 => match op.sec() {
                 0x00 => (),
                 0x01 => (),
                 0x02 => (),
@@ -121,7 +120,7 @@ impl Cpu {
                 0x3D => (),
                 0x3E => (),
                 0x3F => (),
-                _ => panic!("Unknown special instruction {:x}", self.op.sec()),
+                _ => panic!("Unknown special instruction {:x}", op.sec()),
             },
             0x01 => (),
             0x02 => (),
@@ -186,15 +185,15 @@ impl Cpu {
             0x3D => (),
             0x3E => (),
             0x3F => (),
-            _ => panic!("Unknown instruction {:x}", self.op.pri()),
+            _ => panic!("Unknown instruction {:x}", op.pri()),
         }
     }
 
     /// Load byte
-    fn lb(&mut self) {
-        let rt = self.op.rt();
-        let rs = self.op.rs();
-        let im = self.op.imm16_se();
+    fn lb(&mut self, instr: Opcode) {
+        let rt = instr.rt();
+        let rs = instr.rs();
+        let im = instr.imm16_se();
 
         let addr = self.regs[rs].wrapping_add(im);
         let data = self.bus.read8(addr) as i8;
@@ -203,10 +202,10 @@ impl Cpu {
     }
 
     /// Load byte unsigned
-    fn lbu(&mut self) {
-        let rt = self.op.rt();
-        let rs = self.op.rs();
-        let im = self.op.imm16_se();
+    fn lbu(&mut self, instr: Opcode) {
+        let rt = instr.rt();
+        let rs = instr.rs();
+        let im = instr.imm16_se();
 
         let addr = self.regs[rs].wrapping_add(im);
         let data = self.bus.read8(addr);
@@ -215,10 +214,10 @@ impl Cpu {
     }
 
     /// Load half word
-    fn lh(&mut self) {
-        let rt = self.op.rt();
-        let rs = self.op.rs();
-        let im = self.op.imm16_se();
+    fn lh(&mut self, instr: Opcode) {
+        let rt = instr.rt();
+        let rs = instr.rs();
+        let im = instr.imm16_se();
 
         let addr = self.regs[rs].wrapping_add(im);
         let data = self.bus.read16(addr) as i16;
@@ -227,10 +226,10 @@ impl Cpu {
     }
 
     /// Load half word unsigned
-    fn lhu(&mut self) {
-        let rt = self.op.rt();
-        let rs = self.op.rs();
-        let im = self.op.imm16_se();
+    fn lhu(&mut self, instr: Opcode) {
+        let rt = instr.rt();
+        let rs = instr.rs();
+        let im = instr.imm16_se();
 
         let addr = self.regs[rs].wrapping_add(im);
         let data = self.bus.read16(addr);
@@ -239,10 +238,10 @@ impl Cpu {
     }
 
     /// Load word
-    fn lw(&mut self) {
-        let rt = self.op.rt();
-        let rs = self.op.rs();
-        let im = self.op.imm16_se();
+    fn lw(&mut self, instr: Opcode) {
+        let rt = instr.rt();
+        let rs = instr.rs();
+        let im = instr.imm16_se();
 
         let addr = self.regs[rs].wrapping_add(im);
         let data = self.bus.read32(addr);
@@ -251,10 +250,10 @@ impl Cpu {
     }
 
     /// Store byte
-    fn sb(&mut self) {
-        let rt = self.op.rt();
-        let rs = self.op.rs();
-        let im = self.op.imm16_se();
+    fn sb(&mut self, instr: Opcode) {
+        let rt = instr.rt();
+        let rs = instr.rs();
+        let im = instr.imm16_se();
 
         let addr = self.regs[rs].wrapping_add(im);
         let data = self.regs[rt] as u8;
@@ -263,10 +262,10 @@ impl Cpu {
     }
 
     /// Store half word
-    fn sh(&mut self) {
-        let rt = self.op.rt();
-        let rs = self.op.rs();
-        let im = self.op.imm16_se();
+    fn sh(&mut self, instr: Opcode) {
+        let rt = instr.rt();
+        let rs = instr.rs();
+        let im = instr.imm16_se();
 
         let addr = self.regs[rs].wrapping_add(im);
         let data = self.regs[rt] as u16;
@@ -275,10 +274,10 @@ impl Cpu {
     }
 
     /// Store word
-    fn sw(&mut self) {
-        let rt = self.op.rt();
-        let rs = self.op.rs();
-        let im = self.op.imm16_se();
+    fn sw(&mut self, instr: Opcode) {
+        let rt = instr.rt();
+        let rs = instr.rs();
+        let im = instr.imm16_se();
 
         let addr = self.regs[rs].wrapping_add(im);
         let data = self.regs[rt];
@@ -287,10 +286,10 @@ impl Cpu {
     }
 
     /// Unaligned left word load
-    fn lwl(&mut self) {
-        let rt = self.op.rt();
-        let rs = self.op.rs();
-        let im = self.op.imm16_se();
+    fn lwl(&mut self, instr: Opcode) {
+        let rt = instr.rt();
+        let rs = instr.rs();
+        let im = instr.imm16_se();
 
         let addr = self.regs[rs].wrapping_add(im);
         let val = self.regs[rt];
@@ -310,10 +309,10 @@ impl Cpu {
     }
 
     /// Unaligned right word load
-    fn lwr(&mut self) {
-        let rt = self.op.rt();
-        let rs = self.op.rs();
-        let im = self.op.imm16_se();
+    fn lwr(&mut self, instr: Opcode) {
+        let rt = instr.rt();
+        let rs = instr.rs();
+        let im = instr.imm16_se();
 
         let addr = self.regs[rs].wrapping_add(im);
         let val = self.regs[rt];
@@ -333,10 +332,10 @@ impl Cpu {
     }
 
     /// Unaligned left word store
-    fn swl(&mut self) {
-        let rt = self.op.rt();
-        let rs = self.op.rs();
-        let im = self.op.imm16_se();
+    fn swl(&mut self, instr: Opcode) {
+        let rt = instr.rt();
+        let rs = instr.rs();
+        let im = instr.imm16_se();
 
         let addr = self.regs[rs].wrapping_add(im);
         let val = self.regs[rt];
@@ -356,10 +355,10 @@ impl Cpu {
     }
 
     /// Unaligned right word store
-    fn swr(&mut self) {
-        let rt = self.op.rt();
-        let rs = self.op.rs();
-        let im = self.op.imm16_se();
+    fn swr(&mut self, instr: Opcode) {
+        let rt = instr.rt();
+        let rs = instr.rs();
+        let im = instr.imm16_se();
 
         let addr = self.regs[rs].wrapping_add(im);
         let val = self.regs[rt];
