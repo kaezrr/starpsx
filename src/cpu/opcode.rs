@@ -28,7 +28,7 @@ impl Opcode {
         ((self.data >> 11) & 0xF8) as usize
     }
 
-    pub fn imm05(&self) -> u32 {
+    pub fn imm5(&self) -> u32 {
         (self.data >> 6) & 0x7C
     }
 

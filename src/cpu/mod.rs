@@ -189,6 +189,8 @@ impl Cpu {
         }
     }
 
+    // Load and store instructions
+
     /// Load byte
     fn lb(&mut self, instr: Opcode) {
         let rt = instr.rt();
@@ -376,4 +378,374 @@ impl Cpu {
 
         self.bus.write32(aligned_addr, data);
     }
+
+    // ALU instructions
+
+    /// rd = rs + rt (overflow trap)
+    pub fn add(&mut self, instr: Opcode) {
+        let rt = instr.rt();
+        let rs = instr.rs();
+        let rd = instr.rd();
+
+        let lhs = self.regs[rs];
+        let rhs = self.regs[rt];
+
+        self.regs[rd] = lhs + rhs;
+    }
+
+    /// rd = rs + rt
+    pub fn addu(&mut self, instr: Opcode) {
+        let rt = instr.rt();
+        let rs = instr.rs();
+        let rd = instr.rd();
+
+        let lhs = self.regs[rs];
+        let rhs = self.regs[rt];
+
+        self.regs[rd] = lhs + rhs;
+    }
+
+    /// rd = rs - rt (overflow trap)
+    pub fn sub(&mut self, instr: Opcode) {
+        let rt = instr.rt();
+        let rs = instr.rs();
+        let rd = instr.rd();
+
+        let lhs = self.regs[rs];
+        let rhs = self.regs[rt];
+
+        self.regs[rd] = lhs - rhs;
+    }
+
+    /// rd = rs - rt
+    pub fn subu(&mut self, instr: Opcode) {
+        let rt = instr.rt();
+        let rs = instr.rs();
+        let rd = instr.rd();
+
+        let lhs = self.regs[rs];
+        let rhs = self.regs[rt];
+
+        self.regs[rd] = lhs - rhs;
+    }
+
+    /// rd = rs + imm (overflow trap)
+    pub fn addi(&mut self, instr: Opcode) {
+        let rt = instr.rt();
+        let rs = instr.rs();
+        let im = instr.imm16_se();
+
+        let lhs = self.regs[rs];
+        let rhs = im;
+
+        self.regs[rt] = lhs + rhs;
+    }
+
+    /// rd = rs + imm
+    pub fn addiu(&mut self, instr: Opcode) {
+        let rt = instr.rt();
+        let rs = instr.rs();
+        let im = instr.imm16_se();
+
+        let lhs = self.regs[rs];
+        let rhs = im;
+
+        self.regs[rt] = lhs + rhs;
+    }
+
+    /// rd = rs < rt
+    pub fn slt(&mut self, instr: Opcode) {
+        let rt = instr.rt();
+        let rs = instr.rs();
+        let rd = instr.rd();
+
+        let lhs = self.regs[rs] as i32;
+        let rhs = self.regs[rt] as i32;
+
+        self.regs[rd] = (lhs < rhs) as u32;
+    }
+
+    /// rd = rs < rt (unsigned)
+    pub fn sltu(&mut self, instr: Opcode) {
+        let rt = instr.rt();
+        let rs = instr.rs();
+        let rd = instr.rd();
+
+        let lhs = self.regs[rs];
+        let rhs = self.regs[rt];
+
+        self.regs[rd] = (lhs < rhs) as u32;
+    }
+
+    /// rd = rs < imm
+    pub fn slti(&mut self, instr: Opcode) {
+        let rt = instr.rt();
+        let rs = instr.rs();
+        let im = instr.imm16_se();
+
+        let lhs = self.regs[rs] as i32;
+        let rhs = im as i32;
+
+        self.regs[rt] = (lhs < rhs) as u32;
+    }
+
+    /// rd = rs < imm (unsigned)
+    pub fn sltiu(&mut self, instr: Opcode) {
+        let rt = instr.rt();
+        let rs = instr.rs();
+        let im = instr.imm16_se();
+
+        let lhs = self.regs[rs];
+        let rhs = im;
+
+        self.regs[rt] = (lhs < rhs) as u32;
+    }
+
+    /// rd = rs AND rt
+    pub fn and(&mut self, instr: Opcode) {
+        let rt = instr.rt();
+        let rs = instr.rs();
+        let rd = instr.rd();
+
+        let lhs = self.regs[rs];
+        let rhs = self.regs[rt];
+
+        self.regs[rd] = lhs & rhs;
+    }
+
+    /// rd = rs OR rt
+    pub fn or(&mut self, instr: Opcode) {
+        let rt = instr.rt();
+        let rs = instr.rs();
+        let rd = instr.rd();
+
+        let lhs = self.regs[rs];
+        let rhs = self.regs[rt];
+
+        self.regs[rd] = lhs | rhs;
+    }
+
+    /// rd = rs XOR rt
+    pub fn xor(&mut self, instr: Opcode) {
+        let rt = instr.rt();
+        let rs = instr.rs();
+        let rd = instr.rd();
+
+        let lhs = self.regs[rs];
+        let rhs = self.regs[rt];
+
+        self.regs[rd] = lhs ^ rhs;
+    }
+
+    /// rd = 0xFFFFFFFF XOR (rs OR rt)
+    pub fn nor(&mut self, instr: Opcode) {
+        let rt = instr.rt();
+        let rs = instr.rs();
+        let rd = instr.rd();
+
+        let lhs = self.regs[rs];
+        let rhs = self.regs[rt];
+
+        self.regs[rd] = 0xFFFFFFFF ^ (lhs | rhs);
+    }
+
+    /// rt = rs AND imm
+    pub fn andi(&mut self, instr: Opcode) {
+        let rt = instr.rt();
+        let rs = instr.rs();
+        let im = instr.imm16_se();
+
+        let lhs = self.regs[rs];
+        let rhs = im;
+
+        self.regs[rt] = lhs & rhs;
+    }
+
+    /// rt = rs OR imm
+    pub fn ori(&mut self, instr: Opcode) {
+        let rt = instr.rt();
+        let rs = instr.rs();
+        let im = instr.imm16_se();
+
+        let lhs = self.regs[rs];
+        let rhs = im;
+
+        self.regs[rt] = lhs | rhs;
+    }
+
+    /// rt = rs XOR imm
+    pub fn xori(&mut self, instr: Opcode) {
+        let rt = instr.rt();
+        let rs = instr.rs();
+        let im = instr.imm16_se();
+
+        let lhs = self.regs[rs];
+        let rhs = im;
+
+        self.regs[rt] = lhs ^ rhs;
+    }
+
+    /// rd = rt SHL (rs AND 1Fh)
+    pub fn sllv(&mut self, instr: Opcode) {
+        let rt = instr.rt();
+        let rs = instr.rs();
+        let rd = instr.rd();
+
+        let lhs = self.regs[rt];
+        let rhs = self.regs[rs];
+
+        self.regs[rd] = lhs.wrapping_shl(rhs);
+    }
+
+    /// rd = rt SHR (rs AND 1Fh)
+    pub fn srlv(&mut self, instr: Opcode) {
+        let rt = instr.rt();
+        let rs = instr.rs();
+        let rd = instr.rd();
+
+        let lhs = self.regs[rt];
+        let rhs = self.regs[rs];
+
+        self.regs[rd] = lhs.wrapping_shr(rhs);
+    }
+
+    /// rd = rt SAR (rs AND 1Fh)
+    pub fn srav(&mut self, instr: Opcode) {
+        let rt = instr.rt();
+        let rs = instr.rs();
+        let rd = instr.rd();
+
+        let lhs = self.regs[rt] as i32;
+        let rhs = self.regs[rs];
+
+        self.regs[rd] = lhs.wrapping_shr(rhs) as u32;
+    }
+
+    /// rd = rt SHL imm
+    pub fn sll(&mut self, instr: Opcode) {
+        let rt = instr.rt();
+        let rd = instr.rd();
+        let im = instr.imm5();
+
+        let lhs = self.regs[rt];
+        let rhs = im;
+
+        self.regs[rd] = lhs.wrapping_shl(rhs);
+    }
+
+    /// rd = rt SHR imm
+    pub fn srl(&mut self, instr: Opcode) {
+        let rt = instr.rt();
+        let rd = instr.rd();
+        let im = instr.imm5();
+
+        let lhs = self.regs[rt];
+        let rhs = im;
+
+        self.regs[rd] = lhs.wrapping_shr(rhs);
+    }
+
+    /// rd = rt SAR imm
+    pub fn sra(&mut self, instr: Opcode) {
+        let rt = instr.rt();
+        let rd = instr.rd();
+        let im = instr.imm5();
+
+        let lhs = self.regs[rt] as i32;
+        let rhs = im;
+
+        self.regs[rd] = lhs.wrapping_shr(rhs) as u32;
+    }
+
+    /// rt = imm << 16
+    pub fn lui(&mut self, instr: Opcode) {
+        let rt = instr.rt();
+        let im = instr.imm16();
+
+        self.regs[rt] = im << 16;
+    }
+
+    /// hi:lo = rs * rt (signed)
+    pub fn mult(&mut self, instr: Opcode) {
+        let rt = instr.rt();
+        let rs = instr.rs();
+
+        let lhs = self.regs[rs] as i64;
+        let rhs = self.regs[rt] as i64;
+
+        let res = (lhs * rhs) as u64;
+
+        self.hi = (res >> 32) as u32;
+        self.lo = res as u32;
+    }
+
+    /// hi:lo = rs * rt (unsigned)
+    pub fn multu(&mut self, instr: Opcode) {
+        let rt = instr.rt();
+        let rs = instr.rs();
+
+        let lhs = self.regs[rs] as u64;
+        let rhs = self.regs[rt] as u64;
+
+        let res = lhs * rhs;
+
+        self.hi = (res >> 32) as u32;
+        self.lo = res as u32;
+    }
+
+    /// hi:lo = rs / rt (signed)
+    pub fn div(&mut self, instr: Opcode) {
+        let rt = instr.rt();
+        let rs = instr.rs();
+
+        let lhs = self.regs[rs] as i32;
+        let rhs = self.regs[rt] as i32;
+
+        let quo = (lhs / rhs) as u32;
+        let rem = (lhs % rhs) as u32;
+
+        self.hi = rem;
+        self.lo = quo;
+    }
+
+    /// hi:lo = rs / rt (unsigned)
+    pub fn divu(&mut self, instr: Opcode) {
+        let rt = instr.rt();
+        let rs = instr.rs();
+
+        let lhs = self.regs[rs];
+        let rhs = self.regs[rt];
+
+        let quo = lhs / rhs;
+        let rem = lhs % rhs;
+
+        self.hi = rem;
+        self.lo = quo;
+    }
+
+    /// Move from hi
+    pub fn mfhi(&mut self, instr: Opcode) {
+        let rd = instr.rd();
+        self.regs[rd] = self.hi;
+    }
+
+    /// Move from lo
+    pub fn mflo(&mut self, instr: Opcode) {
+        let rd = instr.rd();
+        self.regs[rd] = self.lo;
+    }
+
+    /// Move to hi
+    pub fn mthi(&mut self, instr: Opcode) {
+        let rs = instr.rs();
+        self.hi = self.regs[rs];
+    }
+
+    /// Move to lo
+    pub fn mtlo(&mut self, instr: Opcode) {
+        let rs = instr.rs();
+        self.lo = self.regs[rs];
+    }
+
+    // Branching instructions
 }
