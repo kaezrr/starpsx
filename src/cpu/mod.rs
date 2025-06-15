@@ -7,6 +7,9 @@ struct Cpu {
     /// 32-bit general purpose registers, R0 is always zero
     regs: [u32; 32],
 
+    /// Register copies for delay slot emulation
+    regd: [u32; 32],
+
     /// Program counter
     pc: u32,
 
@@ -18,23 +21,25 @@ struct Cpu {
 
     /// Bus interface
     bus: Bus,
+
+    /// Fetched instruction in pipeline
+    next_instr: Opcode,
+
+    /// Load to execute
+    load: (usize, u32),
 }
 
 impl Cpu {
     fn new(bus: Bus) -> Self {
-        let regs = [0xDEADBEEF; 32];
-
-        // Bios entry point
-        let pc = 0xBFC00000;
-        let hi = 0;
-        let lo = 0;
-
         Cpu {
-            regs,
-            pc,
-            hi,
-            lo,
+            regs: [0xDEADBEEF; 32],
+            regd: [0xDEADBEEF; 32],
+            pc: 0xBFC00000,
+            hi: 0,
+            lo: 0,
             bus,
+            next_instr: Opcode::new(0x0),
+            load: (0, 0),
         }
     }
 
@@ -42,149 +47,29 @@ impl Cpu {
     fn run_instruction(&mut self) {
         let pc = self.pc;
 
+        let instr = self.next_instr;
+
         // Fetch opcode and increment program counter
-        let instr = Opcode::new(self.bus.read32(pc));
+        self.next_instr = Opcode::new(self.bus.read32(pc));
         self.pc = pc.wrapping_add(4);
+
+        // Execute any pending loads
+        let (reg, val) = self.load;
+        self.regd[reg] = val;
+        self.regd[0x0] = 0x0;
+        self.load = (0x0, 0x0);
 
         // Decode and run the instruction
         self.decode_instruction(instr);
 
-        // Register 0 is always 0
-        self.regs[0] = 0x0;
+        self.regs = self.regd;
     }
 
     fn decode_instruction(&mut self, op: Opcode) {
         match op.pri() {
             0x00 => match op.sec() {
-                0x00 => (),
-                0x01 => (),
-                0x02 => (),
-                0x03 => (),
-                0x04 => (),
-                0x05 => (),
-                0x06 => (),
-                0x07 => (),
-                0x08 => (),
-                0x09 => (),
-                0x0A => (),
-                0x0B => (),
-                0x0C => (),
-                0x0D => (),
-                0x0E => (),
-                0x0F => (),
-                0x10 => (),
-                0x11 => (),
-                0x12 => (),
-                0x13 => (),
-                0x14 => (),
-                0x15 => (),
-                0x16 => (),
-                0x17 => (),
-                0x18 => (),
-                0x19 => (),
-                0x1A => (),
-                0x1B => (),
-                0x1C => (),
-                0x1D => (),
-                0x1E => (),
-                0x1F => (),
-                0x20 => (),
-                0x21 => (),
-                0x22 => (),
-                0x23 => (),
-                0x24 => (),
-                0x25 => (),
-                0x26 => (),
-                0x27 => (),
-                0x28 => (),
-                0x29 => (),
-                0x2A => (),
-                0x2B => (),
-                0x2C => (),
-                0x2D => (),
-                0x2E => (),
-                0x2F => (),
-                0x30 => (),
-                0x31 => (),
-                0x32 => (),
-                0x33 => (),
-                0x34 => (),
-                0x35 => (),
-                0x36 => (),
-                0x37 => (),
-                0x38 => (),
-                0x39 => (),
-                0x3A => (),
-                0x3B => (),
-                0x3C => (),
-                0x3D => (),
-                0x3E => (),
-                0x3F => (),
                 _ => panic!("Unknown special instruction {:x}", op.sec()),
             },
-            0x01 => (),
-            0x02 => (),
-            0x03 => (),
-            0x04 => (),
-            0x05 => (),
-            0x06 => (),
-            0x07 => (),
-            0x08 => (),
-            0x09 => (),
-            0x0A => (),
-            0x0B => (),
-            0x0C => (),
-            0x0D => (),
-            0x0E => (),
-            0x0F => (),
-            0x10 => (),
-            0x11 => (),
-            0x12 => (),
-            0x13 => (),
-            0x14 => (),
-            0x15 => (),
-            0x16 => (),
-            0x17 => (),
-            0x18 => (),
-            0x19 => (),
-            0x1A => (),
-            0x1B => (),
-            0x1C => (),
-            0x1D => (),
-            0x1E => (),
-            0x1F => (),
-            0x20 => (),
-            0x21 => (),
-            0x22 => (),
-            0x23 => (),
-            0x24 => (),
-            0x25 => (),
-            0x26 => (),
-            0x27 => (),
-            0x28 => (),
-            0x29 => (),
-            0x2A => (),
-            0x2B => (),
-            0x2C => (),
-            0x2D => (),
-            0x2E => (),
-            0x2F => (),
-            0x30 => (),
-            0x31 => (),
-            0x32 => (),
-            0x33 => (),
-            0x34 => (),
-            0x35 => (),
-            0x36 => (),
-            0x37 => (),
-            0x38 => (),
-            0x39 => (),
-            0x3A => (),
-            0x3B => (),
-            0x3C => (),
-            0x3D => (),
-            0x3E => (),
-            0x3F => (),
             _ => panic!("Unknown instruction {:x}", op.pri()),
         }
     }
@@ -200,7 +85,7 @@ impl Cpu {
         let addr = self.regs[rs].wrapping_add(im);
         let data = self.bus.read8(addr) as i8;
 
-        self.regs[rt] = data as u32;
+        self.load = (rt, data as u32);
     }
 
     /// Load byte unsigned
@@ -212,7 +97,7 @@ impl Cpu {
         let addr = self.regs[rs].wrapping_add(im);
         let data = self.bus.read8(addr);
 
-        self.regs[rt] = data as u32;
+        self.load = (rt, data as u32);
     }
 
     /// Load half word
@@ -224,7 +109,7 @@ impl Cpu {
         let addr = self.regs[rs].wrapping_add(im);
         let data = self.bus.read16(addr) as i16;
 
-        self.regs[rt] = data as u32;
+        self.load = (rt, data as u32);
     }
 
     /// Load half word unsigned
@@ -236,7 +121,7 @@ impl Cpu {
         let addr = self.regs[rs].wrapping_add(im);
         let data = self.bus.read16(addr);
 
-        self.regs[rt] = data as u32;
+        self.load = (rt, data as u32);
     }
 
     /// Load word
@@ -248,7 +133,7 @@ impl Cpu {
         let addr = self.regs[rs].wrapping_add(im);
         let data = self.bus.read32(addr);
 
-        self.regs[rt] = data;
+        self.load = (rt, data);
     }
 
     /// Store byte
@@ -307,7 +192,7 @@ impl Cpu {
             _ => unreachable!(),
         };
 
-        self.regs[rt] = data;
+        self.regd[rt] = data;
     }
 
     /// Unaligned right word load
@@ -330,7 +215,7 @@ impl Cpu {
             _ => unreachable!(),
         };
 
-        self.regs[rt] = data;
+        self.regd[rt] = data;
     }
 
     /// Unaligned left word store
@@ -390,7 +275,7 @@ impl Cpu {
         let lhs = self.regs[rs];
         let rhs = self.regs[rt];
 
-        self.regs[rd] = lhs + rhs;
+        self.regd[rd] = lhs + rhs;
     }
 
     /// rd = rs + rt
@@ -402,7 +287,7 @@ impl Cpu {
         let lhs = self.regs[rs];
         let rhs = self.regs[rt];
 
-        self.regs[rd] = lhs + rhs;
+        self.regd[rd] = lhs + rhs;
     }
 
     /// rd = rs - rt (overflow trap)
@@ -414,7 +299,7 @@ impl Cpu {
         let lhs = self.regs[rs];
         let rhs = self.regs[rt];
 
-        self.regs[rd] = lhs - rhs;
+        self.regd[rd] = lhs - rhs;
     }
 
     /// rd = rs - rt
@@ -426,7 +311,7 @@ impl Cpu {
         let lhs = self.regs[rs];
         let rhs = self.regs[rt];
 
-        self.regs[rd] = lhs - rhs;
+        self.regd[rd] = lhs - rhs;
     }
 
     /// rd = rs + imm (overflow trap)
@@ -438,7 +323,7 @@ impl Cpu {
         let lhs = self.regs[rs];
         let rhs = im;
 
-        self.regs[rt] = lhs + rhs;
+        self.regd[rt] = lhs + rhs;
     }
 
     /// rd = rs + imm
@@ -450,7 +335,7 @@ impl Cpu {
         let lhs = self.regs[rs];
         let rhs = im;
 
-        self.regs[rt] = lhs + rhs;
+        self.regd[rt] = lhs + rhs;
     }
 
     /// rd = rs < rt
@@ -462,7 +347,7 @@ impl Cpu {
         let lhs = self.regs[rs] as i32;
         let rhs = self.regs[rt] as i32;
 
-        self.regs[rd] = (lhs < rhs) as u32;
+        self.regd[rd] = (lhs < rhs) as u32;
     }
 
     /// rd = rs < rt (unsigned)
@@ -474,7 +359,7 @@ impl Cpu {
         let lhs = self.regs[rs];
         let rhs = self.regs[rt];
 
-        self.regs[rd] = (lhs < rhs) as u32;
+        self.regd[rd] = (lhs < rhs) as u32;
     }
 
     /// rd = rs < imm
@@ -486,7 +371,7 @@ impl Cpu {
         let lhs = self.regs[rs] as i32;
         let rhs = im as i32;
 
-        self.regs[rt] = (lhs < rhs) as u32;
+        self.regd[rt] = (lhs < rhs) as u32;
     }
 
     /// rd = rs < imm (unsigned)
@@ -498,7 +383,7 @@ impl Cpu {
         let lhs = self.regs[rs];
         let rhs = im;
 
-        self.regs[rt] = (lhs < rhs) as u32;
+        self.regd[rt] = (lhs < rhs) as u32;
     }
 
     /// rd = rs AND rt
@@ -510,7 +395,7 @@ impl Cpu {
         let lhs = self.regs[rs];
         let rhs = self.regs[rt];
 
-        self.regs[rd] = lhs & rhs;
+        self.regd[rd] = lhs & rhs;
     }
 
     /// rd = rs OR rt
@@ -522,7 +407,7 @@ impl Cpu {
         let lhs = self.regs[rs];
         let rhs = self.regs[rt];
 
-        self.regs[rd] = lhs | rhs;
+        self.regd[rd] = lhs | rhs;
     }
 
     /// rd = rs XOR rt
@@ -534,7 +419,7 @@ impl Cpu {
         let lhs = self.regs[rs];
         let rhs = self.regs[rt];
 
-        self.regs[rd] = lhs ^ rhs;
+        self.regd[rd] = lhs ^ rhs;
     }
 
     /// rd = 0xFFFFFFFF XOR (rs OR rt)
@@ -546,7 +431,7 @@ impl Cpu {
         let lhs = self.regs[rs];
         let rhs = self.regs[rt];
 
-        self.regs[rd] = 0xFFFFFFFF ^ (lhs | rhs);
+        self.regd[rd] = 0xFFFFFFFF ^ (lhs | rhs);
     }
 
     /// rt = rs AND imm
@@ -558,7 +443,7 @@ impl Cpu {
         let lhs = self.regs[rs];
         let rhs = im;
 
-        self.regs[rt] = lhs & rhs;
+        self.regd[rt] = lhs & rhs;
     }
 
     /// rt = rs OR imm
@@ -570,7 +455,7 @@ impl Cpu {
         let lhs = self.regs[rs];
         let rhs = im;
 
-        self.regs[rt] = lhs | rhs;
+        self.regd[rt] = lhs | rhs;
     }
 
     /// rt = rs XOR imm
@@ -582,7 +467,7 @@ impl Cpu {
         let lhs = self.regs[rs];
         let rhs = im;
 
-        self.regs[rt] = lhs ^ rhs;
+        self.regd[rt] = lhs ^ rhs;
     }
 
     /// rd = rt SHL (rs AND 1Fh)
@@ -594,7 +479,7 @@ impl Cpu {
         let lhs = self.regs[rt];
         let rhs = self.regs[rs];
 
-        self.regs[rd] = lhs.wrapping_shl(rhs);
+        self.regd[rd] = lhs.wrapping_shl(rhs);
     }
 
     /// rd = rt SHR (rs AND 1Fh)
@@ -606,7 +491,7 @@ impl Cpu {
         let lhs = self.regs[rt];
         let rhs = self.regs[rs];
 
-        self.regs[rd] = lhs.wrapping_shr(rhs);
+        self.regd[rd] = lhs.wrapping_shr(rhs);
     }
 
     /// rd = rt SAR (rs AND 1Fh)
@@ -618,7 +503,7 @@ impl Cpu {
         let lhs = self.regs[rt] as i32;
         let rhs = self.regs[rs];
 
-        self.regs[rd] = lhs.wrapping_shr(rhs) as u32;
+        self.regd[rd] = lhs.wrapping_shr(rhs) as u32;
     }
 
     /// rd = rt SHL imm
@@ -630,7 +515,7 @@ impl Cpu {
         let lhs = self.regs[rt];
         let rhs = im;
 
-        self.regs[rd] = lhs.wrapping_shl(rhs);
+        self.regd[rd] = lhs.wrapping_shl(rhs);
     }
 
     /// rd = rt SHR imm
@@ -642,7 +527,7 @@ impl Cpu {
         let lhs = self.regs[rt];
         let rhs = im;
 
-        self.regs[rd] = lhs.wrapping_shr(rhs);
+        self.regd[rd] = lhs.wrapping_shr(rhs);
     }
 
     /// rd = rt SAR imm
@@ -654,7 +539,7 @@ impl Cpu {
         let lhs = self.regs[rt] as i32;
         let rhs = im;
 
-        self.regs[rd] = lhs.wrapping_shr(rhs) as u32;
+        self.regd[rd] = lhs.wrapping_shr(rhs) as u32;
     }
 
     /// rt = imm << 16
@@ -662,7 +547,7 @@ impl Cpu {
         let rt = instr.rt();
         let im = instr.imm16();
 
-        self.regs[rt] = im << 16;
+        self.regd[rt] = im << 16;
     }
 
     /// hi:lo = rs * rt (signed)
@@ -726,13 +611,13 @@ impl Cpu {
     /// Move from hi
     pub fn mfhi(&mut self, instr: Opcode) {
         let rd = instr.rd();
-        self.regs[rd] = self.hi;
+        self.regd[rd] = self.hi;
     }
 
     /// Move from lo
     pub fn mflo(&mut self, instr: Opcode) {
         let rd = instr.rd();
-        self.regs[rd] = self.lo;
+        self.regd[rd] = self.lo;
     }
 
     /// Move to hi
@@ -748,4 +633,127 @@ impl Cpu {
     }
 
     // Branching instructions
+
+    pub fn j(&mut self, instr: Opcode) {
+        let im = instr.imm26();
+        let addr = (self.pc & 0xF0000000) + (im << 2);
+
+        self.pc = addr;
+    }
+
+    pub fn jal(&mut self, instr: Opcode) {
+        let im = instr.imm26();
+        let addr = (self.pc & 0xF0000000) + (im << 2);
+
+        self.regd[31] = self.pc;
+        self.pc = addr;
+    }
+
+    pub fn jr(&mut self, instr: Opcode) {
+        let rs = instr.rs();
+        let addr = self.regs[rs];
+
+        self.pc = addr;
+    }
+
+    pub fn jalr(&mut self, instr: Opcode) {
+        let rs = instr.rs();
+        let rd = instr.rd();
+        let addr = self.regs[rs];
+
+        self.regd[rd] = self.pc;
+        self.pc = addr;
+    }
+
+    pub fn beq(&mut self, instr: Opcode) {
+        let rs = instr.rs();
+        let rt = instr.rt();
+        let im = instr.imm16_se();
+        let addr = self.pc + (im << 2);
+
+        if self.regs[rs] == self.regs[rt] {
+            self.pc = addr;
+        }
+    }
+
+    pub fn bne(&mut self, instr: Opcode) {
+        let rs = instr.rs();
+        let rt = instr.rt();
+        let im = instr.imm16_se();
+        let addr = self.pc + (im << 2);
+
+        if self.regs[rs] != self.regs[rt] {
+            self.pc = addr;
+        }
+    }
+
+    pub fn bltz(&mut self, instr: Opcode) {
+        let rs = instr.rs();
+        let im = instr.imm16_se();
+        let addr = self.pc + (im << 2);
+
+        if (self.regs[rs] as i32) < 0 {
+            self.pc = addr;
+        }
+    }
+
+    pub fn bgez(&mut self, instr: Opcode) {
+        let rs = instr.rs();
+        let im = instr.imm16_se();
+        let addr = self.pc + (im << 2);
+
+        if (self.regs[rs] as i32) >= 0 {
+            self.pc = addr;
+        }
+    }
+
+    pub fn bgtz(&mut self, instr: Opcode) {
+        let rs = instr.rs();
+        let im = instr.imm16_se();
+        let addr = self.pc + (im << 2);
+
+        if (self.regs[rs] as i32) > 0 {
+            self.pc = addr;
+        }
+    }
+
+    pub fn blez(&mut self, instr: Opcode) {
+        let rs = instr.rs();
+        let im = instr.imm16_se();
+        let addr = self.pc + (im << 2);
+
+        if (self.regs[rs] as i32) <= 0 {
+            self.pc = addr;
+        }
+    }
+
+    pub fn bltzal(&mut self, instr: Opcode) {
+        let rs = instr.rs();
+        let im = instr.imm16_se();
+        let addr = self.pc + (im << 2);
+
+        if (self.regs[rs] as i32) < 0 {
+            self.regd[31] = self.pc;
+            self.pc = addr;
+        }
+    }
+
+    pub fn bgezal(&mut self, instr: Opcode) {
+        let rs = instr.rs();
+        let im = instr.imm16_se();
+        let addr = self.pc + (im << 2);
+
+        if (self.regs[rs] as i32) >= 0 {
+            self.regd[31] = self.pc;
+            self.pc = addr;
+        }
+    }
+
+    pub fn syscall(&mut self, instr: Opcode) {
+        print!("SYSCALL");
+    }
+
+    pub fn breakk(&mut self, instr: Opcode) {
+        print!("BREAK");
+    }
 }
