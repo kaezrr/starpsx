@@ -1,9 +1,11 @@
+mod cop0;
 mod opcode;
 
 use crate::memory::Bus;
+use cop0::Cop0;
 use opcode::Opcode;
 
-struct Cpu {
+pub struct Cpu {
     /// 32-bit general purpose registers, R0 is always zero
     regs: [u32; 32],
 
@@ -27,10 +29,13 @@ struct Cpu {
 
     /// Load to execute
     load: (usize, u32),
+
+    /// Coprocessor 0
+    cop0: Cop0,
 }
 
 impl Cpu {
-    fn new(bus: Bus) -> Self {
+    pub fn new(bus: Bus) -> Self {
         Cpu {
             regs: [0xDEADBEEF; 32],
             regd: [0xDEADBEEF; 32],
@@ -38,19 +43,20 @@ impl Cpu {
             hi: 0,
             lo: 0,
             bus,
-            next_instr: Opcode::new(0x0),
+            next_instr: Opcode(0x0),
             load: (0, 0),
+            cop0: Cop0 {},
         }
     }
 
     /// Run a single instruction and return the number of cycles
-    fn run_instruction(&mut self) {
+    pub fn run_instruction(&mut self) {
         let pc = self.pc;
 
         let instr = self.next_instr;
 
         // Fetch opcode and increment program counter
-        self.next_instr = Opcode::new(self.bus.read32(pc));
+        self.next_instr = Opcode(self.bus.read32(pc));
         self.pc = pc.wrapping_add(4);
 
         // Execute any pending loads
@@ -65,12 +71,15 @@ impl Cpu {
         self.regs = self.regd;
     }
 
-    fn decode_instruction(&mut self, op: Opcode) {
-        match op.pri() {
-            0x00 => match op.sec() {
-                _ => panic!("Unknown special instruction {:x}", op.sec()),
+    fn decode_instruction(&mut self, instr: Opcode) {
+        match instr.pri() {
+            0x00 => match instr.sec() {
+                0x00 => self.sll(instr),
+                _ => panic!("Unknown special instruction 0x{:08X}", instr.0),
             },
-            _ => panic!("Unknown instruction {:x}", op.pri()),
+            0x0D => self.ori(instr),
+            0x0F => self.lui(instr),
+            _ => panic!("Unknown instruction 0x{:08X}", instr.0),
         }
     }
 
