@@ -10,3 +10,6 @@ impl Range {
 }
 
 pub const BIOS: Range = Range(0xBFC00000, 512 * 1024);
+pub const MEMCTL: Range = Range(0x1F801000, 36);
+pub const RAMSIZE: Range = Range(0x1F801060, 4);
+pub const CACHECTL: Range = Range(0xFFFE0130, 4);
