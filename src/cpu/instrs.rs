@@ -53,6 +53,11 @@ impl Cpu {
 
     /// Load word
     pub fn lw(&mut self, instr: Opcode) {
+        if self.cop0.sr & 0x10000 != 0 {
+            println!("ignoring load while cache is isolated");
+            return;
+        }
+
         let rt = instr.rt();
         let rs = instr.rs();
         let im = instr.imm16_se();
@@ -77,6 +82,10 @@ impl Cpu {
 
     /// Store half word
     pub fn sh(&mut self, instr: Opcode) {
+        if self.cop0.sr & 0x10000 != 0 {
+            println!("ignoring store while cache is isolated");
+            return;
+        }
         let rt = instr.rt();
         let rs = instr.rs();
         let im = instr.imm16_se();
@@ -89,14 +98,14 @@ impl Cpu {
 
     /// Store word
     pub fn sw(&mut self, instr: Opcode) {
-        let rt = instr.rt();
-        let rs = instr.rs();
-        let im = instr.imm16_se();
-
         if self.cop0.sr & 0x10000 != 0 {
             println!("ignoring store while cache is isolated");
             return;
         }
+
+        let rt = instr.rt();
+        let rs = instr.rs();
+        let im = instr.imm16_se();
 
         let addr = self.regs[rs].wrapping_add(im);
         let data = self.regs[rt];
@@ -255,7 +264,10 @@ impl Cpu {
         let lhs = self.regs[rs];
         let rhs = im;
 
-        self.regd[rt] = lhs + rhs;
+        self.regd[rt] = match lhs.checked_add(rhs) {
+            Some(v) => v,
+            None => panic!("ADDI overflow"),
+        };
     }
 
     /// rd = rs + imm
@@ -267,7 +279,7 @@ impl Cpu {
         let lhs = self.regs[rs];
         let rhs = im;
 
-        self.regd[rt] = lhs + rhs;
+        self.regd[rt] = lhs.wrapping_add(rhs);
     }
 
     /// rd = rs < rt
@@ -370,7 +382,7 @@ impl Cpu {
     pub fn andi(&mut self, instr: Opcode) {
         let rt = instr.rt();
         let rs = instr.rs();
-        let im = instr.imm16_se();
+        let im = instr.imm16();
 
         let lhs = self.regs[rs];
         let rhs = im;
@@ -382,7 +394,7 @@ impl Cpu {
     pub fn ori(&mut self, instr: Opcode) {
         let rt = instr.rt();
         let rs = instr.rs();
-        let im = instr.imm16_se();
+        let im = instr.imm16();
 
         let lhs = self.regs[rs];
         let rhs = im;
@@ -394,7 +406,7 @@ impl Cpu {
     pub fn xori(&mut self, instr: Opcode) {
         let rt = instr.rt();
         let rs = instr.rs();
-        let im = instr.imm16_se();
+        let im = instr.imm16();
 
         let lhs = self.regs[rs];
         let rhs = im;
@@ -601,7 +613,7 @@ impl Cpu {
         let rs = instr.rs();
         let rt = instr.rt();
         let im = instr.imm16_se();
-        let addr = self.pc + (im << 2);
+        let addr = self.pc.wrapping_sub(4).wrapping_add(im << 2);
 
         if self.regs[rs] == self.regs[rt] {
             self.pc = addr;
@@ -612,7 +624,7 @@ impl Cpu {
         let rs = instr.rs();
         let rt = instr.rt();
         let im = instr.imm16_se();
-        let addr = self.pc + (im << 2);
+        let addr = self.pc.wrapping_sub(4).wrapping_add(im << 2);
 
         if self.regs[rs] != self.regs[rt] {
             self.pc = addr;
@@ -622,7 +634,7 @@ impl Cpu {
     pub fn bltz(&mut self, instr: Opcode) {
         let rs = instr.rs();
         let im = instr.imm16_se();
-        let addr = self.pc + (im << 2);
+        let addr = self.pc.wrapping_sub(4).wrapping_add(im << 2);
 
         if (self.regs[rs] as i32) < 0 {
             self.pc = addr;
@@ -632,7 +644,7 @@ impl Cpu {
     pub fn bgez(&mut self, instr: Opcode) {
         let rs = instr.rs();
         let im = instr.imm16_se();
-        let addr = self.pc + (im << 2);
+        let addr = self.pc.wrapping_sub(4).wrapping_add(im << 2);
 
         if (self.regs[rs] as i32) >= 0 {
             self.pc = addr;
@@ -642,7 +654,7 @@ impl Cpu {
     pub fn bgtz(&mut self, instr: Opcode) {
         let rs = instr.rs();
         let im = instr.imm16_se();
-        let addr = self.pc + (im << 2);
+        let addr = self.pc.wrapping_sub(4).wrapping_add(im << 2);
 
         if (self.regs[rs] as i32) > 0 {
             self.pc = addr;
@@ -652,7 +664,7 @@ impl Cpu {
     pub fn blez(&mut self, instr: Opcode) {
         let rs = instr.rs();
         let im = instr.imm16_se();
-        let addr = self.pc + (im << 2);
+        let addr = self.pc.wrapping_sub(4).wrapping_add(im << 2);
 
         if (self.regs[rs] as i32) <= 0 {
             self.pc = addr;
@@ -662,7 +674,7 @@ impl Cpu {
     pub fn bltzal(&mut self, instr: Opcode) {
         let rs = instr.rs();
         let im = instr.imm16_se();
-        let addr = self.pc + (im << 2);
+        let addr = self.pc.wrapping_sub(4).wrapping_add(im << 2);
 
         if (self.regs[rs] as i32) < 0 {
             self.regd[31] = self.pc;
@@ -673,7 +685,7 @@ impl Cpu {
     pub fn bgezal(&mut self, instr: Opcode) {
         let rs = instr.rs();
         let im = instr.imm16_se();
-        let addr = self.pc + (im << 2);
+        let addr = self.pc.wrapping_sub(4).wrapping_add(im << 2);
 
         if (self.regs[rs] as i32) >= 0 {
             self.regd[31] = self.pc;
@@ -689,6 +701,11 @@ impl Cpu {
         let data = self.regs[cpu_r];
 
         match cop_r {
+            3 | 5 | 6 | 7 | 9 | 11 | 13 => {
+                if data != 0 {
+                    panic!("Unhandled write to cop0r{}", cop_r);
+                }
+            }
             12 => self.cop0.sr = data,
             _ => panic!("Unhandled cop0 register {cop_r}"),
         }

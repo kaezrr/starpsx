@@ -69,11 +69,12 @@ impl Cpu {
         self.regd[0x0] = 0x0;
         self.load = (0x0, 0x0);
 
+        println!("{:08X?} {:08X?}", instr.0, self.pc);
+        println!("ra - {:08X?} sp - {:08X?}", self.regs[31], self.regs[29]);
         // Decode and run the instruction
         self.decode_instruction(instr);
 
         self.regs = self.regd;
-        // println!("{:#X?}", &self.regs);
     }
 
     fn decode_instruction(&mut self, instr: Opcode) {
@@ -81,14 +82,20 @@ impl Cpu {
             0x00 => match instr.sec() {
                 0x00 => self.sll(instr),
                 0x25 => self.or(instr),
+                0x2B => self.sltu(instr),
+                0x21 => self.addu(instr),
                 _ => panic!("Unknown special instruction {:#08X}", instr.0),
             },
             0x10 => self.cop0(instr),
             0x02 => self.j(instr),
+            0x05 => self.bne(instr),
+            0x08 => self.addi(instr),
             0x09 => self.addiu(instr),
             0x2B => self.sw(instr),
             0x0D => self.ori(instr),
             0x0F => self.lui(instr),
+            0x23 => self.lw(instr),
+            0x29 => self.sh(instr),
             _ => panic!("Unknown instruction {:#08X}", instr.0),
         }
     }

@@ -7,6 +7,10 @@ pub struct Bios {
 impl Bios {
     pub fn build(bios_path: &String) -> Result<Self, Box<dyn Error>> {
         let bytes = fs::read(bios_path)?;
+        if bytes.len() != 512 * 1024 {
+            return Err("invalid bios".into());
+        }
+
         Ok(Bios { bytes })
     }
 
