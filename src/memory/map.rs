@@ -15,6 +15,9 @@ pub const MEMCTL: Range = Range(0x1F801000, 36);
 pub const RAMSIZE: Range = Range(0x1F801060, 4);
 pub const SPU: Range = Range(0x1F801C00, 640);
 pub const CACHECTL: Range = Range(0xFFFE0130, 4);
+pub const EXPANSION2: Range = Range(0x1F802000, 66);
+pub const EXPANSION1: Range = Range(0x1F000000, 0x100);
+pub const IRQCTL: Range = Range(0x1F801070, 8);
 
 const REGION_MASK: [u32; 8] = [
     0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, // KUSEG

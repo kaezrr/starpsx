@@ -14,6 +14,7 @@ impl Cop0 {
 impl Cpu {
     pub fn cop0(&mut self, instr: Opcode) {
         match instr.rs() {
+            0x00 => self.mfc0(instr),
             0x04 => self.mtc0(instr),
             _ => panic!("Unknown cop0 instruction {:#08X}", instr.0),
         }

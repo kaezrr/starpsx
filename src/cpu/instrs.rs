@@ -70,6 +70,10 @@ impl Cpu {
 
     /// Store byte
     pub fn sb(&mut self, instr: Opcode) {
+        if self.cop0.sr & 0x10000 != 0 {
+            println!("ignoring store while cache is isolated");
+            return;
+        }
         let rt = instr.rt();
         let rs = instr.rs();
         let im = instr.imm16_se();
@@ -216,7 +220,10 @@ impl Cpu {
         let lhs = self.regs[rs];
         let rhs = self.regs[rt];
 
-        self.regd[rd] = lhs + rhs;
+        self.regd[rd] = match lhs.checked_add(rhs) {
+            Some(v) => v,
+            None => panic!("ADD overflow"),
+        };
     }
 
     /// rd = rs + rt
@@ -252,7 +259,7 @@ impl Cpu {
         let lhs = self.regs[rs];
         let rhs = self.regs[rt];
 
-        self.regd[rd] = lhs - rhs;
+        self.regd[rd] = lhs.wrapping_sub(rhs);
     }
 
     /// rd = rs + imm (overflow trap)
@@ -262,9 +269,9 @@ impl Cpu {
         let im = instr.imm16_se();
 
         let lhs = self.regs[rs];
-        let rhs = im;
+        let rhs = im as i32;
 
-        self.regd[rt] = match lhs.checked_add(rhs) {
+        self.regd[rt] = match lhs.checked_add_signed(rhs) {
             Some(v) => v,
             None => panic!("ADDI overflow"),
         };
@@ -277,9 +284,9 @@ impl Cpu {
         let im = instr.imm16_se();
 
         let lhs = self.regs[rs];
-        let rhs = im;
+        let rhs = im as i32;
 
-        self.regd[rt] = lhs.wrapping_add(rhs);
+        self.regd[rt] = lhs.wrapping_add_signed(rhs);
     }
 
     /// rd = rs < rt
@@ -483,7 +490,7 @@ impl Cpu {
         let lhs = self.regs[rt] as i32;
         let rhs = im;
 
-        self.regd[rd] = lhs.wrapping_shr(rhs) as u32;
+        self.regd[rd] = lhs.unbounded_shr(rhs) as u32;
     }
 
     /// rt = imm << 16
@@ -631,22 +638,21 @@ impl Cpu {
         }
     }
 
-    pub fn bltz(&mut self, instr: Opcode) {
+    // Contains BLTZ, BGEZ, BLTZAL, BGEZAL
+    pub fn bxxx(&mut self, instr: Opcode) {
         let rs = instr.rs();
         let im = instr.imm16_se();
         let addr = self.pc.wrapping_sub(4).wrapping_add(im << 2);
 
-        if (self.regs[rs] as i32) < 0 {
-            self.pc = addr;
-        }
-    }
+        let ge = (instr.0 >> 16) & 1 == 1;
+        let al = (instr.0 >> 20) & 1 == 1;
 
-    pub fn bgez(&mut self, instr: Opcode) {
-        let rs = instr.rs();
-        let im = instr.imm16_se();
-        let addr = self.pc.wrapping_sub(4).wrapping_add(im << 2);
+        let cond = ((self.regs[rs] as i32) < 0) ^ ge;
 
-        if (self.regs[rs] as i32) >= 0 {
+        if cond {
+            if al {
+                self.regd[31] = self.pc;
+            }
             self.pc = addr;
         }
     }
@@ -671,28 +677,6 @@ impl Cpu {
         }
     }
 
-    pub fn bltzal(&mut self, instr: Opcode) {
-        let rs = instr.rs();
-        let im = instr.imm16_se();
-        let addr = self.pc.wrapping_sub(4).wrapping_add(im << 2);
-
-        if (self.regs[rs] as i32) < 0 {
-            self.regd[31] = self.pc;
-            self.pc = addr;
-        }
-    }
-
-    pub fn bgezal(&mut self, instr: Opcode) {
-        let rs = instr.rs();
-        let im = instr.imm16_se();
-        let addr = self.pc.wrapping_sub(4).wrapping_add(im << 2);
-
-        if (self.regs[rs] as i32) >= 0 {
-            self.regd[31] = self.pc;
-            self.pc = addr;
-        }
-    }
-
     /// Move to cop0 register
     pub fn mtc0(&mut self, instr: Opcode) {
         let cpu_r = instr.rt();
@@ -709,5 +693,18 @@ impl Cpu {
             12 => self.cop0.sr = data,
             _ => panic!("Unhandled cop0 register {cop_r}"),
         }
+    }
+
+    /// Move from cop0 register
+    pub fn mfc0(&mut self, instr: Opcode) {
+        let cpu_r = instr.rt();
+        let cop_r = instr.rd();
+
+        let data = match cop_r {
+            12 => self.cop0.sr,
+            _ => panic!("Unhandled cop0 register {cop_r}"),
+        };
+
+        self.load = (cpu_r, data);
     }
 }

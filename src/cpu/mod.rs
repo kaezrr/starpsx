@@ -69,9 +69,8 @@ impl Cpu {
         self.regd[0x0] = 0x0;
         self.load = (0x0, 0x0);
 
-        println!("{:08X?} {:08X?}", instr.0, self.pc);
-        println!("ra - {:08X?} sp - {:08X?}", self.regs[31], self.regs[29]);
         // Decode and run the instruction
+        println!("{:08X?} {:08X?}", instr.0, self.pc);
         self.decode_instruction(instr);
 
         self.regs = self.regd;
@@ -84,12 +83,28 @@ impl Cpu {
                 0x25 => self.or(instr),
                 0x2B => self.sltu(instr),
                 0x21 => self.addu(instr),
+                0x08 => self.jr(instr),
+                0x24 => self.and(instr),
+                0x20 => self.add(instr),
+                0x09 => self.jalr(instr),
+                0x03 => self.sra(instr),
+                0x23 => self.subu(instr),
                 _ => panic!("Unknown special instruction {:#08X}", instr.0),
             },
+            0x0A => self.slti(instr),
+            0x01 => self.bxxx(instr),
+            0x24 => self.lbu(instr),
+            0x06 => self.blez(instr),
+            0x07 => self.bgtz(instr),
+            0x04 => self.beq(instr),
             0x10 => self.cop0(instr),
+            0x20 => self.lb(instr),
+            0x03 => self.jal(instr),
             0x02 => self.j(instr),
             0x05 => self.bne(instr),
             0x08 => self.addi(instr),
+            0x0C => self.andi(instr),
+            0x28 => self.sb(instr),
             0x09 => self.addiu(instr),
             0x2B => self.sw(instr),
             0x0D => self.ori(instr),

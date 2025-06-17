@@ -21,7 +21,20 @@ impl Bus {
     }
 
     pub fn read8(&self, addr: u32) -> u8 {
-        todo!()
+        let masked = map::mask_region(addr);
+
+        if let Some(offs) = map::BIOS.contains(masked) {
+            return self.bios.read8(offs);
+        }
+
+        if let Some(offs) = map::RAM.contains(masked) {
+            return self.ram.read8(offs);
+        }
+
+        if map::EXPANSION1.contains(masked).is_some() {
+            return 0xFF;
+        }
+        panic!("Unmapped read8 at {:#08X}", masked);
     }
 
     pub fn read16(&self, addr: u32) -> u16 {
@@ -35,16 +48,28 @@ impl Bus {
         let masked = map::mask_region(addr);
 
         if let Some(offs) = map::BIOS.contains(masked) {
-            self.bios.read32(offs)
-        } else if let Some(offs) = map::RAM.contains(masked) {
-            self.ram.read32(offs)
-        } else {
-            panic!("Unmapped read32 at {:#08X}", masked);
+            return self.bios.read32(offs);
         }
+
+        if let Some(offs) = map::RAM.contains(masked) {
+            return self.ram.read32(offs);
+        }
+
+        panic!("Unmapped read32 at {:#08X}", masked);
     }
 
     pub fn write8(&mut self, addr: u32, data: u8) {
-        todo!()
+        let masked = map::mask_region(addr);
+
+        if let Some(offs) = map::EXPANSION2.contains(masked) {
+            return println!("Unhandled write to expansion2 register{:x}", offs);
+        }
+
+        if let Some(offs) = map::RAM.contains(masked) {
+            return self.ram.write8(offs, data);
+        }
+
+        panic!("Unmapped write8 at {:#08X}", addr);
     }
 
     pub fn write16(&mut self, addr: u32, data: u16) {
@@ -54,10 +79,10 @@ impl Bus {
         let masked = map::mask_region(addr);
 
         if let Some(offs) = map::SPU.contains(masked) {
-            println!("Unhandled write to the SPU reg{:x}", offs);
-        } else {
-            panic!("Unmapped write16 at {:#08X}", addr);
+            return println!("Unhandled write to the SPU reg{:x}", offs);
         }
+
+        panic!("Unmapped write16 at {:#08X}", addr);
     }
 
     pub fn write32(&mut self, addr: u32, data: u32) {
@@ -67,8 +92,10 @@ impl Bus {
         let masked = map::mask_region(addr);
 
         if let Some(offs) = map::RAM.contains(masked) {
-            self.ram.write32(offs, data);
-        } else if let Some(offs) = map::MEMCTL.contains(masked) {
+            return self.ram.write32(offs, data);
+        }
+
+        if let Some(offs) = map::MEMCTL.contains(masked) {
             match offs {
                 0 => {
                     if data != 0x1F000000 {
@@ -82,13 +109,21 @@ impl Bus {
                 }
                 _ => println!("Unhandled write to MEMCTRL"),
             }
-        } else if map::RAMSIZE.contains(masked).is_some() {
             return;
-        } else if map::CACHECTL.contains(masked).is_some() {
-            println!("Unhandled write to CACHECTL");
-            return;
-        } else {
-            panic!("Unmapped write32 at {:#08X}", addr);
         }
+
+        if map::RAMSIZE.contains(masked).is_some() {
+            return;
+        }
+
+        if map::CACHECTL.contains(masked).is_some() {
+            return println!("Unhandled write to CACHECTL");
+        }
+
+        if let Some(offs) = map::IRQCTL.contains(masked) {
+            return println!("IRQCTL: {:x} <- {:08x}", offs, data);
+        }
+
+        panic!("Unmapped write32 at {:#08X}", addr);
     }
 }

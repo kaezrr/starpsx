@@ -14,6 +14,10 @@ impl Bios {
         Ok(Bios { bytes })
     }
 
+    pub fn read8(&self, addr: u32) -> u8 {
+        self.bytes[addr as usize]
+    }
+
     pub fn read32(&self, addr: u32) -> u32 {
         u32::from_le_bytes(*self.bytes[(addr as usize)..].first_chunk().unwrap())
     }

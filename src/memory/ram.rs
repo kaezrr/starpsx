@@ -8,8 +8,16 @@ impl Ram {
         Ram { bytes }
     }
 
+    pub fn read8(&self, addr: u32) -> u8 {
+        self.bytes[addr as usize]
+    }
+
     pub fn read32(&self, addr: u32) -> u32 {
         u32::from_le_bytes(*self.bytes[(addr as usize)..].first_chunk().unwrap())
+    }
+
+    pub fn write8(&mut self, addr: u32, val: u8) {
+        self.bytes[addr as usize] = val
     }
 
     pub fn write32(&mut self, addr: u32, val: u32) {
