@@ -463,7 +463,7 @@ impl Cpu {
         let lhs = self.regs[rt];
         let rhs = self.regs[rs];
 
-        self.regd[rd] = lhs.wrapping_shl(rhs);
+        self.regd[rd] = lhs.unbounded_shl(rhs);
         Ok(())
     }
 
@@ -476,7 +476,7 @@ impl Cpu {
         let lhs = self.regs[rt];
         let rhs = self.regs[rs];
 
-        self.regd[rd] = lhs.wrapping_shr(rhs);
+        self.regd[rd] = lhs.unbounded_shr(rhs);
         Ok(())
     }
 
@@ -747,8 +747,12 @@ impl Cpu {
         Ok(())
     }
 
-    pub fn syscall(&mut self, _: Opcode) -> Result<(), Exception> {
+    pub fn syscall(&mut self) -> Result<(), Exception> {
         Err(Exception::Syscall)
+    }
+
+    pub fn breakk(&mut self) -> Result<(), Exception> {
+        Err(Exception::Break)
     }
 
     /// Move to cop0 register
@@ -795,5 +799,45 @@ impl Cpu {
         let mode = self.cop0.sr & 0x3F;
         self.cop0.sr = self.cop0.sr & !0x3F | mode >> 2;
         Ok(())
+    }
+
+    pub fn lwc2(&mut self, instr: Opcode) -> Result<(), Exception> {
+        panic!("Unhandled GTE load word {:x}", instr.0);
+    }
+
+    pub fn swc2(&mut self, instr: Opcode) -> Result<(), Exception> {
+        panic!("Unhandled GTE store word {:x}", instr.0);
+    }
+
+    pub fn cop1(&mut self, instr: Opcode) -> Result<(), Exception> {
+        Err(Exception::CoprocessorError)
+    }
+
+    pub fn cop3(&mut self, instr: Opcode) -> Result<(), Exception> {
+        Err(Exception::CoprocessorError)
+    }
+
+    pub fn lwc0(&mut self, instr: Opcode) -> Result<(), Exception> {
+        Err(Exception::CoprocessorError)
+    }
+
+    pub fn lwc1(&mut self, instr: Opcode) -> Result<(), Exception> {
+        Err(Exception::CoprocessorError)
+    }
+
+    pub fn lwc3(&mut self, instr: Opcode) -> Result<(), Exception> {
+        Err(Exception::CoprocessorError)
+    }
+
+    pub fn swc0(&mut self, instr: Opcode) -> Result<(), Exception> {
+        Err(Exception::CoprocessorError)
+    }
+
+    pub fn swc1(&mut self, instr: Opcode) -> Result<(), Exception> {
+        Err(Exception::CoprocessorError)
+    }
+
+    pub fn swc3(&mut self, instr: Opcode) -> Result<(), Exception> {
+        Err(Exception::CoprocessorError)
     }
 }

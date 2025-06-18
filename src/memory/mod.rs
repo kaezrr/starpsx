@@ -52,6 +52,12 @@ impl Bus {
             println!("Unhandled read to the SPU reg{:x}", offs);
             return Ok(0);
         }
+
+        if let Some(offs) = map::IRQCTL.contains(masked) {
+            println!("IRQCTL: {:x} ", offs);
+            return Ok(0);
+        }
+
         panic!("Unmapped read16 at {:#08X}", masked);
     }
 
@@ -77,6 +83,15 @@ impl Bus {
         if let Some(offs) = map::DMA.contains(masked) {
             println!("DMA read: {:x}", offs);
             return Ok(0);
+        }
+
+        if let Some(offs) = map::GPU.contains(masked) {
+            println!("GPU read: {:x}", offs);
+            return match offs {
+                // GPU STAT ready for DMA
+                4 => Ok(0x10000000),
+                _ => Ok(0),
+            };
         }
 
         panic!("Unmapped read32 at {:#08X}", masked);
@@ -114,6 +129,11 @@ impl Bus {
 
         if let Some(offs) = map::TIMERS.contains(masked) {
             println!("TIMER: {:x} <- {:08x}", offs, data);
+            return Ok(());
+        }
+
+        if let Some(offs) = map::IRQCTL.contains(masked) {
+            println!("IRQCTL: {:x} <- {:08x}", offs, data);
             return Ok(());
         }
 
@@ -164,6 +184,16 @@ impl Bus {
 
         if let Some(offs) = map::DMA.contains(masked) {
             println!("DMA write: {:x}", offs);
+            return Ok(());
+        }
+
+        if let Some(offs) = map::GPU.contains(masked) {
+            println!("GPU {:x} write: {:x}", offs, data);
+            return Ok(());
+        }
+
+        if let Some(offs) = map::TIMERS.contains(masked) {
+            println!("TIMER: {:x} <- {:08x}", offs, data);
             return Ok(());
         }
 

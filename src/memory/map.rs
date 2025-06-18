@@ -20,6 +20,7 @@ pub const EXPANSION1: Range = Range(0x1F000000, 0x100);
 pub const IRQCTL: Range = Range(0x1F801070, 8);
 pub const TIMERS: Range = Range(0x1F801100, 48);
 pub const DMA: Range = Range(0x1F801080, 0x80);
+pub const GPU: Range = Range(0x1F801810, 8);
 
 const REGION_MASK: [u32; 8] = [
     0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, // KUSEG

@@ -48,8 +48,11 @@ impl Opcode {
 }
 
 pub enum Exception {
-    Syscall = 0x8,
-    Overflow = 0xC,
     LoadAddressError = 0x4,
     StoreAddressError = 0x5,
+    Syscall = 0x8,
+    Break = 0x9,
+    IllegalInstruction = 0xA,
+    CoprocessorError = 0xB,
+    Overflow = 0xC,
 }
