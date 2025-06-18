@@ -1,6 +1,6 @@
 mod cop0;
 mod instrs;
-mod utils;
+pub mod utils;
 
 use crate::memory::Bus;
 use cop0::Cop0;
@@ -56,7 +56,10 @@ impl Cpu {
 
     /// Run a single instruction and return the number of cycles
     pub fn run_instruction(&mut self) {
-        let instr = Opcode(self.bus.read32(self.pc));
+        let instr = Opcode(match self.bus.read32(self.pc) {
+            Ok(v) => v,
+            Err(e) => return self.handle_exception(e, false),
+        });
 
         let (next_pc, in_delay_slot) = match self.delayed_branch.take() {
             Some(addr) => (addr, true),
@@ -92,7 +95,7 @@ impl Cpu {
         let mode = self.cop0.sr & 0x3F;
         self.cop0.sr = (self.cop0.sr & !0x3F) | (mode << 2 & 0x3F);
 
-        self.cop0.cause = (cause as u32) << 2;
+        self.cop0.cause = (cause as u32) << 2 | (branch as u32) << 31;
         self.cop0.epc = self.pc;
 
         self.pc = handler;
@@ -140,6 +143,7 @@ impl Cpu {
             0x20 => self.lb(instr),
             0x23 => self.lw(instr),
             0x24 => self.lbu(instr),
+            0x25 => self.lhu(instr),
             0x28 => self.sb(instr),
             0x29 => self.sh(instr),
             0x2B => self.sw(instr),

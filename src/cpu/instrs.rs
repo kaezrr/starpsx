@@ -36,7 +36,7 @@ impl Cpu {
         let im = instr.imm16_se();
 
         let addr = self.regs[rs].wrapping_add(im);
-        let data = self.bus.read16(addr) as i16;
+        let data = self.bus.read16(addr)? as i16;
 
         self.load = Some((rt, data as u32));
         Ok(())
@@ -49,7 +49,7 @@ impl Cpu {
         let im = instr.imm16_se();
 
         let addr = self.regs[rs].wrapping_add(im);
-        let data = self.bus.read16(addr);
+        let data = self.bus.read16(addr)?;
 
         self.load = Some((rt, data as u32));
         Ok(())
@@ -67,7 +67,7 @@ impl Cpu {
         let im = instr.imm16_se();
 
         let addr = self.regs[rs].wrapping_add(im);
-        let data = self.bus.read32(addr);
+        let data = self.bus.read32(addr)?;
 
         self.load = Some((rt, data));
         Ok(())
@@ -103,7 +103,7 @@ impl Cpu {
         let addr = self.regs[rs].wrapping_add(im);
         let data = self.regs[rt] as u16;
 
-        self.bus.write16(addr, data);
+        self.bus.write16(addr, data)?;
         Ok(())
     }
 
@@ -121,7 +121,7 @@ impl Cpu {
         let addr = self.regs[rs].wrapping_add(im);
         let data = self.regs[rt];
 
-        self.bus.write32(addr, data);
+        self.bus.write32(addr, data)?;
         Ok(())
     }
 
@@ -135,7 +135,7 @@ impl Cpu {
         let val = self.regs[rt];
 
         let aligned_addr = addr & !3;
-        let word = self.bus.read32(aligned_addr);
+        let word = self.bus.read32(aligned_addr)?;
 
         let data = match addr & 3 {
             0 => (val & 0x00FFFFFF) | (word << 24),
@@ -159,7 +159,7 @@ impl Cpu {
         let val = self.regs[rt];
 
         let aligned_addr = addr & !3;
-        let word = self.bus.read32(aligned_addr);
+        let word = self.bus.read32(aligned_addr)?;
 
         let data = match addr & 3 {
             0 => word,
@@ -183,7 +183,7 @@ impl Cpu {
         let val = self.regs[rt];
 
         let aligned_addr = addr & !3;
-        let word = self.bus.read32(aligned_addr);
+        let word = self.bus.read32(aligned_addr)?;
 
         let data = match addr & 3 {
             0 => (word & 0x00FFFFFF) | (val << 24),
@@ -207,7 +207,7 @@ impl Cpu {
         let val = self.regs[rt];
 
         let aligned_addr = addr & !3;
-        let word = self.bus.read32(aligned_addr);
+        let word = self.bus.read32(aligned_addr)?;
 
         let data = match addr & 3 {
             0 => val,
@@ -234,7 +234,7 @@ impl Cpu {
 
         self.regd[rd] = match lhs.checked_add(rhs) {
             Some(v) => v,
-            None => panic!("ADD overflow"),
+            None => return Err(Exception::Overflow),
         };
         Ok(())
     }
@@ -248,7 +248,7 @@ impl Cpu {
         let lhs = self.regs[rs];
         let rhs = self.regs[rt];
 
-        self.regd[rd] = lhs + rhs;
+        self.regd[rd] = lhs.wrapping_add(rhs);
         Ok(())
     }
 
@@ -261,7 +261,11 @@ impl Cpu {
         let lhs = self.regs[rs];
         let rhs = self.regs[rt];
 
-        self.regd[rd] = lhs - rhs;
+        self.regd[rd] = match lhs.checked_sub(rhs) {
+            Some(v) => v,
+            None => return Err(Exception::Overflow),
+        };
+
         Ok(())
     }
 
@@ -289,7 +293,7 @@ impl Cpu {
 
         self.regd[rt] = match lhs.checked_add_signed(rhs) {
             Some(v) => v,
-            None => panic!("ADDI overflow"),
+            None => return Err(Exception::Overflow),
         };
         Ok(())
     }
@@ -634,6 +638,7 @@ impl Cpu {
 
     // Branching instructions
 
+    /// Jump
     pub fn j(&mut self, instr: Opcode) -> Result<(), Exception> {
         let im = instr.imm26();
         let addr = (self.pc & 0xF0000000) + (im << 2);
@@ -642,6 +647,7 @@ impl Cpu {
         Ok(())
     }
 
+    /// Jump and link
     pub fn jal(&mut self, instr: Opcode) -> Result<(), Exception> {
         let im = instr.imm26();
         let addr = (self.pc & 0xF0000000) + (im << 2);
@@ -651,6 +657,7 @@ impl Cpu {
         Ok(())
     }
 
+    /// Jump from register address
     pub fn jr(&mut self, instr: Opcode) -> Result<(), Exception> {
         let rs = instr.rs();
         let addr = self.regs[rs];
@@ -659,6 +666,7 @@ impl Cpu {
         Ok(())
     }
 
+    /// Jump from register address and link
     pub fn jalr(&mut self, instr: Opcode) -> Result<(), Exception> {
         let rs = instr.rs();
         let rd = instr.rd();
@@ -669,6 +677,7 @@ impl Cpu {
         Ok(())
     }
 
+    /// Branch if equal
     pub fn beq(&mut self, instr: Opcode) -> Result<(), Exception> {
         let rs = instr.rs();
         let rt = instr.rt();
@@ -681,6 +690,7 @@ impl Cpu {
         Ok(())
     }
 
+    /// Branch if not equal
     pub fn bne(&mut self, instr: Opcode) -> Result<(), Exception> {
         let rs = instr.rs();
         let rt = instr.rt();
@@ -693,7 +703,7 @@ impl Cpu {
         Ok(())
     }
 
-    // Contains BLTZ, BGEZ, BLTZAL, BGEZAL
+    /// Handles BLTZ, BGEZ, BLTZAL, BGEZAL after decoding the opcode
     pub fn bxxx(&mut self, instr: Opcode) -> Result<(), Exception> {
         let rs = instr.rs();
         let im = instr.imm16_se();
@@ -713,6 +723,7 @@ impl Cpu {
         Ok(())
     }
 
+    /// Branch if greater than zero
     pub fn bgtz(&mut self, instr: Opcode) -> Result<(), Exception> {
         let rs = instr.rs();
         let im = instr.imm16_se();
@@ -724,6 +735,7 @@ impl Cpu {
         Ok(())
     }
 
+    /// Branch if less than or equal to zero
     pub fn blez(&mut self, instr: Opcode) -> Result<(), Exception> {
         let rs = instr.rs();
         let im = instr.imm16_se();
@@ -774,6 +786,7 @@ impl Cpu {
         Ok(())
     }
 
+    /// Return from exception
     pub fn rfe(&mut self, instr: Opcode) -> Result<(), Exception> {
         if instr.sec() != 0x10 {
             panic!("Invalid cop0 instruction: {}", instr.0);
