@@ -46,3 +46,7 @@ impl Opcode {
         (self.0 >> 6) & 0xFFFFF
     }
 }
+
+pub enum Exception {
+    Syscall = 0x8,
+}

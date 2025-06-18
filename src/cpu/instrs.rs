@@ -12,7 +12,7 @@ impl Cpu {
         let addr = self.regs[rs].wrapping_add(im);
         let data = self.bus.read8(addr) as i8;
 
-        self.load = (rt, data as u32);
+        self.load = Some((rt, data as u32));
     }
 
     /// Load byte unsigned
@@ -24,7 +24,7 @@ impl Cpu {
         let addr = self.regs[rs].wrapping_add(im);
         let data = self.bus.read8(addr);
 
-        self.load = (rt, data as u32);
+        self.load = Some((rt, data as u32));
     }
 
     /// Load half word
@@ -36,7 +36,7 @@ impl Cpu {
         let addr = self.regs[rs].wrapping_add(im);
         let data = self.bus.read16(addr) as i16;
 
-        self.load = (rt, data as u32);
+        self.load = Some((rt, data as u32));
     }
 
     /// Load half word unsigned
@@ -48,7 +48,7 @@ impl Cpu {
         let addr = self.regs[rs].wrapping_add(im);
         let data = self.bus.read16(addr);
 
-        self.load = (rt, data as u32);
+        self.load = Some((rt, data as u32));
     }
 
     /// Load word
@@ -65,7 +65,7 @@ impl Cpu {
         let addr = self.regs[rs].wrapping_add(im);
         let data = self.bus.read32(addr);
 
-        self.load = (rt, data);
+        self.load = Some((rt, data));
     }
 
     /// Store byte
@@ -137,7 +137,7 @@ impl Cpu {
             _ => unreachable!(),
         };
 
-        self.regd[rt] = data;
+        self.load = Some((rt, data));
     }
 
     /// Unaligned right word load
@@ -160,7 +160,7 @@ impl Cpu {
             _ => unreachable!(),
         };
 
-        self.regd[rt] = data;
+        self.load = Some((rt, data));
     }
 
     /// Unaligned left word store
@@ -680,5 +680,9 @@ impl Cpu {
         if (self.regs[rs] as i32) <= 0 {
             self.next_pc = addr;
         }
+    }
+
+    pub fn syscall(&mut self, instr: Opcode) {
+        self.handle_exception(Exception::Syscall);
     }
 }

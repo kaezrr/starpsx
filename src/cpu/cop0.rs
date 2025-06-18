@@ -26,6 +26,7 @@ impl Cpu {
         match instr.rs() {
             0x00 => self.mfc0(instr),
             0x04 => self.mtc0(instr),
+            0x10 => self.rfe(instr),
             _ => panic!("Unknown cop0 instruction {:#08X}", instr.0),
         }
     }
@@ -60,6 +61,15 @@ impl Cpu {
             _ => panic!("Unhandled cop0 register {cop_r}"),
         };
 
-        self.load = (cpu_r, data);
+        self.load = Some((cpu_r, data));
+    }
+
+    pub fn rfe(&mut self, instr: Opcode) {
+        if instr.sec() != 0x10 {
+            panic!("Invalid cop0 instruction: {}", instr.0);
+        }
+
+        let mode = self.cop0.sr & 0x3F;
+        self.cop0.sr = self.cop0.sr & !0x3F | mode >> 2;
     }
 }

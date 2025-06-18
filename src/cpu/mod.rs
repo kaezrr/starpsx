@@ -1,10 +1,10 @@
 mod cop0;
 mod instrs;
-mod opcode;
+mod utils;
 
 use crate::memory::Bus;
 use cop0::Cop0;
-use opcode::Opcode;
+use utils::{Exception, Opcode};
 
 pub struct Cpu {
     /// 32-bit general purpose registers, R0 is always zero
@@ -29,7 +29,7 @@ pub struct Cpu {
     bus: Bus,
 
     /// Load to execute
-    load: (usize, u32),
+    load: Option<(usize, u32)>,
 
     /// Coprocessor 0
     cop0: Cop0,
@@ -46,10 +46,10 @@ impl Cpu {
             regd: regs,
             pc,
             next_pc: pc.wrapping_add(4),
-            hi: 0,
-            lo: 0,
+            hi: 0xDEADBEEF,
+            lo: 0xDEADBEEF,
             bus,
-            load: (0, 0),
+            load: None,
             cop0: Cop0::new(),
         }
     }
@@ -63,19 +63,37 @@ impl Cpu {
         self.next_pc = self.next_pc.wrapping_add(4);
 
         // Execute any pending loads
-        let (reg, val) = self.load;
-        self.regd[reg] = val;
-        self.regd[0x0] = 0x0;
-        self.load = (0x0, 0x0);
+        match self.load.take() {
+            Some((0, _)) => (),
+            Some((reg, val)) => self.regd[reg] = val,
+            None => (),
+        }
 
         // Decode and run the instruction
         // println!("{:08X?} {:08X?}", instr.0, self.pc);
-        self.decode_instruction(instr);
+        self.execute_opcode(instr);
 
         self.regs = self.regd;
     }
 
-    fn decode_instruction(&mut self, instr: Opcode) {
+    fn handle_exception(&mut self, cause: Exception) {
+        // Exception handler address based on BEV field of Cop0 SR
+        let handler: u32 = match (self.cop0.sr >> 22) & 1 == 1 {
+            true => 0xBFC00180,
+            false => 0x80000080,
+        };
+
+        let mode = self.cop0.sr & 0x3F;
+        self.cop0.sr = (self.cop0.sr & !0x3F) | (mode << 2 & 0x3F);
+
+        self.cop0.cause = (cause as u32) << 2;
+        self.cop0.epc = self.pc.wrapping_sub(4);
+
+        self.pc = handler;
+        self.next_pc = self.pc.wrapping_add(4);
+    }
+
+    fn execute_opcode(&mut self, instr: Opcode) {
         match instr.pri() {
             0x00 => match instr.sec() {
                 0x00 => self.sll(instr),
@@ -94,6 +112,9 @@ impl Cpu {
                 0x1B => self.divu(instr),
                 0x10 => self.mfhi(instr),
                 0x2A => self.slt(instr),
+                0x0C => self.syscall(instr),
+                0x13 => self.mtlo(instr),
+                0x11 => self.mthi(instr),
                 _ => panic!("Unknown special instruction {:#08X}", instr.0),
             },
             0x0B => self.sltiu(instr),
