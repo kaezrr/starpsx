@@ -55,6 +55,11 @@ impl Bus {
             return self.ram.read32(offs);
         }
 
+        if let Some(offs) = map::IRQCTL.contains(masked) {
+            println!("IRQCTL read: {:x}", offs);
+            return 0;
+        }
+
         panic!("Unmapped read32 at {:#08X}", masked);
     }
 
@@ -80,6 +85,10 @@ impl Bus {
 
         if let Some(offs) = map::SPU.contains(masked) {
             return println!("Unhandled write to the SPU reg{:x}", offs);
+        }
+
+        if let Some(offs) = map::TIMERS.contains(masked) {
+            return println!("TIMER: {:x} <- {:08x}", offs, data);
         }
 
         panic!("Unmapped write16 at {:#08X}", addr);

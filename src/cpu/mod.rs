@@ -16,6 +16,9 @@ pub struct Cpu {
     /// Program counter
     pc: u32,
 
+    /// Next instruction address
+    next_pc: u32,
+
     /// Upper 32 bits of product or division remainder
     hi: u32,
 
@@ -24,9 +27,6 @@ pub struct Cpu {
 
     /// Bus interface
     bus: Bus,
-
-    /// Fetched instruction in pipeline
-    next_instr: Opcode,
 
     /// Load to execute
     load: (usize, u32),
@@ -39,15 +39,16 @@ impl Cpu {
     pub fn new(bus: Bus) -> Self {
         let mut regs = [0xDEADBEEF; 32];
         regs[0] = 0;
+        let pc = 0xBFC00000;
 
         Cpu {
             regs,
             regd: regs,
-            pc: 0xBFC00000,
+            pc,
+            next_pc: pc.wrapping_add(4),
             hi: 0,
             lo: 0,
             bus,
-            next_instr: Opcode(0x0),
             load: (0, 0),
             cop0: Cop0::new(),
         }
@@ -55,13 +56,11 @@ impl Cpu {
 
     /// Run a single instruction and return the number of cycles
     pub fn run_instruction(&mut self) {
-        let pc = self.pc;
-
-        let instr = self.next_instr;
+        let instr = Opcode(self.bus.read32(self.pc));
 
         // Fetch opcode and increment program counter
-        self.next_instr = Opcode(self.bus.read32(pc));
-        self.pc = pc.wrapping_add(4);
+        self.pc = self.next_pc;
+        self.next_pc = self.next_pc.wrapping_add(4);
 
         // Execute any pending loads
         let (reg, val) = self.load;
@@ -70,7 +69,7 @@ impl Cpu {
         self.load = (0x0, 0x0);
 
         // Decode and run the instruction
-        println!("{:08X?} {:08X?}", instr.0, self.pc);
+        // println!("{:08X?} {:08X?}", instr.0, self.pc);
         self.decode_instruction(instr);
 
         self.regs = self.regd;
@@ -89,8 +88,15 @@ impl Cpu {
                 0x09 => self.jalr(instr),
                 0x03 => self.sra(instr),
                 0x23 => self.subu(instr),
+                0x1A => self.div(instr),
+                0x12 => self.mflo(instr),
+                0x02 => self.srl(instr),
+                0x1B => self.divu(instr),
+                0x10 => self.mfhi(instr),
+                0x2A => self.slt(instr),
                 _ => panic!("Unknown special instruction {:#08X}", instr.0),
             },
+            0x0B => self.sltiu(instr),
             0x0A => self.slti(instr),
             0x01 => self.bxxx(instr),
             0x24 => self.lbu(instr),

@@ -18,6 +18,7 @@ pub const CACHECTL: Range = Range(0xFFFE0130, 4);
 pub const EXPANSION2: Range = Range(0x1F802000, 66);
 pub const EXPANSION1: Range = Range(0x1F000000, 0x100);
 pub const IRQCTL: Range = Range(0x1F801070, 8);
+pub const TIMERS: Range = Range(0x1F801100, 48);
 
 const REGION_MASK: [u32; 8] = [
     0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, // KUSEG

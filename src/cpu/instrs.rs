@@ -478,7 +478,7 @@ impl Cpu {
         let lhs = self.regs[rt];
         let rhs = im;
 
-        self.regd[rd] = lhs.wrapping_shr(rhs);
+        self.regd[rd] = lhs.unbounded_shr(rhs);
     }
 
     /// rd = rt SAR imm
@@ -537,11 +537,14 @@ impl Cpu {
         let lhs = self.regs[rs] as i32;
         let rhs = self.regs[rt] as i32;
 
-        let quo = (lhs / rhs) as u32;
-        let rem = (lhs % rhs) as u32;
+        let (quo, rem) = match rhs {
+            -1 if lhs == i32::MIN => (i32::MIN, 0),
+            0 => (if lhs > 0 { -1 } else { 1 }, lhs),
+            _ => (lhs / rhs, lhs % rhs),
+        };
 
-        self.hi = rem;
-        self.lo = quo;
+        self.hi = rem as u32;
+        self.lo = quo as u32;
     }
 
     /// hi:lo = rs / rt (unsigned)
@@ -552,8 +555,10 @@ impl Cpu {
         let lhs = self.regs[rs];
         let rhs = self.regs[rt];
 
-        let quo = lhs / rhs;
-        let rem = lhs % rhs;
+        let (quo, rem) = match rhs {
+            0 => (u32::MAX, lhs),
+            _ => (lhs / rhs, lhs % rhs),
+        };
 
         self.hi = rem;
         self.lo = quo;
@@ -589,22 +594,22 @@ impl Cpu {
         let im = instr.imm26();
         let addr = (self.pc & 0xF0000000) + (im << 2);
 
-        self.pc = addr;
+        self.next_pc = addr;
     }
 
     pub fn jal(&mut self, instr: Opcode) {
         let im = instr.imm26();
         let addr = (self.pc & 0xF0000000) + (im << 2);
 
-        self.regd[31] = self.pc;
-        self.pc = addr;
+        self.regd[31] = self.next_pc;
+        self.next_pc = addr;
     }
 
     pub fn jr(&mut self, instr: Opcode) {
         let rs = instr.rs();
         let addr = self.regs[rs];
 
-        self.pc = addr;
+        self.next_pc = addr;
     }
 
     pub fn jalr(&mut self, instr: Opcode) {
@@ -612,18 +617,18 @@ impl Cpu {
         let rd = instr.rd();
         let addr = self.regs[rs];
 
-        self.regd[rd] = self.pc;
-        self.pc = addr;
+        self.regd[rd] = self.next_pc;
+        self.next_pc = addr;
     }
 
     pub fn beq(&mut self, instr: Opcode) {
         let rs = instr.rs();
         let rt = instr.rt();
         let im = instr.imm16_se();
-        let addr = self.pc.wrapping_sub(4).wrapping_add(im << 2);
+        let addr = self.pc.wrapping_add(im << 2);
 
         if self.regs[rs] == self.regs[rt] {
-            self.pc = addr;
+            self.next_pc = addr;
         }
     }
 
@@ -631,10 +636,10 @@ impl Cpu {
         let rs = instr.rs();
         let rt = instr.rt();
         let im = instr.imm16_se();
-        let addr = self.pc.wrapping_sub(4).wrapping_add(im << 2);
+        let addr = self.pc.wrapping_add(im << 2);
 
         if self.regs[rs] != self.regs[rt] {
-            self.pc = addr;
+            self.next_pc = addr;
         }
     }
 
@@ -642,7 +647,7 @@ impl Cpu {
     pub fn bxxx(&mut self, instr: Opcode) {
         let rs = instr.rs();
         let im = instr.imm16_se();
-        let addr = self.pc.wrapping_sub(4).wrapping_add(im << 2);
+        let addr = self.pc.wrapping_add(im << 2);
 
         let ge = (instr.0 >> 16) & 1 == 1;
         let al = (instr.0 >> 20) & 1 == 1;
@@ -651,60 +656,29 @@ impl Cpu {
 
         if cond {
             if al {
-                self.regd[31] = self.pc;
+                self.regd[31] = self.next_pc;
             }
-            self.pc = addr;
+            self.next_pc = addr;
         }
     }
 
     pub fn bgtz(&mut self, instr: Opcode) {
         let rs = instr.rs();
         let im = instr.imm16_se();
-        let addr = self.pc.wrapping_sub(4).wrapping_add(im << 2);
+        let addr = self.pc.wrapping_add(im << 2);
 
         if (self.regs[rs] as i32) > 0 {
-            self.pc = addr;
+            self.next_pc = addr;
         }
     }
 
     pub fn blez(&mut self, instr: Opcode) {
         let rs = instr.rs();
         let im = instr.imm16_se();
-        let addr = self.pc.wrapping_sub(4).wrapping_add(im << 2);
+        let addr = self.pc.wrapping_add(im << 2);
 
         if (self.regs[rs] as i32) <= 0 {
-            self.pc = addr;
+            self.next_pc = addr;
         }
-    }
-
-    /// Move to cop0 register
-    pub fn mtc0(&mut self, instr: Opcode) {
-        let cpu_r = instr.rt();
-        let cop_r = instr.rd();
-
-        let data = self.regs[cpu_r];
-
-        match cop_r {
-            3 | 5 | 6 | 7 | 9 | 11 | 13 => {
-                if data != 0 {
-                    panic!("Unhandled write to cop0r{}", cop_r);
-                }
-            }
-            12 => self.cop0.sr = data,
-            _ => panic!("Unhandled cop0 register {cop_r}"),
-        }
-    }
-
-    /// Move from cop0 register
-    pub fn mfc0(&mut self, instr: Opcode) {
-        let cpu_r = instr.rt();
-        let cop_r = instr.rd();
-
-        let data = match cop_r {
-            12 => self.cop0.sr,
-            _ => panic!("Unhandled cop0 register {cop_r}"),
-        };
-
-        self.load = (cpu_r, data);
     }
 }
