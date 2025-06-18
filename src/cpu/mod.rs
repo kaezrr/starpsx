@@ -71,14 +71,18 @@ impl Cpu {
         }
 
         // Decode and run the instruction
-        self.execute_opcode(instr);
+        // println!("{:08X} {:08X}", self.pc, instr.0);
+        if let Err(exception) = self.execute_opcode(instr) {
+            self.handle_exception(exception, in_delay_slot);
+            return;
+        };
         self.regs = self.regd;
 
         // Increment program counter
         self.pc = next_pc;
     }
 
-    fn handle_exception(&mut self, cause: Exception) {
+    fn handle_exception(&mut self, cause: Exception, branch: bool) {
         // Exception handler address based on BEV field of Cop0 SR
         let handler: u32 = match (self.cop0.sr >> 22) & 1 == 1 {
             true => 0xBFC00180,
@@ -94,7 +98,7 @@ impl Cpu {
         self.pc = handler;
     }
 
-    fn execute_opcode(&mut self, instr: Opcode) {
+    fn execute_opcode(&mut self, instr: Opcode) -> Result<(), Exception> {
         match instr.pri() {
             0x00 => match instr.sec() {
                 0x00 => self.sll(instr),
@@ -102,11 +106,11 @@ impl Cpu {
                 0x03 => self.sra(instr),
                 0x08 => self.jr(instr),
                 0x09 => self.jalr(instr),
-                // 0x0C => self.syscall(instr),
+                0x0C => self.syscall(instr),
                 0x10 => self.mfhi(instr),
-                // 0x11 => self.mthi(instr),
+                0x11 => self.mthi(instr),
                 0x12 => self.mflo(instr),
-                // 0x13 => self.mtlo(instr),
+                0x13 => self.mtlo(instr),
                 0x1A => self.div(instr),
                 0x1B => self.divu(instr),
                 0x20 => self.add(instr),
