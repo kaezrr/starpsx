@@ -16,8 +16,8 @@ pub struct Cpu {
     /// Program counter
     pc: u32,
 
-    /// Next instruction address
-    next_pc: u32,
+    /// Delayed branch slot
+    delayed_branch: Option<u32>,
 
     /// Upper 32 bits of product or division remainder
     hi: u32,
@@ -45,11 +45,11 @@ impl Cpu {
             regs,
             regd: regs,
             pc,
-            next_pc: pc.wrapping_add(4),
             hi: 0xDEADBEEF,
             lo: 0xDEADBEEF,
             bus,
             load: None,
+            delayed_branch: None,
             cop0: Cop0::new(),
         }
     }
@@ -58,9 +58,10 @@ impl Cpu {
     pub fn run_instruction(&mut self) {
         let instr = Opcode(self.bus.read32(self.pc));
 
-        // Fetch opcode and increment program counter
-        self.pc = self.next_pc;
-        self.next_pc = self.next_pc.wrapping_add(4);
+        let (next_pc, in_delay_slot) = match self.delayed_branch.take() {
+            Some(addr) => (addr, true),
+            None => (self.pc.wrapping_add(4), false),
+        };
 
         // Execute any pending loads
         match self.load.take() {
@@ -70,10 +71,11 @@ impl Cpu {
         }
 
         // Decode and run the instruction
-        // println!("{:08X?} {:08X?}", instr.0, self.pc);
         self.execute_opcode(instr);
-
         self.regs = self.regd;
+
+        // Increment program counter
+        self.pc = next_pc;
     }
 
     fn handle_exception(&mut self, cause: Exception) {
@@ -87,57 +89,56 @@ impl Cpu {
         self.cop0.sr = (self.cop0.sr & !0x3F) | (mode << 2 & 0x3F);
 
         self.cop0.cause = (cause as u32) << 2;
-        self.cop0.epc = self.pc.wrapping_sub(4);
+        self.cop0.epc = self.pc;
 
         self.pc = handler;
-        self.next_pc = self.pc.wrapping_add(4);
     }
 
     fn execute_opcode(&mut self, instr: Opcode) {
         match instr.pri() {
             0x00 => match instr.sec() {
                 0x00 => self.sll(instr),
-                0x25 => self.or(instr),
-                0x2B => self.sltu(instr),
-                0x21 => self.addu(instr),
-                0x08 => self.jr(instr),
-                0x24 => self.and(instr),
-                0x20 => self.add(instr),
-                0x09 => self.jalr(instr),
-                0x03 => self.sra(instr),
-                0x23 => self.subu(instr),
-                0x1A => self.div(instr),
-                0x12 => self.mflo(instr),
                 0x02 => self.srl(instr),
-                0x1B => self.divu(instr),
+                0x03 => self.sra(instr),
+                0x08 => self.jr(instr),
+                0x09 => self.jalr(instr),
+                // 0x0C => self.syscall(instr),
                 0x10 => self.mfhi(instr),
+                // 0x11 => self.mthi(instr),
+                0x12 => self.mflo(instr),
+                // 0x13 => self.mtlo(instr),
+                0x1A => self.div(instr),
+                0x1B => self.divu(instr),
+                0x20 => self.add(instr),
+                0x21 => self.addu(instr),
+                0x23 => self.subu(instr),
+                0x24 => self.and(instr),
+                0x25 => self.or(instr),
                 0x2A => self.slt(instr),
-                0x0C => self.syscall(instr),
-                0x13 => self.mtlo(instr),
-                0x11 => self.mthi(instr),
+                0x2B => self.sltu(instr),
                 _ => panic!("Unknown special instruction {:#08X}", instr.0),
             },
-            0x0B => self.sltiu(instr),
-            0x0A => self.slti(instr),
             0x01 => self.bxxx(instr),
-            0x24 => self.lbu(instr),
+            0x02 => self.j(instr),
+            0x03 => self.jal(instr),
+            0x04 => self.beq(instr),
+            0x05 => self.bne(instr),
             0x06 => self.blez(instr),
             0x07 => self.bgtz(instr),
-            0x04 => self.beq(instr),
-            0x10 => self.cop0(instr),
-            0x20 => self.lb(instr),
-            0x03 => self.jal(instr),
-            0x02 => self.j(instr),
-            0x05 => self.bne(instr),
             0x08 => self.addi(instr),
-            0x0C => self.andi(instr),
-            0x28 => self.sb(instr),
             0x09 => self.addiu(instr),
-            0x2B => self.sw(instr),
+            0x0A => self.slti(instr),
+            0x0B => self.sltiu(instr),
+            0x0C => self.andi(instr),
             0x0D => self.ori(instr),
             0x0F => self.lui(instr),
+            0x10 => self.cop0(instr),
+            0x20 => self.lb(instr),
             0x23 => self.lw(instr),
+            0x24 => self.lbu(instr),
+            0x28 => self.sb(instr),
             0x29 => self.sh(instr),
+            0x2B => self.sw(instr),
             _ => panic!("Unknown instruction {:#08X}", instr.0),
         }
     }

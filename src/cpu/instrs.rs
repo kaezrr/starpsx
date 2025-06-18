@@ -594,22 +594,22 @@ impl Cpu {
         let im = instr.imm26();
         let addr = (self.pc & 0xF0000000) + (im << 2);
 
-        self.next_pc = addr;
+        self.delayed_branch = Some(addr);
     }
 
     pub fn jal(&mut self, instr: Opcode) {
         let im = instr.imm26();
         let addr = (self.pc & 0xF0000000) + (im << 2);
 
-        self.regd[31] = self.next_pc;
-        self.next_pc = addr;
+        self.regd[31] = self.pc.wrapping_add(8);
+        self.delayed_branch = Some(addr);
     }
 
     pub fn jr(&mut self, instr: Opcode) {
         let rs = instr.rs();
         let addr = self.regs[rs];
 
-        self.next_pc = addr;
+        self.delayed_branch = Some(addr);
     }
 
     pub fn jalr(&mut self, instr: Opcode) {
@@ -617,18 +617,18 @@ impl Cpu {
         let rd = instr.rd();
         let addr = self.regs[rs];
 
-        self.regd[rd] = self.next_pc;
-        self.next_pc = addr;
+        self.regd[rd] = self.pc.wrapping_add(8);
+        self.delayed_branch = Some(addr);
     }
 
     pub fn beq(&mut self, instr: Opcode) {
         let rs = instr.rs();
         let rt = instr.rt();
         let im = instr.imm16_se();
-        let addr = self.pc.wrapping_add(im << 2);
+        let addr = self.pc.wrapping_add(4 + (im << 2));
 
         if self.regs[rs] == self.regs[rt] {
-            self.next_pc = addr;
+            self.delayed_branch = Some(addr);
         }
     }
 
@@ -636,10 +636,10 @@ impl Cpu {
         let rs = instr.rs();
         let rt = instr.rt();
         let im = instr.imm16_se();
-        let addr = self.pc.wrapping_add(im << 2);
+        let addr = self.pc.wrapping_add(4 + (im << 2));
 
         if self.regs[rs] != self.regs[rt] {
-            self.next_pc = addr;
+            self.delayed_branch = Some(addr);
         }
     }
 
@@ -647,7 +647,7 @@ impl Cpu {
     pub fn bxxx(&mut self, instr: Opcode) {
         let rs = instr.rs();
         let im = instr.imm16_se();
-        let addr = self.pc.wrapping_add(im << 2);
+        let addr = self.pc.wrapping_add(4 + (im << 2));
 
         let ge = (instr.0 >> 16) & 1 == 1;
         let al = (instr.0 >> 20) & 1 == 1;
@@ -656,29 +656,29 @@ impl Cpu {
 
         if cond {
             if al {
-                self.regd[31] = self.next_pc;
+                self.regd[31] = self.pc.wrapping_add(8);
             }
-            self.next_pc = addr;
+            self.delayed_branch = Some(addr);
         }
     }
 
     pub fn bgtz(&mut self, instr: Opcode) {
         let rs = instr.rs();
         let im = instr.imm16_se();
-        let addr = self.pc.wrapping_add(im << 2);
+        let addr = self.pc.wrapping_add(4 + (im << 2));
 
         if (self.regs[rs] as i32) > 0 {
-            self.next_pc = addr;
+            self.delayed_branch = Some(addr);
         }
     }
 
     pub fn blez(&mut self, instr: Opcode) {
         let rs = instr.rs();
         let im = instr.imm16_se();
-        let addr = self.pc.wrapping_add(im << 2);
+        let addr = self.pc.wrapping_add(4 + (im << 2));
 
         if (self.regs[rs] as i32) <= 0 {
-            self.next_pc = addr;
+            self.delayed_branch = Some(addr);
         }
     }
 

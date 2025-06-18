@@ -26,7 +26,7 @@ impl Cpu {
         match instr.rs() {
             0x00 => self.mfc0(instr),
             0x04 => self.mtc0(instr),
-            0x10 => self.rfe(instr),
+            // 0x10 => self.rfe(instr),
             _ => panic!("Unknown cop0 instruction {:#08X}", instr.0),
         }
     }
