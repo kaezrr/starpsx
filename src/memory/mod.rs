@@ -97,7 +97,7 @@ impl Bus {
             eprintln!("GPU read: {:x}", offs);
             return match offs {
                 // GPU STAT ready for DMA
-                4 => Ok(0x10000000),
+                4 => Ok(0x5E800000),
                 _ => Ok(0),
             };
         }
