@@ -1,10 +1,10 @@
 pub struct Ram {
-    bytes: Vec<u8>,
+    pub bytes: Vec<u8>,
 }
 
 impl Ram {
     pub fn new() -> Self {
-        let bytes = vec![0; 2048 * 1024];
+        let bytes = vec![0; 0x200000];
         Ram { bytes }
     }
 

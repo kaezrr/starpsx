@@ -92,7 +92,7 @@ impl Cpu {
         self.cop0.sr = (self.cop0.sr & !0x3F) | (mode << 2 & 0x3F);
 
         self.cop0.cause = (cause as u32) << 2 | (branch as u32) << 31;
-        self.cop0.epc = self.pc;
+        self.cop0.epc = if branch { self.pc - 4 } else { self.pc };
 
         self.pc = handler;
     }

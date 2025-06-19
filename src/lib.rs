@@ -1,4 +1,4 @@
-use std::error::Error;
+use std::{error::Error, fs};
 
 use cpu::Cpu;
 use memory::Bus;
@@ -6,18 +6,24 @@ use memory::Bus;
 mod cpu;
 mod memory;
 
-struct Config {
+pub struct Config {
     pub bios_path: String,
+    pub exe_path: Option<String>,
 }
 
 impl Config {
-    fn build(args: &[String]) -> Result<Config, Box<dyn Error>> {
+    pub fn build(args: &[String]) -> Result<Config, Box<dyn Error>> {
         if args.len() < 2 {
             return Err("missing bios path".into());
         }
 
         let bios_path = args[1].clone();
-        Ok(Config { bios_path })
+        let exe_path = args.get(2).cloned();
+
+        Ok(Config {
+            bios_path,
+            exe_path,
+        })
     }
 }
 
@@ -27,12 +33,8 @@ pub struct StarPSX {
 }
 
 impl StarPSX {
-    pub fn build() -> Result<Self, Box<dyn Error>> {
-        let args: Vec<String> = vec!["..".into(), "./bios/SCPH1001.BIN".into()];
-
-        let config = Config::build(&args)?;
+    pub fn build(config: &Config) -> Result<Self, Box<dyn Error>> {
         let bus = Bus::build(config)?;
-
         let cpu = Cpu::new();
 
         Ok(StarPSX { cpu, bus })
@@ -43,6 +45,34 @@ impl StarPSX {
             self.cpu.run_instruction(&mut self.bus);
             check_for_tty_output(&self.cpu);
         }
+    }
+
+    pub fn sideload_exe(&mut self, filepath: &String) -> Result<(), Box<dyn Error>> {
+        let exe = fs::read(filepath)?;
+        while self.cpu.pc != 0x80030000 {
+            self.cpu.run_instruction(&mut self.bus);
+        }
+
+        // Parse EXE header
+        let init_pc = u32::from_le_bytes(exe[0x10..0x14].try_into().unwrap());
+        let init_r28 = u32::from_le_bytes(exe[0x14..0x18].try_into().unwrap());
+        let exe_addr = u32::from_le_bytes(exe[0x18..0x1C].try_into().unwrap()) & 0x1FFFFF;
+        let exe_size = u32::from_le_bytes(exe[0x1C..0x20].try_into().unwrap());
+        let init_sp = u32::from_le_bytes(exe[0x30..0x34].try_into().unwrap());
+
+        // Copy EXE data to RAM
+        self.bus.ram.bytes[exe_addr as usize..(exe_addr + exe_size) as usize]
+            .copy_from_slice(&exe[2048..2048 + exe_size as usize]);
+
+        self.cpu.regs[28] = init_r28;
+        if init_sp != 0 {
+            self.cpu.regs[29] = init_sp;
+            self.cpu.regs[30] = init_sp;
+        }
+
+        self.cpu.pc = init_pc;
+
+        Ok(())
     }
 }
 

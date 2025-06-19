@@ -1,24 +1,28 @@
 mod bios;
 mod map;
 mod ram;
+mod scratch;
 
 use crate::Config;
 use crate::cpu::utils::Exception;
 use bios::Bios;
 use ram::Ram;
+use scratch::Scratch;
 use std::error::Error;
 
 pub struct Bus {
     bios: Bios,
-    ram: Ram,
+    pub ram: Ram,
+    scratch: Scratch,
 }
 
 impl Bus {
-    pub fn build(conf: Config) -> Result<Self, Box<dyn Error>> {
+    pub fn build(conf: &Config) -> Result<Self, Box<dyn Error>> {
         let bios = Bios::build(&conf.bios_path)?;
         let ram = Ram::new();
+        let scratch = Scratch::new();
 
-        Ok(Bus { bios, ram })
+        Ok(Bus { bios, ram, scratch })
     }
 
     pub fn read8(&self, addr: u32) -> u8 {
@@ -73,6 +77,10 @@ impl Bus {
 
         if let Some(offs) = map::RAM.contains(masked) {
             return Ok(self.ram.read32(offs));
+        }
+
+        if let Some(offs) = map::SCRATCH.contains(masked) {
+            return Ok(self.scratch.read32(offs));
         }
 
         if let Some(offs) = map::IRQCTL.contains(masked) {

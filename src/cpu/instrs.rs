@@ -763,13 +763,15 @@ impl Cpu {
         let data = self.regs[cpu_r];
 
         match cop_r {
-            3 | 5 | 6 | 7 | 9 | 11 | 13 => {
+            3 | 5 | 6 | 7 | 9 | 11 => {
                 if data != 0 {
                     panic!("Unhandled write to cop0r{}", cop_r);
                 }
             }
             12 => self.cop0.sr = data,
-            _ => panic!("Unhandled cop0 register {cop_r}"),
+            13 => self.cop0.cause = data,
+            14 => self.cop0.epc = data,
+            _ => panic!("Unhandled cop0 register write {cop_r}"),
         }
         Ok(())
     }
@@ -783,7 +785,8 @@ impl Cpu {
             12 => self.cop0.sr,
             13 => self.cop0.cause,
             14 => self.cop0.epc,
-            _ => panic!("Unhandled cop0 register {cop_r}"),
+            15 => 0,
+            _ => panic!("Unhandled cop0 register read {cop_r}"),
         };
 
         self.load = Some((cpu_r, data));
