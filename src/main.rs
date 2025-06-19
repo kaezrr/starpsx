@@ -8,6 +8,6 @@ fn main() {
         process::exit(1);
     });
 
-    eprintln!("Starting emulator...");
+    println!("Starting emulator...");
     psx.run();
 }

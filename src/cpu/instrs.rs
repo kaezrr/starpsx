@@ -58,7 +58,7 @@ impl Cpu {
     /// Load word
     pub fn lw(&mut self, instr: Opcode, bus: &Bus) -> Result<(), Exception> {
         if self.cop0.sr & 0x10000 != 0 {
-            println!("ignoring load while cache is isolated");
+            eprintln!("ignoring load while cache is isolated");
             return Ok(());
         }
 
@@ -76,7 +76,7 @@ impl Cpu {
     /// Store byte
     pub fn sb(&mut self, instr: Opcode, bus: &mut Bus) -> Result<(), Exception> {
         if self.cop0.sr & 0x10000 != 0 {
-            println!("ignoring store while cache is isolated");
+            eprintln!("ignoring store while cache is isolated");
             return Ok(());
         }
         let rt = instr.rt();
@@ -93,7 +93,7 @@ impl Cpu {
     /// Store half word
     pub fn sh(&mut self, instr: Opcode, bus: &mut Bus) -> Result<(), Exception> {
         if self.cop0.sr & 0x10000 != 0 {
-            println!("ignoring store while cache is isolated");
+            eprintln!("ignoring store while cache is isolated");
             return Ok(());
         }
         let rt = instr.rt();
@@ -110,7 +110,7 @@ impl Cpu {
     /// Store word
     pub fn sw(&mut self, instr: Opcode, bus: &mut Bus) -> Result<(), Exception> {
         if self.cop0.sr & 0x10000 != 0 {
-            println!("ignoring store while cache is isolated");
+            eprintln!("ignoring store while cache is isolated");
             return Ok(());
         }
 

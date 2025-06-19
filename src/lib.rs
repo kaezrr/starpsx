@@ -41,6 +41,15 @@ impl StarPSX {
     pub fn run(&mut self) -> ! {
         loop {
             self.cpu.run_instruction(&mut self.bus);
+            check_for_tty_output(&self.cpu);
         }
+    }
+}
+
+fn check_for_tty_output(cpu: &Cpu) {
+    let pc = cpu.pc & 0x1FFFFFFF;
+    if (pc == 0xA0 && cpu.regs[9] == 0x3C) || (pc == 0xB0 && cpu.regs[9] == 0x3D) {
+        let ch = cpu.regs[4] as u8 as char;
+        print!("{ch}");
     }
 }

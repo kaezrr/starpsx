@@ -49,12 +49,12 @@ impl Bus {
         }
 
         if let Some(offs) = map::SPU.contains(masked) {
-            println!("Unhandled read to the SPU reg{:x}", offs);
+            eprintln!("Unhandled read to the SPU reg{:x}", offs);
             return Ok(0);
         }
 
         if let Some(offs) = map::IRQCTL.contains(masked) {
-            println!("IRQCTL: {:x} ", offs);
+            eprintln!("IRQCTL: {:x} ", offs);
             return Ok(0);
         }
 
@@ -76,17 +76,17 @@ impl Bus {
         }
 
         if let Some(offs) = map::IRQCTL.contains(masked) {
-            println!("IRQCTL read: {:x}", offs);
+            eprintln!("IRQCTL read: {:x}", offs);
             return Ok(0);
         }
 
         if let Some(offs) = map::DMA.contains(masked) {
-            println!("DMA read: {:x}", offs);
+            eprintln!("DMA read: {:x}", offs);
             return Ok(0);
         }
 
         if let Some(offs) = map::GPU.contains(masked) {
-            println!("GPU read: {:x}", offs);
+            eprintln!("GPU read: {:x}", offs);
             return match offs {
                 // GPU STAT ready for DMA
                 4 => Ok(0x10000000),
@@ -102,9 +102,9 @@ impl Bus {
 
         if let Some(offs) = map::EXPANSION2.contains(masked) {
             if addr == 0x1F802041 {
-                eprintln!("POST: {}", data);
+                println!("POST: {}", data);
             }
-            return println!("Unhandled write to expansion2 register{:x}", offs);
+            return eprintln!("Unhandled write to expansion2 register{:x}", offs);
         }
 
         if let Some(offs) = map::RAM.contains(masked) {
@@ -126,17 +126,17 @@ impl Bus {
         }
 
         if let Some(offs) = map::SPU.contains(masked) {
-            println!("Unhandled write to the SPU reg{:x}", offs);
+            eprintln!("Unhandled write to the SPU reg{:x}", offs);
             return Ok(());
         }
 
         if let Some(offs) = map::TIMERS.contains(masked) {
-            println!("TIMER: {:x} <- {:08x}", offs, data);
+            eprintln!("TIMER: {:x} <- {:08x}", offs, data);
             return Ok(());
         }
 
         if let Some(offs) = map::IRQCTL.contains(masked) {
-            println!("IRQCTL: {:x} <- {:08x}", offs, data);
+            eprintln!("IRQCTL: {:x} <- {:08x}", offs, data);
             return Ok(());
         }
 
@@ -166,7 +166,7 @@ impl Bus {
                         panic!("Bad expansion 2 base address {:#08X}", data);
                     }
                 }
-                _ => println!("Unhandled write to MEMCTRL"),
+                _ => eprintln!("Unhandled write to MEMCTRL"),
             }
             return Ok(());
         }
@@ -176,27 +176,27 @@ impl Bus {
         }
 
         if map::CACHECTL.contains(masked).is_some() {
-            println!("Unhandled write to CACHECTL");
+            eprintln!("Unhandled write to CACHECTL");
             return Ok(());
         }
 
         if let Some(offs) = map::IRQCTL.contains(masked) {
-            println!("IRQCTL: {:x} <- {:08x}", offs, data);
+            eprintln!("IRQCTL: {:x} <- {:08x}", offs, data);
             return Ok(());
         }
 
         if let Some(offs) = map::DMA.contains(masked) {
-            println!("DMA write: {:x}", offs);
+            eprintln!("DMA write: {:x}", offs);
             return Ok(());
         }
 
         if let Some(offs) = map::GPU.contains(masked) {
-            println!("GPU {:x} write: {:x}", offs, data);
+            eprintln!("GPU {:x} write: {:x}", offs, data);
             return Ok(());
         }
 
         if let Some(offs) = map::TIMERS.contains(masked) {
-            println!("TIMER: {:x} <- {:08x}", offs, data);
+            eprintln!("TIMER: {:x} <- {:08x}", offs, data);
             return Ok(());
         }
 

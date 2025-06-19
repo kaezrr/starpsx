@@ -8,13 +8,13 @@ use utils::{Exception, Opcode};
 
 pub struct Cpu {
     /// 32-bit general purpose registers, R0 is always zero
-    regs: [u32; 32],
+    pub regs: [u32; 32],
 
     /// Register copies for delay slot emulation
     regd: [u32; 32],
 
     /// Program counter
-    pc: u32,
+    pub pc: u32,
 
     /// Delayed branch slot
     delayed_branch: Option<u32>,
