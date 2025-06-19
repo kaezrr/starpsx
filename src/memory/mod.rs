@@ -101,6 +101,9 @@ impl Bus {
         let masked = map::mask_region(addr);
 
         if let Some(offs) = map::EXPANSION2.contains(masked) {
+            if addr == 0x1F802041 {
+                eprintln!("POST: {}", data);
+            }
             return println!("Unhandled write to expansion2 register{:x}", offs);
         }
 

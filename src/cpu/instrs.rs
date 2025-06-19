@@ -4,59 +4,59 @@ impl Cpu {
     // Load and store instructions
 
     /// Load byte
-    pub fn lb(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn lb(&mut self, instr: Opcode, bus: &Bus) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let im = instr.imm16_se();
 
         let addr = self.regs[rs].wrapping_add(im);
-        let data = self.bus.read8(addr) as i8;
+        let data = bus.read8(addr) as i8;
 
         self.load = Some((rt, data as u32));
         Ok(())
     }
 
     /// Load byte unsigned
-    pub fn lbu(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn lbu(&mut self, instr: Opcode, bus: &Bus) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let im = instr.imm16_se();
 
         let addr = self.regs[rs].wrapping_add(im);
-        let data = self.bus.read8(addr);
+        let data = bus.read8(addr);
 
         self.load = Some((rt, data as u32));
         Ok(())
     }
 
     /// Load half word
-    pub fn lh(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn lh(&mut self, instr: Opcode, bus: &Bus) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let im = instr.imm16_se();
 
         let addr = self.regs[rs].wrapping_add(im);
-        let data = self.bus.read16(addr)? as i16;
+        let data = bus.read16(addr)? as i16;
 
         self.load = Some((rt, data as u32));
         Ok(())
     }
 
     /// Load half word unsigned
-    pub fn lhu(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn lhu(&mut self, instr: Opcode, bus: &Bus) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let im = instr.imm16_se();
 
         let addr = self.regs[rs].wrapping_add(im);
-        let data = self.bus.read16(addr)?;
+        let data = bus.read16(addr)?;
 
         self.load = Some((rt, data as u32));
         Ok(())
     }
 
     /// Load word
-    pub fn lw(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn lw(&mut self, instr: Opcode, bus: &Bus) -> Result<(), Exception> {
         if self.cop0.sr & 0x10000 != 0 {
             println!("ignoring load while cache is isolated");
             return Ok(());
@@ -67,14 +67,14 @@ impl Cpu {
         let im = instr.imm16_se();
 
         let addr = self.regs[rs].wrapping_add(im);
-        let data = self.bus.read32(addr)?;
+        let data = bus.read32(addr)?;
 
         self.load = Some((rt, data));
         Ok(())
     }
 
     /// Store byte
-    pub fn sb(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn sb(&mut self, instr: Opcode, bus: &mut Bus) -> Result<(), Exception> {
         if self.cop0.sr & 0x10000 != 0 {
             println!("ignoring store while cache is isolated");
             return Ok(());
@@ -86,12 +86,12 @@ impl Cpu {
         let addr = self.regs[rs].wrapping_add(im);
         let data = self.regs[rt] as u8;
 
-        self.bus.write8(addr, data);
+        bus.write8(addr, data);
         Ok(())
     }
 
     /// Store half word
-    pub fn sh(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn sh(&mut self, instr: Opcode, bus: &mut Bus) -> Result<(), Exception> {
         if self.cop0.sr & 0x10000 != 0 {
             println!("ignoring store while cache is isolated");
             return Ok(());
@@ -103,12 +103,12 @@ impl Cpu {
         let addr = self.regs[rs].wrapping_add(im);
         let data = self.regs[rt] as u16;
 
-        self.bus.write16(addr, data)?;
+        bus.write16(addr, data)?;
         Ok(())
     }
 
     /// Store word
-    pub fn sw(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn sw(&mut self, instr: Opcode, bus: &mut Bus) -> Result<(), Exception> {
         if self.cop0.sr & 0x10000 != 0 {
             println!("ignoring store while cache is isolated");
             return Ok(());
@@ -121,12 +121,12 @@ impl Cpu {
         let addr = self.regs[rs].wrapping_add(im);
         let data = self.regs[rt];
 
-        self.bus.write32(addr, data)?;
+        bus.write32(addr, data)?;
         Ok(())
     }
 
     /// Unaligned left word load
-    pub fn lwl(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn lwl(&mut self, instr: Opcode, bus: &Bus) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let im = instr.imm16_se();
@@ -135,7 +135,7 @@ impl Cpu {
         let val = self.regs[rt];
 
         let aligned_addr = addr & !3;
-        let word = self.bus.read32(aligned_addr)?;
+        let word = bus.read32(aligned_addr)?;
 
         let data = match addr & 3 {
             0 => (val & 0x00FFFFFF) | (word << 24),
@@ -150,7 +150,7 @@ impl Cpu {
     }
 
     /// Unaligned right word load
-    pub fn lwr(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn lwr(&mut self, instr: Opcode, bus: &Bus) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let im = instr.imm16_se();
@@ -159,7 +159,7 @@ impl Cpu {
         let val = self.regs[rt];
 
         let aligned_addr = addr & !3;
-        let word = self.bus.read32(aligned_addr)?;
+        let word = bus.read32(aligned_addr)?;
 
         let data = match addr & 3 {
             0 => word,
@@ -174,7 +174,7 @@ impl Cpu {
     }
 
     /// Unaligned left word store
-    pub fn swl(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn swl(&mut self, instr: Opcode, bus: &mut Bus) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let im = instr.imm16_se();
@@ -183,7 +183,7 @@ impl Cpu {
         let val = self.regs[rt];
 
         let aligned_addr = addr & !3;
-        let word = self.bus.read32(aligned_addr)?;
+        let word = bus.read32(aligned_addr)?;
 
         let data = match addr & 3 {
             0 => (word & 0x00FFFFFF) | (val << 24),
@@ -193,12 +193,12 @@ impl Cpu {
             _ => unreachable!(),
         };
 
-        self.bus.write32(aligned_addr, data);
+        bus.write32(aligned_addr, data)?;
         Ok(())
     }
 
     /// Unaligned right word store
-    pub fn swr(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn swr(&mut self, instr: Opcode, bus: &mut Bus) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let im = instr.imm16_se();
@@ -207,7 +207,7 @@ impl Cpu {
         let val = self.regs[rt];
 
         let aligned_addr = addr & !3;
-        let word = self.bus.read32(aligned_addr)?;
+        let word = bus.read32(aligned_addr)?;
 
         let data = match addr & 3 {
             0 => val,
@@ -217,7 +217,7 @@ impl Cpu {
             _ => unreachable!(),
         };
 
-        self.bus.write32(aligned_addr, data);
+        bus.write32(aligned_addr, data)?;
         Ok(())
     }
 
@@ -809,35 +809,35 @@ impl Cpu {
         panic!("Unhandled GTE store word {:x}", instr.0);
     }
 
-    pub fn cop1(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn cop1(&mut self) -> Result<(), Exception> {
         Err(Exception::CoprocessorError)
     }
 
-    pub fn cop3(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn cop3(&mut self) -> Result<(), Exception> {
         Err(Exception::CoprocessorError)
     }
 
-    pub fn lwc0(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn lwc0(&mut self) -> Result<(), Exception> {
         Err(Exception::CoprocessorError)
     }
 
-    pub fn lwc1(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn lwc1(&mut self) -> Result<(), Exception> {
         Err(Exception::CoprocessorError)
     }
 
-    pub fn lwc3(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn lwc3(&mut self) -> Result<(), Exception> {
         Err(Exception::CoprocessorError)
     }
 
-    pub fn swc0(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn swc0(&mut self) -> Result<(), Exception> {
         Err(Exception::CoprocessorError)
     }
 
-    pub fn swc1(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn swc1(&mut self) -> Result<(), Exception> {
         Err(Exception::CoprocessorError)
     }
 
-    pub fn swc3(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn swc3(&mut self) -> Result<(), Exception> {
         Err(Exception::CoprocessorError)
     }
 }

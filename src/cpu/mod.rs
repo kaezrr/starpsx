@@ -25,9 +25,6 @@ pub struct Cpu {
     /// Lower 32 bits of product or division quotient
     lo: u32,
 
-    /// Bus interface
-    bus: Bus,
-
     /// Load to execute
     load: Option<(usize, u32)>,
 
@@ -36,7 +33,7 @@ pub struct Cpu {
 }
 
 impl Cpu {
-    pub fn new(bus: Bus) -> Self {
+    pub fn new() -> Self {
         let mut regs = [0xDEADBEEF; 32];
         regs[0] = 0;
         let pc = 0xBFC00000;
@@ -47,7 +44,6 @@ impl Cpu {
             pc,
             hi: 0xDEADBEEF,
             lo: 0xDEADBEEF,
-            bus,
             load: None,
             delayed_branch: None,
             cop0: Cop0::new(),
@@ -55,8 +51,8 @@ impl Cpu {
     }
 
     /// Run a single instruction and return the number of cycles
-    pub fn run_instruction(&mut self) {
-        let instr = Opcode(match self.bus.read32(self.pc) {
+    pub fn run_instruction(&mut self, bus: &mut Bus) {
+        let instr = Opcode(match bus.read32(self.pc) {
             Ok(v) => v,
             Err(e) => return self.handle_exception(e, false),
         });
@@ -75,7 +71,7 @@ impl Cpu {
 
         // Decode and run the instruction
         // println!("{:08X} {:08X}", self.pc, instr.0);
-        if let Err(exception) = self.execute_opcode(instr) {
+        if let Err(exception) = self.execute_opcode(instr, bus) {
             self.handle_exception(exception, in_delay_slot);
             return;
         };
@@ -105,7 +101,7 @@ impl Cpu {
         panic!("Unhandled GTE instruction {:x}", instr.0);
     }
 
-    fn execute_opcode(&mut self, instr: Opcode) -> Result<(), Exception> {
+    fn execute_opcode(&mut self, instr: Opcode, bus: &mut Bus) -> Result<(), Exception> {
         match instr.pri() {
             0x00 => match instr.sec() {
                 0x00 => self.sll(instr),
@@ -154,29 +150,29 @@ impl Cpu {
             0x0E => self.xori(instr),
             0x0F => self.lui(instr),
             0x10 => self.cop0(instr),
-            0x11 => self.cop1(instr),
+            0x11 => self.cop1(),
             0x12 => self.cop2(instr),
-            0x13 => self.cop3(instr),
-            0x20 => self.lb(instr),
-            0x21 => self.lh(instr),
-            0x22 => self.lwl(instr),
-            0x23 => self.lw(instr),
-            0x24 => self.lbu(instr),
-            0x25 => self.lhu(instr),
-            0x26 => self.lwr(instr),
-            0x28 => self.sb(instr),
-            0x29 => self.sh(instr),
-            0x2A => self.swl(instr),
-            0x2B => self.sw(instr),
-            0x2E => self.swr(instr),
-            0x30 => self.lwc0(instr),
-            0x31 => self.lwc1(instr),
+            0x13 => self.cop3(),
+            0x20 => self.lb(instr, bus),
+            0x21 => self.lh(instr, bus),
+            0x22 => self.lwl(instr, bus),
+            0x23 => self.lw(instr, bus),
+            0x24 => self.lbu(instr, bus),
+            0x25 => self.lhu(instr, bus),
+            0x26 => self.lwr(instr, bus),
+            0x28 => self.sb(instr, bus),
+            0x29 => self.sh(instr, bus),
+            0x2A => self.swl(instr, bus),
+            0x2B => self.sw(instr, bus),
+            0x2E => self.swr(instr, bus),
+            0x30 => self.lwc0(),
+            0x31 => self.lwc1(),
             0x32 => self.lwc2(instr),
-            0x33 => self.lwc3(instr),
-            0x38 => self.swc0(instr),
-            0x39 => self.swc1(instr),
+            0x33 => self.lwc3(),
+            0x38 => self.swc0(),
+            0x39 => self.swc1(),
             0x3A => self.swc2(instr),
-            0x3B => self.swc3(instr),
+            0x3B => self.swc3(),
             _ => Err(Exception::IllegalInstruction),
         }
     }

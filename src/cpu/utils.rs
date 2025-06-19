@@ -37,14 +37,6 @@ impl Opcode {
     pub fn imm26(&self) -> u32 {
         self.0 & 0x3FFFFFF
     }
-
-    pub fn imm25(&self) -> u32 {
-        self.0 & 0x1FFFFFF
-    }
-
-    pub fn cmm20(&self) -> u32 {
-        (self.0 >> 6) & 0xFFFFF
-    }
 }
 
 pub enum Exception {
