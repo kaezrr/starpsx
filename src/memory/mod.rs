@@ -39,7 +39,7 @@ impl Bus {
         if map::EXPANSION1.contains(masked).is_some() {
             return 0xFF;
         }
-        panic!("Unmapped read8 at {:#08X}", masked);
+        panic!("Unmapped read8 at {masked:#08X}");
     }
 
     pub fn read16(&self, addr: u32) -> Result<u16, Exception> {
@@ -53,16 +53,16 @@ impl Bus {
         }
 
         if let Some(offs) = map::SPU.contains(masked) {
-            eprintln!("Unhandled read to the SPU reg{:x}", offs);
+            eprintln!("Unhandled read to the SPU reg{offs:x}");
             return Ok(0);
         }
 
         if let Some(offs) = map::IRQCTL.contains(masked) {
-            eprintln!("IRQCTL: {:x} ", offs);
+            eprintln!("IRQCTL: {offs:x} ");
             return Ok(0);
         }
 
-        panic!("Unmapped read16 at {:#08X}", masked);
+        panic!("Unmapped read16 at {masked:#08X}");
     }
 
     pub fn read32(&self, addr: u32) -> Result<u32, Exception> {
@@ -84,17 +84,17 @@ impl Bus {
         }
 
         if let Some(offs) = map::IRQCTL.contains(masked) {
-            eprintln!("IRQCTL read: {:x}", offs);
+            eprintln!("IRQCTL read: {offs:x}");
             return Ok(0);
         }
 
         if let Some(offs) = map::DMA.contains(masked) {
-            eprintln!("DMA read: {:x}", offs);
+            eprintln!("DMA read: {offs:x}");
             return Ok(0);
         }
 
         if let Some(offs) = map::GPU.contains(masked) {
-            eprintln!("GPU read: {:x}", offs);
+            eprintln!("GPU read: {offs:x}");
             return match offs {
                 // GPU STAT ready for DMA
                 4 => Ok(0x5E800000),
@@ -102,7 +102,7 @@ impl Bus {
             };
         }
 
-        panic!("Unmapped read32 at {:#08X}", masked);
+        panic!("Unmapped read32 at {masked:#08X}");
     }
 
     pub fn write8(&mut self, addr: u32, data: u8) {
@@ -110,16 +110,16 @@ impl Bus {
 
         if let Some(offs) = map::EXPANSION2.contains(masked) {
             if addr == 0x1F802041 {
-                println!("POST: {}", data);
+                println!("POST: {data}");
             }
-            return eprintln!("Unhandled write to expansion2 register{:x}", offs);
+            return eprintln!("Unhandled write to expansion2 register{offs:x}");
         }
 
         if let Some(offs) = map::RAM.contains(masked) {
             return self.ram.write8(offs, data);
         }
 
-        panic!("Unmapped write8 at {:#08X}", addr);
+        panic!("Unmapped write8 at {addr:#08X}");
     }
 
     pub fn write16(&mut self, addr: u32, data: u16) -> Result<(), Exception> {
@@ -134,21 +134,21 @@ impl Bus {
         }
 
         if let Some(offs) = map::SPU.contains(masked) {
-            eprintln!("Unhandled write to the SPU reg{:x}", offs);
+            eprintln!("Unhandled write to the SPU reg{offs:x}");
             return Ok(());
         }
 
         if let Some(offs) = map::TIMERS.contains(masked) {
-            eprintln!("TIMER: {:x} <- {:08x}", offs, data);
+            eprintln!("TIMER: {offs:x} <- {data:08x}");
             return Ok(());
         }
 
         if let Some(offs) = map::IRQCTL.contains(masked) {
-            eprintln!("IRQCTL: {:x} <- {:08x}", offs, data);
+            eprintln!("IRQCTL: {offs:x} <- {data:08x}");
             return Ok(());
         }
 
-        panic!("Unmapped write16 at {:#08X}", addr);
+        panic!("Unmapped write16 at {addr:#08X}");
     }
 
     pub fn write32(&mut self, addr: u32, data: u32) -> Result<(), Exception> {
@@ -166,12 +166,12 @@ impl Bus {
             match offs {
                 0 => {
                     if data != 0x1F000000 {
-                        panic!("Bad expansion 1 base address {:#08X}", data);
+                        panic!("Bad expansion 1 base address {data:#08X}");
                     }
                 }
                 4 => {
                     if data != 0x1F802000 {
-                        panic!("Bad expansion 2 base address {:#08X}", data);
+                        panic!("Bad expansion 2 base address {data:#08X}");
                     }
                 }
                 _ => eprintln!("Unhandled write to MEMCTRL"),
@@ -189,25 +189,25 @@ impl Bus {
         }
 
         if let Some(offs) = map::IRQCTL.contains(masked) {
-            eprintln!("IRQCTL: {:x} <- {:08x}", offs, data);
+            eprintln!("IRQCTL: {offs:x} <- {data:08x}");
             return Ok(());
         }
 
         if let Some(offs) = map::DMA.contains(masked) {
-            eprintln!("DMA write: {:x}", offs);
+            eprintln!("DMA write: {offs:x}");
             return Ok(());
         }
 
         if let Some(offs) = map::GPU.contains(masked) {
-            eprintln!("GPU {:x} write: {:x}", offs, data);
+            eprintln!("GPU {offs:x} write: {data:x}");
             return Ok(());
         }
 
         if let Some(offs) = map::TIMERS.contains(masked) {
-            eprintln!("TIMER: {:x} <- {:08x}", offs, data);
+            eprintln!("TIMER: {offs:x} <- {data:08x}");
             return Ok(());
         }
 
-        panic!("Unmapped write32 at {:#08X}", addr);
+        panic!("Unmapped write32 at {addr:#08X}");
     }
 }

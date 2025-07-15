@@ -765,7 +765,7 @@ impl Cpu {
         match cop_r {
             3 | 5 | 6 | 7 | 9 | 11 => {
                 if data != 0 {
-                    panic!("Unhandled write to cop0r{}", cop_r);
+                    panic!("Unhandled write to cop0r{cop_r}");
                 }
             }
             12 => self.cop0.sr = data,
