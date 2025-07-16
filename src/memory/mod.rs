@@ -5,6 +5,7 @@ mod scratch;
 
 use crate::Config;
 use crate::cpu::utils::Exception;
+use crate::dma::Dma;
 use bios::Bios;
 use ram::Ram;
 use scratch::Scratch;
@@ -14,15 +15,22 @@ pub struct Bus {
     bios: Bios,
     pub ram: Ram,
     scratch: Scratch,
+    dma: Dma,
 }
 
 impl Bus {
     pub fn build(conf: &Config) -> Result<Self, Box<dyn Error>> {
         let bios = Bios::build(&conf.bios_path)?;
         let ram = Ram::new();
+        let dma = Dma::new();
         let scratch = Scratch::new();
 
-        Ok(Bus { bios, ram, scratch })
+        Ok(Bus {
+            bios,
+            ram,
+            scratch,
+            dma,
+        })
     }
 
     pub fn read8(&self, addr: u32) -> u8 {
@@ -90,7 +98,7 @@ impl Bus {
 
         if let Some(offs) = map::DMA.contains(masked) {
             eprintln!("DMA read: {offs:x}");
-            return Ok(0);
+            return Ok(self.dma.get_reg(offs));
         }
 
         if let Some(offs) = map::GPU.contains(masked) {
@@ -195,6 +203,7 @@ impl Bus {
 
         if let Some(offs) = map::DMA.contains(masked) {
             eprintln!("DMA write: {offs:x}");
+            self.dma.set_reg(offs, data);
             return Ok(());
         }
 

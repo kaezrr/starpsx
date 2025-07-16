@@ -4,6 +4,7 @@ use cpu::Cpu;
 use memory::Bus;
 
 mod cpu;
+mod dma;
 mod memory;
 
 pub struct Config {
