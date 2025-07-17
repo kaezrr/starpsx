@@ -55,7 +55,7 @@ impl Bus {
 
     pub fn read16(&self, addr: u32) -> Result<u16, Exception> {
         if addr & 1 != 0 {
-            return Err(Exception::LoadAddressError);
+            return Err(Exception::LoadAddressError(addr));
         }
         let masked = map::mask_region(addr);
 
@@ -78,7 +78,7 @@ impl Bus {
 
     pub fn read32(&self, addr: u32) -> Result<u32, Exception> {
         if addr & 3 != 0 {
-            return Err(Exception::LoadAddressError);
+            return Err(Exception::LoadAddressError(addr));
         }
         let masked = map::mask_region(addr);
 
@@ -125,9 +125,6 @@ impl Bus {
         let masked = map::mask_region(addr);
 
         if let Some(offs) = map::EXPANSION2.contains(masked) {
-            if addr == 0x1F802041 {
-                println!("POST: {data}");
-            }
             return eprintln!("Unhandled write to expansion2 register{offs:x}");
         }
 
@@ -140,7 +137,7 @@ impl Bus {
 
     pub fn write16(&mut self, addr: u32, data: u16) -> Result<(), Exception> {
         if addr & 1 != 0 {
-            return Err(Exception::StoreAddressError);
+            return Err(Exception::StoreAddressError(addr));
         }
         let masked = map::mask_region(addr);
 
@@ -169,7 +166,7 @@ impl Bus {
 
     pub fn write32(&mut self, addr: u32, data: u32) -> Result<(), Exception> {
         if addr & 3 != 0 {
-            return Err(Exception::StoreAddressError);
+            return Err(Exception::StoreAddressError(addr));
         }
         let masked = map::mask_region(addr);
 

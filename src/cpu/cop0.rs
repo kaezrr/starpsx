@@ -9,6 +9,9 @@ pub struct Cop0 {
 
     /// Cop0 reg14 : Exception Program Counter
     pub epc: u32,
+
+    /// Cop0 reg8 : Bad Virtual Address
+    pub baddr: u32,
 }
 
 impl Cop0 {
@@ -17,6 +20,7 @@ impl Cop0 {
             sr: 0,
             epc: 0,
             cause: 0,
+            baddr: 0,
         }
     }
 }

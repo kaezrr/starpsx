@@ -40,11 +40,25 @@ impl Opcode {
 }
 
 pub enum Exception {
-    LoadAddressError = 0x4,
-    StoreAddressError = 0x5,
-    Syscall = 0x8,
-    Break = 0x9,
-    IllegalInstruction = 0xA,
-    CoprocessorError = 0xB,
-    Overflow = 0xC,
+    LoadAddressError(u32),
+    StoreAddressError(u32),
+    Syscall,
+    Break,
+    IllegalInstruction,
+    CoprocessorError,
+    Overflow,
+}
+
+impl Exception {
+    pub fn code(&self) -> u32 {
+        match self {
+            Exception::LoadAddressError(_) => 0x4,
+            Exception::StoreAddressError(_) => 0x5,
+            Exception::Syscall => 0x8,
+            Exception::Break => 0x9,
+            Exception::IllegalInstruction => 0xA,
+            Exception::CoprocessorError => 0xB,
+            Exception::Overflow => 0xC,
+        }
+    }
 }

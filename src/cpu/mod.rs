@@ -79,6 +79,7 @@ impl Cpu {
 
         // Increment program counter
         self.pc = next_pc;
+        println!("{:08X} -> {:08X}", self.pc, instr.0);
     }
 
     fn handle_exception(&mut self, cause: Exception, branch: bool) {
@@ -91,8 +92,14 @@ impl Cpu {
         let mode = self.cop0.sr & 0x3F;
         self.cop0.sr = (self.cop0.sr & !0x3F) | (mode << 2 & 0x3F);
 
-        self.cop0.cause = (cause as u32) << 2 | (branch as u32) << 31;
+        self.cop0.cause = cause.code() << 2 | (branch as u32) << 31;
         self.cop0.epc = if branch { self.pc - 4 } else { self.pc };
+
+        match cause {
+            Exception::LoadAddressError(x) => self.cop0.baddr = x,
+            Exception::StoreAddressError(x) => self.cop0.baddr = x,
+            _ => (),
+        }
 
         self.pc = handler;
     }
