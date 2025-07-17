@@ -763,11 +763,7 @@ impl Cpu {
         let data = self.regs[cpu_r];
 
         match cop_r {
-            3 | 5 | 6 | 7 | 9 | 11 | 15 => {
-                if data != 0 {
-                    panic!("Unhandled write to cop0r{cop_r}");
-                }
-            }
+            3 | 5 | 6 | 7 | 9 | 11 | 15 if data == 0 => (),
             8 => self.cop0.baddr = data,
             12 => self.cop0.sr = data,
             13 => self.cop0.cause = data,

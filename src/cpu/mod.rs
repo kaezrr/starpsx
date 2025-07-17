@@ -1,8 +1,9 @@
 mod cop0;
+pub mod disasm;
 mod instrs;
 pub mod utils;
 
-use crate::memory::Bus;
+use crate::{cpu::disasm::decode_instruction, memory::Bus};
 use cop0::Cop0;
 use utils::{Exception, Opcode};
 
@@ -69,8 +70,9 @@ impl Cpu {
             None => (),
         }
 
-        // Decode and run the instruction
-        // println!("{:08X} {:08X}", self.pc, instr.0);
+        let disasm = decode_instruction(instr.0);
+        println!("[{:#08X}] {:#010X}: {}", self.pc, instr.0, disasm);
+
         if let Err(exception) = self.execute_opcode(instr, bus) {
             self.handle_exception(exception, in_delay_slot);
             return;
@@ -79,7 +81,6 @@ impl Cpu {
 
         // Increment program counter
         self.pc = next_pc;
-        println!("{:08X} -> {:08X}", self.pc, instr.0);
     }
 
     fn handle_exception(&mut self, cause: Exception, branch: bool) {
