@@ -1,10 +1,15 @@
-use std::{error::Error, fs};
+use std::{
+    error::Error,
+    fs,
+    io::{self, Write},
+};
 
 use cpu::Cpu;
 use memory::Bus;
 
 mod cpu;
 mod dma;
+mod gpu;
 mod memory;
 
 pub struct Config {
@@ -52,6 +57,7 @@ impl StarPSX {
         let exe = fs::read(filepath)?;
         while self.cpu.pc != 0x80030000 {
             self.cpu.run_instruction(&mut self.bus);
+            check_for_tty_output(&self.cpu);
         }
 
         // Parse EXE header
@@ -82,5 +88,6 @@ fn check_for_tty_output(cpu: &Cpu) {
     if (pc == 0xA0 && cpu.regs[9] == 0x3C) || (pc == 0xB0 && cpu.regs[9] == 0x3D) {
         let ch = cpu.regs[4] as u8 as char;
         print!("{ch}");
+        io::stdout().flush().unwrap();
     }
 }
