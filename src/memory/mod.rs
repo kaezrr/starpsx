@@ -5,7 +5,10 @@ mod scratch;
 
 use crate::Config;
 use crate::cpu::utils::Exception;
-use crate::dma::Dma;
+use crate::dma::{
+    Dma,
+    channel::{Direction, Port, Step, Sync},
+};
 use bios::Bios;
 use ram::Ram;
 use scratch::Scratch;
@@ -91,6 +94,11 @@ impl Bus {
             return Ok(self.scratch.read32(offs));
         }
 
+        if let Some(offs) = map::TIMERS.contains(masked) {
+            eprintln!("TIMER: {offs:x}");
+            return Ok(0);
+        }
+
         if let Some(offs) = map::IRQCTL.contains(masked) {
             eprintln!("IRQCTL read: {offs:x}");
             return Ok(0);
@@ -105,7 +113,7 @@ impl Bus {
             eprintln!("GPU read: {offs:x}");
             return match offs {
                 // GPU STAT ready for DMA
-                4 => Ok(0x5E800000),
+                4 => Ok(0x1C000000),
                 _ => Ok(0),
             };
         }
@@ -203,8 +211,11 @@ impl Bus {
 
         if let Some(offs) = map::DMA.contains(masked) {
             eprintln!("DMA write: {offs:x}");
-            self.dma.set_reg(offs, data);
-            return Ok(());
+            if let Some(port) = self.dma.set_reg(offs, data) {
+                return self.do_dma(port);
+            } else {
+                return Ok(());
+            }
         }
 
         if let Some(offs) = map::GPU.contains(masked) {
@@ -218,5 +229,46 @@ impl Bus {
         }
 
         panic!("Unmapped write32 at {addr:#08X}");
+    }
+
+    pub fn do_dma(&mut self, port: Port) -> Result<(), Exception> {
+        match self.dma.channels[port as usize].sync {
+            Sync::LinkedList => panic!("Linked list mode unsupported"),
+            _ => self.do_dma_block(port),
+        }
+    }
+
+    pub fn do_dma_block(&mut self, port: Port) -> Result<(), Exception> {
+        let (step, dir, base, size) = {
+            let channel = &mut self.dma.channels[port as usize];
+            let step: i32 = match channel.step {
+                Step::Increment => 4,
+                Step::Decrement => -4,
+            };
+            let size = match channel.transfer_size() {
+                Some(n) => n,
+                None => panic!("Should not be able to get here!!!"),
+            };
+            (step, channel.dir, channel.base, size)
+        };
+
+        let mut addr = base;
+        for _ in 0..size {
+            let cur_addr = addr & 0x1FFFFC;
+            let src_word = match dir {
+                Direction::ToRam => match port {
+                    Port::Otc => match size {
+                        1 => 0xFFFFFF,
+                        _ => addr.wrapping_sub(4) & 0x1FFFFF,
+                    },
+                    _ => panic!("Unhandled DMA source port"),
+                },
+                Direction::FromRam => panic!("Unhandled DMA direction"),
+            };
+            self.write32(cur_addr, src_word)?;
+            addr = addr.wrapping_add_signed(step);
+        }
+        self.dma.channels[port as usize].done();
+        Ok(())
     }
 }
