@@ -212,10 +212,9 @@ impl Bus {
         if let Some(offs) = map::DMA.contains(masked) {
             eprintln!("DMA write: {offs:x}");
             if let Some(port) = self.dma.set_reg(offs, data) {
-                return self.do_dma(port);
-            } else {
-                return Ok(());
+                self.do_dma(port);
             }
+            return Ok(());
         }
 
         if let Some(offs) = map::GPU.contains(masked) {
@@ -231,14 +230,14 @@ impl Bus {
         panic!("Unmapped write32 at {addr:#08X}");
     }
 
-    pub fn do_dma(&mut self, port: Port) -> Result<(), Exception> {
+    pub fn do_dma(&mut self, port: Port) {
         match self.dma.channels[port as usize].sync {
-            Sync::LinkedList => panic!("Linked list mode unsupported"),
+            Sync::LinkedList => self.do_dma_linked_list(port),
             _ => self.do_dma_block(port),
         }
     }
 
-    pub fn do_dma_block(&mut self, port: Port) -> Result<(), Exception> {
+    pub fn do_dma_block(&mut self, port: Port) {
         let (step, dir, base, size) = {
             let channel = &mut self.dma.channels[port as usize];
             let step: i32 = match channel.step {
@@ -253,22 +252,53 @@ impl Bus {
         };
 
         let mut addr = base;
-        for _ in 0..size {
+        for s in (1..=size).rev() {
             let cur_addr = addr & 0x1FFFFC;
             let src_word = match dir {
                 Direction::ToRam => match port {
-                    Port::Otc => match size {
+                    Port::Otc => match s {
                         1 => 0xFFFFFF,
                         _ => addr.wrapping_sub(4) & 0x1FFFFF,
                     },
                     _ => panic!("Unhandled DMA source port"),
                 },
-                Direction::FromRam => panic!("Unhandled DMA direction"),
+                Direction::FromRam => match port {
+                    Port::Gpu => self.ram.read32(cur_addr),
+                    _ => panic!("Unhandled DMA destination port"),
+                },
             };
-            self.write32(cur_addr, src_word)?;
+            self.ram.write32(cur_addr, src_word);
             addr = addr.wrapping_add_signed(step);
         }
         self.dma.channels[port as usize].done();
-        Ok(())
+    }
+
+    pub fn do_dma_linked_list(&mut self, port: Port) {
+        let channel = &mut self.dma.channels[port as usize];
+        if channel.dir == Direction::ToRam {
+            panic!("Invalid DMA direction for linked list mode.");
+        }
+        if port != Port::Gpu {
+            panic!("Attempted linked list DMA on port {}", port as usize);
+        }
+
+        let mut addr = channel.base & 0x1FFFFC;
+        loop {
+            let header = self.ram.read32(addr);
+            let size = header >> 24;
+
+            for _ in 0..size {
+                addr = addr.wrapping_add(4) & 0x1FFFFC;
+                let command = self.ram.read32(addr);
+                eprintln!("GPU command {command:08x}");
+            }
+
+            if header & 0x800000 != 0 {
+                break;
+            }
+            addr = header & 0x1FFFFC;
+        }
+
+        channel.done();
     }
 }

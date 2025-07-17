@@ -20,19 +20,19 @@ bitfield! {
     block_count, _ : 31, 16;
 }
 
-#[derive(Clone, Copy)]
+#[derive(PartialEq, Clone, Copy)]
 pub enum Direction {
     ToRam,
     FromRam,
 }
 
-#[derive(Clone, Copy)]
+#[derive(PartialEq, Clone, Copy)]
 pub enum Step {
     Increment,
     Decrement,
 }
 
-#[derive(Clone, Copy)]
+#[derive(PartialEq, Clone, Copy)]
 pub enum Sync {
     Manual,
     Request,
@@ -40,7 +40,7 @@ pub enum Sync {
 }
 
 #[repr(usize)]
-#[derive(Clone, Copy)]
+#[derive(PartialEq, Clone, Copy)]
 pub enum Port {
     // Macroblock decoder input
     MdecIn,
