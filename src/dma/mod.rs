@@ -8,7 +8,6 @@ use channel::{Channel, Port};
 bitfield! {
     #[derive(Copy, Clone)]
     pub struct Interrupt(u32);
-    u32;
     bus_er, _ : 15;
     irq_en, _ : 23;
     channel_irq_en, _: 30, 24;

@@ -2,7 +2,6 @@ use bitfield::bitfield;
 
 bitfield! {
     pub struct Control(u32);
-    u32;
     enable, set_enable : 24;
     trigger, set_trigger: 28;
     direction, _ : 0;
@@ -15,7 +14,6 @@ bitfield! {
 
 bitfield! {
     pub struct Block(u32);
-    u32;
     block_size, _ : 15, 0;
     block_count, _ : 31, 16;
 }

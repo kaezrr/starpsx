@@ -4,7 +4,7 @@ impl Cpu {
     // Load and store instructions
 
     /// Load byte
-    pub fn lb(&mut self, instr: Opcode, bus: &Bus) -> Result<(), Exception> {
+    pub fn lb(&mut self, instr: Instruction, bus: &Bus) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let im = instr.imm16_se();
@@ -17,7 +17,7 @@ impl Cpu {
     }
 
     /// Load byte unsigned
-    pub fn lbu(&mut self, instr: Opcode, bus: &Bus) -> Result<(), Exception> {
+    pub fn lbu(&mut self, instr: Instruction, bus: &Bus) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let im = instr.imm16_se();
@@ -30,7 +30,7 @@ impl Cpu {
     }
 
     /// Load half word
-    pub fn lh(&mut self, instr: Opcode, bus: &Bus) -> Result<(), Exception> {
+    pub fn lh(&mut self, instr: Instruction, bus: &Bus) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let im = instr.imm16_se();
@@ -43,7 +43,7 @@ impl Cpu {
     }
 
     /// Load half word unsigned
-    pub fn lhu(&mut self, instr: Opcode, bus: &Bus) -> Result<(), Exception> {
+    pub fn lhu(&mut self, instr: Instruction, bus: &Bus) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let im = instr.imm16_se();
@@ -56,7 +56,7 @@ impl Cpu {
     }
 
     /// Load word
-    pub fn lw(&mut self, instr: Opcode, bus: &Bus) -> Result<(), Exception> {
+    pub fn lw(&mut self, instr: Instruction, bus: &Bus) -> Result<(), Exception> {
         if self.cop0.sr & 0x10000 != 0 {
             eprintln!("ignoring load while cache is isolated");
             return Ok(());
@@ -74,7 +74,7 @@ impl Cpu {
     }
 
     /// Store byte
-    pub fn sb(&mut self, instr: Opcode, bus: &mut Bus) -> Result<(), Exception> {
+    pub fn sb(&mut self, instr: Instruction, bus: &mut Bus) -> Result<(), Exception> {
         if self.cop0.sr & 0x10000 != 0 {
             eprintln!("ignoring store while cache is isolated");
             return Ok(());
@@ -91,7 +91,7 @@ impl Cpu {
     }
 
     /// Store half word
-    pub fn sh(&mut self, instr: Opcode, bus: &mut Bus) -> Result<(), Exception> {
+    pub fn sh(&mut self, instr: Instruction, bus: &mut Bus) -> Result<(), Exception> {
         if self.cop0.sr & 0x10000 != 0 {
             eprintln!("ignoring store while cache is isolated");
             return Ok(());
@@ -108,7 +108,7 @@ impl Cpu {
     }
 
     /// Store word
-    pub fn sw(&mut self, instr: Opcode, bus: &mut Bus) -> Result<(), Exception> {
+    pub fn sw(&mut self, instr: Instruction, bus: &mut Bus) -> Result<(), Exception> {
         if self.cop0.sr & 0x10000 != 0 {
             eprintln!("ignoring store while cache is isolated");
             return Ok(());
@@ -126,7 +126,7 @@ impl Cpu {
     }
 
     /// Unaligned left word load
-    pub fn lwl(&mut self, instr: Opcode, bus: &Bus) -> Result<(), Exception> {
+    pub fn lwl(&mut self, instr: Instruction, bus: &Bus) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let im = instr.imm16_se();
@@ -150,7 +150,7 @@ impl Cpu {
     }
 
     /// Unaligned right word load
-    pub fn lwr(&mut self, instr: Opcode, bus: &Bus) -> Result<(), Exception> {
+    pub fn lwr(&mut self, instr: Instruction, bus: &Bus) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let im = instr.imm16_se();
@@ -174,7 +174,7 @@ impl Cpu {
     }
 
     /// Unaligned left word store
-    pub fn swl(&mut self, instr: Opcode, bus: &mut Bus) -> Result<(), Exception> {
+    pub fn swl(&mut self, instr: Instruction, bus: &mut Bus) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let im = instr.imm16_se();
@@ -198,7 +198,7 @@ impl Cpu {
     }
 
     /// Unaligned right word store
-    pub fn swr(&mut self, instr: Opcode, bus: &mut Bus) -> Result<(), Exception> {
+    pub fn swr(&mut self, instr: Instruction, bus: &mut Bus) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let im = instr.imm16_se();
@@ -224,7 +224,7 @@ impl Cpu {
     // ALU instructions
 
     /// rd = rs + rt (overflow trap)
-    pub fn add(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn add(&mut self, instr: Instruction) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let rd = instr.rd();
@@ -240,7 +240,7 @@ impl Cpu {
     }
 
     /// rd = rs + rt
-    pub fn addu(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn addu(&mut self, instr: Instruction) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let rd = instr.rd();
@@ -253,7 +253,7 @@ impl Cpu {
     }
 
     /// rd = rs - rt (overflow trap)
-    pub fn sub(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn sub(&mut self, instr: Instruction) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let rd = instr.rd();
@@ -270,7 +270,7 @@ impl Cpu {
     }
 
     /// rd = rs - rt
-    pub fn subu(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn subu(&mut self, instr: Instruction) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let rd = instr.rd();
@@ -283,7 +283,7 @@ impl Cpu {
     }
 
     /// rd = rs + imm (overflow trap)
-    pub fn addi(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn addi(&mut self, instr: Instruction) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let im = instr.imm16_se();
@@ -299,7 +299,7 @@ impl Cpu {
     }
 
     /// rd = rs + imm
-    pub fn addiu(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn addiu(&mut self, instr: Instruction) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let im = instr.imm16_se();
@@ -312,7 +312,7 @@ impl Cpu {
     }
 
     /// rd = rs < rt
-    pub fn slt(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn slt(&mut self, instr: Instruction) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let rd = instr.rd();
@@ -325,7 +325,7 @@ impl Cpu {
     }
 
     /// rd = rs < rt (unsigned)
-    pub fn sltu(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn sltu(&mut self, instr: Instruction) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let rd = instr.rd();
@@ -338,7 +338,7 @@ impl Cpu {
     }
 
     /// rd = rs < imm
-    pub fn slti(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn slti(&mut self, instr: Instruction) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let im = instr.imm16_se();
@@ -351,7 +351,7 @@ impl Cpu {
     }
 
     /// rd = rs < imm (unsigned)
-    pub fn sltiu(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn sltiu(&mut self, instr: Instruction) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let im = instr.imm16_se();
@@ -364,7 +364,7 @@ impl Cpu {
     }
 
     /// rd = rs AND rt
-    pub fn and(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn and(&mut self, instr: Instruction) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let rd = instr.rd();
@@ -377,7 +377,7 @@ impl Cpu {
     }
 
     /// rd = rs OR rt
-    pub fn or(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn or(&mut self, instr: Instruction) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let rd = instr.rd();
@@ -390,7 +390,7 @@ impl Cpu {
     }
 
     /// rd = rs XOR rt
-    pub fn xor(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn xor(&mut self, instr: Instruction) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let rd = instr.rd();
@@ -403,7 +403,7 @@ impl Cpu {
     }
 
     /// rd = 0xFFFFFFFF XOR (rs OR rt)
-    pub fn nor(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn nor(&mut self, instr: Instruction) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let rd = instr.rd();
@@ -416,7 +416,7 @@ impl Cpu {
     }
 
     /// rt = rs AND imm
-    pub fn andi(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn andi(&mut self, instr: Instruction) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let im = instr.imm16();
@@ -429,7 +429,7 @@ impl Cpu {
     }
 
     /// rt = rs OR imm
-    pub fn ori(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn ori(&mut self, instr: Instruction) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let im = instr.imm16();
@@ -442,7 +442,7 @@ impl Cpu {
     }
 
     /// rt = rs XOR imm
-    pub fn xori(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn xori(&mut self, instr: Instruction) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let im = instr.imm16();
@@ -455,7 +455,7 @@ impl Cpu {
     }
 
     /// rd = rt SHL (rs AND 1Fh)
-    pub fn sllv(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn sllv(&mut self, instr: Instruction) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let rd = instr.rd();
@@ -468,7 +468,7 @@ impl Cpu {
     }
 
     /// rd = rt SHR (rs AND 1Fh)
-    pub fn srlv(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn srlv(&mut self, instr: Instruction) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let rd = instr.rd();
@@ -481,7 +481,7 @@ impl Cpu {
     }
 
     /// rd = rt SAR (rs AND 1Fh)
-    pub fn srav(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn srav(&mut self, instr: Instruction) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let rd = instr.rd();
@@ -494,7 +494,7 @@ impl Cpu {
     }
 
     /// rd = rt SHL imm
-    pub fn sll(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn sll(&mut self, instr: Instruction) -> Result<(), Exception> {
         let rt = instr.rt();
         let rd = instr.rd();
         let im = instr.imm5();
@@ -507,7 +507,7 @@ impl Cpu {
     }
 
     /// rd = rt SHR imm
-    pub fn srl(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn srl(&mut self, instr: Instruction) -> Result<(), Exception> {
         let rt = instr.rt();
         let rd = instr.rd();
         let im = instr.imm5();
@@ -520,7 +520,7 @@ impl Cpu {
     }
 
     /// rd = rt SAR imm
-    pub fn sra(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn sra(&mut self, instr: Instruction) -> Result<(), Exception> {
         let rt = instr.rt();
         let rd = instr.rd();
         let im = instr.imm5();
@@ -533,7 +533,7 @@ impl Cpu {
     }
 
     /// rt = imm << 16
-    pub fn lui(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn lui(&mut self, instr: Instruction) -> Result<(), Exception> {
         let rt = instr.rt();
         let im = instr.imm16();
 
@@ -542,7 +542,7 @@ impl Cpu {
     }
 
     /// hi:lo = rs * rt (signed)
-    pub fn mult(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn mult(&mut self, instr: Instruction) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
 
@@ -557,7 +557,7 @@ impl Cpu {
     }
 
     /// hi:lo = rs * rt (unsigned)
-    pub fn multu(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn multu(&mut self, instr: Instruction) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
 
@@ -572,7 +572,7 @@ impl Cpu {
     }
 
     /// hi:lo = rs / rt (signed)
-    pub fn div(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn div(&mut self, instr: Instruction) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
 
@@ -591,7 +591,7 @@ impl Cpu {
     }
 
     /// hi:lo = rs / rt (unsigned)
-    pub fn divu(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn divu(&mut self, instr: Instruction) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
 
@@ -609,28 +609,28 @@ impl Cpu {
     }
 
     /// Move from hi
-    pub fn mfhi(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn mfhi(&mut self, instr: Instruction) -> Result<(), Exception> {
         let rd = instr.rd();
         self.regd[rd] = self.hi;
         Ok(())
     }
 
     /// Move from lo
-    pub fn mflo(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn mflo(&mut self, instr: Instruction) -> Result<(), Exception> {
         let rd = instr.rd();
         self.regd[rd] = self.lo;
         Ok(())
     }
 
     /// Move to hi
-    pub fn mthi(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn mthi(&mut self, instr: Instruction) -> Result<(), Exception> {
         let rs = instr.rs();
         self.hi = self.regs[rs];
         Ok(())
     }
 
     /// Move to lo
-    pub fn mtlo(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn mtlo(&mut self, instr: Instruction) -> Result<(), Exception> {
         let rs = instr.rs();
         self.lo = self.regs[rs];
         Ok(())
@@ -639,7 +639,7 @@ impl Cpu {
     // Branching instructions
 
     /// Jump
-    pub fn j(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn j(&mut self, instr: Instruction) -> Result<(), Exception> {
         let im = instr.imm26();
         let addr = (self.pc & 0xF0000000) + (im << 2);
 
@@ -648,7 +648,7 @@ impl Cpu {
     }
 
     /// Jump and link
-    pub fn jal(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn jal(&mut self, instr: Instruction) -> Result<(), Exception> {
         let im = instr.imm26();
         let addr = (self.pc & 0xF0000000) + (im << 2);
 
@@ -658,7 +658,7 @@ impl Cpu {
     }
 
     /// Jump from register address
-    pub fn jr(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn jr(&mut self, instr: Instruction) -> Result<(), Exception> {
         let rs = instr.rs();
         let addr = self.regs[rs];
 
@@ -667,7 +667,7 @@ impl Cpu {
     }
 
     /// Jump from register address and link
-    pub fn jalr(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn jalr(&mut self, instr: Instruction) -> Result<(), Exception> {
         let rs = instr.rs();
         let rd = instr.rd();
         let addr = self.regs[rs];
@@ -678,7 +678,7 @@ impl Cpu {
     }
 
     /// Branch if equal
-    pub fn beq(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn beq(&mut self, instr: Instruction) -> Result<(), Exception> {
         let rs = instr.rs();
         let rt = instr.rt();
         let im = instr.imm16_se();
@@ -691,7 +691,7 @@ impl Cpu {
     }
 
     /// Branch if not equal
-    pub fn bne(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn bne(&mut self, instr: Instruction) -> Result<(), Exception> {
         let rs = instr.rs();
         let rt = instr.rt();
         let im = instr.imm16_se();
@@ -704,7 +704,7 @@ impl Cpu {
     }
 
     /// Handles BLTZ, BGEZ, BLTZAL, BGEZAL after decoding the opcode
-    pub fn bxxx(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn bxxx(&mut self, instr: Instruction) -> Result<(), Exception> {
         let rs = instr.rs();
         let im = instr.imm16_se();
         let addr = self.pc.wrapping_add(4 + (im << 2));
@@ -724,7 +724,7 @@ impl Cpu {
     }
 
     /// Branch if greater than zero
-    pub fn bgtz(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn bgtz(&mut self, instr: Instruction) -> Result<(), Exception> {
         let rs = instr.rs();
         let im = instr.imm16_se();
         let addr = self.pc.wrapping_add(4 + (im << 2));
@@ -736,7 +736,7 @@ impl Cpu {
     }
 
     /// Branch if less than or equal to zero
-    pub fn blez(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn blez(&mut self, instr: Instruction) -> Result<(), Exception> {
         let rs = instr.rs();
         let im = instr.imm16_se();
         let addr = self.pc.wrapping_add(4 + (im << 2));
@@ -756,7 +756,7 @@ impl Cpu {
     }
 
     /// Move to cop0 register
-    pub fn mtc0(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn mtc0(&mut self, instr: Instruction) -> Result<(), Exception> {
         let cpu_r = instr.rt();
         let cop_r = instr.rd();
 
@@ -774,7 +774,7 @@ impl Cpu {
     }
 
     /// Move from cop0 register
-    pub fn mfc0(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn mfc0(&mut self, instr: Instruction) -> Result<(), Exception> {
         let cpu_r = instr.rt();
         let cop_r = instr.rd();
 
@@ -792,7 +792,7 @@ impl Cpu {
     }
 
     /// Return from exception
-    pub fn rfe(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn rfe(&mut self, instr: Instruction) -> Result<(), Exception> {
         if instr.sec() != 0x10 {
             panic!("Invalid cop0 instruction: {}", instr.0);
         }
@@ -802,11 +802,11 @@ impl Cpu {
         Ok(())
     }
 
-    pub fn lwc2(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn lwc2(&mut self, instr: Instruction) -> Result<(), Exception> {
         panic!("Unhandled GTE load word {:x}", instr.0);
     }
 
-    pub fn swc2(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn swc2(&mut self, instr: Instruction) -> Result<(), Exception> {
         panic!("Unhandled GTE store word {:x}", instr.0);
     }
 

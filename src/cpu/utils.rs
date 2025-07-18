@@ -1,41 +1,34 @@
-#[derive(Copy, Clone)]
-pub struct Opcode(pub u32);
+use bitfield::bitfield;
 
-impl Opcode {
-    pub fn pri(&self) -> u8 {
-        (self.0 >> 26) as u8
-    }
+bitfield! {
+    #[derive(Copy, Clone)]
+    pub struct Instruction(u32);
+    pub u8, pri, _ : 31, 26;
+    pub u8, sec, _ : 5, 0;
+    rs_raw, _ : 25, 21;
+    rt_raw, _ : 20, 16;
+    rd_raw, _ : 15, 11;
+    pub imm5, _ : 10, 6;
+    pub imm16, _ : 15, 0;
+    i16, imm16_se_raw, _ : 15, 0;
+    pub imm26, _ : 25, 0;
+}
 
-    pub fn sec(&self) -> u8 {
-        (self.0 & 0x3F) as u8
-    }
-
+impl Instruction {
     pub fn rs(&self) -> usize {
-        ((self.0 >> 21) & 0x1F) as usize
+        self.rs_raw() as usize
     }
 
     pub fn rt(&self) -> usize {
-        ((self.0 >> 16) & 0x1F) as usize
+        self.rt_raw() as usize
     }
 
     pub fn rd(&self) -> usize {
-        ((self.0 >> 11) & 0x1F) as usize
-    }
-
-    pub fn imm5(&self) -> u32 {
-        (self.0 >> 6) & 0x1F
-    }
-
-    pub fn imm16(&self) -> u32 {
-        self.0 & 0xFFFF
+        self.rd_raw() as usize
     }
 
     pub fn imm16_se(&self) -> u32 {
-        ((self.0 & 0xFFFF) as i16) as u32
-    }
-
-    pub fn imm26(&self) -> u32 {
-        self.0 & 0x3FFFFFF
+        self.imm16_se_raw() as u32
     }
 }
 

@@ -26,7 +26,7 @@ impl Cop0 {
 }
 
 impl Cpu {
-    pub fn cop0(&mut self, instr: Opcode) -> Result<(), Exception> {
+    pub fn cop0(&mut self, instr: Instruction) -> Result<(), Exception> {
         match instr.rs() {
             0x00 => self.mfc0(instr),
             0x04 => self.mtc0(instr),

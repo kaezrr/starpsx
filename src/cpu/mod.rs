@@ -3,9 +3,9 @@ pub mod disasm;
 mod instrs;
 pub mod utils;
 
-use crate::{cpu::disasm::decode_instruction, memory::Bus};
+use crate::memory::Bus;
 use cop0::Cop0;
-use utils::{Exception, Opcode};
+use utils::{Exception, Instruction};
 
 pub struct Cpu {
     /// 32-bit general purpose registers, R0 is always zero
@@ -53,7 +53,7 @@ impl Cpu {
 
     /// Run a single instruction and return the number of cycles
     pub fn run_instruction(&mut self, bus: &mut Bus) {
-        let instr = Opcode(match bus.read32(self.pc) {
+        let instr = Instruction(match bus.read32(self.pc) {
             Ok(v) => v,
             Err(e) => return self.handle_exception(e, false),
         });
@@ -105,11 +105,11 @@ impl Cpu {
         self.pc = handler;
     }
 
-    fn cop2(&mut self, instr: Opcode) -> Result<(), Exception> {
+    fn cop2(&mut self, instr: Instruction) -> Result<(), Exception> {
         panic!("Unhandled GTE instruction {:x}", instr.0);
     }
 
-    fn execute_opcode(&mut self, instr: Opcode, bus: &mut Bus) -> Result<(), Exception> {
+    fn execute_opcode(&mut self, instr: Instruction, bus: &mut Bus) -> Result<(), Exception> {
         match instr.pri() {
             0x00 => match instr.sec() {
                 0x00 => self.sll(instr),

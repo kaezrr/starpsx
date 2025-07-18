@@ -1,4 +1,5 @@
 /// Map a 5‑bit register number to its conventional name.
+#[allow(dead_code)]
 fn reg_name(r: u8) -> &'static str {
     match r {
         0 => "zero",
@@ -38,6 +39,7 @@ fn reg_name(r: u8) -> &'static str {
 }
 
 /// Decode a 32‑bit instruction into a human‑readable string.
+#[allow(dead_code)]
 pub fn decode_instruction(instr: u32, pc: u32) -> String {
     let op = ((instr >> 26) & 0x3F) as u8;
     let rs = ((instr >> 21) & 0x1F) as u8;
