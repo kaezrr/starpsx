@@ -43,7 +43,7 @@ impl From<u8> for Sync {
             0 => Self::Manual,
             1 => Self::Request,
             2 => Self::LinkedList,
-            _ => unreachable!(),
+            _ => unreachable!("Unknown sync mode {v}"),
         }
     }
 }
@@ -76,7 +76,7 @@ impl From<u32> for Port {
             4 => Port::Spu,
             5 => Port::Pio,
             6 => Port::Otc,
-            _ => panic!("Unknown port {index}"),
+            _ => unreachable!("Unknown port {index}"),
         }
     }
 }
