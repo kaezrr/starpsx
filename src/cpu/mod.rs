@@ -70,8 +70,8 @@ impl Cpu {
             None => (),
         }
 
-        let disasm = decode_instruction(instr.0);
-        println!("[{:#08X}] {:#010X}: {}", self.pc, instr.0, disasm);
+        // let disasm = decode_instruction(instr.0, self.pc);
+        // println!("{:08x}: {:08x} {}", self.pc, instr.0, disasm);
 
         if let Err(exception) = self.execute_opcode(instr, bus) {
             self.handle_exception(exception, in_delay_slot);

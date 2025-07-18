@@ -13,7 +13,6 @@ fn main() {
         eprintln!("Startup error: {err}");
         process::exit(1);
     });
-    println!("Starting emulator...");
 
     if let Some(exe_path) = config.exe_path {
         psx.sideload_exe(&exe_path).unwrap_or_else(|err| {
