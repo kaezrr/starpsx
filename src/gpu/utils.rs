@@ -1,16 +1,16 @@
 /// Texture color bits per pixel
 pub enum TextureDepth {
-    T4Bit,
-    T8Bit,
-    T15Bit,
+    T4,
+    T8,
+    T15,
 }
 
 impl From<u8> for TextureDepth {
     fn from(v: u8) -> Self {
         match v {
-            0 => Self::T4Bit,
-            1 => Self::T4Bit,
-            2 => Self::T4Bit,
+            0 => Self::T4,
+            1 => Self::T8,
+            2 => Self::T15,
             _ => unreachable!(),
         }
     }
@@ -66,15 +66,15 @@ impl From<u8> for VMode {
 
 /// Display color bits per pixel
 pub enum DisplayDepth {
-    D15Bits,
-    D24Bits,
+    D15,
+    D24,
 }
 
 impl From<u8> for DisplayDepth {
     fn from(v: u8) -> Self {
         match v {
-            0 => Self::D15Bits,
-            1 => Self::D24Bits,
+            0 => Self::D15,
+            1 => Self::D24,
             _ => unreachable!(),
         }
     }
