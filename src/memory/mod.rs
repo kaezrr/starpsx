@@ -7,7 +7,7 @@ use crate::Config;
 use crate::cpu::utils::Exception;
 use crate::dma::{
     Dma,
-    channel::{Direction, Port, Step, Sync},
+    utils::{Direction, Port, Step, Sync},
 };
 use bios::Bios;
 use ram::Ram;
@@ -228,7 +228,7 @@ impl Bus {
     }
 
     pub fn do_dma(&mut self, port: Port) {
-        match self.dma.channels[port as usize].sync {
+        match self.dma.channels[port as usize].ctl.sync() {
             Sync::LinkedList => self.do_dma_linked_list(port),
             _ => self.do_dma_block(port),
         }
@@ -237,7 +237,7 @@ impl Bus {
     pub fn do_dma_block(&mut self, port: Port) {
         let (step, dir, base, size) = {
             let channel = &mut self.dma.channels[port as usize];
-            let step: i32 = match channel.step {
+            let step: i32 = match channel.ctl.step() {
                 Step::Increment => 4,
                 Step::Decrement => -4,
             };
@@ -245,7 +245,7 @@ impl Bus {
                 Some(n) => n,
                 None => panic!("Should not be able to get here!!!"),
             };
-            (step, channel.dir, channel.base, size)
+            (step, channel.ctl.dir(), channel.base, size)
         };
 
         let mut addr = base;
@@ -272,7 +272,7 @@ impl Bus {
 
     pub fn do_dma_linked_list(&mut self, port: Port) {
         let channel = &mut self.dma.channels[port as usize];
-        if channel.dir == Direction::ToRam {
+        if channel.ctl.dir() == Direction::ToRam {
             panic!("Invalid DMA direction for linked list mode.");
         }
         if port != Port::Gpu {

@@ -20,7 +20,7 @@ bitfield! {
     interlaced, _ : 22;
     display_disabled, _ : 23;
     interrupt, _ : 24;
-    dma_direction, _: 25;
+    dma_direction, _: 29, 30;
 }
 
 pub struct Gpu {

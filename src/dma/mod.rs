@@ -1,9 +1,11 @@
 pub mod channel;
+pub mod utils;
 
 use std::array::from_fn;
 
 use bitfield::bitfield;
-use channel::{Channel, Port};
+use channel::Channel;
+use utils::Port;
 
 bitfield! {
     #[derive(Copy, Clone)]
@@ -64,7 +66,7 @@ impl Dma {
         match (major, minor) {
             (0..=6, 0) => self.get_mut_channel(major).base = data & 0xFFFFFF,
             (0..=6, 4) => self.get_mut_channel(major).block_ctl.0 = data,
-            (0..=6, 8) => self.get_mut_channel(major).set(data),
+            (0..=6, 8) => self.get_mut_channel(major).ctl.0 = data,
             (7, 0) => self.control = data,
             (7, 4) => {
                 let mut data = Interrupt(data);
