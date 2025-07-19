@@ -43,4 +43,21 @@ impl Gpu {
         self.stat.0 = 0;
         // NOTE: Clear command cache and invalidate GPU cache here if I ever implement it
     }
+
+    pub fn gp1_display_mode(&mut self, command: Command) {
+        self.stat
+            .set_hres((command.hres_1() << 1) | command.hres_2());
+        self.stat.set_vres(command.vres());
+        self.stat.set_vmode(command.vmode());
+        self.stat.set_display_depth(command.display_depth());
+        self.stat.set_interlaced(command.interlaced());
+
+        if command.flip_screen() {
+            panic!("Flip screen bit not supported!");
+        }
+    }
+
+    pub fn gp1_dma_direction(&mut self, command: Command) {
+        self.stat.set_dma_direction(command.dma_direction());
+    }
 }

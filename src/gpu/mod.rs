@@ -16,7 +16,7 @@ bitfield::bitfield! {
     preserve_masked_pixels, set_preserve_masked_pixels : 12;
     u8, from into Field, field, set_field : 13, 13;
     texture_disable, set_texture_disable : 15;
-    hres, _ : 18, 16;
+    hres, set_hres : 18, 16;
     u8, from into VerticalRes, vres, set_vres : 19, 19;
     u8, from into VMode, vmode, set_vmode : 20, 20;
     u8, from into DisplayDepth, display_depth, set_display_depth : 21, 21;
@@ -26,7 +26,7 @@ bitfield::bitfield! {
     ready_cmd, set_ready_cmd : 26;
     ready_vram, set_ready_vram : 27;
     ready_dma_recv, set_ready_dma_recv: 28;
-    u8, from into DmaDirection, dma_direction, set_dma_direction: 29, 30;
+    u8, from into DmaDirection, dma_direction, set_dma_direction: 30, 29;
     even_odd_draw, set_even_odd_draw : 31;
 }
 
@@ -35,7 +35,7 @@ bitfield::bitfield! {
     pub struct Command(u32);
     u8, opcode, _ : 31, 24;
 
-    // Draw Mode
+    //GP0 Draw Mode
     page_base_x, _ : 3, 0;
     page_base_y, _ : 4;
     semi_transparency, _ : 6, 5;
@@ -46,6 +46,17 @@ bitfield::bitfield! {
     texture_rect_x_flip, _ : 12;
     texture_rect_y_flip, _ : 13;
 
+    // GP1 Display Mode
+    hres_1, _ : 1, 0;
+    hres_2, _ : 6, 6;
+    u8, into VerticalRes, vres, _ : 2, 2;
+    u8, into VMode, vmode, _ : 3, 3;
+    u8, into DisplayDepth, display_depth, _ : 4, 4;
+    interlaced, _ : 5;
+    flip_screen, _ : 7;
+
+    //GP1 DMA Direction
+    u8, into DmaDirection, dma_direction, _ : 1, 0;
 }
 
 pub struct Gpu {
@@ -119,6 +130,10 @@ impl Gpu {
         ret.0
     }
 
+    pub fn read(&self) -> u32 {
+        0
+    }
+
     pub fn gp0(&mut self, data: u32) {
         let command = Command(data);
 
@@ -133,7 +148,9 @@ impl Gpu {
         let command = Command(data);
 
         match command.opcode() {
-            0x00 => self.gp1_reset(), // NOP
+            0x00 => self.gp1_reset(),
+            0x04 => self.gp1_dma_direction(command),
+            0x08 => self.gp1_display_mode(command),
             _ => panic!("Unknown GP1 command {data:08x}"),
         }
     }

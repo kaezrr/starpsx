@@ -118,7 +118,8 @@ impl Bus {
             return match offs {
                 // GPU STAT ready for DMA
                 4 => Ok(self.gpu.stat()),
-                _ => Ok(0),
+                0 => Ok(self.gpu.read()),
+                _ => panic!("Unknown GPU register read {offs:x}"),
             };
         }
 
@@ -295,7 +296,7 @@ impl Bus {
             for _ in 0..size {
                 addr = addr.wrapping_add(4) & 0x1FFFFC;
                 let command = self.ram.read32(addr);
-                eprintln!("GPU command {command:08x}");
+                self.gpu.gp0(command);
             }
 
             if header & 0x800000 != 0 {
