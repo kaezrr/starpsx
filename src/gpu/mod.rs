@@ -119,22 +119,22 @@ impl Gpu {
         ret.0
     }
 
-    pub fn gpu0(&mut self, data: u32) {
+    pub fn gp0(&mut self, data: u32) {
         let command = Command(data);
 
         match command.opcode() {
             0x00 => (), // NOP
-            0xE1 => self.gpu0_draw_mode(command),
-            _ => panic!("Unknown GPU0 command {data:08x}"),
+            0xE1 => self.gp0_draw_mode(command),
+            _ => panic!("Unknown GP0 command {data:08x}"),
         }
     }
 
-    pub fn gpu1(&mut self, data: u32) {
+    pub fn gp1(&mut self, data: u32) {
         let command = Command(data);
 
         match command.opcode() {
-            0x00 => self.gpu1_reset(), // NOP
-            _ => panic!("Unknown GPU1 command {data:08x}"),
+            0x00 => self.gp1_reset(), // NOP
+            _ => panic!("Unknown GP1 command {data:08x}"),
         }
     }
 }

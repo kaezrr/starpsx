@@ -220,8 +220,8 @@ impl Bus {
 
         if let Some(offs) = map::GPU.contains(masked) {
             match offs {
-                0 => self.gpu.gpu0(data),
-                4 => self.gpu.gpu1(data),
+                0 => self.gpu.gp0(data),
+                4 => self.gpu.gp1(data),
                 _ => panic!("Unknown GPU register write {offs:x} <- {data:08x}"),
             }
             return Ok(());

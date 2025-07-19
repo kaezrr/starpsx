@@ -1,7 +1,7 @@
 use crate::gpu::{Command, Gpu};
 
 impl Gpu {
-    pub fn gpu0_draw_mode(&mut self, command: Command) {
+    pub fn gp0_draw_mode(&mut self, command: Command) {
         self.stat.set_page_base_x(command.page_base_x());
         self.stat.set_page_base_y(command.page_base_y());
         self.stat.set_semi_transparency(command.semi_transparency());
@@ -13,7 +13,7 @@ impl Gpu {
         self.texture_rect_y_flip = command.texture_rect_y_flip();
     }
 
-    pub fn gpu1_reset(&mut self) {
+    pub fn gp1_reset(&mut self) {
         self.texture_rect_x_flip = false;
         self.texture_rect_y_flip = false;
 
@@ -41,7 +41,6 @@ impl Gpu {
         self.display_line_end = 0x100;
 
         self.stat.0 = 0;
-
-        // Clear command cache and invalidate GPU cache if i ever implement it
+        // NOTE: Clear command cache and invalidate GPU cache here if I ever implement it
     }
 }
