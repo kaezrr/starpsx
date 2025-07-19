@@ -1,6 +1,4 @@
-use bitfield::bitfield;
-
-bitfield! {
+bitfield::bitfield! {
     #[derive(Copy, Clone)]
     pub struct Instruction(u32);
     pub u8, pri, _ : 31, 26;

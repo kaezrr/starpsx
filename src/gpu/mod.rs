@@ -1,11 +1,9 @@
 mod utils;
 
-use bitfield::bitfield;
 use utils::{DisplayDepth, DmaDirection, Field, TextureDepth, VMode, VerticalRes};
 
-bitfield! {
+bitfield::bitfield! {
     pub struct GpuStat(u32);
-    u32;
     page_base_x, _ : 3, 0;
     page_base_y, _ : 4;
     semi_transparency, _ : 6, 5;

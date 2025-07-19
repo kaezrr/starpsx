@@ -3,11 +3,10 @@ pub mod utils;
 
 use std::array::from_fn;
 
-use bitfield::bitfield;
 use channel::Channel;
 use utils::Port;
 
-bitfield! {
+bitfield::bitfield! {
     #[derive(Copy, Clone)]
     pub struct Interrupt(u32);
     bus_er, _ : 15;

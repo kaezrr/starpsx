@@ -1,7 +1,6 @@
 use super::utils::{Direction, Step, Sync};
-use bitfield::bitfield;
 
-bitfield! {
+bitfield::bitfield! {
     pub struct Control(u32);
     enable, set_enable : 24;
     trigger, set_trigger: 28;
@@ -13,7 +12,7 @@ bitfield! {
     chop_cpu_size, _: 22, 20;
 }
 
-bitfield! {
+bitfield::bitfield! {
     pub struct Block(u32);
     block_size, _ : 15, 0;
     block_count, _ : 31, 16;
