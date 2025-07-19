@@ -16,6 +16,16 @@ impl From<u8> for TextureDepth {
     }
 }
 
+impl From<TextureDepth> for u8 {
+    fn from(v: TextureDepth) -> Self {
+        match v {
+            TextureDepth::T4 => 0,
+            TextureDepth::T8 => 1,
+            TextureDepth::T15 => 2,
+        }
+    }
+}
+
 /// Interlaced output splits frames into 2 fields (top = odd lines, bottom = even lines)
 pub enum Field {
     Top,
@@ -28,6 +38,15 @@ impl From<u8> for Field {
             0 => Self::Bottom,
             1 => Self::Top,
             _ => unreachable!(),
+        }
+    }
+}
+
+impl From<Field> for u8 {
+    fn from(v: Field) -> Self {
+        match v {
+            Field::Bottom => 0,
+            Field::Top => 1,
         }
     }
 }
@@ -48,6 +67,15 @@ impl From<u8> for VerticalRes {
     }
 }
 
+impl From<VerticalRes> for u8 {
+    fn from(v: VerticalRes) -> Self {
+        match v {
+            VerticalRes::Y240Lines => 0,
+            VerticalRes::Y480Lines => 1,
+        }
+    }
+}
+
 /// Video modes
 pub enum VMode {
     Ntsc,
@@ -60,6 +88,15 @@ impl From<u8> for VMode {
             0 => Self::Ntsc,
             1 => Self::Pal,
             _ => unreachable!(),
+        }
+    }
+}
+
+impl From<VMode> for u8 {
+    fn from(v: VMode) -> Self {
+        match v {
+            VMode::Ntsc => 0,
+            VMode::Pal => 1,
         }
     }
 }
@@ -80,6 +117,15 @@ impl From<u8> for DisplayDepth {
     }
 }
 
+impl From<DisplayDepth> for u8 {
+    fn from(v: DisplayDepth) -> Self {
+        match v {
+            DisplayDepth::D15 => 0,
+            DisplayDepth::D24 => 1,
+        }
+    }
+}
+
 /// Requested DMA direction
 pub enum DmaDirection {
     Off,
@@ -96,6 +142,17 @@ impl From<u8> for DmaDirection {
             2 => Self::CpuToGpu,
             3 => Self::VRamToCpu,
             _ => unreachable!(),
+        }
+    }
+}
+
+impl From<DmaDirection> for u8 {
+    fn from(v: DmaDirection) -> Self {
+        match v {
+            DmaDirection::Off => 0,
+            DmaDirection::Fifo => 1,
+            DmaDirection::CpuToGpu => 2,
+            DmaDirection::VRamToCpu => 3,
         }
     }
 }

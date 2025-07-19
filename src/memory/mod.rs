@@ -9,6 +9,7 @@ use crate::dma::{
     Dma,
     utils::{Direction, Port, Step, Sync},
 };
+use crate::gpu::Gpu;
 use bios::Bios;
 use ram::Ram;
 use scratch::Scratch;
@@ -16,6 +17,7 @@ use std::error::Error;
 
 pub struct Bus {
     bios: Bios,
+    gpu: Gpu,
     pub ram: Ram,
     scratch: Scratch,
     dma: Dma,
@@ -26,9 +28,11 @@ impl Bus {
         let bios = Bios::build(&conf.bios_path)?;
         let ram = Ram::new();
         let dma = Dma::new();
+        let gpu = Gpu::new();
         let scratch = Scratch::new();
 
         Ok(Bus {
+            gpu,
             bios,
             ram,
             scratch,
@@ -113,7 +117,7 @@ impl Bus {
             eprintln!("GPU read: {offs:x}");
             return match offs {
                 // GPU STAT ready for DMA
-                4 => Ok(0x1C000000),
+                4 => Ok(self.gpu.stat()),
                 _ => Ok(0),
             };
         }
@@ -215,7 +219,11 @@ impl Bus {
         }
 
         if let Some(offs) = map::GPU.contains(masked) {
-            eprintln!("GPU {offs:x} write: {data:x}");
+            match offs {
+                0 => self.gpu.gpu0(data),
+                4 => self.gpu.gpu1(data),
+                _ => panic!("Unknown GPU register write {offs:x} <- {data:08x}"),
+            }
             return Ok(());
         }
 
