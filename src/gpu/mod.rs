@@ -57,6 +57,34 @@ bitfield::bitfield! {
 
     //GP1 DMA Direction
     u8, into DmaDirection, dma_direction, _ : 1, 0;
+
+    //GP0 Set Drawing Area
+    u16, x_coordinates, _ : 9, 0;
+    u16, y_coordinates, _ : 19, 10;
+
+    //GP0 Set Drawing Offset
+    u16, x_offset, _ : 10, 0;
+    u16, y_offset, _ : 21, 11;
+
+    //GP0 Set Texture Window
+    u8, window_mask_x, _: 4, 0;
+    u8, window_mask_y, _: 9, 5;
+    u8, window_offset_x, _: 14, 10;
+    u8, window_offset_y, _: 19, 15;
+
+    // GP0 Set Mask Bit Setting
+    force_set_mask_bit, _: 0;
+    preserve_masked_pixels, _: 1;
+
+    // GP1 Display VRAM Start
+    u16, display_vram_x, _ : 9, 1; // LSB of horizontal componenet is ignored?
+    u16, display_vram_y, _ : 18, 10;
+
+    // GP1 Display Horizontal and Vertical Ranges
+    u16, horizontal_x1, _ : 11, 0;
+    u16, horizontal_x2, _ : 23, 12;
+    u16, vertical_y1, _ : 9, 0;
+    u16, vertical_y2, _ : 19, 10;
 }
 
 pub struct Gpu {
@@ -140,6 +168,11 @@ impl Gpu {
         match command.opcode() {
             0x00 => (), // NOP
             0xE1 => self.gp0_draw_mode(command),
+            0xE2 => self.gp0_texture_window(command),
+            0xE3 => self.gp0_drawing_area_top_left(command),
+            0xE4 => self.gp0_drawing_area_bottom_right(command),
+            0xE5 => self.gp0_drawing_area_offset(command),
+            0xE6 => self.gp0_mask_bit_setting(command),
             _ => panic!("Unknown GP0 command {data:08x}"),
         }
     }
@@ -150,6 +183,9 @@ impl Gpu {
         match command.opcode() {
             0x00 => self.gp1_reset(),
             0x04 => self.gp1_dma_direction(command),
+            0x05 => self.gp1_display_vram_start(command),
+            0x06 => self.gp1_display_horizontal_range(command),
+            0x07 => self.gp1_display_vertical_range(command),
             0x08 => self.gp1_display_mode(command),
             _ => panic!("Unknown GP1 command {data:08x}"),
         }
