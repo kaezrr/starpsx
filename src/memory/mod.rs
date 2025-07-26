@@ -260,20 +260,25 @@ impl Bus {
         let mut addr = base;
         for s in (1..=size).rev() {
             let cur_addr = addr & 0x1FFFFC;
-            let src_word = match dir {
-                Direction::ToRam => match port {
-                    Port::Otc => match s {
-                        1 => 0xFFFFFF,
-                        _ => addr.wrapping_sub(4) & 0x1FFFFF,
-                    },
-                    _ => panic!("Unhandled DMA source port"),
-                },
-                Direction::FromRam => match port {
-                    Port::Gpu => self.ram.read32(cur_addr),
-                    _ => panic!("Unhandled DMA destination port"),
-                },
-            };
-            self.ram.write32(cur_addr, src_word);
+            match dir {
+                Direction::ToRam => {
+                    let src_word = match port {
+                        Port::Otc => match s {
+                            1 => 0xFFFFFF,
+                            _ => addr.wrapping_sub(4) & 0x1FFFFF,
+                        },
+                        _ => panic!("Unhandled DMA source port"),
+                    };
+                    self.ram.write32(cur_addr, src_word);
+                }
+                Direction::FromRam => {
+                    let src_word = self.ram.read32(cur_addr);
+                    match port {
+                        Port::Gpu => self.gpu.gp0(src_word),
+                        _ => panic!("Unhandled DMA destination port"),
+                    }
+                }
+            }
             addr = addr.wrapping_add_signed(step);
         }
         self.dma.channels[port as usize].done();

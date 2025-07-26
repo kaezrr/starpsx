@@ -85,6 +85,15 @@ bitfield::bitfield! {
     u16, horizontal_x2, _ : 23, 12;
     u16, vertical_y1, _ : 9, 0;
     u16, vertical_y2, _ : 19, 10;
+
+    // GP0 Load Image
+    image_width, _ : 15, 0;
+    image_height, _ : 31, 16;
+}
+
+enum GP0State {
+    ExecCommand,
+    LoadImage,
 }
 
 pub struct Gpu {
@@ -114,6 +123,12 @@ pub struct Gpu {
 
     display_line_start: u16,
     display_line_end: u16,
+
+    commands: Vec<Command>,
+    command_ptr: fn(&mut Gpu),
+    args_len: usize,
+
+    gp0_state: GP0State,
 }
 
 impl Gpu {
@@ -146,6 +161,12 @@ impl Gpu {
 
             display_line_start: 0,
             display_line_end: 0,
+
+            commands: Vec::with_capacity(12),
+            command_ptr: Self::gp0_nop,
+            args_len: 0,
+
+            gp0_state: GP0State::ExecCommand,
         }
     }
 
@@ -155,6 +176,9 @@ impl Gpu {
         ret.set_ready_cmd(true);
         ret.set_ready_vram(true);
         ret.set_ready_dma_recv(true);
+
+        // Hack, GPU doesn't have proper timing to emulate vres 480 lines
+        ret.set_vres(VerticalRes::Y240Lines);
         ret.0
     }
 
@@ -164,16 +188,38 @@ impl Gpu {
 
     pub fn gp0(&mut self, data: u32) {
         let command = Command(data);
+        if self.args_len == 0 {
+            let (len, ptr): (usize, fn(&mut Gpu)) = match command.opcode() {
+                0x00 => (1, Gpu::gp0_nop),
+                0x01 => (1, Gpu::gp0_clear_cache),
+                0x28 => (5, Gpu::gp0_quad_mono_opaque),
+                0xA0 => (3, Gpu::gp0_image_load),
+                0xE1 => (1, Gpu::gp0_draw_mode),
+                0xE2 => (1, Gpu::gp0_texture_window),
+                0xE3 => (1, Gpu::gp0_drawing_area_top_left),
+                0xE4 => (1, Gpu::gp0_drawing_area_bottom_right),
+                0xE5 => (1, Gpu::gp0_drawing_area_offset),
+                0xE6 => (1, Gpu::gp0_mask_bit_setting),
+                _ => panic!("Unknown GP0 command {data:08x}"),
+            };
+            (self.args_len, self.command_ptr) = (len, ptr);
+        }
+        self.args_len -= 1;
 
-        match command.opcode() {
-            0x00 => (), // NOP
-            0xE1 => self.gp0_draw_mode(command),
-            0xE2 => self.gp0_texture_window(command),
-            0xE3 => self.gp0_drawing_area_top_left(command),
-            0xE4 => self.gp0_drawing_area_bottom_right(command),
-            0xE5 => self.gp0_drawing_area_offset(command),
-            0xE6 => self.gp0_mask_bit_setting(command),
-            _ => panic!("Unknown GP0 command {data:08x}"),
+        match self.gp0_state {
+            GP0State::ExecCommand => {
+                self.commands.push(command);
+                if self.args_len == 0 {
+                    (self.command_ptr)(self);
+                    self.commands.clear();
+                }
+            }
+            GP0State::LoadImage => {
+                // TODO: Copy data to VRAM
+                if self.args_len == 0 {
+                    self.gp0_state = GP0State::ExecCommand;
+                }
+            }
         }
     }
 
