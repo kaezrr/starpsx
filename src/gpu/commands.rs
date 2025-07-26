@@ -1,37 +1,6 @@
 use crate::gpu::{Command, GP0State, Gpu};
 
 impl Gpu {
-    pub fn gp1_reset(&mut self) {
-        self.texture_rect_x_flip = false;
-        self.texture_rect_y_flip = false;
-
-        self.texture_window_x_mask = 0;
-        self.texture_window_y_mask = 0;
-
-        self.texture_window_x_offset = 0;
-        self.texture_window_y_offset = 0;
-
-        self.drawing_area_left = 0;
-        self.drawing_area_top = 0;
-        self.drawing_area_right = 0;
-        self.drawing_area_bottom = 0;
-
-        self.drawing_x_offset = 0;
-        self.drawing_y_offset = 0;
-
-        self.display_vram_x_start = 0;
-        self.display_vram_y_start = 0;
-
-        self.display_hori_start = 0x200;
-        self.display_hori_end = 0xc00;
-
-        self.display_line_start = 0x10;
-        self.display_line_end = 0x100;
-
-        self.stat.0 = 0;
-        // NOTE: Clear command cache and invalidate GPU cache here if I ever implement it
-    }
-
     pub fn gp0_nop(&mut self) {
         // Do nothing
     }
@@ -82,6 +51,59 @@ impl Gpu {
             .set_preserve_masked_pixels(self.commands[0].preserve_masked_pixels());
     }
 
+    pub fn gp0_image_store(&mut self) {
+        let resolution = self.commands[2];
+        let (width, height) = (resolution.image_width(), resolution.image_height());
+        // let image_size = resolution.image_width() * resolution.image_height();
+
+        eprintln!("Unhandled image store of {width} x {height}");
+    }
+
+    pub fn gp0_clear_cache(&mut self) {
+        // unimplemented
+    }
+
+    pub fn gp0_image_load(&mut self) {
+        let resolution = self.commands[2];
+        let image_size = resolution.image_width() * resolution.image_height();
+
+        self.args_len = (image_size / 2) as usize;
+        self.gp0_state = GP0State::LoadImage;
+    }
+
+    pub fn gp1_reset(&mut self) {
+        self.texture_rect_x_flip = false;
+        self.texture_rect_y_flip = false;
+
+        self.texture_window_x_mask = 0;
+        self.texture_window_y_mask = 0;
+
+        self.texture_window_x_offset = 0;
+        self.texture_window_y_offset = 0;
+
+        self.drawing_area_left = 0;
+        self.drawing_area_top = 0;
+        self.drawing_area_right = 0;
+        self.drawing_area_bottom = 0;
+
+        self.drawing_x_offset = 0;
+        self.drawing_y_offset = 0;
+
+        self.display_vram_x_start = 0;
+        self.display_vram_y_start = 0;
+
+        self.display_hori_start = 0x200;
+        self.display_hori_end = 0xc00;
+
+        self.display_line_start = 0x10;
+        self.display_line_end = 0x100;
+
+        self.stat.0 = 0;
+        // NOTE: Clear command cache and invalidate GPU cache here if I ever implement it
+
+        self.gp1_reset_command_buffer();
+    }
+
     pub fn gp1_display_mode(&mut self, command: Command) {
         self.stat
             .set_hres((command.hres_1() << 1) | command.hres_2());
@@ -114,19 +136,34 @@ impl Gpu {
         self.display_line_end = command.vertical_y2();
     }
 
+    pub fn gp1_display_enable(&mut self, command: Command) {
+        self.stat.set_display_disabled(command.display_off());
+    }
+
+    pub fn gp1_reset_command_buffer(&mut self) {
+        self.args_len = 0;
+        self.commands.clear();
+        self.gp0_state = GP0State::ExecCommand;
+    }
+
+    // DRAW COMMANDS
+    pub fn gp1_acknowledge_irq(&mut self) {
+        self.stat.set_interrupt(false);
+    }
+
     pub fn gp0_quad_mono_opaque(&mut self) {
         eprintln!("draw quad");
     }
 
-    pub fn gp0_clear_cache(&mut self) {
-        // unimplemented
+    pub fn gp0_quad_shaded_opaque(&mut self) {
+        eprintln!("draw shaded quad");
     }
 
-    pub fn gp0_image_load(&mut self) {
-        let image_size = self.commands[2].image_width() * self.commands[2].image_height();
-        let image_size = (image_size + 1) & !1;
+    pub fn gp0_triangle_shaded_opaque(&mut self) {
+        eprintln!("draw shaded triangle");
+    }
 
-        self.args_len = (image_size / 2) as usize;
-        self.gp0_state = GP0State::LoadImage;
+    pub fn gp0_quad_texture_blend_opaque(&mut self) {
+        eprintln!("draw texture blended quad");
     }
 }

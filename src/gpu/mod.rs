@@ -89,6 +89,9 @@ bitfield::bitfield! {
     // GP0 Load Image
     image_width, _ : 15, 0;
     image_height, _ : 31, 16;
+
+    // GP1 Display Enable
+    display_off, _ : 0;
 }
 
 enum GP0State {
@@ -193,7 +196,11 @@ impl Gpu {
                 0x00 => (1, Gpu::gp0_nop),
                 0x01 => (1, Gpu::gp0_clear_cache),
                 0x28 => (5, Gpu::gp0_quad_mono_opaque),
+                0x2C => (9, Gpu::gp0_quad_texture_blend_opaque),
+                0x30 => (6, Gpu::gp0_triangle_shaded_opaque),
+                0x38 => (8, Gpu::gp0_quad_shaded_opaque),
                 0xA0 => (3, Gpu::gp0_image_load),
+                0xC0 => (3, Gpu::gp0_image_store),
                 0xE1 => (1, Gpu::gp0_draw_mode),
                 0xE2 => (1, Gpu::gp0_texture_window),
                 0xE3 => (1, Gpu::gp0_drawing_area_top_left),
@@ -228,6 +235,9 @@ impl Gpu {
 
         match command.opcode() {
             0x00 => self.gp1_reset(),
+            0x01 => self.gp1_reset_command_buffer(),
+            0x02 => self.gp1_acknowledge_irq(),
+            0x03 => self.gp1_display_enable(command),
             0x04 => self.gp1_dma_direction(command),
             0x05 => self.gp1_display_vram_start(command),
             0x06 => self.gp1_display_horizontal_range(command),
