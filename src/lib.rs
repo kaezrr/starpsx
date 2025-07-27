@@ -1,6 +1,5 @@
 use std::{
     error::Error,
-    fs,
     io::{self, Write},
 };
 
@@ -18,7 +17,8 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn build(args: &[String]) -> Result<Config, Box<dyn Error>> {
+    pub fn build() -> Result<Config, Box<dyn Error>> {
+        let args: Vec<String> = std::env::args().collect();
         if args.len() < 2 {
             return Err("missing bios path".into());
         }
@@ -54,7 +54,7 @@ impl StarPSX {
     }
 
     pub fn sideload_exe(&mut self, filepath: &String) -> Result<(), Box<dyn Error>> {
-        let exe = fs::read(filepath)?;
+        let exe = std::fs::read(filepath)?;
         while self.cpu.pc != 0x80030000 {
             self.cpu.run_instruction(&mut self.bus);
             check_for_tty_output(&self.cpu);

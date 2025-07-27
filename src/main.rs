@@ -3,8 +3,7 @@ use std::process;
 use starpsx::{Config, StarPSX};
 
 fn main() {
-    let args: Vec<String> = std::env::args().collect();
-    let config = Config::build(&args).unwrap_or_else(|err| {
+    let config = Config::build().unwrap_or_else(|err| {
         eprintln!("Argument parse error: {err}");
         process::exit(1);
     });
