@@ -1,7 +1,3 @@
-[package]
-name = "starpsx"
-version = "0.1.0"
-edition = "2024"
-
-[dependencies]
-bitfield = "0.19.1"
+[workspace]
+members = ["core", "frontend"]
+resolver = "3"

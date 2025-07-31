@@ -1,0 +1,9 @@
+[package]
+name = "starpsx"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+minifb = "0.28.0"
+starpsx-core = { path = "../core" }
+

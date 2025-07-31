@@ -1,6 +1,6 @@
 use std::process;
 
-use starpsx::{Config, StarPSX};
+use starpsx_core::{Config, StarPSX};
 
 fn main() {
     let config = Config::build().unwrap_or_else(|err| {
