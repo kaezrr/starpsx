@@ -1,24 +1,14 @@
-use std::process;
+use eframe::egui;
+use starpsx::{self, App, SCREEN_HEIGHT, SCREEN_WIDTH};
 
-use starpsx_core::{Config, StarPSX};
-
-fn main() {
-    let config = Config::build().unwrap_or_else(|err| {
-        eprintln!("Argument parse error: {err}");
-        process::exit(1);
-    });
-
-    let mut psx = StarPSX::build(&config).unwrap_or_else(|err| {
-        eprintln!("Startup error: {err}");
-        process::exit(1);
-    });
-
-    if let Some(exe_path) = config.exe_path {
-        psx.sideload_exe(&exe_path).unwrap_or_else(|err| {
-            eprintln!("EXE loading error: {err}");
-            process::exit(1);
-        });
-    }
-
-    psx.run();
+fn main() -> eframe::Result {
+    let native_options = eframe::NativeOptions {
+        viewport: egui::ViewportBuilder::default().with_inner_size([SCREEN_WIDTH, SCREEN_HEIGHT]),
+        ..Default::default()
+    };
+    eframe::run_native(
+        "StarPSX",
+        native_options,
+        Box::new(|cc| Ok(Box::new(App::new(cc)))),
+    )
 }

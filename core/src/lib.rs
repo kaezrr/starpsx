@@ -8,7 +8,7 @@ use memory::Bus;
 
 mod cpu;
 mod dma;
-mod gpu;
+pub mod gpu;
 mod memory;
 
 pub struct Config {
@@ -39,18 +39,26 @@ pub struct StarPSX {
 }
 
 impl StarPSX {
-    pub fn build(config: &Config) -> Result<Self, Box<dyn Error>> {
-        let bus = Bus::build(config)?;
+    pub fn build(config: Config) -> Result<Self, Box<dyn Error>> {
+        let bus = Bus::build(&config)?;
         let cpu = Cpu::new();
 
-        Ok(StarPSX { cpu, bus })
+        let mut psx = StarPSX { cpu, bus };
+
+        if let Some(exe_path) = config.exe_path {
+            psx.sideload_exe(&exe_path)?;
+        }
+
+        Ok(psx)
     }
 
-    pub fn run(&mut self) -> ! {
-        loop {
-            self.cpu.run_instruction(&mut self.bus);
-            check_for_tty_output(&self.cpu);
-        }
+    pub fn pixel_buffer(&self) -> &[u8] {
+        &self.bus.gpu.renderer.pixel_buffer
+    }
+
+    pub fn step(&mut self) {
+        self.cpu.run_instruction(&mut self.bus);
+        check_for_tty_output(&self.cpu);
     }
 
     pub fn sideload_exe(&mut self, filepath: &String) -> Result<(), Box<dyn Error>> {

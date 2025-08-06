@@ -1,6 +1,8 @@
 mod commands;
+pub mod renderer;
 mod utils;
 
+use renderer::Renderer;
 use utils::{DisplayDepth, DmaDirection, Field, TextureDepth, VMode, VerticalRes};
 
 bitfield::bitfield! {
@@ -100,6 +102,8 @@ enum GP0State {
 }
 
 pub struct Gpu {
+    pub renderer: Renderer,
+
     stat: GpuStat,
     texture_rect_x_flip: bool,
     texture_rect_y_flip: bool,
@@ -137,6 +141,8 @@ pub struct Gpu {
 impl Gpu {
     pub fn new() -> Self {
         Gpu {
+            renderer: Renderer::default(),
+
             stat: GpuStat(0),
 
             texture_rect_x_flip: false,

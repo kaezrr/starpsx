@@ -17,7 +17,7 @@ use std::error::Error;
 
 pub struct Bus {
     bios: Bios,
-    gpu: Gpu,
+    pub gpu: Gpu,
     pub ram: Ram,
     scratch: Scratch,
     dma: Dma,
