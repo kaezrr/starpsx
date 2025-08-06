@@ -5,10 +5,11 @@ use starpsx_core::{Config, StarPSX};
 pub struct App {
     psx: StarPSX,
     texture: egui::TextureHandle,
+    number: u32,
 }
 
-pub const SCREEN_HEIGHT: f32 = CANVAS_HEIGHT as f32;
-pub const SCREEN_WIDTH: f32 = CANVAS_WIDTH as f32;
+pub const SCREEN_HEIGHT: f32 = CANVAS_HEIGHT as f32 + 100.;
+pub const SCREEN_WIDTH: f32 = CANVAS_WIDTH as f32 + 100.;
 
 impl App {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
@@ -28,13 +29,26 @@ impl App {
                     ..Default::default()
                 },
             ),
+            number: 0,
         }
     }
 }
 
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
+            egui::MenuBar::new().ui(ui, |ui| {
+                ui.menu_button("File", |ui| {
+                    if ui.button("Quit").clicked() {
+                        ctx.send_viewport_cmd(egui::ViewportCommand::Close)
+                    }
+                })
+            })
+        });
+
         egui::CentralPanel::default().show(ctx, |ui| {
+            ui.heading(format!("StarPSX {}", self.number));
+            self.number += 1;
             ui.centered_and_justified(|ui| {
                 self.texture.set(
                     egui::ColorImage::from_rgb(
@@ -55,5 +69,7 @@ impl eframe::App for App {
                 );
             });
         });
+
+        ctx.request_repaint();
     }
 }

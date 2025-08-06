@@ -4,8 +4,10 @@ use starpsx::{self, App, SCREEN_HEIGHT, SCREEN_WIDTH};
 fn main() -> eframe::Result {
     let native_options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default().with_inner_size([SCREEN_WIDTH, SCREEN_HEIGHT]),
+        vsync: false,
         ..Default::default()
     };
+
     eframe::run_native(
         "StarPSX",
         native_options,
