@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-eframe = "0.32.0"
+pixels = "0.15.0"
 starpsx-core = { path = "../core" }
+winit = "0.30.12"
 
