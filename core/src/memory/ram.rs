@@ -1,13 +1,16 @@
 pub struct Ram {
-    pub bytes: Vec<u8>,
+    pub bytes: Box<[u8; 0x200000]>,
+}
+
+impl Default for Ram {
+    fn default() -> Self {
+        Self {
+            bytes: Box::new([0; 0x200000]),
+        }
+    }
 }
 
 impl Ram {
-    pub fn new() -> Self {
-        let bytes = vec![0; 0x200000];
-        Ram { bytes }
-    }
-
     pub fn read8(&self, addr: u32) -> u8 {
         self.bytes[addr as usize]
     }

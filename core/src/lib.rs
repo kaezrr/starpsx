@@ -44,7 +44,7 @@ pub struct StarPSX {
 impl StarPSX {
     pub fn build(config: Config) -> Result<Self, Box<dyn Error>> {
         let bus = Bus::build(&config)?;
-        let cpu = Cpu::new();
+        let cpu = Cpu::default();
         let mut psx = StarPSX { cpu, bus };
         if let Some(exe_path) = config.exe_path {
             psx.sideload_exe(&exe_path)?;
@@ -53,7 +53,7 @@ impl StarPSX {
     }
 
     pub fn pixel_buffer(&self) -> &[u32] {
-        &self.bus.gpu.renderer.pixel_buffer
+        self.bus.gpu.renderer.pixel_buffer.as_ref()
     }
 
     pub fn step_frame(&mut self) {

@@ -1,5 +1,6 @@
 use super::*;
 
+#[derive(Default)]
 pub struct Cop0 {
     /// Cop0 reg12 : Status Register
     pub sr: u32,
@@ -12,17 +13,6 @@ pub struct Cop0 {
 
     /// Cop0 reg8 : Bad Virtual Address
     pub baddr: u32,
-}
-
-impl Cop0 {
-    pub fn new() -> Self {
-        Cop0 {
-            sr: 0,
-            epc: 0,
-            cause: 0,
-            baddr: 0,
-        }
-    }
 }
 
 impl Cpu {

@@ -19,13 +19,13 @@ impl Color {
 }
 
 pub struct Renderer {
-    pub pixel_buffer: Vec<u32>,
+    pub pixel_buffer: Box<[u32; CANVAS_HEIGHT * CANVAS_WIDTH]>,
 }
 
 impl Default for Renderer {
     fn default() -> Self {
         Self {
-            pixel_buffer: vec![0x33; CANVAS_HEIGHT * CANVAS_WIDTH],
+            pixel_buffer: Box::new([0x33; CANVAS_HEIGHT * CANVAS_WIDTH]),
         }
     }
 }

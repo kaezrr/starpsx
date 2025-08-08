@@ -33,13 +33,13 @@ pub struct Cpu {
     cop0: Cop0,
 }
 
-impl Cpu {
-    pub fn new() -> Self {
+impl Default for Cpu {
+    fn default() -> Self {
         let mut regs = [0xDEADBEEF; 32];
         regs[0] = 0;
         let pc = 0xBFC00000;
 
-        Cpu {
+        Self {
             regs,
             regd: regs,
             pc,
@@ -47,10 +47,12 @@ impl Cpu {
             lo: 0xDEADBEEF,
             load: None,
             delayed_branch: None,
-            cop0: Cop0::new(),
+            cop0: Cop0::default(),
         }
     }
+}
 
+impl Cpu {
     /// Run a single instruction and return the number of cycles
     pub fn run_instruction(&mut self, bus: &mut Bus) {
         let instr = Instruction(match bus.read32(self.pc) {

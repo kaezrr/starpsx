@@ -2,6 +2,7 @@ mod commands;
 pub mod renderer;
 mod utils;
 
+use arrayvec::ArrayVec;
 use renderer::Renderer;
 use utils::{DisplayDepth, DmaDirection, Field, TextureDepth, VMode, VerticalRes};
 
@@ -131,16 +132,16 @@ pub struct Gpu {
     display_line_start: u16,
     display_line_end: u16,
 
-    commands: Vec<Command>,
+    commands: ArrayVec<Command, 12>,
     command_ptr: fn(&mut Gpu),
     args_len: usize,
 
     gp0_state: GP0State,
 }
 
-impl Gpu {
-    pub fn new() -> Self {
-        Gpu {
+impl Default for Gpu {
+    fn default() -> Self {
+        Self {
             renderer: Renderer::default(),
 
             stat: GpuStat(0),
@@ -171,14 +172,16 @@ impl Gpu {
             display_line_start: 0,
             display_line_end: 0,
 
-            commands: Vec::with_capacity(12),
+            commands: ArrayVec::new(),
             command_ptr: Self::gp0_nop,
             args_len: 0,
 
             gp0_state: GP0State::ExecCommand,
         }
     }
+}
 
+impl Gpu {
     pub fn stat(&self) -> u32 {
         let mut ret = self.stat;
         // GPU always ready for commands, for now

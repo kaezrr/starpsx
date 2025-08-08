@@ -26,10 +26,10 @@ pub struct Bus {
 impl Bus {
     pub fn build(conf: &Config) -> Result<Self, Box<dyn Error>> {
         let bios = Bios::build(&conf.bios_path)?;
-        let ram = Ram::new();
-        let dma = Dma::new();
-        let gpu = Gpu::new();
-        let scratch = Scratch::new();
+        let ram = Ram::default();
+        let dma = Dma::default();
+        let gpu = Gpu::default();
+        let scratch = Scratch::default();
 
         Ok(Bus {
             gpu,

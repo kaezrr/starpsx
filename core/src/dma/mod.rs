@@ -21,15 +21,17 @@ pub struct Dma {
     pub channels: [Channel; 8],
 }
 
-impl Dma {
-    pub fn new() -> Self {
+impl Default for Dma {
+    fn default() -> Self {
         Dma {
             control: 0x07654321,
             interrupt: Interrupt(0),
             channels: from_fn(|_| Channel::new()),
         }
     }
+}
 
+impl Dma {
     /// Status of DMA interrupt
     pub fn irq_stat(&self) -> bool {
         let channel_irq = self.interrupt.channel_irq_en() & self.interrupt.channel_irq_fl();
