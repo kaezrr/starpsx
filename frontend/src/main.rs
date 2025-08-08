@@ -92,9 +92,7 @@ fn draw(buffer: &mut [u32]) {
             let blue = ((y as f32 / height as f32) * 255.0) as u32;
             let green = 0u32;
 
-            let color = (red << 16) | (green << 8) | blue;
-
-            buffer[i] = color;
+            buffer[i] = (red << 16) | (green << 8) | blue;
         }
     }
 }
