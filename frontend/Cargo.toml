@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-pixels = "0.15.0"
+softbuffer = "0.4.6"
 starpsx-core = { path = "../core" }
 winit = "0.30.12"
 
