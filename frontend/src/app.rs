@@ -1,18 +1,20 @@
 use softbuffer::Surface;
-use starpsx_core::gpu::renderer::{CANVAS_HEIGHT, CANVAS_WIDTH};
-use starpsx_core::{Config, StarPSX};
+use starpsx_core::{Config, StarPSX, TARGET_FPS};
 use std::num::NonZeroU32;
 use std::rc::Rc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use winit::{application::ApplicationHandler, event::WindowEvent};
 use winit::{dpi::LogicalSize, window::Window};
 
-const WINDOW_SIZE: LogicalSize<u32> = LogicalSize::new(CANVAS_WIDTH as u32, CANVAS_HEIGHT as u32);
+const WINDOW_SIZE: LogicalSize<u32> = LogicalSize::new(
+    starpsx_core::gpu::renderer::CANVAS_WIDTH as u32,
+    starpsx_core::gpu::renderer::CANVAS_HEIGHT as u32,
+);
+const FRAME_TIME: Duration = Duration::from_nanos(1_000_000_000 / TARGET_FPS);
 
 pub struct AppState {
     window: Rc<Window>,
     surface: Surface<Rc<Window>, Rc<Window>>,
-    last_frame: Instant,
     psx: StarPSX,
 }
 
@@ -30,7 +32,7 @@ impl ApplicationHandler for App {
                 .with_inner_size(WINDOW_SIZE);
             let window = Rc::new(event_loop.create_window(win_attr).unwrap());
             let context = softbuffer::Context::new(window.clone()).unwrap();
-            let draw_surface = softbuffer::Surface::new(&context, window.clone()).unwrap();
+            let surface = softbuffer::Surface::new(&context, window.clone()).unwrap();
             let psx = match StarPSX::build(config) {
                 Ok(psx) => psx,
                 Err(err) => {
@@ -42,8 +44,7 @@ impl ApplicationHandler for App {
             self.state = Some(AppState {
                 psx,
                 window,
-                surface: draw_surface,
-                last_frame: Instant::now(),
+                surface,
             })
         }
     }
@@ -63,14 +64,27 @@ impl ApplicationHandler for App {
             return;
         };
 
+        let frame_start = Instant::now();
+        // TODO: step emulator for 1 frame here
+
         match event {
             WindowEvent::RedrawRequested => {
                 state.draw_to_screen();
-                state.show_fps();
                 state.window.request_redraw();
             }
             WindowEvent::CloseRequested => event_loop.exit(),
             event => eprintln!("Ignoring window event: {event:?}"),
+        }
+
+        // Thread sleeping locks the framerate here
+        let elapsed = frame_start.elapsed();
+        let actual_fps = 1.0 / elapsed.as_secs_f64();
+        println!("FPS: {actual_fps:.2}");
+
+        if let Some(remaining) = FRAME_TIME.checked_sub(elapsed) {
+            std::thread::sleep(remaining);
+        } else {
+            eprintln!("Frame took too long to render");
         }
     }
 }
@@ -87,13 +101,5 @@ impl AppState {
         let mut buffer = self.surface.buffer_mut().unwrap();
         buffer.copy_from_slice(self.psx.pixel_buffer());
         buffer.present().unwrap();
-    }
-
-    fn show_fps(&mut self) {
-        let now = Instant::now();
-        let delta = now - self.last_frame;
-        self.last_frame = now;
-        let fps = 1.0 / delta.as_secs_f64();
-        eprintln!("{fps:.4}");
     }
 }

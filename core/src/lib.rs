@@ -11,6 +11,8 @@ mod dma;
 pub mod gpu;
 mod memory;
 
+pub const TARGET_FPS: u64 = 60;
+
 pub struct Config {
     pub bios_path: String,
     pub exe_path: Option<String>,
@@ -42,13 +44,10 @@ impl StarPSX {
     pub fn build(config: Config) -> Result<Self, Box<dyn Error>> {
         let bus = Bus::build(&config)?;
         let cpu = Cpu::new();
-
         let mut psx = StarPSX { cpu, bus };
-
         if let Some(exe_path) = config.exe_path {
             psx.sideload_exe(&exe_path)?;
         }
-
         Ok(psx)
     }
 
@@ -56,7 +55,7 @@ impl StarPSX {
         &self.bus.gpu.renderer.pixel_buffer
     }
 
-    pub fn step(&mut self) {
+    pub fn step_frame(&mut self) {
         self.cpu.run_instruction(&mut self.bus);
         check_for_tty_output(&self.cpu);
     }
