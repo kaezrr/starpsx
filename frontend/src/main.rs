@@ -89,8 +89,8 @@ fn draw(buffer: &mut [u32]) {
             let i = y * width + x;
 
             let red = ((x as f32 / width as f32) * 255.0) as u32;
-            let green = ((y as f32 / height as f32) * 255.0) as u32;
-            let blue = 0u32;
+            let blue = ((y as f32 / height as f32) * 255.0) as u32;
+            let green = 0u32;
 
             let color = (red << 16) | (green << 8) | blue;
 
