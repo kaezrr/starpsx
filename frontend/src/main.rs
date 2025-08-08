@@ -84,15 +84,24 @@ fn draw(buffer: &mut [u32]) {
 
     assert_eq!(buffer.len(), width * height);
 
-    for y in 0..height {
-        for x in 0..width {
-            let i = y * width + x;
+    // Precompute scaling factors
+    let inv_width = 255.0 / (width - 1) as f32;
+    let inv_height = 255.0 / (height - 1) as f32;
 
-            let red = ((x as f32 / width as f32) * 255.0) as u32;
-            let blue = ((y as f32 / height as f32) * 255.0) as u32;
-            let green = 0u32;
+    let red_lut: Vec<u32> = (0..width)
+        .map(|x| ((x as f32 * inv_width) as u32) << 16)
+        .collect();
+    let blue_lut: Vec<u32> = (0..height)
+        .map(|y| (y as f32 * inv_height) as u32)
+        .collect();
 
-            buffer[i] = (red << 16) | (green << 8) | blue;
+    for (y, bval) in blue_lut.iter().enumerate().take(height) {
+        let blue = bval;
+        let row_start = y * width;
+
+        for (x, rval) in red_lut.iter().enumerate().take(width) {
+            let red = rval;
+            buffer[row_start + x] = red | blue;
         }
     }
 }
