@@ -12,6 +12,7 @@ pub mod gpu;
 mod memory;
 
 pub const TARGET_FPS: u64 = 60;
+const MCYCLES_PER_SECOND: u32 = 270950;
 
 pub struct Config {
     pub bios_path: String,
@@ -21,11 +22,11 @@ pub struct Config {
 impl Config {
     pub fn build() -> Result<Config, Box<dyn Error>> {
         let args: Vec<String> = std::env::args().collect();
-        if args.len() < 2 {
-            return Err("missing bios path".into());
-        }
 
-        let bios_path = args[1].clone();
+        let bios_path = match args.get(1) {
+            Some(x) => x.clone(),
+            None => return Err("missing bios path".into()),
+        };
         let exe_path = args.get(2).cloned();
 
         Ok(Config {
@@ -56,8 +57,10 @@ impl StarPSX {
     }
 
     pub fn step_frame(&mut self) {
-        self.cpu.run_instruction(&mut self.bus);
-        check_for_tty_output(&self.cpu);
+        for _ in 0..MCYCLES_PER_SECOND {
+            self.cpu.run_instruction(&mut self.bus);
+            // check_for_tty_output(&self.cpu);
+        }
     }
 
     pub fn sideload_exe(&mut self, filepath: &String) -> Result<(), Box<dyn Error>> {

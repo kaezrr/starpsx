@@ -65,7 +65,7 @@ impl ApplicationHandler for App {
         };
 
         let frame_start = Instant::now();
-        // TODO: step emulator for 1 frame here
+        state.psx.step_frame();
 
         match event {
             WindowEvent::RedrawRequested => {
