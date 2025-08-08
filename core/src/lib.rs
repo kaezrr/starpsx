@@ -52,7 +52,7 @@ impl StarPSX {
         Ok(psx)
     }
 
-    pub fn pixel_buffer(&self) -> &[u8] {
+    pub fn pixel_buffer(&self) -> &[u32] {
         &self.bus.gpu.renderer.pixel_buffer
     }
 

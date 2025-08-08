@@ -19,13 +19,13 @@ impl Color {
 }
 
 pub struct Renderer {
-    pub pixel_buffer: Vec<u8>,
+    pub pixel_buffer: Vec<u32>,
 }
 
 impl Default for Renderer {
     fn default() -> Self {
         Self {
-            pixel_buffer: vec![0x33; CANVAS_HEIGHT * CANVAS_WIDTH * 3],
+            pixel_buffer: vec![0x33; CANVAS_HEIGHT * CANVAS_WIDTH],
         }
     }
 }
@@ -33,7 +33,6 @@ impl Default for Renderer {
 impl Renderer {
     pub fn put_pixel(&mut self, x: usize, y: usize, color: Color) {
         let color_index = y * CANVAS_WIDTH + x;
-
-        *self.pixel_buffer[color_index..].first_chunk_mut().unwrap() = color.to_le_bytes()
+        self.pixel_buffer[color_index] = color.0;
     }
 }
