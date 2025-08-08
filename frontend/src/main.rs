@@ -56,6 +56,7 @@ impl ApplicationHandler for App<'_> {
 
         match event {
             WindowEvent::RedrawRequested => {
+                draw(state.pixels.frame_mut());
                 if let Err(err) = state.pixels.render() {
                     eprintln!("Pixels could not render: {err}");
                     event_loop.exit();
@@ -71,6 +72,29 @@ impl ApplicationHandler for App<'_> {
             }
             WindowEvent::CloseRequested => event_loop.exit(),
             event => eprintln!("Ignoring window event: {event:?}"),
+        }
+    }
+}
+
+fn draw(buffer: &mut [u8]) {
+    let width = 640;
+    let height = 480;
+
+    assert_eq!(buffer.len(), width * height * 4);
+
+    for y in 0..height {
+        for x in 0..width {
+            let i = (y * width + x) * 4;
+
+            let red = ((x as f32 / width as f32) * 255.0) as u8;
+            let green = ((y as f32 / height as f32) * 255.0) as u8;
+            let blue = 0;
+            let alpha = 255;
+
+            buffer[i] = red;
+            buffer[i + 1] = green;
+            buffer[i + 2] = blue;
+            buffer[i + 3] = alpha;
         }
     }
 }
