@@ -4,7 +4,8 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-softbuffer = "0.4.6"
 starpsx-core = { path = "../core" }
+starpsx-renderer = { path = "../renderer"}
+softbuffer = "0.4.6"
 winit = "0.30.12"
 

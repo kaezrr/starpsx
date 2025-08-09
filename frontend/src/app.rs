@@ -7,8 +7,8 @@ use winit::{application::ApplicationHandler, event::WindowEvent};
 use winit::{dpi::LogicalSize, window::Window};
 
 const WINDOW_SIZE: LogicalSize<u32> = LogicalSize::new(
-    starpsx_core::gpu::renderer::CANVAS_WIDTH as u32,
-    starpsx_core::gpu::renderer::CANVAS_HEIGHT as u32,
+    starpsx_renderer::CANVAS_WIDTH as u32,
+    starpsx_renderer::CANVAS_HEIGHT as u32,
 );
 const FRAME_TIME: Duration = Duration::from_nanos(1_000_000_000 / TARGET_FPS);
 
@@ -78,8 +78,8 @@ impl ApplicationHandler for App {
 
         // Thread sleeping locks the framerate here
         let elapsed = frame_start.elapsed();
-        let actual_fps = 1.0 / elapsed.as_secs_f64();
-        println!("FPS: {actual_fps:.2}");
+        // let actual_fps = 1.0 / elapsed.as_secs_f64();
+        // println!("FPS: {actual_fps:.2}");
 
         if let Some(remaining) = FRAME_TIME.checked_sub(elapsed) {
             std::thread::sleep(remaining);

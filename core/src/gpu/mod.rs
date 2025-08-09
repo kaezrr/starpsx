@@ -1,9 +1,8 @@
 mod commands;
-pub mod renderer;
 mod utils;
 
 use arrayvec::ArrayVec;
-use renderer::Renderer;
+use starpsx_renderer::Renderer;
 use utils::{DisplayDepth, DmaDirection, Field, TextureDepth, VMode, VerticalRes};
 
 bitfield::bitfield! {

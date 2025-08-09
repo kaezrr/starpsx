@@ -1155,6 +1155,7 @@ version = "0.1.0"
 dependencies = [
  "softbuffer",
  "starpsx-core",
+ "starpsx-renderer",
  "winit",
 ]
 
@@ -1163,6 +1164,14 @@ name = "starpsx-core"
 version = "0.1.0"
 dependencies = [
  "arrayvec",
+ "bitfield",
+ "starpsx-renderer",
+]
+
+[[package]]
+name = "starpsx-renderer"
+version = "0.1.0"
+dependencies = [
  "bitfield",
 ]
 
