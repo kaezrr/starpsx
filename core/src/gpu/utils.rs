@@ -1,3 +1,5 @@
+use super::*;
+
 /// Texture color bits per pixel
 pub enum TextureDepth {
     T4,
@@ -155,4 +157,24 @@ impl From<DmaDirection> for u8 {
             DmaDirection::VRamToCpu => 3,
         }
     }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct VramCopyFields {
+    pub vram_x: u16,
+    pub vram_y: u16,
+    pub width: u16,
+    pub height: u16,
+    pub current_row: u16,
+    pub current_col: u16,
+}
+
+#[derive(Debug)]
+pub enum GP0State {
+    AwaitCommand,
+    AwaitArgs {
+        cmd: fn(&mut Gpu) -> GP0State,
+        rem: usize,
+    },
+    CopyToVram(VramCopyFields),
 }

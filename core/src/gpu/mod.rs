@@ -3,7 +3,9 @@ mod utils;
 
 use arrayvec::ArrayVec;
 use starpsx_renderer::Renderer;
-use utils::{DisplayDepth, DmaDirection, Field, TextureDepth, VMode, VerticalRes};
+use utils::{DisplayDepth, DmaDirection, Field, GP0State, TextureDepth, VMode, VerticalRes};
+
+use crate::gpu::utils::VramCopyFields;
 
 bitfield::bitfield! {
     #[derive(Clone, Copy)]
@@ -79,7 +81,7 @@ bitfield::bitfield! {
     preserve_masked_pixels, _: 1;
 
     // GP1 Display VRAM Start
-    u16, display_vram_x, _ : 9, 1; // LSB of horizontal componenet is ignored?
+    u16, display_vram_x, _ : 9, 1; // LSB of horizontal component is ignored?
     u16, display_vram_y, _ : 18, 10;
 
     // GP1 Display Horizontal and Vertical Ranges
@@ -96,13 +98,9 @@ bitfield::bitfield! {
     display_off, _ : 0;
 }
 
-enum GP0State {
-    ExecCommand,
-    LoadImage,
-}
-
 pub struct Gpu {
     pub renderer: Renderer,
+    pub vram: Box<[u8; 512 * 2048]>,
 
     stat: GpuStat,
     texture_rect_x_flip: bool,
@@ -132,9 +130,6 @@ pub struct Gpu {
     display_line_end: u16,
 
     commands: ArrayVec<Command, 12>,
-    command_ptr: fn(&mut Gpu),
-    args_len: usize,
-
     gp0_state: GP0State,
 }
 
@@ -142,6 +137,7 @@ impl Default for Gpu {
     fn default() -> Self {
         Self {
             renderer: Renderer::default(),
+            vram: Box::new([0; 1024 * 1024]),
 
             stat: GpuStat(0),
 
@@ -172,10 +168,7 @@ impl Default for Gpu {
             display_line_end: 0,
 
             commands: ArrayVec::new(),
-            command_ptr: Self::gp0_nop,
-            args_len: 0,
-
-            gp0_state: GP0State::ExecCommand,
+            gp0_state: GP0State::AwaitCommand,
         }
     }
 }
@@ -199,47 +192,48 @@ impl Gpu {
 
     pub fn gp0(&mut self, data: u32) {
         let command = Command(data);
-        if self.args_len == 0 {
-            let (len, ptr): (usize, fn(&mut Gpu)) = match command.opcode() {
-                0x00 => (1, Gpu::gp0_nop),
-                0x01 => (1, Gpu::gp0_clear_cache),
-                0x28 => (5, Gpu::gp0_quad_mono_opaque),
-                0x2C => (9, Gpu::gp0_quad_texture_blend_opaque),
-                0x30 => (6, Gpu::gp0_triangle_shaded_opaque),
-                0x38 => (8, Gpu::gp0_quad_shaded_opaque),
-                0xA0 => (3, Gpu::gp0_image_load),
-                0xC0 => (3, Gpu::gp0_image_store),
-                0xE1 => (1, Gpu::gp0_draw_mode),
-                0xE2 => (1, Gpu::gp0_texture_window),
-                0xE3 => (1, Gpu::gp0_drawing_area_top_left),
-                0xE4 => (1, Gpu::gp0_drawing_area_bottom_right),
-                0xE5 => (1, Gpu::gp0_drawing_area_offset),
-                0xE6 => (1, Gpu::gp0_mask_bit_setting),
-                _ => panic!("Unknown GP0 command {data:08x}"),
-            };
-            (self.args_len, self.command_ptr) = (len, ptr);
-        }
-        self.args_len -= 1;
 
-        match self.gp0_state {
-            GP0State::ExecCommand => {
+        self.gp0_state = match self.gp0_state {
+            GP0State::AwaitCommand => {
+                let (rem, cmd): (usize, fn(&mut Gpu) -> GP0State) = match command.opcode() {
+                    0x00 => (1, Gpu::gp0_nop),
+                    0x01 => (1, Gpu::gp0_clear_cache),
+                    0x28 => (5, Gpu::gp0_quad_mono_opaque),
+                    0x2C => (9, Gpu::gp0_quad_texture_blend_opaque),
+                    0x30 => (6, Gpu::gp0_triangle_shaded_opaque),
+                    0x38 => (8, Gpu::gp0_quad_shaded_opaque),
+                    0xA0 => (3, Gpu::gp0_image_load),
+                    0xC0 => (3, Gpu::gp0_image_store),
+                    0xE1 => (1, Gpu::gp0_draw_mode),
+                    0xE2 => (1, Gpu::gp0_texture_window),
+                    0xE3 => (1, Gpu::gp0_drawing_area_top_left),
+                    0xE4 => (1, Gpu::gp0_drawing_area_bottom_right),
+                    0xE5 => (1, Gpu::gp0_drawing_area_offset),
+                    0xE6 => (1, Gpu::gp0_mask_bit_setting),
+                    _ => panic!("Unknown GP0 command {data:08x}"),
+                };
                 self.commands.push(command);
-                if self.args_len == 0 {
-                    (self.command_ptr)(self);
+                GP0State::AwaitArgs { cmd, rem: rem - 1 }
+            }
+            GP0State::AwaitArgs { cmd, mut rem } => {
+                self.commands.push(command);
+                rem -= 1;
+                if rem == 0 {
+                    let s = (cmd)(self);
                     self.commands.clear();
+                    s
+                } else {
+                    GP0State::AwaitArgs { cmd, rem }
                 }
             }
-            GP0State::LoadImage => {
-                // TODO: Copy data to VRAM
-                if self.args_len == 0 {
-                    self.gp0_state = GP0State::ExecCommand;
-                }
-            }
-        }
+            GP0State::CopyToVram(x) => self.process_cpu_vram_copy(data, x),
+        };
+        println!("GP0 {data:08x} {:?}", self.gp0_state);
     }
 
     pub fn gp1(&mut self, data: u32) {
         let command = Command(data);
+        println!("GP1 {data:08x} {:?}", self.gp0_state);
 
         match command.opcode() {
             0x00 => self.gp1_reset(),
@@ -253,5 +247,26 @@ impl Gpu {
             0x08 => self.gp1_display_mode(command),
             _ => panic!("Unknown GP1 command {data:08x}"),
         }
+    }
+
+    fn process_cpu_vram_copy(&mut self, word: u32, mut fields: VramCopyFields) -> GP0State {
+        for i in 0..2 {
+            let halfword = (word >> (16 * i)) as u16;
+            let vram_row = ((fields.vram_y + fields.current_row) & 0x1FF) as usize;
+            let vram_col = ((fields.vram_x + fields.current_col) & 0x3FF) as usize;
+            let vram_addr = 2 * (1024 * vram_row + vram_col);
+            *self.vram[vram_addr..].first_chunk_mut().unwrap() = halfword.to_le_bytes();
+
+            fields.current_col += 1;
+            if fields.current_col == fields.width {
+                fields.current_col = 0;
+                fields.current_row += 1;
+
+                if fields.current_row == fields.height {
+                    return GP0State::AwaitCommand;
+                }
+            }
+        }
+        GP0State::CopyToVram(fields)
     }
 }

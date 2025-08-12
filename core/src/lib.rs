@@ -52,8 +52,12 @@ impl StarPSX {
         Ok(psx)
     }
 
-    pub fn pixel_buffer(&self) -> &[u32] {
-        self.bus.gpu.renderer.pixel_buffer.as_ref()
+    pub fn frame_buffer(&self) -> &[u32] {
+        self.bus.gpu.renderer.frame_buffer()
+    }
+
+    pub fn copy_vram_to_frame(&mut self) {
+        self.bus.gpu.renderer.copy_vram(self.bus.gpu.vram.as_ref());
     }
 
     pub fn step_frame(&mut self) {

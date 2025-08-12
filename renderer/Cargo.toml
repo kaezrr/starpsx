@@ -5,3 +5,5 @@ edition = "2024"
 
 [dependencies]
 bitfield = "0.19.1"
+bytemuck = "1.23.2"
+glam = "0.30.5"
