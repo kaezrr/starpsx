@@ -51,6 +51,10 @@ impl Bus {
             return self.ram.read8(offs);
         }
 
+        if let Some(offs) = map::SCRATCH.contains(masked) {
+            return self.scratch.read8(offs);
+        }
+
         if map::EXPANSION1.contains(masked).is_some() {
             return 0xFF;
         }
@@ -65,6 +69,10 @@ impl Bus {
 
         if let Some(offs) = map::RAM.contains(masked) {
             return Ok(self.ram.read16(offs));
+        }
+
+        if let Some(offs) = map::SCRATCH.contains(masked) {
+            return Ok(self.scratch.read16(offs));
         }
 
         if let Some(offs) = map::SPU.contains(masked) {
@@ -136,6 +144,10 @@ impl Bus {
             return self.ram.write8(offs, data);
         }
 
+        if let Some(offs) = map::SCRATCH.contains(masked) {
+            return self.scratch.write8(offs, data);
+        }
+
         panic!("Unmapped write8 at {addr:#08X}");
     }
 
@@ -147,6 +159,11 @@ impl Bus {
 
         if let Some(offs) = map::RAM.contains(masked) {
             self.ram.write16(offs, data);
+            return Ok(());
+        }
+
+        if let Some(offs) = map::SCRATCH.contains(masked) {
+            self.scratch.write16(offs, data);
             return Ok(());
         }
 
@@ -193,6 +210,11 @@ impl Bus {
                 }
                 _ => eprintln!("Unhandled write to MEMCTRL"),
             }
+            return Ok(());
+        }
+
+        if let Some(offs) = map::SCRATCH.contains(masked) {
+            self.scratch.write32(offs, data);
             return Ok(());
         }
 

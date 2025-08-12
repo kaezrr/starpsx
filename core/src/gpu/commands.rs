@@ -182,6 +182,10 @@ impl Gpu {
         eprintln!("draw texture blended quad");
     }
 
+    pub fn gp0_draw_1x1_rectangle(&mut self) {
+        eprintln!("draw pixel");
+    }
+
     pub fn gp1_read_internal_reg(&mut self, command: Command) {
         self.gpu_read = match command.register_index() & 0x0F {
             0x00 | 0x01 | 0x06 | 0x09..=0x0F => self.gpu_read,
