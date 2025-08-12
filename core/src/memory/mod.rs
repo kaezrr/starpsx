@@ -116,7 +116,6 @@ impl Bus {
         if let Some(offs) = map::GPU.contains(masked) {
             eprintln!("GPU read: {offs:x}");
             return match offs {
-                // GPU STAT ready for DMA
                 4 => Ok(self.gpu.stat()),
                 0 => Ok(self.gpu.read()),
                 _ => panic!("Unknown GPU register read {offs:x}"),

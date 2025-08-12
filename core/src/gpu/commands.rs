@@ -181,4 +181,17 @@ impl Gpu {
     pub fn gp0_quad_texture_blend_opaque(&mut self) {
         eprintln!("draw texture blended quad");
     }
+
+    pub fn gp1_read_internal_reg(&mut self, command: Command) {
+        self.gpu_read = match command.register_index() & 0x0F {
+            0x00 | 0x01 | 0x06 | 0x09..=0x0F => self.gpu_read,
+            0x02 => todo!("Read texture window setting"),
+            0x03 => todo!("Read draw area top left"),
+            0x04 => todo!("Read draw area bottom right"),
+            0x05 => todo!("Read draw offset"),
+            0x07 => 0x000000002, // GPU Version
+            0x08 => 0x000000000, // Unknown
+            _ => unreachable!("0x0F mod cannot reach here"),
+        };
+    }
 }

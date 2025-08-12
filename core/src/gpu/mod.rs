@@ -38,6 +38,7 @@ bitfield::bitfield! {
     #[derive(Clone, Copy)]
     pub struct Command(u32);
     u8, opcode, _ : 31, 24;
+    register_index, _ : 23, 0;
 
     //GP0 Draw Mode
     page_base_x, _ : 3, 0;
@@ -223,7 +224,7 @@ impl Gpu {
             0x06 => self.gp1_display_horizontal_range(command),
             0x07 => self.gp1_display_vertical_range(command),
             0x08 => self.gp1_display_mode(command),
-            // 0x10 => self.gp1_read_internal_reg(command),
+            0x10 => self.gp1_read_internal_reg(command),
             _ => panic!("Unknown GP1 command {data:08x}"),
         }
     }

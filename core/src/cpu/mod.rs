@@ -73,13 +73,17 @@ impl Cpu {
         }
 
         // let disasm = decode_instruction(instr.0, self.pc);
-        // println!("{:08x}: {:08x} {}", self.pc, instr.0, disasm);
+        // println!(
+        //     "{:08x}: {:08x} {} {:08x} {:08x}",
+        //     self.pc, instr.0, disasm, self.regs[0], self.regs[27]
+        // );
 
         if let Err(exception) = self.execute_opcode(instr, bus) {
             self.handle_exception(exception, in_delay_slot);
             return;
         };
         self.regs = self.regd;
+        self.regs[0] = 0;
 
         // Increment program counter
         self.pc = next_pc;
