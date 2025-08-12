@@ -172,9 +172,6 @@ pub struct VramCopyFields {
 #[derive(Debug)]
 pub enum GP0State {
     AwaitCommand,
-    AwaitArgs {
-        cmd: fn(&mut Gpu) -> GP0State,
-        rem: usize,
-    },
+    AwaitArgs { cmd: fn(&mut Gpu), len: usize },
     CopyToVram(VramCopyFields),
 }

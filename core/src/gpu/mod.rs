@@ -101,6 +101,7 @@ bitfield::bitfield! {
 pub struct Gpu {
     pub renderer: Renderer,
     pub vram: Box<[u8; 512 * 2048]>,
+    gpu_read: u32,
 
     stat: GpuStat,
     texture_rect_x_flip: bool,
@@ -129,7 +130,7 @@ pub struct Gpu {
     display_line_start: u16,
     display_line_end: u16,
 
-    commands: ArrayVec<Command, 12>,
+    gp0_params: ArrayVec<Command, 16>,
     gp0_state: GP0State,
 }
 
@@ -138,6 +139,7 @@ impl Default for Gpu {
         Self {
             renderer: Renderer::default(),
             vram: Box::new([0; 1024 * 1024]),
+            gpu_read: 0,
 
             stat: GpuStat(0),
 
@@ -167,7 +169,7 @@ impl Default for Gpu {
             display_line_start: 0,
             display_line_end: 0,
 
-            commands: ArrayVec::new(),
+            gp0_params: ArrayVec::new(),
             gp0_state: GP0State::AwaitCommand,
         }
     }
@@ -187,53 +189,29 @@ impl Gpu {
     }
 
     pub fn read(&self) -> u32 {
-        0
+        self.gpu_read
     }
 
     pub fn gp0(&mut self, data: u32) {
-        let command = Command(data);
-
-        self.gp0_state = match self.gp0_state {
-            GP0State::AwaitCommand => {
-                let (rem, cmd): (usize, fn(&mut Gpu) -> GP0State) = match command.opcode() {
-                    0x00 => (1, Gpu::gp0_nop),
-                    0x01 => (1, Gpu::gp0_clear_cache),
-                    0x28 => (5, Gpu::gp0_quad_mono_opaque),
-                    0x2C => (9, Gpu::gp0_quad_texture_blend_opaque),
-                    0x30 => (6, Gpu::gp0_triangle_shaded_opaque),
-                    0x38 => (8, Gpu::gp0_quad_shaded_opaque),
-                    0xA0 => (3, Gpu::gp0_image_load),
-                    0xC0 => (3, Gpu::gp0_image_store),
-                    0xE1 => (1, Gpu::gp0_draw_mode),
-                    0xE2 => (1, Gpu::gp0_texture_window),
-                    0xE3 => (1, Gpu::gp0_drawing_area_top_left),
-                    0xE4 => (1, Gpu::gp0_drawing_area_bottom_right),
-                    0xE5 => (1, Gpu::gp0_drawing_area_offset),
-                    0xE6 => (1, Gpu::gp0_mask_bit_setting),
-                    _ => panic!("Unknown GP0 command {data:08x}"),
-                };
-                self.commands.push(command);
-                GP0State::AwaitArgs { cmd, rem: rem - 1 }
-            }
-            GP0State::AwaitArgs { cmd, mut rem } => {
-                self.commands.push(command);
-                rem -= 1;
-                if rem == 0 {
-                    let s = (cmd)(self);
-                    self.commands.clear();
-                    s
-                } else {
-                    GP0State::AwaitArgs { cmd, rem }
-                }
-            }
+        println!(
+            "GP0 {data:08x} {:?} {}",
+            self.gp0_state,
+            self.gp0_params.len()
+        );
+        match self.gp0_state {
+            GP0State::AwaitCommand => self.process_command(data),
+            GP0State::AwaitArgs { cmd, len } => self.process_argument(data, cmd, len),
             GP0State::CopyToVram(x) => self.process_cpu_vram_copy(data, x),
         };
-        println!("GP0 {data:08x} {:?}", self.gp0_state);
     }
 
     pub fn gp1(&mut self, data: u32) {
         let command = Command(data);
-        println!("GP1 {data:08x} {:?}", self.gp0_state);
+        println!(
+            "GP1 {data:08x} {:?} {}",
+            self.gp0_state,
+            self.gp0_params.len()
+        );
 
         match command.opcode() {
             0x00 => self.gp1_reset(),
@@ -245,11 +223,13 @@ impl Gpu {
             0x06 => self.gp1_display_horizontal_range(command),
             0x07 => self.gp1_display_vertical_range(command),
             0x08 => self.gp1_display_mode(command),
+            // 0x10 => self.gp1_read_internal_reg(command),
             _ => panic!("Unknown GP1 command {data:08x}"),
         }
     }
 
-    fn process_cpu_vram_copy(&mut self, word: u32, mut fields: VramCopyFields) -> GP0State {
+    #[inline(always)]
+    fn process_cpu_vram_copy(&mut self, word: u32, mut fields: VramCopyFields) {
         for i in 0..2 {
             let halfword = (word >> (16 * i)) as u16;
             let vram_row = ((fields.vram_y + fields.current_row) & 0x1FF) as usize;
@@ -263,10 +243,45 @@ impl Gpu {
                 fields.current_row += 1;
 
                 if fields.current_row == fields.height {
-                    return GP0State::AwaitCommand;
+                    return self.gp0_state = GP0State::AwaitCommand;
                 }
             }
         }
-        GP0State::CopyToVram(fields)
+        self.gp0_state = GP0State::CopyToVram(fields);
+    }
+
+    #[inline(always)]
+    fn process_argument(&mut self, data: u32, cmd: fn(&mut Gpu), len: usize) {
+        let command = Command(data);
+        self.gp0_params.push(command);
+        if self.gp0_params.len() == len {
+            self.gp0_state = GP0State::AwaitCommand;
+            (cmd)(self);
+            self.gp0_params.clear();
+        }
+    }
+
+    #[inline(always)]
+    fn process_command(&mut self, data: u32) {
+        let command = Command(data);
+        let (len, cmd): (usize, fn(&mut Gpu)) = match command.opcode() {
+            0x00 => (1, Gpu::gp0_nop),
+            0x01 => (1, Gpu::gp0_clear_cache),
+            0x28 => (5, Gpu::gp0_quad_mono_opaque),
+            0x2C => (9, Gpu::gp0_quad_texture_blend_opaque),
+            0x30 => (6, Gpu::gp0_triangle_shaded_opaque),
+            0x38 => (8, Gpu::gp0_quad_shaded_opaque),
+            0xA0 => (3, Gpu::gp0_image_load),
+            0xC0 => (3, Gpu::gp0_image_store),
+            0xE1 => (1, Gpu::gp0_draw_mode),
+            0xE2 => (1, Gpu::gp0_texture_window),
+            0xE3 => (1, Gpu::gp0_drawing_area_top_left),
+            0xE4 => (1, Gpu::gp0_drawing_area_bottom_right),
+            0xE5 => (1, Gpu::gp0_drawing_area_offset),
+            0xE6 => (1, Gpu::gp0_mask_bit_setting),
+            _ => panic!("Unknown GP0 command {data:08x}"),
+        };
+        self.gp0_state = GP0State::AwaitArgs { cmd, len };
+        self.process_argument(data, cmd, len);
     }
 }
