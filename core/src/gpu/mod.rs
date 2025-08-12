@@ -194,11 +194,6 @@ impl Gpu {
     }
 
     pub fn gp0(&mut self, data: u32) {
-        println!(
-            "GP0 {data:08x} {:?} {}",
-            self.gp0_state,
-            self.gp0_params.len()
-        );
         match self.gp0_state {
             GP0State::AwaitCommand => self.process_command(data),
             GP0State::AwaitArgs { cmd, len } => self.process_argument(data, cmd, len),
@@ -208,12 +203,6 @@ impl Gpu {
 
     pub fn gp1(&mut self, data: u32) {
         let command = Command(data);
-        println!(
-            "GP1 {data:08x} {:?} {}",
-            self.gp0_state,
-            self.gp0_params.len()
-        );
-
         match command.opcode() {
             0x00 => self.gp1_reset(),
             0x01 => self.gp1_reset_command_buffer(),

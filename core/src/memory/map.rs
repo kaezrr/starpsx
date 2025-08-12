@@ -22,6 +22,7 @@ pub const TIMERS: Range = Range(0x1F801100, 48);
 pub const DMA: Range = Range(0x1F801080, 0x80);
 pub const GPU: Range = Range(0x1F801810, 8);
 pub const SCRATCH: Range = Range(0x1F800000, 0x400);
+pub const PERIPHERAL: Range = Range(0x1F801040, 0x20);
 
 const REGION_MASK: [u32; 8] = [
     0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, // KUSEG 000 001 010 011

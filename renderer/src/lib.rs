@@ -37,7 +37,7 @@ impl Renderer {
             for x in 0..1024 {
                 let vram_addr = 2 * (y * 1024 + x);
                 let pixel = u16::from_le_bytes([vram[vram_addr], vram[vram_addr + 1]]);
-                self.pixel_buffer[1024 * y + x] = Color::new(pixel);
+                self.pixel_buffer[1024 * y + x] = Color::new_5bit(pixel);
             }
         }
     }

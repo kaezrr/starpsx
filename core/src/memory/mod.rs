@@ -55,9 +55,16 @@ impl Bus {
             return self.scratch.read8(offs);
         }
 
-        if map::EXPANSION1.contains(masked).is_some() {
-            return 0xFF;
+        if let Some(offs) = map::EXPANSION1.contains(masked) {
+            eprintln!("Unhandled read8 to the expansion1 {offs:x}");
+            return 0;
         }
+
+        if let Some(offs) = map::PERIPHERAL.contains(masked) {
+            eprintln!("Unhandled read8 to the io port reg{offs:x}");
+            return 0;
+        }
+
         panic!("Unmapped read8 at {masked:#08X}");
     }
 
@@ -76,12 +83,17 @@ impl Bus {
         }
 
         if let Some(offs) = map::SPU.contains(masked) {
-            eprintln!("Unhandled read to the SPU reg{offs:x}");
+            eprintln!("Unhandled read16 to the SPU reg{offs:x}");
+            return Ok(0);
+        }
+
+        if let Some(offs) = map::PERIPHERAL.contains(masked) {
+            eprintln!("Unhandled read16 to the io port reg{offs:x}");
             return Ok(0);
         }
 
         if let Some(offs) = map::IRQCTL.contains(masked) {
-            eprintln!("IRQCTL: {offs:x} ");
+            eprintln!("Unhandled read16 to the irqctl reg{offs:x}");
             return Ok(0);
         }
 
@@ -159,6 +171,11 @@ impl Bus {
 
         if let Some(offs) = map::RAM.contains(masked) {
             self.ram.write16(offs, data);
+            return Ok(());
+        }
+
+        if let Some(offs) = map::PERIPHERAL.contains(masked) {
+            eprintln!("Unhandled write to io port reg{offs:x}");
             return Ok(());
         }
 

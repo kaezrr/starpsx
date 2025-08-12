@@ -63,7 +63,7 @@ impl StarPSX {
     pub fn step_frame(&mut self) {
         for _ in 0..MCYCLES_PER_SECOND {
             self.cpu.run_instruction(&mut self.bus);
-            // check_for_tty_output(&self.cpu);
+            check_for_tty_output(&self.cpu);
         }
     }
 

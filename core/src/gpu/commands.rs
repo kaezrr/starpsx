@@ -183,7 +183,17 @@ impl Gpu {
     }
 
     pub fn gp0_draw_1x1_rectangle(&mut self) {
-        eprintln!("draw pixel");
+        let r = (self.gp0_params[0].0 & 0xFF) >> 3;
+        let g = ((self.gp0_params[0].0 >> 8) & 0xFF) >> 3;
+        let b = ((self.gp0_params[0].0 >> 16) & 0xFF) >> 3;
+
+        let pixel = (r << 10 | g << 5 | b) as u16;
+
+        let x = self.gp0_params[1].0 & 0x3FF;
+        let y = (self.gp0_params[1].0 >> 16) & 0x1FF;
+
+        let vram_addr = 2 * (1024 * y + x) as usize;
+        *self.vram[vram_addr..].first_chunk_mut().unwrap() = pixel.to_le_bytes();
     }
 
     pub fn gp1_read_internal_reg(&mut self, command: Command) {

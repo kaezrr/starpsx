@@ -8,11 +8,18 @@ pub struct Color {
 }
 
 impl Color {
-    pub fn new(pixel: u16) -> Self {
+    pub fn new_5bit(pixel: u16) -> Self {
         let r = convert_5bit_to_8bit(pixel & 0x1F);
         let g = convert_5bit_to_8bit((pixel >> 5) & 0x1F);
         let b = convert_5bit_to_8bit((pixel >> 10) & 0x1F);
-        Self { r, g, b, a: 255 }
+        Self { r, g, b, a: 0 }
+    }
+
+    pub fn new_8bit(pixel: u32) -> Self {
+        let r = (pixel & 0xFF) as u8;
+        let g = ((pixel >> 8) & 0xFF) as u8;
+        let b = ((pixel >> 16) & 0xFF) as u8;
+        Self { r, g, b, a: 0 }
     }
 }
 
