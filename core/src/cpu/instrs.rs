@@ -682,9 +682,9 @@ impl Cpu {
         let rs = instr.rs();
         let rt = instr.rt();
         let im = instr.imm16_se();
-        let addr = self.pc.wrapping_add(4 + (im << 2));
 
         if self.regs[rs] == self.regs[rt] {
+            let addr = self.pc.wrapping_add(4 + (im << 2));
             self.delayed_branch = Some(addr);
         }
         Ok(())
@@ -695,9 +695,9 @@ impl Cpu {
         let rs = instr.rs();
         let rt = instr.rt();
         let im = instr.imm16_se();
-        let addr = self.pc.wrapping_add(4 + (im << 2));
 
         if self.regs[rs] != self.regs[rt] {
+            let addr = self.pc.wrapping_add(4 + (im << 2));
             self.delayed_branch = Some(addr);
         }
         Ok(())
@@ -707,17 +707,16 @@ impl Cpu {
     pub fn bxxx(&mut self, instr: Instruction) -> Result<(), Exception> {
         let rs = instr.rs();
         let im = instr.imm16_se();
-        let addr = self.pc.wrapping_add(4 + (im << 2));
 
         let ge = (instr.0 >> 16) & 1 == 1;
-        let al = (instr.0 >> 20) & 1 == 1;
+        let al = (instr.0 >> 17) & 0xF == 0x8;
 
         let cond = ((self.regs[rs] as i32) < 0) ^ ge;
-
+        if al {
+            self.regd[31] = self.pc.wrapping_add(8);
+        }
         if cond {
-            if al {
-                self.regd[31] = self.pc.wrapping_add(8);
-            }
+            let addr = self.pc.wrapping_add(4 + (im << 2));
             self.delayed_branch = Some(addr);
         }
         Ok(())
@@ -727,9 +726,9 @@ impl Cpu {
     pub fn bgtz(&mut self, instr: Instruction) -> Result<(), Exception> {
         let rs = instr.rs();
         let im = instr.imm16_se();
-        let addr = self.pc.wrapping_add(4 + (im << 2));
 
         if (self.regs[rs] as i32) > 0 {
+            let addr = self.pc.wrapping_add(4 + (im << 2));
             self.delayed_branch = Some(addr);
         }
         Ok(())
@@ -739,9 +738,9 @@ impl Cpu {
     pub fn blez(&mut self, instr: Instruction) -> Result<(), Exception> {
         let rs = instr.rs();
         let im = instr.imm16_se();
-        let addr = self.pc.wrapping_add(4 + (im << 2));
 
         if (self.regs[rs] as i32) <= 0 {
+            let addr = self.pc.wrapping_add(4 + (im << 2));
             self.delayed_branch = Some(addr);
         }
         Ok(())
