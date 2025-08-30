@@ -229,11 +229,11 @@ impl Cpu {
         let rs = instr.rs();
         let rd = instr.rd();
 
-        let lhs = self.regs[rs];
-        let rhs = self.regs[rt];
+        let lhs = self.regs[rs] as i32;
+        let rhs = self.regs[rt] as i32;
 
         self.regd[rd] = match lhs.checked_add(rhs) {
-            Some(v) => v,
+            Some(v) => v as u32,
             None => return Err(Exception::Overflow),
         };
         Ok(())
@@ -258,11 +258,11 @@ impl Cpu {
         let rs = instr.rs();
         let rd = instr.rd();
 
-        let lhs = self.regs[rs];
-        let rhs = self.regs[rt];
+        let lhs = self.regs[rs] as i32;
+        let rhs = self.regs[rt] as i32;
 
         self.regd[rd] = match lhs.checked_sub(rhs) {
-            Some(v) => v,
+            Some(v) => v as u32,
             None => return Err(Exception::Overflow),
         };
 
@@ -288,11 +288,11 @@ impl Cpu {
         let rs = instr.rs();
         let im = instr.imm16_se();
 
-        let lhs = self.regs[rs];
+        let lhs = self.regs[rs] as i32;
         let rhs = im as i32;
 
-        self.regd[rt] = match lhs.checked_add_signed(rhs) {
-            Some(v) => v,
+        self.regd[rt] = match lhs.checked_add(rhs) {
+            Some(v) => v as u32,
             None => return Err(Exception::Overflow),
         };
         Ok(())
@@ -463,7 +463,7 @@ impl Cpu {
         let lhs = self.regs[rt];
         let rhs = self.regs[rs];
 
-        self.regd[rd] = lhs.unbounded_shl(rhs);
+        self.regd[rd] = lhs << (rhs & 0x1F);
         Ok(())
     }
 
@@ -476,7 +476,7 @@ impl Cpu {
         let lhs = self.regs[rt];
         let rhs = self.regs[rs];
 
-        self.regd[rd] = lhs.unbounded_shr(rhs);
+        self.regd[rd] = lhs >> (rhs & 0x1F);
         Ok(())
     }
 
@@ -546,10 +546,10 @@ impl Cpu {
         let rt = instr.rt();
         let rs = instr.rs();
 
-        let lhs = self.regs[rs] as i64;
-        let rhs = self.regs[rt] as i64;
+        let lhs = self.regs[rs] as i32 as i64;
+        let rhs = self.regs[rt] as i32 as i64;
 
-        let res = (lhs * rhs) as u64;
+        let res = lhs * rhs;
 
         self.hi = (res >> 32) as u32;
         self.lo = res as u32;
@@ -581,7 +581,7 @@ impl Cpu {
 
         let (quo, rem) = match rhs {
             -1 if lhs == i32::MIN => (i32::MIN, 0),
-            0 => (if lhs > 0 { -1 } else { 1 }, lhs),
+            0 => (if lhs >= 0 { -1 } else { 1 }, lhs),
             _ => (lhs / rhs, lhs % rhs),
         };
 
