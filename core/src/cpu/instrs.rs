@@ -131,8 +131,8 @@ impl Cpu {
         let rs = instr.rs();
         let im = instr.imm16_se();
 
-        let addr = self.regs[rs].wrapping_add(im);
-        let val = self.regs[rt];
+        let addr = self.regd[rs].wrapping_add(im);
+        let val = self.regd[rt];
 
         let aligned_addr = addr & !3;
         let word = bus.read32(aligned_addr)?;
@@ -155,8 +155,8 @@ impl Cpu {
         let rs = instr.rs();
         let im = instr.imm16_se();
 
-        let addr = self.regs[rs].wrapping_add(im);
-        let val = self.regs[rt];
+        let addr = self.regd[rs].wrapping_add(im);
+        let val = self.regd[rt];
 
         let aligned_addr = addr & !3;
         let word = bus.read32(aligned_addr)?;
