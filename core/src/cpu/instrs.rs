@@ -186,9 +186,9 @@ impl Cpu {
         let word = bus.read32(aligned_addr)?;
 
         let data = match addr & 3 {
-            0 => (word & 0x00FFFFFF) | (val << 24),
-            1 => (word & 0x0000FFFF) | (val << 16),
-            2 => (word & 0x000000FF) | (val << 8),
+            0 => (word & 0xFFFFFF00) | (val >> 24),
+            1 => (word & 0xFFFF0000) | (val >> 16),
+            2 => (word & 0xFF000000) | (val >> 8),
             3 => val,
             _ => unreachable!(),
         };
@@ -211,9 +211,9 @@ impl Cpu {
 
         let data = match addr & 3 {
             0 => val,
-            1 => (word & 0xFF000000) | (val >> 8),
-            2 => (word & 0xFFFF0000) | (val >> 16),
-            3 => (word & 0xFFFFFF00) | (val >> 24),
+            1 => (word & 0x000000FF) | (val << 8),
+            2 => (word & 0x0000FFFF) | (val << 16),
+            3 => (word & 0x00FFFFFF) | (val << 24),
             _ => unreachable!(),
         };
 
