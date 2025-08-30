@@ -39,13 +39,18 @@ impl Config {
 pub struct StarPSX {
     cpu: Cpu,
     bus: Bus,
+    tty: String,
 }
 
 impl StarPSX {
     pub fn build(config: Config) -> Result<Self, Box<dyn Error>> {
         let bus = Bus::build(&config)?;
         let cpu = Cpu::default();
-        let mut psx = StarPSX { cpu, bus };
+        let mut psx = StarPSX {
+            cpu,
+            bus,
+            tty: String::new(),
+        };
         if let Some(exe_path) = config.exe_path {
             psx.sideload_exe(&exe_path)?;
         }
@@ -63,7 +68,7 @@ impl StarPSX {
     pub fn step_frame(&mut self) {
         for _ in 0..MCYCLES_PER_SECOND {
             self.cpu.run_instruction(&mut self.bus);
-            check_for_tty_output(&self.cpu);
+            self.check_for_tty_output();
         }
     }
 
@@ -71,7 +76,7 @@ impl StarPSX {
         let exe = std::fs::read(filepath)?;
         while self.cpu.pc != 0x80030000 {
             self.cpu.run_instruction(&mut self.bus);
-            check_for_tty_output(&self.cpu);
+            self.check_for_tty_output();
         }
 
         // Parse EXE header
@@ -95,13 +100,16 @@ impl StarPSX {
 
         Ok(())
     }
-}
 
-fn check_for_tty_output(cpu: &Cpu) {
-    let pc = cpu.pc & 0x1FFFFFFF;
-    if (pc == 0xA0 && cpu.regs[9] == 0x3C) || (pc == 0xB0 && cpu.regs[9] == 0x3D) {
-        let ch = cpu.regs[4] as u8 as char;
-        print!("{ch}");
-        io::stdout().flush().unwrap();
+    fn check_for_tty_output(&mut self) {
+        let pc = self.cpu.pc & 0x1FFFFFFF;
+        if (pc == 0xA0 && self.cpu.regs[9] == 0x3C) || (pc == 0xB0 && self.cpu.regs[9] == 0x3D) {
+            let ch = self.cpu.regs[4] as u8 as char;
+            self.tty.push(ch);
+            if ch == '\n' {
+                print!("{}", self.tty);
+                self.tty = String::new();
+            }
+        }
     }
 }

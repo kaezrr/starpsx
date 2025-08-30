@@ -746,6 +746,17 @@ impl Cpu {
         Ok(())
     }
 
+    /// Return from exception
+    pub fn rfe(&mut self, instr: Instruction) -> Result<(), Exception> {
+        if instr.sec() != 0x10 {
+            panic!("Invalid cop0 instruction: {}", instr.0);
+        }
+
+        let mode = self.cop0.sr & 0x3F;
+        self.cop0.sr = (self.cop0.sr & !0xF) | (mode >> 2);
+        Ok(())
+    }
+
     pub fn syscall(&mut self) -> Result<(), Exception> {
         Err(Exception::Syscall)
     }
@@ -787,17 +798,6 @@ impl Cpu {
         };
 
         self.load = Some((cpu_r, data));
-        Ok(())
-    }
-
-    /// Return from exception
-    pub fn rfe(&mut self, instr: Instruction) -> Result<(), Exception> {
-        if instr.sec() != 0x10 {
-            panic!("Invalid cop0 instruction: {}", instr.0);
-        }
-
-        let mode = self.cop0.sr & 0x3F;
-        self.cop0.sr = self.cop0.sr & !0x3F | mode >> 2;
         Ok(())
     }
 
