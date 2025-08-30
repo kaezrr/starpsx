@@ -12,7 +12,7 @@ impl Cpu {
         let addr = self.regs[rs].wrapping_add(im);
         let data = bus.read8(addr) as i8;
 
-        self.load = Some((rt, data as u32));
+        self.take_delayed_load(rt, data as u32);
         Ok(())
     }
 
@@ -25,7 +25,7 @@ impl Cpu {
         let addr = self.regs[rs].wrapping_add(im);
         let data = bus.read8(addr);
 
-        self.load = Some((rt, data as u32));
+        self.take_delayed_load(rt, data as u32);
         Ok(())
     }
 
@@ -38,7 +38,7 @@ impl Cpu {
         let addr = self.regs[rs].wrapping_add(im);
         let data = bus.read16(addr)? as i16;
 
-        self.load = Some((rt, data as u32));
+        self.take_delayed_load(rt, data as u32);
         Ok(())
     }
 
@@ -51,7 +51,7 @@ impl Cpu {
         let addr = self.regs[rs].wrapping_add(im);
         let data = bus.read16(addr)?;
 
-        self.load = Some((rt, data as u32));
+        self.take_delayed_load(rt, data as u32);
         Ok(())
     }
 
@@ -69,7 +69,7 @@ impl Cpu {
         let addr = self.regs[rs].wrapping_add(im);
         let data = bus.read32(addr)?;
 
-        self.load = Some((rt, data));
+        self.take_delayed_load(rt, data as u32);
         Ok(())
     }
 
@@ -145,7 +145,7 @@ impl Cpu {
             _ => unreachable!(),
         };
 
-        self.load = Some((rt, data));
+        self.take_delayed_load(rt, data as u32);
         Ok(())
     }
 
@@ -169,7 +169,7 @@ impl Cpu {
             _ => unreachable!(),
         };
 
-        self.load = Some((rt, data));
+        self.take_delayed_load(rt, data as u32);
         Ok(())
     }
 
@@ -797,7 +797,7 @@ impl Cpu {
             _ => panic!("Unhandled cop0 register read {cop_r}"),
         };
 
-        self.load = Some((cpu_r, data));
+        self.take_delayed_load(cpu_r, data);
         Ok(())
     }
 

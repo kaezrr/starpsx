@@ -67,9 +67,8 @@ impl Cpu {
 
         // Execute any pending loads
         match self.load.take() {
-            Some((0, _)) => (),
-            Some((reg, val)) => self.regd[reg] = val,
-            None => (),
+            Some((reg, val)) if reg != 0 => self.regd[reg] = val,
+            _ => (),
         }
 
         // let disasm = decode_instruction(instr.0, self.pc);
@@ -189,5 +188,13 @@ impl Cpu {
             0x3B => self.swc3(),
             _ => Err(Exception::IllegalInstruction),
         }
+    }
+
+    fn take_delayed_load(&mut self, rt: usize, data: u32) {
+        // If there was already a pending load to this register, then cancel it.
+        if self.regd[rt] != self.regs[rt] {
+            self.regd[rt] = self.regs[rt];
+        }
+        self.load = Some((rt, data));
     }
 }
