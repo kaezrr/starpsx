@@ -121,8 +121,8 @@ impl Gpu {
     }
 
     pub fn gp1_display_mode(&mut self, command: Command) {
-        self.stat
-            .set_hres((command.hres_1() << 1) | command.hres_2());
+        let hres = command.hres_1() | (command.hres_2() << 2);
+        self.stat.set_hres(hres.into());
         self.stat.set_vres(command.vres());
         self.stat.set_vmode(command.vmode());
         self.stat.set_display_depth(command.display_depth());

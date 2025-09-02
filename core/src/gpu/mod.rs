@@ -3,7 +3,9 @@ mod utils;
 
 use arrayvec::ArrayVec;
 use starpsx_renderer::Renderer;
-use utils::{DisplayDepth, DmaDirection, Field, GP0State, TextureDepth, VMode, VerticalRes};
+use utils::{
+    DisplayDepth, DmaDirection, Field, GP0State, HorizontalRes, TextureDepth, VMode, VerticalRes,
+};
 
 use crate::gpu::utils::VramCopyFields;
 
@@ -20,7 +22,7 @@ bitfield::bitfield! {
     preserve_masked_pixels, set_preserve_masked_pixels : 12;
     u8, from into Field, field, set_field : 13, 13;
     texture_disable, set_texture_disable : 15;
-    hres, set_hres : 18, 16;
+    u8, into HorizontalRes, hres, set_hres : 18, 16;
     u8, from into VerticalRes, vres, set_vres : 19, 19;
     u8, from into VMode, vmode, set_vmode : 20, 20;
     u8, from into DisplayDepth, display_depth, set_display_depth : 21, 21;
@@ -52,8 +54,8 @@ bitfield::bitfield! {
     texture_rect_y_flip, _ : 13;
 
     // GP1 Display Mode
-    hres_1, _ : 1, 0;
-    hres_2, _ : 6, 6;
+    u8, hres_1, _ : 1, 0;
+    u8, hres_2, _ : 6, 6;
     u8, into VerticalRes, vres, _ : 2, 2;
     u8, into VMode, vmode, _ : 3, 3;
     u8, into DisplayDepth, display_depth, _ : 4, 4;
@@ -185,7 +187,7 @@ impl Gpu {
         ret.set_ready_dma_recv(true);
 
         // Hack, GPU doesn't have proper timing to emulate vres 480 lines
-        ret.set_vres(VerticalRes::Y240Lines);
+        ret.set_vres(VerticalRes::Y240);
         ret.0
     }
 
@@ -274,5 +276,22 @@ impl Gpu {
         };
         self.gp0_state = GP0State::AwaitArgs { cmd, len };
         self.process_argument(data, cmd, len);
+    }
+
+    pub fn get_resolution(&self) -> (usize, usize) {
+        let width = match self.stat.hres() {
+            HorizontalRes::X256 => 256,
+            HorizontalRes::X320 => 320,
+            HorizontalRes::X512 => 512,
+            HorizontalRes::X368 => 368,
+            HorizontalRes::X640 => 640,
+        };
+
+        let height = match self.stat.vres() {
+            VerticalRes::Y240 => 240,
+            VerticalRes::Y480 => 480,
+        };
+
+        (width, height)
     }
 }

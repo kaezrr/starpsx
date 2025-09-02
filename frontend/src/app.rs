@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 use winit::{application::ApplicationHandler, event::WindowEvent};
 use winit::{dpi::LogicalSize, window::Window};
 
-const WINDOW_SIZE: LogicalSize<u32> = LogicalSize::new(1024, 512);
+const WINDOW_SIZE: LogicalSize<u32> = LogicalSize::new(960, 720);
 const FRAME_TIME: Duration = Duration::from_nanos(1_000_000_000 / TARGET_FPS);
 
 pub struct AppState {
@@ -89,10 +89,11 @@ impl ApplicationHandler for App {
 
 impl AppState {
     fn draw_to_screen(&mut self) {
+        let (width, height) = self.psx.get_resolution();
         self.surface
             .resize(
-                NonZeroU32::new(starpsx_renderer::CANVAS_WIDTH as u32).unwrap(),
-                NonZeroU32::new(starpsx_renderer::CANVAS_HEIGHT as u32).unwrap(),
+                NonZeroU32::new(width).unwrap(),
+                NonZeroU32::new(height).unwrap(),
             )
             .unwrap();
 

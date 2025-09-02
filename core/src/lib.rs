@@ -54,17 +54,28 @@ impl StarPSX {
     }
 
     pub fn frame_buffer(&self) -> &[u32] {
-        self.bus.gpu.renderer.frame_buffer()
+        let (width, height) = self.bus.gpu.get_resolution();
+        self.bus.gpu.renderer.frame_buffer(width, height)
+    }
+
+    pub fn get_resolution(&self) -> (u32, u32) {
+        let (width, height) = self.bus.gpu.get_resolution();
+        (width as u32, height as u32)
     }
 
     pub fn copy_vram_to_frame(&mut self) {
         let gpu = &mut self.bus.gpu;
-        gpu.renderer.copy_vram(gpu.vram.as_ref());
-        // gpu.renderer.copy_vram_fb(
-        //     gpu.vram.as_ref(),
-        //     gpu.display_vram_x_start,
-        //     gpu.display_vram_y_start,
-        // );
+        let (width, height) = gpu.get_resolution();
+        gpu.renderer.copy_vram_fb(
+            gpu.vram.as_ref(),
+            gpu.display_vram_x_start,
+            gpu.display_vram_y_start,
+            width,
+            height,
+        );
+
+        // gpu.renderer
+        //     .copy_vram_fb(gpu.vram.as_ref(), 0, 0, 1024, 512);
     }
 
     pub fn step_frame(&mut self) {
