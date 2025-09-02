@@ -58,7 +58,13 @@ impl StarPSX {
     }
 
     pub fn copy_vram_to_frame(&mut self) {
-        self.bus.gpu.renderer.copy_vram(self.bus.gpu.vram.as_ref());
+        let gpu = &mut self.bus.gpu;
+        gpu.renderer.copy_vram(gpu.vram.as_ref());
+        // gpu.renderer.copy_vram_fb(
+        //     gpu.vram.as_ref(),
+        //     gpu.display_vram_x_start,
+        //     gpu.display_vram_y_start,
+        // );
     }
 
     pub fn step_frame(&mut self) {

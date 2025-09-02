@@ -288,10 +288,7 @@ impl Bus {
                 Step::Increment => 4,
                 Step::Decrement => -4,
             };
-            let size = match channel.transfer_size() {
-                Some(n) => n,
-                None => panic!("Should not be able to get here!!!"),
-            };
+            let size = channel.transfer_size().expect("Should not be none!");
             (step, channel.ctl.dir(), channel.base, size)
         };
 

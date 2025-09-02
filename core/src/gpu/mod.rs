@@ -122,14 +122,14 @@ pub struct Gpu {
     drawing_x_offset: i16,
     drawing_y_offset: i16,
 
-    display_vram_x_start: u16,
-    display_vram_y_start: u16,
+    pub display_vram_x_start: u16,
+    pub display_vram_y_start: u16,
 
-    display_hori_start: u16,
-    display_hori_end: u16,
+    pub display_hori_start: u16,
+    pub display_hori_end: u16,
 
-    display_line_start: u16,
-    display_line_end: u16,
+    pub display_line_start: u16,
+    pub display_line_end: u16,
 
     gp0_params: ArrayVec<Command, 16>,
     gp0_state: GP0State,
