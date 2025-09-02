@@ -1,10 +1,6 @@
-use std::{
-    error::Error,
-    io::{self, Write},
-};
-
 use cpu::Cpu;
 use memory::Bus;
+use std::error::Error;
 
 mod cpu;
 mod dma;

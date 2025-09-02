@@ -336,16 +336,16 @@ impl Bus {
             let header = self.ram.read32(addr);
             let size = header >> 24;
 
-            for _ in 0..size {
-                addr = addr.wrapping_add(4) & 0x1FFFFC;
-                let command = self.ram.read32(addr);
-                self.gpu.gp0(command);
+            for i in 0..size {
+                let data = self.ram.read32(addr + 4 * (i + 1));
+                self.gpu.gp0(data);
             }
 
-            if header & 0x800000 != 0 {
+            let next_addr = header & 0xFFFFFF;
+            if next_addr & (1 << 23) != 0 {
                 break;
             }
-            addr = header & 0x1FFFFC;
+            addr = next_addr;
         }
 
         channel.done();

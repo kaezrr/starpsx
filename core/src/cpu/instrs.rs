@@ -69,7 +69,7 @@ impl Cpu {
         let addr = self.regs[rs].wrapping_add(im);
         let data = bus.read32(addr)?;
 
-        self.take_delayed_load(rt, data as u32);
+        self.take_delayed_load(rt, data);
         Ok(())
     }
 
