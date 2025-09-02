@@ -18,8 +18,8 @@ impl Default for Renderer {
 }
 
 impl Renderer {
-    pub fn frame_buffer(&self, width: usize, height: usize) -> &[u32] {
-        bytemuck::cast_slice(self.pixel_buffer[..(width * height)].as_ref())
+    pub fn frame_buffer(&self) -> &[u32] {
+        bytemuck::cast_slice(self.pixel_buffer.as_ref())
     }
 
     pub fn copy_vram_fb(&mut self, vram: &[u8], sx: u16, sy: u16, width: usize, height: usize) {

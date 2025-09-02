@@ -1,5 +1,6 @@
 use cpu::Cpu;
 use memory::Bus;
+use starpsx_renderer::Renderer;
 use std::error::Error;
 
 mod cpu;
@@ -8,7 +9,7 @@ pub mod gpu;
 mod memory;
 
 pub const TARGET_FPS: u64 = 60;
-const MCYCLES_PER_SECOND: u32 = 270950;
+const MCYCLES_PER_SECOND: u32 = 564480;
 
 pub struct Config {
     pub bios_path: String,
@@ -36,6 +37,7 @@ pub struct StarPSX {
     cpu: Cpu,
     bus: Bus,
     tty: String,
+    renderer: Renderer,
 }
 
 impl StarPSX {
@@ -46,6 +48,7 @@ impl StarPSX {
             cpu,
             bus,
             tty: String::new(),
+            renderer: Renderer::default(),
         };
         if let Some(exe_path) = config.exe_path {
             psx.sideload_exe(&exe_path)?;
@@ -55,7 +58,7 @@ impl StarPSX {
 
     pub fn frame_buffer(&self) -> &[u32] {
         let (width, height) = self.bus.gpu.get_resolution();
-        self.bus.gpu.renderer.frame_buffer(width, height)
+        &self.renderer.frame_buffer()[..(width * height)]
     }
 
     pub fn get_resolution(&self) -> (u32, u32) {
@@ -63,26 +66,21 @@ impl StarPSX {
         (width as u32, height as u32)
     }
 
-    pub fn copy_vram_to_frame(&mut self) {
-        let gpu = &mut self.bus.gpu;
-        let (width, height) = gpu.get_resolution();
-        gpu.renderer.copy_vram_fb(
-            gpu.vram.as_ref(),
-            gpu.display_vram_x_start,
-            gpu.display_vram_y_start,
-            width,
-            height,
-        );
-
-        // gpu.renderer
-        //     .copy_vram_fb(gpu.vram.as_ref(), 0, 0, 1024, 512);
-    }
-
     pub fn step_frame(&mut self) {
-        for _ in 0..MCYCLES_PER_SECOND {
+        for _ in (0..MCYCLES_PER_SECOND).step_by(2) {
             self.cpu.run_instruction(&mut self.bus);
             self.check_for_tty_output();
         }
+        let (width, height) = self.bus.gpu.get_resolution();
+        self.renderer.copy_vram_fb(
+            self.bus.gpu.vram.as_ref(),
+            self.bus.gpu.display_vram_x_start,
+            self.bus.gpu.display_vram_y_start,
+            width,
+            height,
+        );
+        // gpu.renderer
+        //     .copy_vram_fb(gpu.vram.as_ref(), 0, 0, 1024, 512);
     }
 
     pub fn sideload_exe(&mut self, filepath: &String) -> Result<(), Box<dyn Error>> {

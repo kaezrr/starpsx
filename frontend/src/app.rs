@@ -66,7 +66,6 @@ impl ApplicationHandler for App {
 
         match event {
             WindowEvent::RedrawRequested => {
-                state.psx.copy_vram_to_frame();
                 state.draw_to_screen();
                 state.window.request_redraw();
             }
@@ -76,8 +75,8 @@ impl ApplicationHandler for App {
 
         // Thread sleeping locks the framerate here
         let elapsed = frame_start.elapsed();
-        // let actual_fps = 1.0 / elapsed.as_secs_f64();
-        // println!("FPS: {actual_fps:.2}");
+        let actual_fps = 1.0 / elapsed.as_secs_f64();
+        println!("FPS: {actual_fps:.2}");
 
         if let Some(remaining) = FRAME_TIME.checked_sub(elapsed) {
             std::thread::sleep(remaining);

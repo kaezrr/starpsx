@@ -2,7 +2,6 @@ mod commands;
 mod utils;
 
 use arrayvec::ArrayVec;
-use starpsx_renderer::Renderer;
 use utils::{
     DisplayDepth, DmaDirection, Field, GP0State, HorizontalRes, TextureDepth, VMode, VerticalRes,
 };
@@ -102,7 +101,6 @@ bitfield::bitfield! {
 }
 
 pub struct Gpu {
-    pub renderer: Renderer,
     pub vram: Box<[u8; 512 * 2048]>,
     gpu_read: u32,
 
@@ -140,7 +138,6 @@ pub struct Gpu {
 impl Default for Gpu {
     fn default() -> Self {
         Self {
-            renderer: Renderer::default(),
             vram: Box::new([0; 1024 * 1024]),
             gpu_read: 0,
 
