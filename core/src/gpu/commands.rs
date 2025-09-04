@@ -171,17 +171,15 @@ impl Gpu {
     }
 
     pub fn gp0_quick_rect_fill(&mut self) {
-        let pixel = parse_color_16(self.gp0_params[0].0);
+        let color = parse_color_16(self.gp0_params[0].0);
         let (x, y) = parse_x_y(self.gp0_params[1].0);
         let (width, height) = parse_x_y(self.gp0_params[2].0);
-
-        println!("draw rect at {x} {y}, width: {width}, height: {height}, color: {pixel:04x}");
 
         self.renderer.draw_rectangle_opaque(
             Vec2::new(x as i32, y as i32),
             width as i32,
             height as i32,
-            pixel,
+            color,
         );
     }
 
@@ -218,11 +216,9 @@ impl Gpu {
     }
 
     pub fn gp0_draw_1x1_rectangle(&mut self) {
-        let pixel = parse_color_16(self.gp0_params[0].0);
+        let color = parse_color_16(self.gp0_params[0].0);
         let (x, y) = parse_x_y(self.gp0_params[1].0);
-
-        let vram_addr = 2 * (1024 * y + x) as usize;
-        *self.renderer.vram[vram_addr..].first_chunk_mut().unwrap() = pixel.to_le_bytes();
+        self.renderer.draw_single_pixel(x as i32, y as i32, color)
     }
 
     pub fn gp1_read_internal_reg(&mut self, command: Command) {
