@@ -6,7 +6,10 @@ use std::time::{Duration, Instant};
 use winit::{application::ApplicationHandler, event::WindowEvent};
 use winit::{dpi::LogicalSize, window::Window};
 
-const WINDOW_SIZE: LogicalSize<u32> = LogicalSize::new(960, 720);
+const APP_WINDOW_WIDTH: u32 = 800;
+const APP_WINDOW_HEIGHT: u32 = 800;
+
+const WINDOW_SIZE: LogicalSize<u32> = LogicalSize::new(APP_WINDOW_WIDTH, APP_WINDOW_HEIGHT);
 const FRAME_TIME: Duration = Duration::from_nanos(1_000_000_000 / TARGET_FPS);
 
 pub struct AppState {
@@ -62,7 +65,7 @@ impl ApplicationHandler for App {
         };
 
         let frame_start = Instant::now();
-        state.psx.step_frame();
+        // state.psx.step_frame();
 
         match event {
             WindowEvent::RedrawRequested => {
@@ -75,8 +78,8 @@ impl ApplicationHandler for App {
 
         // Thread sleeping locks the framerate here
         let elapsed = frame_start.elapsed();
-        // let actual_fps = 1.0 / elapsed.as_secs_f64();
-        // println!("FPS: {actual_fps:.2}");
+        let actual_fps = 1.0 / elapsed.as_secs_f64();
+        println!("FPS: {actual_fps:.2}");
 
         if let Some(remaining) = FRAME_TIME.checked_sub(elapsed) {
             std::thread::sleep(remaining);
@@ -88,7 +91,8 @@ impl ApplicationHandler for App {
 
 impl AppState {
     fn draw_to_screen(&mut self) {
-        let (width, height) = self.psx.get_resolution();
+        // let (width, height) = self.psx.get_resolution();
+        let (width, height) = (800, 800);
         self.surface
             .resize(
                 NonZeroU32::new(width).unwrap(),

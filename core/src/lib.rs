@@ -57,7 +57,8 @@ impl StarPSX {
     }
 
     pub fn frame_buffer(&self) -> &[u32] {
-        let (width, height) = self.bus.gpu.get_resolution();
+        // let (width, height) = self.bus.gpu.get_resolution();
+        let (width, height) = (800, 800);
         &self.renderer.frame_buffer()[..(width * height)]
     }
 
