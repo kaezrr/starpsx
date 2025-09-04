@@ -178,7 +178,7 @@ impl Gpu {
         let (x, y) = parse_x_y(self.gp0_params[1].0);
         let (width, height) = parse_x_y(self.gp0_params[2].0);
 
-        self.renderer.draw_rectangle_opaque(
+        self.renderer.draw_rectangle_mono(
             Vec2::new(x as i32, y as i32),
             width as i32,
             height as i32,
@@ -216,15 +216,50 @@ impl Gpu {
             Vec2::new(x3 as i32, y3 as i32),
         ];
 
-        self.renderer.draw_quad_opaque(quad, color);
+        self.renderer.draw_quad_mono_opaque(quad, color);
     }
 
     pub fn gp0_quad_shaded_opaque(&mut self) {
-        println!("draw shaded quad");
+        let (x0, y0) = parse_x_y(self.gp0_params[1].0);
+        let (x1, y1) = parse_x_y(self.gp0_params[3].0);
+        let (x2, y2) = parse_x_y(self.gp0_params[5].0);
+        let (x3, y3) = parse_x_y(self.gp0_params[7].0);
+
+        let quad = [
+            Vec2::new(x0 as i32, y0 as i32),
+            Vec2::new(x1 as i32, y1 as i32),
+            Vec2::new(x2 as i32, y2 as i32),
+            Vec2::new(x3 as i32, y3 as i32),
+        ];
+
+        let colors = [
+            parse_color_16(self.gp0_params[0].0),
+            parse_color_16(self.gp0_params[2].0),
+            parse_color_16(self.gp0_params[4].0),
+            parse_color_16(self.gp0_params[6].0),
+        ];
+
+        self.renderer.draw_quad_shaded_opaque(quad, colors);
     }
 
     pub fn gp0_triangle_shaded_opaque(&mut self) {
-        println!("draw shaded triangle");
+        let (x0, y0) = parse_x_y(self.gp0_params[1].0);
+        let (x1, y1) = parse_x_y(self.gp0_params[3].0);
+        let (x2, y2) = parse_x_y(self.gp0_params[5].0);
+
+        let triangle = [
+            Vec2::new(x0 as i32, y0 as i32),
+            Vec2::new(x1 as i32, y1 as i32),
+            Vec2::new(x2 as i32, y2 as i32),
+        ];
+
+        let colors = [
+            parse_color_16(self.gp0_params[0].0),
+            parse_color_16(self.gp0_params[2].0),
+            parse_color_16(self.gp0_params[4].0),
+        ];
+
+        self.renderer.draw_triangle_shaded_opaque(triangle, colors);
     }
 
     pub fn gp0_quad_texture_blend_opaque(&mut self) {
@@ -235,7 +270,7 @@ impl Gpu {
         let color = parse_color_16(self.gp0_params[0].0);
         let (x, y) = parse_x_y(self.gp0_params[1].0);
         self.renderer
-            .draw_rectangle_opaque(Vec2::new(x as i32, y as i32), 1, 1, color);
+            .draw_rectangle_mono(Vec2::new(x as i32, y as i32), 1, 1, color);
     }
 
     pub fn gp1_read_internal_reg(&mut self, command: Command) {

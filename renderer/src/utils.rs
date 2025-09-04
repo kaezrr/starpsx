@@ -21,6 +21,13 @@ impl Color {
         let b = (pixel & 0xFF) as u8;
         Self { r, g, b, a: 0 }
     }
+
+    pub fn to_5bit(&self) -> u16 {
+        let r = (self.r >> 3) as u16;
+        let g = (self.g >> 3) as u16;
+        let b = (self.b >> 3) as u16;
+        r << 10 | g << 5 | b
+    }
 }
 
 // TODO: Convert to a lookup table later
@@ -35,4 +42,16 @@ pub struct DrawContext {
     pub start_y: usize,
     pub width: usize,
     pub height: usize,
+}
+
+pub fn interpolate_color(weights: [f64; 3], colors: [Color; 3]) -> Color {
+    let colr = colors.map(|color| f64::from(color.r));
+    let colg = colors.map(|color| f64::from(color.g));
+    let colb = colors.map(|color| f64::from(color.b));
+
+    let r = (weights[0] * colr[0] + weights[1] * colr[1] + weights[2] * colr[2]).round() as u8;
+    let g = (weights[0] * colg[0] + weights[1] * colg[1] + weights[2] * colg[2]).round() as u8;
+    let b = (weights[0] * colb[0] + weights[1] * colb[1] + weights[2] * colb[2]).round() as u8;
+
+    Color { r, g, b, a: 0 }
 }
