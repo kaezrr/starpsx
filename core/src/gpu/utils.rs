@@ -196,3 +196,16 @@ pub enum GP0State {
     AwaitArgs { cmd: fn(&mut Gpu), len: usize },
     CopyToVram(VramCopyFields),
 }
+
+pub fn parse_color_16(data: u32) -> u16 {
+    let r = (data & 0xFF) >> 3;
+    let g = ((data >> 8) & 0xFF) >> 3;
+    let b = ((data >> 16) & 0xFF) >> 3;
+    (r << 10 | g << 5 | b) as u16
+}
+
+pub fn parse_x_y(data: u32) -> (u32, u32) {
+    let x = data & 0x3FF;
+    let y = (data >> 16) & 0x1FF;
+    (x, y)
+}

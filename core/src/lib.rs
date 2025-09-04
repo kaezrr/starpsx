@@ -68,13 +68,7 @@ impl StarPSX {
             self.cpu.run_instruction(&mut self.bus);
             self.check_for_tty_output();
         }
-        let (width, height) = self.bus.gpu.get_resolution();
-        self.bus.gpu.renderer.copy_vram_fb(
-            self.bus.gpu.display_vram_x_start,
-            self.bus.gpu.display_vram_y_start,
-            width,
-            height,
-        );
+        self.bus.gpu.renderer.copy_vram_to_fb();
     }
 
     pub fn sideload_exe(&mut self, filepath: &String) -> Result<(), Box<dyn Error>> {

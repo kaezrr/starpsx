@@ -1,3 +1,7 @@
+use starpsx_renderer::vec2::Vec2;
+
+use crate::gpu::utils::{parse_color_16, parse_x_y};
+
 use super::*;
 
 impl Gpu {
@@ -167,11 +171,35 @@ impl Gpu {
     }
 
     pub fn gp0_quick_rect_fill(&mut self) {
-        println!("quick rectangle fill ");
+        let pixel = parse_color_16(self.gp0_params[0].0);
+        let (x, y) = parse_x_y(self.gp0_params[1].0);
+        let (width, height) = parse_x_y(self.gp0_params[2].0);
+
+        println!("draw rect at {x} {y}, width: {width}, height: {height}, color: {pixel:04x}");
+
+        self.renderer.draw_rectangle_opaque(
+            Vec2::new(x as i32, y as i32),
+            width as i32,
+            height as i32,
+            pixel,
+        );
     }
 
     pub fn gp0_vram_to_vram_blit(&mut self) {
         println!("vram to vram blit");
+        // let (src_x, src_y) = parse_x_y(self.gp0_params[1].0);
+        // let (dst_x, dst_y) = parse_x_y(self.gp0_params[2].0);
+        // let (width, height) = parse_x_y(self.gp0_params[3].0);
+        //
+        // for y in 0..height {
+        //     for x in 0..width {
+        //         let src_index = (2 * (src_y + y) * 1024 + (src_x + x)) as usize;
+        //         let dst_index = (2 * (dst_y + y) * 1024 + (dst_x + x)) as usize;
+        //         self.renderer
+        //             .vram
+        //             .copy_within(src_index..(src_index + 2), dst_index);
+        //     }
+        // }
     }
 
     pub fn gp0_quad_mono_opaque(&mut self) {
@@ -191,14 +219,8 @@ impl Gpu {
     }
 
     pub fn gp0_draw_1x1_rectangle(&mut self) {
-        let r = (self.gp0_params[0].0 & 0xFF) >> 3;
-        let g = ((self.gp0_params[0].0 >> 8) & 0xFF) >> 3;
-        let b = ((self.gp0_params[0].0 >> 16) & 0xFF) >> 3;
-
-        let pixel = (r << 10 | g << 5 | b) as u16;
-
-        let x = self.gp0_params[1].0 & 0x3FF;
-        let y = (self.gp0_params[1].0 >> 16) & 0x1FF;
+        let pixel = parse_color_16(self.gp0_params[0].0);
+        let (x, y) = parse_x_y(self.gp0_params[1].0);
 
         let vram_addr = 2 * (1024 * y + x) as usize;
         *self.renderer.vram[vram_addr..].first_chunk_mut().unwrap() = pixel.to_le_bytes();

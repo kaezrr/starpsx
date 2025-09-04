@@ -27,3 +27,12 @@ impl Color {
 fn convert_5bit_to_8bit(color: u16) -> u8 {
     (f64::from(color) * 255.0 / 31.0).round() as u8
 }
+
+// Store the current drawing context
+#[derive(Debug, Default, Clone, Copy)]
+pub struct DrawContext {
+    pub start_x: usize,
+    pub start_y: usize,
+    pub width: usize,
+    pub height: usize,
+}

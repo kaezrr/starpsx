@@ -2,7 +2,7 @@ mod commands;
 mod utils;
 
 use arrayvec::ArrayVec;
-use starpsx_renderer::Renderer;
+use starpsx_renderer::{Renderer, utils::DrawContext};
 use utils::{
     DisplayDepth, DmaDirection, Field, GP0State, HorizontalRes, TextureDepth, VMode, VerticalRes,
 };
@@ -194,7 +194,6 @@ impl Gpu {
     }
 
     pub fn gp0(&mut self, data: u32) {
-        println!("GP0: {data:08x}");
         match self.gp0_state {
             GP0State::AwaitCommand => self.process_command(data),
             GP0State::AwaitArgs { cmd, len } => self.process_argument(data, cmd, len),
@@ -203,7 +202,6 @@ impl Gpu {
     }
 
     pub fn gp1(&mut self, data: u32) {
-        println!("GP1: {data:08x}");
         let command = Command(data);
         match command.opcode() {
             0x00 => self.gp1_reset(),
@@ -218,6 +216,7 @@ impl Gpu {
             0x10 => self.gp1_read_internal_reg(command),
             _ => panic!("Unknown GP1 command {data:08x}"),
         }
+        self.update_renderer_context();
     }
 
     #[inline(always)]
@@ -295,5 +294,15 @@ impl Gpu {
         };
 
         (width, height)
+    }
+
+    pub fn update_renderer_context(&mut self) {
+        let (width, height) = self.get_resolution();
+        self.renderer.ctx = DrawContext {
+            start_x: self.display_vram_x_start.into(),
+            start_y: self.display_vram_y_start.into(),
+            width,
+            height,
+        }
     }
 }
