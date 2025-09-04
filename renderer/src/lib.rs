@@ -92,8 +92,11 @@ impl Renderer {
         self.draw_triangle_opaque(triangle_half_2, color);
     }
 
-    pub fn draw_single_pixel(&mut self, x: i32, y: i32, color: u16) {
-        let vram_addr = 2 * (1024 * y + x) as usize;
-        *self.vram[vram_addr..].first_chunk_mut().unwrap() = color.to_le_bytes();
+    pub fn draw_quad_opaque(&mut self, q: [Vec2; 4], color: u16) {
+        let triangle_half_1 = [q[0], q[1], q[2]];
+        let triangle_half_2 = [q[1], q[2], q[3]];
+
+        self.draw_triangle_opaque(triangle_half_1, color);
+        self.draw_triangle_opaque(triangle_half_2, color);
     }
 }

@@ -203,7 +203,20 @@ impl Gpu {
     }
 
     pub fn gp0_quad_mono_opaque(&mut self) {
-        println!("draw quad");
+        let color = parse_color_16(self.gp0_params[0].0);
+        let (x0, y0) = parse_x_y(self.gp0_params[1].0);
+        let (x1, y1) = parse_x_y(self.gp0_params[2].0);
+        let (x2, y2) = parse_x_y(self.gp0_params[3].0);
+        let (x3, y3) = parse_x_y(self.gp0_params[4].0);
+
+        let quad = [
+            Vec2::new(x0 as i32, y0 as i32),
+            Vec2::new(x1 as i32, y1 as i32),
+            Vec2::new(x2 as i32, y2 as i32),
+            Vec2::new(x3 as i32, y3 as i32),
+        ];
+
+        self.renderer.draw_quad_opaque(quad, color);
     }
 
     pub fn gp0_quad_shaded_opaque(&mut self) {
