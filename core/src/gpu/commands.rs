@@ -68,15 +68,18 @@ impl Gpu {
     }
 
     pub fn gp0_image_load(&mut self) {
-        let vram_x = (self.gp0_params[0].0 & 0x3FF) as u16;
-        let vram_y = ((self.gp0_params[0].0 >> 16) & 0x1FF) as u16;
+        let (x, y) = parse_x_y(self.gp0_params[1].0);
+        let (width, height) = parse_x_y(self.gp0_params[2].0);
 
-        let width = match (self.gp0_params[2].0 & 0x3FF) as u16 {
+        let vram_x = x as u16;
+        let vram_y = y as u16;
+
+        let width = match width as u16 {
             0 => 1024,
             x => x,
         };
 
-        let height = match ((self.gp0_params[2].0 >> 16) & 0x3FF) as u16 {
+        let height = match height as u16 {
             0 => 512,
             x => x,
         };
@@ -165,11 +168,11 @@ impl Gpu {
         self.gp0_state = GP0State::AwaitCommand;
     }
 
-    // DRAW COMMANDS
     pub fn gp1_acknowledge_irq(&mut self) {
         self.stat.set_interrupt(false);
     }
 
+    // DRAW COMMANDS
     pub fn gp0_quick_rect_fill(&mut self) {
         let color = parse_color_16(self.gp0_params[0].0);
         let (x, y) = parse_x_y(self.gp0_params[1].0);

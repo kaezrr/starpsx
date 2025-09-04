@@ -197,6 +197,13 @@ pub enum GP0State {
     CopyToVram(VramCopyFields),
 }
 
+pub fn bgr_to_rgb16(data: u16) -> u16 {
+    let r = data & 0x1F;
+    let g = (data >> 5) & 0x1F;
+    let b = (data >> 10) & 0x1F;
+    r << 10 | g << 5 | b
+}
+
 pub fn parse_color_16(data: u32) -> u16 {
     let r = (data & 0xFF) >> 3;
     let g = ((data >> 8) & 0xFF) >> 3;

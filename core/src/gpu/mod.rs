@@ -7,7 +7,7 @@ use utils::{
     DisplayDepth, DmaDirection, Field, GP0State, HorizontalRes, TextureDepth, VMode, VerticalRes,
 };
 
-use crate::gpu::utils::VramCopyFields;
+use crate::gpu::utils::{VramCopyFields, bgr_to_rgb16};
 
 bitfield::bitfield! {
     #[derive(Clone, Copy)]
@@ -222,7 +222,7 @@ impl Gpu {
     #[inline(always)]
     fn process_cpu_vram_copy(&mut self, word: u32, mut fields: VramCopyFields) {
         for i in 0..2 {
-            let halfword = (word >> (16 * i)) as u16;
+            let halfword = bgr_to_rgb16((word >> (16 * i)) as u16);
             let vram_row = ((fields.vram_y + fields.current_row) & 0x1FF) as usize;
             let vram_col = ((fields.vram_x + fields.current_col) & 0x3FF) as usize;
             let vram_addr = 2 * (1024 * vram_row + vram_col);
