@@ -306,6 +306,7 @@ impl Gpu {
             start_x: 0,
             width,
             height,
+            dithering: self.stat.dithering(),
         }
     }
 }

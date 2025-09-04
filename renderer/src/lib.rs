@@ -131,10 +131,14 @@ impl Renderer {
 
         for x in min_x..=max_x {
             for y in min_y..=max_y {
-                if let Some(weights) = compute_barycentric_coords(t, Vec2::new(x, y)) {
+                let p = Vec2::new(x, y);
+                if let Some(weights) = compute_barycentric_coords(t, p) {
                     let index = 2 * (VRAM_WIDTH * (y as usize) + (x as usize));
-                    *self.vram[index..].first_chunk_mut().unwrap() =
-                        interpolate_color(weights, colors).to_5bit().to_le_bytes();
+                    let mut color = interpolate_color(weights, colors);
+                    if self.ctx.dithering {
+                        color.apply_dithering(p);
+                    }
+                    *self.vram[index..].first_chunk_mut().unwrap() = color.to_5bit().to_le_bytes();
                 };
             }
         }

@@ -23,6 +23,7 @@ impl Gpu {
             .set_texture_disable(self.gp0_params[0].texture_disable());
         self.texture_rect_x_flip = self.gp0_params[0].texture_rect_x_flip();
         self.texture_rect_y_flip = self.gp0_params[0].texture_rect_y_flip();
+        self.update_renderer_context();
     }
 
     pub fn gp0_drawing_area_top_left(&mut self) {
@@ -58,7 +59,6 @@ impl Gpu {
     pub fn gp0_image_store(&mut self) {
         let resolution = self.gp0_params[2];
         let (width, height) = (resolution.image_width(), resolution.image_height());
-        // let image_size = resolution.image_width() * resolution.image_height();
 
         eprintln!("Unhandled image store of {width} x {height}");
     }
