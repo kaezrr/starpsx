@@ -6,8 +6,8 @@ use crate::{
     vec2::{Vec2, point_in_triangle},
 };
 
-const CANVAS_WIDTH: usize = 800;
-const CANVAS_HEIGHT: usize = 800;
+const CANVAS_WIDTH: usize = 1024;
+const CANVAS_HEIGHT: usize = 512;
 
 pub struct Renderer {
     pub pixel_buffer: Box<[Color; CANVAS_HEIGHT * CANVAS_WIDTH]>,
@@ -15,19 +15,9 @@ pub struct Renderer {
 
 impl Default for Renderer {
     fn default() -> Self {
-        let mut render = Self {
+        Self {
             pixel_buffer: Box::new([Color::default(); CANVAS_HEIGHT * CANVAS_WIDTH]),
-        };
-
-        let triangle = [
-            Vec2::new(50., 50.),
-            Vec2::new(200., 250.),
-            Vec2::new(100., 70.),
-        ];
-
-        render.draw_triangle_opaque(triangle, 0x00ff00);
-
-        render
+        }
     }
 }
 
@@ -49,41 +39,35 @@ impl Renderer {
         }
     }
 
-    pub fn draw_triangle_opaque(&mut self, triangle: [Vec2; 3], color: u32) {
-        let (min_x, max_x, min_y, max_y) = triangle.iter().fold(
-            (
-                f32::INFINITY,
-                f32::NEG_INFINITY,
-                f32::INFINITY,
-                f32::NEG_INFINITY,
-            ),
-            |(min_x, max_x, min_y, max_y), p| {
-                (
-                    min_x.min(p.x),
-                    max_x.max(p.x),
-                    min_y.min(p.y),
-                    max_y.max(p.y),
-                )
-            },
-        );
-
-        let min_x = min_x as usize;
-        let max_x = max_x as usize;
-        let min_y = min_y as usize;
-        let max_y = max_y as usize;
-
-        let inside_color = Color::new_8bit(color);
-        let outside_color = Color::new_8bit(0x000000);
+    pub fn draw_triangle_opaque(&mut self, t: [Vec2; 3], color: u32) {
+        let min_x = std::cmp::min(t[0].x, std::cmp::min(t[1].x, t[2].x));
+        let min_y = std::cmp::min(t[0].y, std::cmp::min(t[1].y, t[2].y));
+        let max_x = std::cmp::max(t[0].x, std::cmp::max(t[1].x, t[2].x));
+        let max_y = std::cmp::max(t[0].y, std::cmp::max(t[1].y, t[2].y));
 
         for x in min_x..=max_x {
             for y in min_y..=max_y {
-                let col = if point_in_triangle(triangle, Vec2::new(x as f32, y as f32)) {
-                    inside_color
-                } else {
-                    outside_color
+                if point_in_triangle(t, Vec2::new(x, y)) {
+                    let index = CANVAS_WIDTH * (y as usize) + x as usize;
+                    self.pixel_buffer[index] = Color::new_8bit(color);
                 };
-                self.pixel_buffer[CANVAS_WIDTH * y + x] = col;
             }
         }
+    }
+
+    pub fn draw_rectangle_opaque(&mut self, r: Vec2, side_x: i32, side_y: i32, color: u32) {
+        let triangle_half_1 = [
+            r + Vec2::new(side_x, 0),
+            r + Vec2::new(0, side_y),
+            r + Vec2::zero(),
+        ];
+        let triangle_half_2 = [
+            r + Vec2::new(side_x, 0),
+            r + Vec2::new(0, side_y),
+            r + Vec2::new(side_x, side_y),
+        ];
+
+        self.draw_triangle_opaque(triangle_half_1, color);
+        self.draw_triangle_opaque(triangle_half_2, color);
     }
 }

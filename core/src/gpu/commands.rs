@@ -166,20 +166,28 @@ impl Gpu {
         self.stat.set_interrupt(false);
     }
 
+    pub fn gp0_quick_rect_fill(&mut self) {
+        println!("quick rectangle fill ");
+    }
+
+    pub fn gp0_vram_to_vram_blit(&mut self) {
+        println!("vram to vram blit");
+    }
+
     pub fn gp0_quad_mono_opaque(&mut self) {
-        eprintln!("draw quad");
+        println!("draw quad");
     }
 
     pub fn gp0_quad_shaded_opaque(&mut self) {
-        eprintln!("draw shaded quad");
+        println!("draw shaded quad");
     }
 
     pub fn gp0_triangle_shaded_opaque(&mut self) {
-        eprintln!("draw shaded triangle");
+        println!("draw shaded triangle");
     }
 
     pub fn gp0_quad_texture_blend_opaque(&mut self) {
-        eprintln!("draw texture blended quad");
+        println!("draw texture blended quad");
     }
 
     pub fn gp0_draw_1x1_rectangle(&mut self) {

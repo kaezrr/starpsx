@@ -258,11 +258,13 @@ impl Gpu {
         let (len, cmd): (usize, fn(&mut Gpu)) = match command.opcode() {
             0x00 => (1, Gpu::gp0_nop),
             0x01 => (1, Gpu::gp0_clear_cache),
+            0x02 => (3, Gpu::gp0_quick_rect_fill),
             0x28 => (5, Gpu::gp0_quad_mono_opaque),
             0x2C => (9, Gpu::gp0_quad_texture_blend_opaque),
             0x30 => (6, Gpu::gp0_triangle_shaded_opaque),
             0x38 => (8, Gpu::gp0_quad_shaded_opaque),
             0x68 => (2, Gpu::gp0_draw_1x1_rectangle),
+            0x80 => (4, Gpu::gp0_vram_to_vram_blit),
             0xA0 => (3, Gpu::gp0_image_load),
             0xC0 => (3, Gpu::gp0_image_store),
             0xE1 => (1, Gpu::gp0_draw_mode),

@@ -684,7 +684,7 @@ impl Cpu {
         let im = instr.imm16_se();
 
         if self.regs[rs] == self.regs[rt] {
-            let addr = self.pc.wrapping_add(4 + (im << 2));
+            let addr = self.pc.wrapping_add((im << 2).wrapping_add(4));
             self.delayed_branch = Some(addr);
         }
         Ok(())
@@ -697,7 +697,7 @@ impl Cpu {
         let im = instr.imm16_se();
 
         if self.regs[rs] != self.regs[rt] {
-            let addr = self.pc.wrapping_add(4 + (im << 2));
+            let addr = self.pc.wrapping_add((im << 2).wrapping_add(4));
             self.delayed_branch = Some(addr);
         }
         Ok(())
@@ -716,7 +716,7 @@ impl Cpu {
             self.regd[31] = self.pc.wrapping_add(8);
         }
         if cond {
-            let addr = self.pc.wrapping_add(4 + (im << 2));
+            let addr = self.pc.wrapping_add((im << 2).wrapping_add(4));
             self.delayed_branch = Some(addr);
         }
         Ok(())
@@ -728,7 +728,7 @@ impl Cpu {
         let im = instr.imm16_se();
 
         if (self.regs[rs] as i32) > 0 {
-            let addr = self.pc.wrapping_add(4 + (im << 2));
+            let addr = self.pc.wrapping_add((im << 2).wrapping_add(4));
             self.delayed_branch = Some(addr);
         }
         Ok(())
@@ -740,7 +740,7 @@ impl Cpu {
         let im = instr.imm16_se();
 
         if (self.regs[rs] as i32) <= 0 {
-            let addr = self.pc.wrapping_add(4 + (im << 2));
+            let addr = self.pc.wrapping_add((im << 2).wrapping_add(4));
             self.delayed_branch = Some(addr);
         }
         Ok(())
