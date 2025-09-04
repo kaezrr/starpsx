@@ -186,20 +186,19 @@ impl Gpu {
     }
 
     pub fn gp0_vram_to_vram_blit(&mut self) {
-        println!("vram to vram blit");
-        // let (src_x, src_y) = parse_x_y(self.gp0_params[1].0);
-        // let (dst_x, dst_y) = parse_x_y(self.gp0_params[2].0);
-        // let (width, height) = parse_x_y(self.gp0_params[3].0);
-        //
-        // for y in 0..height {
-        //     for x in 0..width {
-        //         let src_index = (2 * (src_y + y) * 1024 + (src_x + x)) as usize;
-        //         let dst_index = (2 * (dst_y + y) * 1024 + (dst_x + x)) as usize;
-        //         self.renderer
-        //             .vram
-        //             .copy_within(src_index..(src_index + 2), dst_index);
-        //     }
-        // }
+        let (src_x, src_y) = parse_x_y(self.gp0_params[1].0);
+        let (dst_x, dst_y) = parse_x_y(self.gp0_params[2].0);
+        let (width, height) = parse_x_y(self.gp0_params[3].0);
+
+        for y in 0..height {
+            for x in 0..width {
+                let src_index = 2 * ((src_y + y) * 1024 + (src_x + x)) as usize;
+                let dst_index = 2 * ((dst_y + y) * 1024 + (dst_x + x)) as usize;
+                self.renderer
+                    .vram
+                    .copy_within(src_index..(src_index + 2), dst_index);
+            }
+        }
     }
 
     pub fn gp0_quad_mono_opaque(&mut self) {

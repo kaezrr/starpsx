@@ -22,6 +22,23 @@ impl Default for Renderer {
             vram: Box::new([0; 1024 * 1024]),
             pixel_buffer: Box::new([Color::default(); VRAM_HEIGHT * VRAM_WIDTH]),
         }
+        // let mut renderer = Self {
+        //     ctx: DrawContext {
+        //         start_x: 0,
+        //         start_y: 0,
+        //         width: 1024,
+        //         height: 512,
+        //     },
+        //     vram: Box::new([0; 1024 * 1024]),
+        //     pixel_buffer: Box::new([Color::default(); VRAM_HEIGHT * VRAM_WIDTH]),
+        // };
+        //
+        // renderer.draw_rectangle_opaque(Vec2::zero(), 160, 80, 0x7c00);
+        // renderer.draw_rectangle_opaque(Vec2::new(0, 80), 160, 80, 0x03e0);
+        // renderer.draw_rectangle_opaque(Vec2::new(0, 160), 160, 80, 0x001f);
+        // renderer.copy_vram_to_fb();
+        //
+        // renderer
     }
 }
 
@@ -49,7 +66,7 @@ impl Renderer {
         for x in min_x..=max_x {
             for y in min_y..=max_y {
                 if point_in_triangle(t, Vec2::new(x, y)) {
-                    let index = VRAM_WIDTH * (y as usize) + x as usize;
+                    let index = 2 * (VRAM_WIDTH * (y as usize) + (x as usize));
                     *self.vram[index..].first_chunk_mut().unwrap() = color.to_le_bytes();
                 };
             }
