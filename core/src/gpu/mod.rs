@@ -280,27 +280,30 @@ impl Gpu {
     }
 
     pub fn get_resolution(&self) -> (usize, usize) {
-        let width = match self.stat.hres() {
-            HorizontalRes::X256 => 256,
-            HorizontalRes::X320 => 320,
-            HorizontalRes::X512 => 512,
-            HorizontalRes::X368 => 368,
-            HorizontalRes::X640 => 640,
-        };
+        // let width = match self.stat.hres() {
+        //     HorizontalRes::X256 => 256,
+        //     HorizontalRes::X320 => 320,
+        //     HorizontalRes::X512 => 512,
+        //     HorizontalRes::X368 => 368,
+        //     HorizontalRes::X640 => 640,
+        // };
+        //
+        // let height = match self.stat.vres() {
+        //     VerticalRes::Y240 => 240,
+        //     VerticalRes::Y480 => 480,
+        // };
 
-        let height = match self.stat.vres() {
-            VerticalRes::Y240 => 240,
-            VerticalRes::Y480 => 480,
-        };
-
-        (width, height)
+        // (width, height)
+        (1024, 512)
     }
 
     pub fn update_renderer_context(&mut self) {
         let (width, height) = self.get_resolution();
         self.renderer.ctx = DrawContext {
-            start_x: self.display_vram_x_start.into(),
-            start_y: self.display_vram_y_start.into(),
+            // start_x: self.display_vram_x_start.into(),
+            // start_y: self.display_vram_y_start.into(),
+            start_y: 0,
+            start_x: 0,
             width,
             height,
         }

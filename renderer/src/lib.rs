@@ -33,9 +33,7 @@ impl Default for Renderer {
         //     pixel_buffer: Box::new([Color::default(); VRAM_HEIGHT * VRAM_WIDTH]),
         // };
         //
-        // renderer.draw_rectangle_opaque(Vec2::zero(), 160, 80, 0x7c00);
-        // renderer.draw_rectangle_opaque(Vec2::new(0, 80), 160, 80, 0x03e0);
-        // renderer.draw_rectangle_opaque(Vec2::new(0, 160), 160, 80, 0x001f);
+        // renderer.draw_rectangle_opaque(Vec2::new(1023, 0), 1, 1, 0x7c00);
         // renderer.copy_vram_to_fb();
         //
         // renderer
@@ -62,6 +60,11 @@ impl Renderer {
         let min_y = std::cmp::min(t[0].y, std::cmp::min(t[1].y, t[2].y));
         let max_x = std::cmp::max(t[0].x, std::cmp::max(t[1].x, t[2].x));
         let max_y = std::cmp::max(t[0].y, std::cmp::max(t[1].y, t[2].y));
+
+        let min_x = std::cmp::max(min_x, self.ctx.start_x as i32);
+        let min_y = std::cmp::max(min_y, self.ctx.start_y as i32);
+        let max_x = std::cmp::min(max_x, (self.ctx.start_x + self.ctx.width - 1) as i32);
+        let max_y = std::cmp::min(max_y, (self.ctx.start_y + self.ctx.height - 1) as i32);
 
         for x in min_x..=max_x {
             for y in min_y..=max_y {

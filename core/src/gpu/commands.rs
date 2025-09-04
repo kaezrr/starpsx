@@ -221,7 +221,8 @@ impl Gpu {
     pub fn gp0_draw_1x1_rectangle(&mut self) {
         let color = parse_color_16(self.gp0_params[0].0);
         let (x, y) = parse_x_y(self.gp0_params[1].0);
-        self.renderer.draw_single_pixel(x as i32, y as i32, color)
+        self.renderer
+            .draw_rectangle_opaque(Vec2::new(x as i32, y as i32), 1, 1, color);
     }
 
     pub fn gp1_read_internal_reg(&mut self, command: Command) {
