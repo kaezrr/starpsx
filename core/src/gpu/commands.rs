@@ -201,7 +201,7 @@ impl Gpu {
         let y = (self.gp0_params[1].0 >> 16) & 0x1FF;
 
         let vram_addr = 2 * (1024 * y + x) as usize;
-        *self.vram[vram_addr..].first_chunk_mut().unwrap() = pixel.to_le_bytes();
+        *self.renderer.vram[vram_addr..].first_chunk_mut().unwrap() = pixel.to_le_bytes();
     }
 
     pub fn gp1_read_internal_reg(&mut self, command: Command) {

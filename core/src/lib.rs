@@ -1,6 +1,5 @@
 use cpu::Cpu;
 use memory::Bus;
-use starpsx_renderer::Renderer;
 use std::error::Error;
 
 mod cpu;
@@ -37,7 +36,6 @@ pub struct StarPSX {
     cpu: Cpu,
     bus: Bus,
     tty: String,
-    renderer: Renderer,
 }
 
 impl StarPSX {
@@ -48,7 +46,6 @@ impl StarPSX {
             cpu,
             bus,
             tty: String::new(),
-            renderer: Renderer::default(),
         };
         if let Some(exe_path) = config.exe_path {
             psx.sideload_exe(&exe_path)?;
@@ -58,7 +55,7 @@ impl StarPSX {
 
     pub fn frame_buffer(&self) -> &[u32] {
         let (width, height) = self.bus.gpu.get_resolution();
-        &self.renderer.frame_buffer()[..(width * height)]
+        &self.bus.gpu.renderer.frame_buffer()[..(width * height)]
     }
 
     pub fn get_resolution(&self) -> (u32, u32) {
@@ -72,15 +69,12 @@ impl StarPSX {
             self.check_for_tty_output();
         }
         let (width, height) = self.bus.gpu.get_resolution();
-        self.renderer.copy_vram_fb(
-            self.bus.gpu.vram.as_ref(),
+        self.bus.gpu.renderer.copy_vram_fb(
             self.bus.gpu.display_vram_x_start,
             self.bus.gpu.display_vram_y_start,
             width,
             height,
         );
-        // gpu.renderer
-        //     .copy_vram_fb(gpu.vram.as_ref(), 0, 0, 1024, 512);
     }
 
     pub fn sideload_exe(&mut self, filepath: &String) -> Result<(), Box<dyn Error>> {

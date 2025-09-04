@@ -2,6 +2,7 @@ mod commands;
 mod utils;
 
 use arrayvec::ArrayVec;
+use starpsx_renderer::Renderer;
 use utils::{
     DisplayDepth, DmaDirection, Field, GP0State, HorizontalRes, TextureDepth, VMode, VerticalRes,
 };
@@ -101,7 +102,7 @@ bitfield::bitfield! {
 }
 
 pub struct Gpu {
-    pub vram: Box<[u8; 512 * 2048]>,
+    pub renderer: Renderer,
     gpu_read: u32,
 
     stat: GpuStat,
@@ -138,7 +139,7 @@ pub struct Gpu {
 impl Default for Gpu {
     fn default() -> Self {
         Self {
-            vram: Box::new([0; 1024 * 1024]),
+            renderer: Renderer::default(),
             gpu_read: 0,
 
             stat: GpuStat(0),
@@ -226,7 +227,7 @@ impl Gpu {
             let vram_row = ((fields.vram_y + fields.current_row) & 0x1FF) as usize;
             let vram_col = ((fields.vram_x + fields.current_col) & 0x3FF) as usize;
             let vram_addr = 2 * (1024 * vram_row + vram_col);
-            *self.vram[vram_addr..].first_chunk_mut().unwrap() = halfword.to_le_bytes();
+            *self.renderer.vram[vram_addr..].first_chunk_mut().unwrap() = halfword.to_le_bytes();
 
             fields.current_col += 1;
             if fields.current_col == fields.width {
