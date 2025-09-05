@@ -187,6 +187,10 @@ impl Renderer {
                 let p = Vec2::new(x, y);
                 if point_in_triangle(t, p) {
                     let index = 2 * (VRAM_WIDTH * (y as usize) + (x as usize));
+                    let mut color = color;
+                    if self.ctx.dithering {
+                        color.apply_dithering(p);
+                    }
                     *self.vram[index..].first_chunk_mut().unwrap() = color.to_5bit().to_le_bytes();
                 };
             }
