@@ -100,7 +100,7 @@ impl Bus {
         panic!("Unmapped read16 at {masked:#08X}");
     }
 
-    pub fn read32(&self, addr: u32) -> Result<u32, Exception> {
+    pub fn read32(&mut self, addr: u32) -> Result<u32, Exception> {
         if addr & 3 != 0 {
             return Err(Exception::LoadAddressError(addr));
         }
@@ -129,12 +129,10 @@ impl Bus {
         }
 
         if let Some(offs) = map::DMA.contains(masked) {
-            eprintln!("DMA read: {offs:x}");
             return Ok(self.dma.get_reg(offs));
         }
 
         if let Some(offs) = map::GPU.contains(masked) {
-            eprintln!("GPU read: {offs:x}");
             return match offs {
                 4 => Ok(self.gpu.stat()),
                 0 => Ok(self.gpu.read()),

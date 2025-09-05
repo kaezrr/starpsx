@@ -197,6 +197,7 @@ pub enum GP0State {
     AwaitCommand,
     AwaitArgs { cmd: fn(&mut Gpu), len: usize },
     CopyToVram(VramCopyFields),
+    CopyFromVram(VramCopyFields),
 }
 
 pub fn bgr_to_rgb16(data: u16) -> u16 {

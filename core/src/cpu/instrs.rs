@@ -56,7 +56,7 @@ impl Cpu {
     }
 
     /// Load word
-    pub fn lw(&mut self, instr: Instruction, bus: &Bus) -> Result<(), Exception> {
+    pub fn lw(&mut self, instr: Instruction, bus: &mut Bus) -> Result<(), Exception> {
         if self.cop0.sr & 0x10000 != 0 {
             eprintln!("ignoring load while cache is isolated");
             return Ok(());
@@ -126,7 +126,7 @@ impl Cpu {
     }
 
     /// Unaligned left word load
-    pub fn lwl(&mut self, instr: Instruction, bus: &Bus) -> Result<(), Exception> {
+    pub fn lwl(&mut self, instr: Instruction, bus: &mut Bus) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let im = instr.imm16_se();
@@ -150,7 +150,7 @@ impl Cpu {
     }
 
     /// Unaligned right word load
-    pub fn lwr(&mut self, instr: Instruction, bus: &Bus) -> Result<(), Exception> {
+    pub fn lwr(&mut self, instr: Instruction, bus: &mut Bus) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let im = instr.imm16_se();

@@ -189,7 +189,10 @@ impl Gpu {
         ret.0
     }
 
-    pub fn read(&self) -> u32 {
+    pub fn read(&mut self) -> u32 {
+        if let GP0State::CopyFromVram(fields) = self.gp0_state {
+            self.process_vram_to_cpu_copy(fields);
+        }
         self.gpu_read
     }
 
@@ -197,7 +200,8 @@ impl Gpu {
         match self.gp0_state {
             GP0State::AwaitCommand => self.process_command(data),
             GP0State::AwaitArgs { cmd, len } => self.process_argument(data, cmd, len),
-            GP0State::CopyToVram(x) => self.process_cpu_vram_copy(data, x),
+            GP0State::CopyToVram(x) => self.process_cpu_to_vram_copy(data, x),
+            GP0State::CopyFromVram(_) => panic!("VRAM currently being copying to CPU!"),
         };
     }
 
@@ -219,8 +223,7 @@ impl Gpu {
         self.update_renderer_context();
     }
 
-    #[inline(always)]
-    fn process_cpu_vram_copy(&mut self, word: u32, mut fields: VramCopyFields) {
+    fn process_cpu_to_vram_copy(&mut self, word: u32, mut fields: VramCopyFields) {
         for i in 0..2 {
             let halfword = bgr_to_rgb16((word >> (16 * i)) as u16);
             let vram_row = ((fields.vram_y + fields.current_row) & 0x1FF) as usize;
@@ -241,7 +244,31 @@ impl Gpu {
         self.gp0_state = GP0State::CopyToVram(fields);
     }
 
-    #[inline(always)]
+    fn process_vram_to_cpu_copy(&mut self, mut fields: VramCopyFields) {
+        let vram_row = ((fields.vram_y + fields.current_row) & 0x1FF) as usize;
+        let vram_col = ((fields.vram_x + fields.current_col) & 0x3FF) as usize;
+        let vram_addr = 2 * (1024 * vram_row + vram_col);
+
+        let data = u32::from_le_bytes([
+            self.renderer.vram[vram_addr],
+            self.renderer.vram[vram_addr + 1],
+            self.renderer.vram[vram_addr + 2],
+            self.renderer.vram[vram_addr + 3],
+        ]);
+
+        fields.current_col += 2;
+        if fields.current_col >= fields.width {
+            fields.current_col = 0;
+            fields.current_row += 1;
+
+            if fields.current_row == fields.height {
+                return self.gp0_state = GP0State::AwaitCommand;
+            }
+        }
+        self.gp0_state = GP0State::CopyFromVram(fields);
+        self.gpu_read = data;
+    }
+
     fn process_argument(&mut self, data: u32, cmd: fn(&mut Gpu), len: usize) {
         let command = Command(data);
         self.gp0_params.push(command);

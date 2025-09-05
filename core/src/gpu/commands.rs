@@ -56,10 +56,30 @@ impl Gpu {
     }
 
     pub fn gp0_image_store(&mut self) {
-        let resolution = self.gp0_params[2];
-        let (width, height) = (resolution.image_width(), resolution.image_height());
+        let (x, y) = parse_xy(self.gp0_params[1].0);
+        let (width, height) = parse_xy(self.gp0_params[2].0);
 
-        eprintln!("Unhandled image store of {width} x {height}");
+        let vram_x = x as u16;
+        let vram_y = y as u16;
+
+        let width = match width as u16 {
+            0 => 1024,
+            x => x,
+        };
+
+        let height = match height as u16 {
+            0 => 512,
+            x => x,
+        };
+
+        self.gp0_state = GP0State::CopyFromVram(VramCopyFields {
+            vram_x,
+            vram_y,
+            width,
+            height,
+            current_row: 0,
+            current_col: 0,
+        });
     }
 
     pub fn gp0_clear_cache(&mut self) {
