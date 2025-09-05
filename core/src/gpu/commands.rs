@@ -1,6 +1,6 @@
 use starpsx_renderer::vec2::Vec2;
 
-use crate::gpu::utils::{parse_color_16, parse_x_y};
+use crate::gpu::utils::{parse_clut_uv, parse_color_16, parse_page_uv, parse_uv, parse_xy};
 
 use super::*;
 
@@ -68,8 +68,8 @@ impl Gpu {
     }
 
     pub fn gp0_image_load(&mut self) {
-        let (x, y) = parse_x_y(self.gp0_params[1].0);
-        let (width, height) = parse_x_y(self.gp0_params[2].0);
+        let (x, y) = parse_xy(self.gp0_params[1].0);
+        let (width, height) = parse_xy(self.gp0_params[2].0);
 
         let vram_x = x as u16;
         let vram_y = y as u16;
@@ -175,8 +175,8 @@ impl Gpu {
     // DRAW COMMANDS
     pub fn gp0_quick_rect_fill(&mut self) {
         let color = parse_color_16(self.gp0_params[0].0);
-        let (x, y) = parse_x_y(self.gp0_params[1].0);
-        let (width, height) = parse_x_y(self.gp0_params[2].0);
+        let (x, y) = parse_xy(self.gp0_params[1].0);
+        let (width, height) = parse_xy(self.gp0_params[2].0);
 
         self.renderer.draw_rectangle_mono(
             Vec2::new(x as i32, y as i32),
@@ -187,9 +187,9 @@ impl Gpu {
     }
 
     pub fn gp0_vram_to_vram_blit(&mut self) {
-        let (src_x, src_y) = parse_x_y(self.gp0_params[1].0);
-        let (dst_x, dst_y) = parse_x_y(self.gp0_params[2].0);
-        let (width, height) = parse_x_y(self.gp0_params[3].0);
+        let (src_x, src_y) = parse_xy(self.gp0_params[1].0);
+        let (dst_x, dst_y) = parse_xy(self.gp0_params[2].0);
+        let (width, height) = parse_xy(self.gp0_params[3].0);
 
         for y in 0..height {
             for x in 0..width {
@@ -204,10 +204,10 @@ impl Gpu {
 
     pub fn gp0_quad_mono_opaque(&mut self) {
         let color = parse_color_16(self.gp0_params[0].0);
-        let (x0, y0) = parse_x_y(self.gp0_params[1].0);
-        let (x1, y1) = parse_x_y(self.gp0_params[2].0);
-        let (x2, y2) = parse_x_y(self.gp0_params[3].0);
-        let (x3, y3) = parse_x_y(self.gp0_params[4].0);
+        let (x0, y0) = parse_xy(self.gp0_params[1].0);
+        let (x1, y1) = parse_xy(self.gp0_params[2].0);
+        let (x2, y2) = parse_xy(self.gp0_params[3].0);
+        let (x3, y3) = parse_xy(self.gp0_params[4].0);
 
         let quad = [
             Vec2::new(x0 as i32, y0 as i32),
@@ -220,10 +220,10 @@ impl Gpu {
     }
 
     pub fn gp0_quad_shaded_opaque(&mut self) {
-        let (x0, y0) = parse_x_y(self.gp0_params[1].0);
-        let (x1, y1) = parse_x_y(self.gp0_params[3].0);
-        let (x2, y2) = parse_x_y(self.gp0_params[5].0);
-        let (x3, y3) = parse_x_y(self.gp0_params[7].0);
+        let (x0, y0) = parse_xy(self.gp0_params[1].0);
+        let (x1, y1) = parse_xy(self.gp0_params[3].0);
+        let (x2, y2) = parse_xy(self.gp0_params[5].0);
+        let (x3, y3) = parse_xy(self.gp0_params[7].0);
 
         let quad = [
             Vec2::new(x0 as i32, y0 as i32),
@@ -243,9 +243,9 @@ impl Gpu {
     }
 
     pub fn gp0_triangle_shaded_opaque(&mut self) {
-        let (x0, y0) = parse_x_y(self.gp0_params[1].0);
-        let (x1, y1) = parse_x_y(self.gp0_params[3].0);
-        let (x2, y2) = parse_x_y(self.gp0_params[5].0);
+        let (x0, y0) = parse_xy(self.gp0_params[1].0);
+        let (x1, y1) = parse_xy(self.gp0_params[3].0);
+        let (x2, y2) = parse_xy(self.gp0_params[5].0);
 
         let triangle = [
             Vec2::new(x0 as i32, y0 as i32),
@@ -263,12 +263,37 @@ impl Gpu {
     }
 
     pub fn gp0_quad_texture_blend_opaque(&mut self) {
-        println!("draw texture blended quad");
+        let (x0, y0) = parse_xy(self.gp0_params[1].0);
+        let (x1, y1) = parse_xy(self.gp0_params[3].0);
+        let (x2, y2) = parse_xy(self.gp0_params[5].0);
+        let (x3, y3) = parse_xy(self.gp0_params[7].0);
+
+        let quad = [
+            Vec2::new(x0 as i32, y0 as i32),
+            Vec2::new(x1 as i32, y1 as i32),
+            Vec2::new(x2 as i32, y2 as i32),
+            Vec2::new(x3 as i32, y3 as i32),
+        ];
+
+        let (clut, u0, v0) = parse_clut_uv(self.gp0_params[2].0);
+        let (texture, u1, v1) = parse_page_uv(self.gp0_params[4].0, clut);
+        let (u2, v2) = parse_uv(self.gp0_params[6].0);
+        let (u3, v3) = parse_uv(self.gp0_params[8].0);
+
+        let uvs = [
+            Vec2::new(u0 as i32, v0 as i32),
+            Vec2::new(u1 as i32, v1 as i32),
+            Vec2::new(u2 as i32, v2 as i32),
+            Vec2::new(u3 as i32, v3 as i32),
+        ];
+
+        self.renderer
+            .draw_quad_texture_blend_opaque(quad, uvs, texture);
     }
 
     pub fn gp0_draw_1x1_rectangle(&mut self) {
         let color = parse_color_16(self.gp0_params[0].0);
-        let (x, y) = parse_x_y(self.gp0_params[1].0);
+        let (x, y) = parse_xy(self.gp0_params[1].0);
         self.renderer
             .draw_rectangle_mono(Vec2::new(x as i32, y as i32), 1, 1, color);
     }

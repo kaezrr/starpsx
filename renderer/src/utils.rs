@@ -72,3 +72,97 @@ pub fn interpolate_color(weights: [f64; 3], colors: [Color; 3]) -> Color {
 
     Color { r, g, b, a: 0 }
 }
+
+pub fn interpolate_uv(weights: [f64; 3], uvs: [Vec2; 3]) -> Vec2 {
+    let us = uvs.map(|uv| f64::from(uv.x));
+    let vs = uvs.map(|uv| f64::from(uv.y));
+
+    let x = (weights[0] * us[0] + weights[1] * us[1] + weights[2] * us[2]).round() as i32;
+    let y = (weights[0] * vs[0] + weights[1] * vs[1] + weights[2] * vs[2]).round() as i32;
+
+    Vec2 { x, y }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct Clut {
+    base_x: usize,
+    base_y: usize,
+}
+
+impl Clut {
+    pub fn new(data: u16) -> Self {
+        let base_x = ((data & 0x3F) << 4).into();
+        let base_y = ((data >> 5) & 0x1ff).into();
+        Self { base_x, base_y }
+    }
+
+    pub fn get_color(&self, vram: &[u8], value: u8) -> u16 {
+        let index = 2 * (1024 * self.base_y + self.base_x + value as usize);
+        u16::from_be_bytes([vram[index], vram[index + 1]])
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum PageColor {
+    Bit4,
+    Bit8,
+    Bit15,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct Texture {
+    page_x: usize,
+    page_y: usize,
+    depth: PageColor,
+    clut: Clut,
+}
+
+impl Texture {
+    pub fn new(data: u16, clut: Clut) -> Self {
+        let base_x = ((data & 0xF) << 6).into();
+        let base_y = (((data >> 4) & 1) | ((data >> 10) & 2)).into();
+        let depth = match (data >> 7) & 3 {
+            0 => PageColor::Bit4,
+            1 => PageColor::Bit8,
+            2 => PageColor::Bit15,
+            _ => unreachable!(),
+        };
+        Self {
+            page_x: base_x,
+            page_y: base_y,
+            depth,
+            clut,
+        }
+    }
+
+    pub fn get_texel(&self, vram: &[u8], p: Vec2) -> Color {
+        let val = match self.depth {
+            PageColor::Bit4 => self.get_texel_4bit(vram, p),
+            PageColor::Bit8 => self.get_texel_8bit(vram, p),
+            PageColor::Bit15 => self.get_texel_16bit(vram, p),
+        };
+        Color::new_5bit(val)
+    }
+
+    fn get_texel_16bit(&self, vram: &[u8], p: Vec2) -> u16 {
+        let (u, v) = (p.x as usize, p.y as usize);
+        let index = 2 * ((self.page_y + v) * 1024 + self.page_x + u);
+        u16::from_le_bytes([vram[index], vram[index + 1]])
+    }
+
+    fn get_texel_8bit(&self, vram: &[u8], p: Vec2) -> u16 {
+        let (u, v) = (p.x as usize, p.y as usize);
+        let index = 2 * ((self.page_y + v) * 1024 + self.page_x + u / 2);
+        let texel = u16::from_le_bytes([vram[index], vram[index + 1]]);
+        let clut_value = (texel >> ((u % 2) * 8)) & 0xFF;
+        self.clut.get_color(vram, clut_value as u8)
+    }
+
+    fn get_texel_4bit(&self, vram: &[u8], p: Vec2) -> u16 {
+        let (u, v) = (p.x as usize, p.y as usize);
+        let index = 2 * ((self.page_y + v) * 1024 + self.page_x + u / 4);
+        let texel = u16::from_le_bytes([vram[index], vram[index + 1]]);
+        let clut_value = (texel >> ((u % 4) * 4)) & 0xF;
+        self.clut.get_color(vram, clut_value as u8)
+    }
+}

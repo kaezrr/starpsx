@@ -1,3 +1,5 @@
+use starpsx_renderer::utils::{Clut, Texture};
+
 use super::*;
 
 /// Texture color bits per pixel
@@ -211,8 +213,26 @@ pub fn parse_color_16(data: u32) -> u16 {
     (r << 10 | g << 5 | b) as u16
 }
 
-pub fn parse_x_y(data: u32) -> (u32, u32) {
+pub fn parse_xy(data: u32) -> (u32, u32) {
     let x = data & 0x3FF;
     let y = (data >> 16) & 0x1FF;
     (x, y)
+}
+
+pub fn parse_clut_uv(data: u32) -> (Clut, u32, u32) {
+    let (u, v) = parse_uv(data);
+    let clut = Clut::new((data >> 16) as u16);
+    (clut, u, v)
+}
+
+pub fn parse_page_uv(data: u32, clut: Clut) -> (Texture, u32, u32) {
+    let (u, v) = parse_uv(data);
+    let texpage = Texture::new((data >> 16) as u16, clut);
+    (texpage, u, v)
+}
+
+pub fn parse_uv(data: u32) -> (u32, u32) {
+    let u = data & 0xFF;
+    let v = (data >> 8) & 0xFF;
+    (u, v)
 }

@@ -52,14 +52,9 @@ impl Vec2 {
     }
 }
 
-// Ensure that vertices v0, v1, v2 are in clockwise order
-pub fn ensure_vertex_ordering(t: &mut [Vec2; 3], cols: Option<&mut [u16; 3]>) {
-    if signed_area(t[0], t[1], t[2]) < 0 {
-        t.swap(0, 1);
-        if let Some(cols) = cols {
-            cols.swap(0, 1);
-        }
-    }
+// Test that vertices v0, v1, v2 are in clockwise order
+pub fn needs_vertex_reordering(t: &[Vec2; 3]) -> bool {
+    signed_area(t[0], t[1], t[2]) < 0
 }
 
 // Signed area of the triangle a b p in clockwise order
