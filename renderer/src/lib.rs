@@ -8,10 +8,11 @@ use crate::{
 
 const VRAM_WIDTH: usize = 1024;
 const VRAM_HEIGHT: usize = 512;
+const VRAM_SIZE: usize = VRAM_WIDTH * VRAM_HEIGHT;
 
 pub struct Renderer {
-    pub pixel_buffer: Box<[Color; VRAM_HEIGHT * VRAM_WIDTH]>,
-    pub vram: Box<[u8; 512 * 2048]>,
+    pub pixel_buffer: Box<[Color; VRAM_SIZE]>,
+    pub vram: Box<[u16; VRAM_SIZE]>,
     pub ctx: DrawContext,
 }
 
@@ -19,8 +20,8 @@ impl Default for Renderer {
     fn default() -> Self {
         Self {
             ctx: DrawContext::default(),
-            vram: Box::new([0; 1024 * 1024]),
-            pixel_buffer: Box::new([Color::default(); VRAM_HEIGHT * VRAM_WIDTH]),
+            vram: Box::new([0; VRAM_SIZE]),
+            pixel_buffer: Box::new([Color::default(); VRAM_SIZE]),
         }
         // let mut renderer = Self {
         //     ctx: DrawContext {
@@ -54,8 +55,8 @@ impl Renderer {
     pub fn copy_vram_to_fb(&mut self) {
         for y in 0..self.ctx.height {
             for x in 0..self.ctx.width {
-                let index = 2 * ((self.ctx.start_y + y) * VRAM_WIDTH + (self.ctx.start_x + x));
-                let pixel = u16::from_le_bytes([self.vram[index], self.vram[index + 1]]);
+                let index = (self.ctx.start_y + y) * VRAM_WIDTH + (self.ctx.start_x + x);
+                let pixel = self.vram[index];
                 self.pixel_buffer[self.ctx.width * y + x] = Color::new_5bit(pixel);
             }
         }
@@ -123,12 +124,12 @@ impl Renderer {
             for y in min_y..=max_y {
                 let p = Vec2::new(x, y);
                 if let Some(weights) = compute_barycentric_coords(t, p) {
-                    let index = 2 * (VRAM_WIDTH * (y as usize) + (x as usize));
+                    let index = VRAM_WIDTH * (y as usize) + (x as usize);
                     let mut color = interpolate_color(weights, colors);
                     if self.ctx.dithering {
                         color.apply_dithering(p);
                     }
-                    *self.vram[index..].first_chunk_mut().unwrap() = color.to_5bit().to_le_bytes();
+                    self.vram[index] = color.to_5bit();
                 };
             }
         }
@@ -159,7 +160,7 @@ impl Renderer {
             for y in min_y..=max_y {
                 let p = Vec2::new(x, y);
                 if let Some(weights) = compute_barycentric_coords(t, p) {
-                    let index = 2 * (VRAM_WIDTH * (y as usize) + (x as usize));
+                    let index = VRAM_WIDTH * (y as usize) + (x as usize);
                     let uv = interpolate_uv(weights, uvs);
                     let mut color = tex.get_texel(self.vram.as_ref(), uv);
 
@@ -171,7 +172,7 @@ impl Renderer {
                     if self.ctx.dithering {
                         color.apply_dithering(p);
                     }
-                    *self.vram[index..].first_chunk_mut().unwrap() = color.to_5bit().to_le_bytes();
+                    self.vram[index] = color.to_5bit();
                 };
             }
         }
@@ -196,12 +197,12 @@ impl Renderer {
             for y in min_y..=max_y {
                 let p = Vec2::new(x, y);
                 if point_in_triangle(t, p) {
-                    let index = 2 * (VRAM_WIDTH * (y as usize) + (x as usize));
+                    let index = VRAM_WIDTH * (y as usize) + (x as usize);
                     let mut color = color;
                     if self.ctx.dithering {
                         color.apply_dithering(p);
                     }
-                    *self.vram[index..].first_chunk_mut().unwrap() = color.to_5bit().to_le_bytes();
+                    self.vram[index] = color.to_5bit();
                 };
             }
         }

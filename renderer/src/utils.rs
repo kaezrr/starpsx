@@ -98,9 +98,9 @@ impl Clut {
         Self { base_x, base_y }
     }
 
-    pub fn get_color(&self, vram: &[u8], value: u8) -> u16 {
-        let index = 2 * (1024 * self.base_y + self.base_x + value as usize);
-        u16::from_le_bytes([vram[index], vram[index + 1]])
+    pub fn get_color(&self, vram: &[u16], value: u8) -> u16 {
+        let index = 1024 * self.base_y + self.base_x + value as usize;
+        vram[index]
     }
 }
 
@@ -137,7 +137,7 @@ impl Texture {
         }
     }
 
-    pub fn get_texel(&self, vram: &[u8], p: Vec2) -> Color {
+    pub fn get_texel(&self, vram: &[u16], p: Vec2) -> Color {
         let val = match self.depth {
             PageColor::Bit4 => self.get_texel_4bit(vram, p),
             PageColor::Bit8 => self.get_texel_8bit(vram, p),
@@ -146,28 +146,28 @@ impl Texture {
         Color::new_5bit(val)
     }
 
-    fn get_texel_16bit(&self, vram: &[u8], p: Vec2) -> u16 {
+    fn get_texel_16bit(&self, vram: &[u16], p: Vec2) -> u16 {
         let (u, v) = (p.x as usize, p.y as usize);
-        let index = 2 * ((self.page_y + v) * 1024 + self.page_x + u);
+        let index = (self.page_y + v) * 1024 + self.page_x + u;
 
-        u16::from_le_bytes([vram[index], vram[index + 1]])
+        vram[index]
     }
 
-    fn get_texel_8bit(&self, vram: &[u8], p: Vec2) -> u16 {
+    fn get_texel_8bit(&self, vram: &[u16], p: Vec2) -> u16 {
         let (u, v) = (p.x as usize, p.y as usize);
-        let index = 2 * ((self.page_y + v) * 1024 + self.page_x + u / 2);
+        let index = (self.page_y + v) * 1024 + self.page_x + u / 2;
 
-        let texel = u16::from_le_bytes([vram[index], vram[index + 1]]);
+        let texel = vram[index];
         let clut_value = (texel >> ((u % 2) * 8)) & 0xFF;
 
         self.clut.get_color(vram, clut_value as u8)
     }
 
-    fn get_texel_4bit(&self, vram: &[u8], p: Vec2) -> u16 {
+    fn get_texel_4bit(&self, vram: &[u16], p: Vec2) -> u16 {
         let (u, v) = (p.x as usize, p.y as usize);
-        let index = 2 * ((self.page_y + v) * 1024 + self.page_x + u / 4);
+        let index = (self.page_y + v) * 1024 + self.page_x + u / 4;
 
-        let texel = u16::from_le_bytes([vram[index], vram[index + 1]]);
+        let texel = vram[index];
         let clut_value = (texel >> ((u % 4) * 4)) & 0xF;
 
         self.clut.get_color(vram, clut_value as u8)

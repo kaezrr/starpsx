@@ -228,8 +228,8 @@ impl Gpu {
             let halfword = bgr_to_rgb16((word >> (16 * i)) as u16);
             let vram_row = ((fields.vram_y + fields.current_row) & 0x1FF) as usize;
             let vram_col = ((fields.vram_x + fields.current_col) & 0x3FF) as usize;
-            let vram_addr = 2 * (1024 * vram_row + vram_col);
-            *self.renderer.vram[vram_addr..].first_chunk_mut().unwrap() = halfword.to_le_bytes();
+            let addr = 1024 * vram_row + vram_col;
+            self.renderer.vram[addr] = halfword;
 
             fields.current_col += 1;
             if fields.current_col == fields.width {
@@ -247,14 +247,12 @@ impl Gpu {
     fn process_vram_to_cpu_copy(&mut self, mut fields: VramCopyFields) {
         let vram_row = ((fields.vram_y + fields.current_row) & 0x1FF) as usize;
         let vram_col = ((fields.vram_x + fields.current_col) & 0x3FF) as usize;
-        let vram_addr = 2 * (1024 * vram_row + vram_col);
+        let addr = 1024 * vram_row + vram_col;
 
-        let data = u32::from_le_bytes([
-            self.renderer.vram[vram_addr],
-            self.renderer.vram[vram_addr + 1],
-            self.renderer.vram[vram_addr + 2],
-            self.renderer.vram[vram_addr + 3],
-        ]);
+        let lo: u32 = self.renderer.vram[addr].into();
+        let hi: u32 = self.renderer.vram[addr + 1].into();
+
+        let data = lo | (hi << 16);
 
         fields.current_col += 2;
         if fields.current_col >= fields.width {
