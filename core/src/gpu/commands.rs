@@ -210,16 +210,14 @@ impl Gpu {
         let (dst_x, dst_y) = parse_xy(self.gp0_params[2].0);
         let (width, height) = parse_xy(self.gp0_params[3].0);
 
-        let stride = 1024; // VRAM width
-
-        for y in 0..height {
-            let src_row_start = ((src_y + y) * stride + src_x) as usize;
-            let dst_row_start = ((dst_y + y) * stride + dst_x) as usize;
-
-            self.renderer
-                .vram
-                .copy_within(src_row_start..src_row_start + width as usize, dst_row_start);
-        }
+        self.renderer.vram_self_copy(
+            src_x as usize,
+            src_y as usize,
+            dst_x as usize,
+            dst_y as usize,
+            width as usize,
+            height as usize,
+        );
     }
 
     pub fn gp0_quad_mono_opaque(&mut self) {

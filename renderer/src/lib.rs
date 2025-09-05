@@ -12,8 +12,8 @@ const VRAM_SIZE: usize = VRAM_WIDTH * VRAM_HEIGHT;
 
 pub struct Renderer {
     pub pixel_buffer: Box<[Color; VRAM_SIZE]>,
-    pub vram: Box<[u16; VRAM_SIZE]>,
     pub ctx: DrawContext,
+    vram: Box<[u16; VRAM_SIZE]>,
 }
 
 impl Default for Renderer {
@@ -56,6 +56,23 @@ impl Renderer {
     pub fn vram_write(&mut self, x: usize, y: usize, data: u16) {
         let index = VRAM_WIDTH * y + x;
         self.vram[index] = data;
+    }
+
+    pub fn vram_self_copy(
+        &mut self,
+        src_x: usize,
+        src_y: usize,
+        dst_x: usize,
+        dst_y: usize,
+        width: usize,
+        height: usize,
+    ) {
+        for y in 0..height {
+            let src_row_start = (src_y + y) * VRAM_WIDTH + src_x;
+            let dst_row_start = (dst_y + y) * VRAM_WIDTH + dst_x;
+            self.vram
+                .copy_within(src_row_start..src_row_start + width, dst_row_start);
+        }
     }
 
     pub fn frame_buffer(&self) -> &[u32] {
