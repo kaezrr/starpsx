@@ -2,7 +2,7 @@ mod commands;
 mod utils;
 
 use arrayvec::ArrayVec;
-use starpsx_renderer::{Renderer, utils::DrawContext};
+use starpsx_renderer::{Renderer, utils::DrawContext, vec2::Vec2};
 use utils::{
     DisplayDepth, DmaDirection, Field, GP0State, HorizontalRes, TextureDepth, VMode, VerticalRes,
 };
@@ -277,6 +277,7 @@ impl Gpu {
         };
         self.gp0_state = GP0State::AwaitArgs { cmd, len };
         self.process_argument(data, cmd, len);
+        self.update_renderer_context();
     }
 
     pub fn get_resolution(&self) -> (usize, usize) {
@@ -306,6 +307,14 @@ impl Gpu {
             start_x: 0,
             width,
             height,
+            drawing_area_top_left: Vec2::new(
+                self.drawing_area_left.into(),
+                self.drawing_area_top.into(),
+            ),
+            drawing_area_bottom_right: Vec2::new(
+                self.drawing_area_right.into(),
+                self.drawing_area_bottom.into(),
+            ),
             dithering: self.stat.dithering(),
         }
     }

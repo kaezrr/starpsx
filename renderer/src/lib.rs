@@ -61,16 +61,17 @@ impl Renderer {
         }
     }
 
+    // BEWARE OF OFF BY ONE ERRORS!!!
     pub fn draw_rectangle_mono(&mut self, r: Vec2, side_x: i32, side_y: i32, color: u16) {
         let triangle_half_1 = [
-            r + Vec2::new(side_x, 0),
-            r + Vec2::new(0, side_y),
+            r + Vec2::new(side_x - 1, 0),
+            r + Vec2::new(0, side_y - 1),
             r + Vec2::zero(),
         ];
         let triangle_half_2 = [
-            r + Vec2::new(side_x, 0),
-            r + Vec2::new(0, side_y),
-            r + Vec2::new(side_x, side_y),
+            r + Vec2::new(side_x - 1, 0),
+            r + Vec2::new(0, side_y - 1),
+            r + Vec2::new(side_x - 1, side_y - 1),
         ];
 
         self.draw_triangle_mono_opaque(triangle_half_1, color);
@@ -111,10 +112,10 @@ impl Renderer {
         let max_x = std::cmp::max(t[0].x, std::cmp::max(t[1].x, t[2].x));
         let max_y = std::cmp::max(t[0].y, std::cmp::max(t[1].y, t[2].y));
 
-        let min_x = std::cmp::max(min_x, self.ctx.start_x as i32);
-        let min_y = std::cmp::max(min_y, self.ctx.start_y as i32);
-        let max_x = std::cmp::min(max_x, (self.ctx.start_x + self.ctx.width - 1) as i32);
-        let max_y = std::cmp::min(max_y, (self.ctx.start_y + self.ctx.height - 1) as i32);
+        let min_x = std::cmp::max(min_x, self.ctx.drawing_area_top_left.x);
+        let min_y = std::cmp::max(min_y, self.ctx.drawing_area_top_left.y);
+        let max_x = std::cmp::min(max_x, self.ctx.drawing_area_bottom_right.x);
+        let max_y = std::cmp::min(max_y, self.ctx.drawing_area_bottom_right.y);
 
         let colors = colors.map(Color::new_5bit);
 
@@ -149,10 +150,10 @@ impl Renderer {
         let max_x = std::cmp::max(t[0].x, std::cmp::max(t[1].x, t[2].x));
         let max_y = std::cmp::max(t[0].y, std::cmp::max(t[1].y, t[2].y));
 
-        let min_x = std::cmp::max(min_x, self.ctx.start_x as i32);
-        let min_y = std::cmp::max(min_y, self.ctx.start_y as i32);
-        let max_x = std::cmp::min(max_x, (self.ctx.start_x + self.ctx.width - 1) as i32);
-        let max_y = std::cmp::min(max_y, (self.ctx.start_y + self.ctx.height - 1) as i32);
+        let min_x = std::cmp::max(min_x, self.ctx.drawing_area_top_left.x);
+        let min_y = std::cmp::max(min_y, self.ctx.drawing_area_top_left.y);
+        let max_x = std::cmp::min(max_x, self.ctx.drawing_area_bottom_right.x);
+        let max_y = std::cmp::min(max_y, self.ctx.drawing_area_bottom_right.y);
 
         for x in min_x..=max_x {
             for y in min_y..=max_y {
@@ -176,10 +177,10 @@ impl Renderer {
         let max_x = std::cmp::max(t[0].x, std::cmp::max(t[1].x, t[2].x));
         let max_y = std::cmp::max(t[0].y, std::cmp::max(t[1].y, t[2].y));
 
-        let min_x = std::cmp::max(min_x, self.ctx.start_x as i32);
-        let min_y = std::cmp::max(min_y, self.ctx.start_y as i32);
-        let max_x = std::cmp::min(max_x, (self.ctx.start_x + self.ctx.width - 1) as i32);
-        let max_y = std::cmp::min(max_y, (self.ctx.start_y + self.ctx.height - 1) as i32);
+        let min_x = std::cmp::max(min_x, self.ctx.drawing_area_top_left.x);
+        let min_y = std::cmp::max(min_y, self.ctx.drawing_area_top_left.y);
+        let max_x = std::cmp::min(max_x, self.ctx.drawing_area_bottom_right.x);
+        let max_y = std::cmp::min(max_y, self.ctx.drawing_area_bottom_right.y);
 
         let color = Color::new_5bit(color);
         for x in min_x..=max_x {

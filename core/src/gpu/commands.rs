@@ -23,7 +23,6 @@ impl Gpu {
             .set_texture_disable(self.gp0_params[0].texture_disable());
         self.texture_rect_x_flip = self.gp0_params[0].texture_rect_x_flip();
         self.texture_rect_y_flip = self.gp0_params[0].texture_rect_y_flip();
-        self.update_renderer_context();
     }
 
     pub fn gp0_drawing_area_top_left(&mut self) {

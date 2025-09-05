@@ -56,6 +56,8 @@ fn convert_5bit_to_8bit(color: u16) -> u8 {
 pub struct DrawContext {
     pub start_x: usize,
     pub start_y: usize,
+    pub drawing_area_top_left: Vec2,
+    pub drawing_area_bottom_right: Vec2,
     pub width: usize,
     pub height: usize,
     pub dithering: bool,
@@ -97,6 +99,7 @@ impl Clut {
     }
 
     pub fn get_color(&self, vram: &[u8], value: u8) -> u16 {
+        println!(" clut index: {value}");
         let index = 2 * (1024 * self.base_y + self.base_x + value as usize);
         u16::from_be_bytes([vram[index], vram[index + 1]])
     }
@@ -141,6 +144,7 @@ impl Texture {
             PageColor::Bit8 => self.get_texel_8bit(vram, p),
             PageColor::Bit15 => self.get_texel_16bit(vram, p),
         };
+        println!(" clut color: {val:04x}");
         Color::new_5bit(val)
     }
 
