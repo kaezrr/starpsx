@@ -1,4 +1,4 @@
-use crate::vec2::Vec2;
+use crate::{Renderer, vec2::Vec2};
 
 #[repr(C)]
 #[derive(Debug, Default, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -98,9 +98,8 @@ impl Clut {
         Self { base_x, base_y }
     }
 
-    pub fn get_color(&self, vram: &[u16], value: u8) -> u16 {
-        let index = 1024 * self.base_y + self.base_x + value as usize;
-        vram[index]
+    pub fn get_color(&self, renderer: &Renderer, value: u8) -> u16 {
+        renderer.vram_read(self.base_x + value as usize, self.base_y)
     }
 }
 
@@ -137,39 +136,33 @@ impl Texture {
         }
     }
 
-    pub fn get_texel(&self, vram: &[u16], p: Vec2) -> Color {
+    pub fn get_texel(&self, renderer: &Renderer, p: Vec2) -> Color {
         let val = match self.depth {
-            PageColor::Bit4 => self.get_texel_4bit(vram, p),
-            PageColor::Bit8 => self.get_texel_8bit(vram, p),
-            PageColor::Bit15 => self.get_texel_16bit(vram, p),
+            PageColor::Bit4 => self.get_texel_4bit(renderer, p),
+            PageColor::Bit8 => self.get_texel_8bit(renderer, p),
+            PageColor::Bit15 => self.get_texel_16bit(renderer, p),
         };
         Color::new_5bit(val)
     }
 
-    fn get_texel_16bit(&self, vram: &[u16], p: Vec2) -> u16 {
+    fn get_texel_16bit(&self, renderer: &Renderer, p: Vec2) -> u16 {
         let (u, v) = (p.x as usize, p.y as usize);
-        let index = (self.page_y + v) * 1024 + self.page_x + u;
-
-        vram[index]
+        renderer.vram_read(self.page_x + u, self.page_y + v)
     }
 
-    fn get_texel_8bit(&self, vram: &[u16], p: Vec2) -> u16 {
+    fn get_texel_8bit(&self, renderer: &Renderer, p: Vec2) -> u16 {
         let (u, v) = (p.x as usize, p.y as usize);
-        let index = (self.page_y + v) * 1024 + self.page_x + u / 2;
-
-        let texel = vram[index];
+        let texel = renderer.vram_read(self.page_x + u / 2, self.page_y + v);
         let clut_value = (texel >> ((u % 2) * 8)) & 0xFF;
 
-        self.clut.get_color(vram, clut_value as u8)
+        self.clut.get_color(renderer, clut_value as u8)
     }
 
-    fn get_texel_4bit(&self, vram: &[u16], p: Vec2) -> u16 {
+    fn get_texel_4bit(&self, renderer: &Renderer, p: Vec2) -> u16 {
         let (u, v) = (p.x as usize, p.y as usize);
-        let index = (self.page_y + v) * 1024 + self.page_x + u / 4;
-
-        let texel = vram[index];
+        let texel = renderer.vram_read(self.page_x + u / 4, self.page_y + v);
         let clut_value = (texel >> ((u % 4) * 4)) & 0xF;
 
-        self.clut.get_color(vram, clut_value as u8)
+        self.clut.get_color(renderer, clut_value as u8)
     }
 }

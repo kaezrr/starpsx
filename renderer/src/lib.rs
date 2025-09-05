@@ -169,7 +169,7 @@ impl Renderer {
                 let p = Vec2::new(x, y);
                 if let Some(weights) = compute_barycentric_coords(t, p) {
                     let uv = interpolate_uv(weights, uvs);
-                    let mut color = tex.get_texel(self.vram.as_ref(), uv);
+                    let mut color = tex.get_texel(self, uv);
 
                     // Fully black pixels are ignored in textures
                     if color.to_5bit() == 0 {
