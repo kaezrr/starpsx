@@ -94,13 +94,13 @@ pub struct Clut {
 impl Clut {
     pub fn new(data: u16) -> Self {
         let base_x = ((data & 0x3F) << 4).into();
-        let base_y = ((data >> 5) & 0x1ff).into();
+        let base_y = ((data >> 6) & 0x1ff).into();
         Self { base_x, base_y }
     }
 
     pub fn get_color(&self, vram: &[u8], value: u8) -> u16 {
         let index = 2 * (1024 * self.base_y + self.base_x + value as usize);
-        u16::from_be_bytes([vram[index], vram[index + 1]])
+        u16::from_le_bytes([vram[index], vram[index + 1]])
     }
 }
 
@@ -122,8 +122,8 @@ pub struct Texture {
 impl Texture {
     pub fn new(data: u16, clut: Clut) -> Self {
         let base_x = ((data & 0xF) << 6).into();
-        let base_y = (((data >> 4) & 1) | ((data >> 10) & 2)).into();
-        let depth = match (data >> 7) & 3 {
+        let base_y = (((data >> 4) & 1) << 8).into();
+        let depth = match (data >> 6) & 3 {
             0 => PageColor::Bit4,
             1 => PageColor::Bit8,
             2 => PageColor::Bit15,
@@ -149,22 +149,27 @@ impl Texture {
     fn get_texel_16bit(&self, vram: &[u8], p: Vec2) -> u16 {
         let (u, v) = (p.x as usize, p.y as usize);
         let index = 2 * ((self.page_y + v) * 1024 + self.page_x + u);
+
         u16::from_le_bytes([vram[index], vram[index + 1]])
     }
 
     fn get_texel_8bit(&self, vram: &[u8], p: Vec2) -> u16 {
         let (u, v) = (p.x as usize, p.y as usize);
         let index = 2 * ((self.page_y + v) * 1024 + self.page_x + u / 2);
+
         let texel = u16::from_le_bytes([vram[index], vram[index + 1]]);
         let clut_value = (texel >> ((u % 2) * 8)) & 0xFF;
+
         self.clut.get_color(vram, clut_value as u8)
     }
 
     fn get_texel_4bit(&self, vram: &[u8], p: Vec2) -> u16 {
         let (u, v) = (p.x as usize, p.y as usize);
         let index = 2 * ((self.page_y + v) * 1024 + self.page_x + u / 4);
+
         let texel = u16::from_le_bytes([vram[index], vram[index + 1]]);
         let clut_value = (texel >> ((u % 4) * 4)) & 0xF;
+
         self.clut.get_color(vram, clut_value as u8)
     }
 }

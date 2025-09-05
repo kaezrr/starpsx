@@ -161,7 +161,16 @@ impl Renderer {
                 if let Some(weights) = compute_barycentric_coords(t, p) {
                     let index = 2 * (VRAM_WIDTH * (y as usize) + (x as usize));
                     let uv = interpolate_uv(weights, uvs);
-                    let color = tex.get_texel(self.vram.as_ref(), uv);
+                    let mut color = tex.get_texel(self.vram.as_ref(), uv);
+
+                    // Fully black pixels are ignored in textures
+                    if color.to_5bit() == 0 {
+                        continue;
+                    }
+
+                    if self.ctx.dithering {
+                        color.apply_dithering(p);
+                    }
                     *self.vram[index..].first_chunk_mut().unwrap() = color.to_5bit().to_le_bytes();
                 };
             }
