@@ -61,7 +61,7 @@ pub fn needs_vertex_reordering(t: &[Vec2; 3]) -> bool {
 fn signed_area(a: Vec2, b: Vec2, p: Vec2) -> i32 {
     let ap = p - a;
     let ab = b - a;
-    (ap.x * ab.y - ab.x * ap.y) / 2
+    ap.x * ab.y - ab.x * ap.y
 }
 
 // Test if a point is inside triangle ABC

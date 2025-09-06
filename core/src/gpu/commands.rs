@@ -1,6 +1,6 @@
-use starpsx_renderer::vec2::Vec2;
+use starpsx_renderer::{utils::Color, vec2::Vec2};
 
-use crate::gpu::utils::{parse_clut_uv, parse_color_16, parse_page_uv, parse_uv, parse_xy};
+use crate::gpu::utils::{parse_clut_uv, parse_page_uv, parse_uv, parse_xy};
 
 use super::*;
 
@@ -193,7 +193,7 @@ impl Gpu {
 
     // DRAW COMMANDS
     pub fn gp0_quick_rect_fill(&mut self) {
-        let color = parse_color_16(self.gp0_params[0].0);
+        let color = Color::new_8bit(self.gp0_params[0].0).to_5bit();
         let (x, y) = parse_xy(self.gp0_params[1].0);
         let (width, height) = parse_xy(self.gp0_params[2].0);
 
@@ -221,7 +221,7 @@ impl Gpu {
     }
 
     pub fn gp0_quad_mono_opaque(&mut self) {
-        let color = parse_color_16(self.gp0_params[0].0);
+        let color = Color::new_8bit(self.gp0_params[0].0).to_5bit();
         let (x0, y0) = parse_xy(self.gp0_params[1].0);
         let (x1, y1) = parse_xy(self.gp0_params[2].0);
         let (x2, y2) = parse_xy(self.gp0_params[3].0);
@@ -251,10 +251,10 @@ impl Gpu {
         ];
 
         let colors = [
-            parse_color_16(self.gp0_params[0].0),
-            parse_color_16(self.gp0_params[2].0),
-            parse_color_16(self.gp0_params[4].0),
-            parse_color_16(self.gp0_params[6].0),
+            Color::new_8bit(self.gp0_params[0].0).to_5bit(),
+            Color::new_8bit(self.gp0_params[2].0).to_5bit(),
+            Color::new_8bit(self.gp0_params[4].0).to_5bit(),
+            Color::new_8bit(self.gp0_params[6].0).to_5bit(),
         ];
 
         self.renderer.draw_quad_shaded_opaque(quad, colors);
@@ -272,9 +272,9 @@ impl Gpu {
         ];
 
         let colors = [
-            parse_color_16(self.gp0_params[0].0),
-            parse_color_16(self.gp0_params[2].0),
-            parse_color_16(self.gp0_params[4].0),
+            Color::new_8bit(self.gp0_params[0].0).to_5bit(),
+            Color::new_8bit(self.gp0_params[2].0).to_5bit(),
+            Color::new_8bit(self.gp0_params[4].0).to_5bit(),
         ];
 
         self.renderer.draw_triangle_shaded_opaque(triangle, colors);
@@ -310,7 +310,7 @@ impl Gpu {
     }
 
     pub fn gp0_draw_1x1_rectangle(&mut self) {
-        let color = parse_color_16(self.gp0_params[0].0);
+        let color = Color::new_8bit(self.gp0_params[0].0).to_5bit();
         let (x, y) = parse_xy(self.gp0_params[1].0);
         self.renderer
             .draw_rectangle_mono(Vec2::new(x as i32, y as i32), 1, 1, color);

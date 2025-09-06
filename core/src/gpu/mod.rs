@@ -7,7 +7,7 @@ use utils::{
     DisplayDepth, DmaDirection, Field, GP0State, HorizontalRes, TextureDepth, VMode, VerticalRes,
 };
 
-use crate::gpu::utils::{VramCopyFields, bgr_to_rgb16};
+use crate::gpu::utils::VramCopyFields;
 
 bitfield::bitfield! {
     #[derive(Clone, Copy)]
@@ -225,7 +225,7 @@ impl Gpu {
 
     fn process_cpu_to_vram_copy(&mut self, word: u32, mut fields: VramCopyFields) {
         for i in 0..2 {
-            let halfword = bgr_to_rgb16((word >> (16 * i)) as u16);
+            let halfword = (word >> (16 * i)) as u16;
             let vram_row = ((fields.vram_y + fields.current_row) & 0x1FF) as usize;
             let vram_col = ((fields.vram_x + fields.current_col) & 0x3FF) as usize;
             self.renderer.vram_write(vram_col, vram_row, halfword);

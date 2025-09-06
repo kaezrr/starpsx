@@ -18,16 +18,16 @@ const DITHER_TABLE: [[i8; 4]; 4] = [
 
 impl Color {
     pub fn new_5bit(pixel: u16) -> Self {
-        let r = convert_5bit_to_8bit((pixel >> 10) & 0x1F);
+        let r = convert_5bit_to_8bit(pixel & 0x1F);
         let g = convert_5bit_to_8bit((pixel >> 5) & 0x1F);
-        let b = convert_5bit_to_8bit(pixel & 0x1F);
+        let b = convert_5bit_to_8bit((pixel >> 10) & 0x1F);
         Self { r, g, b, a: 0 }
     }
 
     pub fn new_8bit(pixel: u32) -> Self {
-        let r = ((pixel >> 16) & 0xFF) as u8;
+        let r = (pixel & 0xFF) as u8;
         let g = ((pixel >> 8) & 0xFF) as u8;
-        let b = (pixel & 0xFF) as u8;
+        let b = ((pixel >> 16) & 0xFF) as u8;
         Self { r, g, b, a: 0 }
     }
 
@@ -35,7 +35,7 @@ impl Color {
         let r = (self.r >> 3) as u16;
         let g = (self.g >> 3) as u16;
         let b = (self.b >> 3) as u16;
-        r << 10 | g << 5 | b
+        b << 10 | g << 5 | r
     }
 
     pub fn apply_dithering(&mut self, p: Vec2) {
@@ -98,8 +98,8 @@ impl Clut {
         Self { base_x, base_y }
     }
 
-    pub fn get_color(&self, renderer: &Renderer, value: u8) -> u16 {
-        renderer.vram_read(self.base_x + value as usize, self.base_y)
+    pub fn get_color(&self, renderer: &Renderer, index: u8) -> u16 {
+        renderer.vram_read(self.base_x + index as usize, self.base_y)
     }
 }
 
@@ -153,16 +153,16 @@ impl Texture {
     fn get_texel_8bit(&self, renderer: &Renderer, p: Vec2) -> u16 {
         let (u, v) = (p.x as usize, p.y as usize);
         let texel = renderer.vram_read(self.page_x + u / 2, self.page_y + v);
-        let clut_value = (texel >> ((u % 2) * 8)) & 0xFF;
+        let clut_index = (texel >> ((u % 2) * 8)) & 0xFF;
 
-        self.clut.get_color(renderer, clut_value as u8)
+        self.clut.get_color(renderer, clut_index as u8)
     }
 
     fn get_texel_4bit(&self, renderer: &Renderer, p: Vec2) -> u16 {
         let (u, v) = (p.x as usize, p.y as usize);
         let texel = renderer.vram_read(self.page_x + u / 4, self.page_y + v);
-        let clut_value = (texel >> ((u % 4) * 4)) & 0xF;
+        let clut_index = (texel >> ((u % 4) * 4)) & 0xF;
 
-        self.clut.get_color(renderer, clut_value as u8)
+        self.clut.get_color(renderer, clut_index as u8)
     }
 }
