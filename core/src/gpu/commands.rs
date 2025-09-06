@@ -21,31 +21,47 @@ impl Gpu {
             .set_draw_to_display(self.gp0_params[0].draw_to_display());
         self.stat
             .set_texture_disable(self.gp0_params[0].texture_disable());
-        self.texture_rect_x_flip = self.gp0_params[0].texture_rect_x_flip();
-        self.texture_rect_y_flip = self.gp0_params[0].texture_rect_y_flip();
+        self.renderer.ctx.texture_rect_x_flip = self.gp0_params[0].texture_rect_x_flip();
+        self.renderer.ctx.texture_rect_y_flip = self.gp0_params[0].texture_rect_y_flip();
+        self.renderer.ctx.dithering = self.stat.dithering();
     }
 
     pub fn gp0_drawing_area_top_left(&mut self) {
-        self.drawing_area_top = self.gp0_params[0].y_coordinates();
-        self.drawing_area_left = self.gp0_params[0].x_coordinates();
+        self.renderer.ctx.drawing_area_top_left = {
+            let x = self.gp0_params[0].x_coordinates();
+            let y = self.gp0_params[0].y_coordinates();
+            Vec2::new(x as i32, y as i32)
+        }
     }
 
     pub fn gp0_drawing_area_bottom_right(&mut self) {
-        self.drawing_area_bottom = self.gp0_params[0].y_coordinates();
-        self.drawing_area_right = self.gp0_params[0].x_coordinates();
+        self.renderer.ctx.drawing_area_bottom_right = {
+            let x = self.gp0_params[0].x_coordinates();
+            let y = self.gp0_params[0].y_coordinates();
+            Vec2::new(x as i32, y as i32)
+        };
     }
 
     pub fn gp0_drawing_area_offset(&mut self) {
-        self.drawing_x_offset = (self.gp0_params[0].x_offset() << 5) as i16 >> 5;
-        self.drawing_y_offset = (self.gp0_params[0].y_offset() << 5) as i16 >> 5;
+        self.renderer.ctx.drawing_area_offset = {
+            let x = (self.gp0_params[0].x_offset() << 5) as i16 >> 5;
+            let y = (self.gp0_params[0].y_offset() << 5) as i16 >> 5;
+            Vec2::new(x as i32, y as i32)
+        }
     }
 
     pub fn gp0_texture_window(&mut self) {
-        self.texture_window_x_mask = self.gp0_params[0].window_mask_x();
-        self.texture_window_y_mask = self.gp0_params[0].window_mask_y();
+        self.renderer.ctx.texture_window_mask = {
+            let x = self.gp0_params[0].window_mask_x();
+            let y = self.gp0_params[0].window_mask_y();
+            Vec2::new(x as i32, y as i32)
+        };
 
-        self.texture_window_x_offset = self.gp0_params[0].window_offset_x();
-        self.texture_window_y_offset = self.gp0_params[0].window_offset_y();
+        self.renderer.ctx.texture_window_offset = {
+            let x = self.gp0_params[0].window_offset_x();
+            let y = self.gp0_params[0].window_offset_y();
+            Vec2::new(x as i32, y as i32)
+        };
     }
 
     pub fn gp0_mask_bit_setting(&mut self) {
@@ -114,35 +130,10 @@ impl Gpu {
     }
 
     pub fn gp1_reset(&mut self) {
-        self.texture_rect_x_flip = false;
-        self.texture_rect_y_flip = false;
-
-        self.texture_window_x_mask = 0;
-        self.texture_window_y_mask = 0;
-
-        self.texture_window_x_offset = 0;
-        self.texture_window_y_offset = 0;
-
-        self.drawing_area_left = 0;
-        self.drawing_area_top = 0;
-        self.drawing_area_right = 0;
-        self.drawing_area_bottom = 0;
-
-        self.drawing_x_offset = 0;
-        self.drawing_y_offset = 0;
-
-        self.display_vram_x_start = 0;
-        self.display_vram_y_start = 0;
-
-        self.display_hori_start = 0x200;
-        self.display_hori_end = 0xc00;
-
-        self.display_line_start = 0x10;
-        self.display_line_end = 0x100;
-
         self.stat.0 = 0;
-        // NOTE: Clear command cache and invalidate GPU cache here if I ever implement it
+        self.renderer.ctx.reset();
 
+        // NOTE: Clear command cache and invalidate GPU cache here if I ever implement it
         self.gp1_reset_command_buffer();
     }
 
@@ -154,6 +145,9 @@ impl Gpu {
         self.stat.set_display_depth(command.display_depth());
         self.stat.set_interlaced(command.interlaced());
 
+        let (x, y) = self.get_resolution();
+        self.renderer.ctx.resolution = Vec2::new(x as i32, y as i32);
+
         if command.flip_screen() {
             panic!("Flip screen bit not supported!");
         }
@@ -164,18 +158,27 @@ impl Gpu {
     }
 
     pub fn gp1_display_vram_start(&mut self, command: Command) {
-        self.display_vram_x_start = command.display_vram_x();
-        self.display_vram_y_start = command.display_vram_y();
+        self.renderer.ctx.display_vram_start = {
+            let x = command.display_vram_x();
+            let y = command.display_vram_y();
+            Vec2::new(x as i32, y as i32)
+        };
     }
 
     pub fn gp1_display_horizontal_range(&mut self, command: Command) {
-        self.display_hori_start = command.horizontal_x1();
-        self.display_hori_end = command.horizontal_x2();
+        self.renderer.ctx.display_hori_range = {
+            let x = command.horizontal_x1();
+            let y = command.horizontal_x2();
+            Vec2::new(x as i32, y as i32)
+        };
     }
 
     pub fn gp1_display_vertical_range(&mut self, command: Command) {
-        self.display_line_start = command.vertical_y1();
-        self.display_line_end = command.vertical_y2();
+        self.renderer.ctx.display_line_range = {
+            let x = command.vertical_y1();
+            let y = command.vertical_y2();
+            Vec2::new(x as i32, y as i32)
+        };
     }
 
     pub fn gp1_display_enable(&mut self, command: Command) {

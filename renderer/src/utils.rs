@@ -54,13 +54,28 @@ fn convert_5bit_to_8bit(color: u16) -> u8 {
 // Store the current drawing context
 #[derive(Debug, Default, Clone, Copy)]
 pub struct DrawContext {
-    pub start_x: usize,
-    pub start_y: usize,
     pub drawing_area_top_left: Vec2,
     pub drawing_area_bottom_right: Vec2,
-    pub width: usize,
-    pub height: usize,
+    pub drawing_area_offset: Vec2,
+
+    pub texture_rect_x_flip: bool,
+    pub texture_rect_y_flip: bool,
     pub dithering: bool,
+
+    pub texture_window_mask: Vec2,
+    pub texture_window_offset: Vec2,
+
+    pub display_vram_start: Vec2,
+    pub display_hori_range: Vec2,
+    pub display_line_range: Vec2,
+
+    pub resolution: Vec2,
+}
+
+impl DrawContext {
+    pub fn reset(&mut self) {
+        *self = Self::default();
+    }
 }
 
 pub fn interpolate_color(weights: [f64; 3], colors: [Color; 3]) -> Color {

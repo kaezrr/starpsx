@@ -80,10 +80,16 @@ impl Renderer {
     }
 
     pub fn copy_vram_to_fb(&mut self) {
-        for y in 0..self.ctx.height {
-            for x in 0..self.ctx.width {
-                let pixel = self.vram_read(self.ctx.start_x + x, self.ctx.start_y + y);
-                self.pixel_buffer[self.ctx.width * y + x] = Color::new_5bit(pixel);
+        let sx = self.ctx.display_vram_start.x as usize;
+        let sy = self.ctx.display_vram_start.y as usize;
+
+        let width = self.ctx.resolution.x as usize;
+        let height = self.ctx.resolution.y as usize;
+
+        for y in 0..height {
+            for x in 0..width {
+                let pixel = self.vram_read(sx + x, sy + y);
+                self.pixel_buffer[width * y + x] = Color::new_5bit(pixel);
             }
         }
     }

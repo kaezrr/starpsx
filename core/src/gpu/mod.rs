@@ -2,7 +2,7 @@ mod commands;
 mod utils;
 
 use arrayvec::ArrayVec;
-use starpsx_renderer::{Renderer, utils::DrawContext, vec2::Vec2};
+use starpsx_renderer::Renderer;
 use utils::{
     DisplayDepth, DmaDirection, Field, GP0State, HorizontalRes, TextureDepth, VMode, VerticalRes,
 };
@@ -104,34 +104,7 @@ bitfield::bitfield! {
 pub struct Gpu {
     pub renderer: Renderer,
     gpu_read: u32,
-
     stat: GpuStat,
-    texture_rect_x_flip: bool,
-    texture_rect_y_flip: bool,
-
-    texture_window_x_mask: u8,
-    texture_window_y_mask: u8,
-
-    texture_window_x_offset: u8,
-    texture_window_y_offset: u8,
-
-    drawing_area_left: u16,
-    drawing_area_top: u16,
-    drawing_area_right: u16,
-    drawing_area_bottom: u16,
-
-    drawing_x_offset: i16,
-    drawing_y_offset: i16,
-
-    pub display_vram_x_start: u16,
-    pub display_vram_y_start: u16,
-
-    pub display_hori_start: u16,
-    pub display_hori_end: u16,
-
-    pub display_line_start: u16,
-    pub display_line_end: u16,
-
     gp0_params: ArrayVec<Command, 16>,
     gp0_state: GP0State,
 }
@@ -141,35 +114,7 @@ impl Default for Gpu {
         Self {
             renderer: Renderer::default(),
             gpu_read: 0,
-
             stat: GpuStat(0),
-
-            texture_rect_x_flip: false,
-            texture_rect_y_flip: false,
-
-            texture_window_x_mask: 0,
-            texture_window_y_mask: 0,
-
-            texture_window_x_offset: 0,
-            texture_window_y_offset: 0,
-
-            drawing_area_left: 0,
-            drawing_area_top: 0,
-            drawing_area_right: 0,
-            drawing_area_bottom: 0,
-
-            drawing_x_offset: 0,
-            drawing_y_offset: 0,
-
-            display_vram_x_start: 0,
-            display_vram_y_start: 0,
-
-            display_hori_start: 0,
-            display_hori_end: 0,
-
-            display_line_start: 0,
-            display_line_end: 0,
-
             gp0_params: ArrayVec::new(),
             gp0_state: GP0State::AwaitCommand,
         }
@@ -220,7 +165,6 @@ impl Gpu {
             0x10 => self.gp1_read_internal_reg(command),
             _ => panic!("Unknown GP1 command {data:08x}"),
         }
-        self.update_renderer_context();
     }
 
     fn process_cpu_to_vram_copy(&mut self, word: u32, mut fields: VramCopyFields) {
@@ -300,45 +244,23 @@ impl Gpu {
         };
         self.gp0_state = GP0State::AwaitArgs { cmd, len };
         self.process_argument(data, cmd, len);
-        self.update_renderer_context();
     }
 
     pub fn get_resolution(&self) -> (usize, usize) {
-        // let width = match self.stat.hres() {
-        //     HorizontalRes::X256 => 256,
-        //     HorizontalRes::X320 => 320,
-        //     HorizontalRes::X512 => 512,
-        //     HorizontalRes::X368 => 368,
-        //     HorizontalRes::X640 => 640,
-        // };
-        //
-        // let height = match self.stat.vres() {
-        //     VerticalRes::Y240 => 240,
-        //     VerticalRes::Y480 => 480,
-        // };
+        let width = match self.stat.hres() {
+            HorizontalRes::X256 => 256,
+            HorizontalRes::X320 => 320,
+            HorizontalRes::X512 => 512,
+            HorizontalRes::X368 => 368,
+            HorizontalRes::X640 => 640,
+        };
 
-        // (width, height)
-        (1024, 512)
-    }
+        let height = match self.stat.vres() {
+            VerticalRes::Y240 => 240,
+            VerticalRes::Y480 => 480,
+        };
 
-    pub fn update_renderer_context(&mut self) {
-        let (width, height) = self.get_resolution();
-        self.renderer.ctx = DrawContext {
-            // start_x: self.display_vram_x_start.into(),
-            // start_y: self.display_vram_y_start.into(),
-            start_y: 0,
-            start_x: 0,
-            width,
-            height,
-            drawing_area_top_left: Vec2::new(
-                self.drawing_area_left.into(),
-                self.drawing_area_top.into(),
-            ),
-            drawing_area_bottom_right: Vec2::new(
-                self.drawing_area_right.into(),
-                self.drawing_area_bottom.into(),
-            ),
-            dithering: self.stat.dithering(),
-        }
+        (width, height)
+        // (1024, 512)
     }
 }

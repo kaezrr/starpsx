@@ -66,7 +66,7 @@ impl StarPSX {
     pub fn step_frame(&mut self) {
         for _ in (0..MCYCLES_PER_SECOND).step_by(2) {
             self.cpu.run_instruction(&mut self.bus);
-            // self.check_for_tty_output();
+            self.check_for_tty_output();
         }
         self.bus.gpu.renderer.copy_vram_to_fb();
     }
