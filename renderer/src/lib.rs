@@ -96,19 +96,21 @@ impl Renderer {
 
     // BEWARE OF OFF BY ONE ERRORS!!!
     pub fn draw_rectangle_mono(&mut self, r: Vec2, side_x: i32, side_y: i32, color: u16) {
-        let triangle_half_1 = [
-            r + Vec2::new(side_x - 1, 0),
-            r + Vec2::new(0, side_y - 1),
-            r + Vec2::zero(),
-        ];
-        let triangle_half_2 = [
-            r + Vec2::new(side_x - 1, 0),
-            r + Vec2::new(0, side_y - 1),
-            r + Vec2::new(side_x - 1, side_y - 1),
-        ];
+        let min_x = r.x;
+        let min_y = r.y;
+        let max_x = r.x + side_x - 1;
+        let max_y = r.y + side_y - 1;
 
-        self.draw_triangle_mono_opaque(triangle_half_1, color);
-        self.draw_triangle_mono_opaque(triangle_half_2, color);
+        let min_x = std::cmp::max(min_x, self.ctx.drawing_area_top_left.x);
+        let min_y = std::cmp::max(min_y, self.ctx.drawing_area_top_left.y);
+        let max_x = std::cmp::min(max_x, self.ctx.drawing_area_bottom_right.x);
+        let max_y = std::cmp::min(max_y, self.ctx.drawing_area_bottom_right.y);
+
+        for x in min_x..=max_x {
+            for y in min_y..=max_y {
+                self.vram_write(x as usize, y as usize, color);
+            }
+        }
     }
 
     pub fn draw_quad_mono_opaque(&mut self, q: [Vec2; 4], color: u16) {
