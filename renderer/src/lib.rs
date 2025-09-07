@@ -59,11 +59,15 @@ impl Renderer {
     }
 
     pub fn copy_vram_to_fb(&mut self) {
-        let sx = self.ctx.display_vram_start.x as usize;
-        let sy = self.ctx.display_vram_start.y as usize;
-
-        let width = self.ctx.resolution.x as usize;
-        let height = self.ctx.resolution.y as usize;
+        let sx = 0;
+        let sy = 0;
+        let width = 1024;
+        let height = 512;
+        // let sx = self.ctx.display_vram_start.x as usize;
+        // let sy = self.ctx.display_vram_start.y as usize;
+        //
+        // let width = self.ctx.resolution.x as usize;
+        // let height = self.ctx.resolution.y as usize;
 
         for y in 0..height {
             for x in 0..width {
