@@ -23,27 +23,6 @@ impl Default for Renderer {
             vram: Box::new([0; VRAM_SIZE]),
             pixel_buffer: Box::new([Color::default(); VRAM_SIZE]),
         }
-        // let mut renderer = Self {
-        //     ctx: DrawContext {
-        //         start_x: 0,
-        //         start_y: 0,
-        //         width: 1024,
-        //         height: 512,
-        //     },
-        //     vram: Box::new([0; 1024 * 1024]),
-        //     pixel_buffer: Box::new([Color::default(); VRAM_HEIGHT * VRAM_WIDTH]),
-        // };
-        //
-        // let quad = [
-        //     Vec2::new(400, 100),
-        //     Vec2::new(600, 300),
-        //     Vec2::new(200, 300),
-        //     Vec2::new(400, 500),
-        // ];
-        // let color = [0x7c00, 0x03e0, 0x001f, 0x7c1f];
-        // renderer.draw_quad_shaded_opaque(quad, color);
-        // renderer.copy_vram_to_fb();
-        // renderer
     }
 }
 
