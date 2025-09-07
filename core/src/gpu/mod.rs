@@ -4,10 +4,9 @@ mod utils;
 use arrayvec::ArrayVec;
 use starpsx_renderer::Renderer;
 use utils::{
-    DisplayDepth, DmaDirection, Field, GP0State, HorizontalRes, TextureDepth, VMode, VerticalRes,
+    CommandArguments, CommandFn, DisplayDepth, DmaDirection, Field, GP0State, HorizontalRes,
+    TextureDepth, VMode, VerticalRes, VramCopyFields,
 };
-
-use crate::gpu::utils::{CommandArguments, VramCopyFields};
 
 bitfield::bitfield! {
     #[derive(Clone, Copy)]
@@ -140,7 +139,6 @@ impl Gpu {
     }
 
     pub fn gp0(&mut self, data: u32) {
-        println!("{data:08x}");
         self.gp0_state = match std::mem::replace(&mut self.gp0_state, GP0State::AwaitCommand) {
             GP0State::AwaitCommand => self.process_command(data),
             GP0State::AwaitArgs(x) => self.process_argument(data, x),
@@ -212,8 +210,7 @@ impl Gpu {
         let command = Command(data);
         cmd.params.push(command);
         if cmd.done() {
-            (cmd.func)(self, cmd.params);
-            GP0State::AwaitCommand
+            (cmd.func)(self, cmd.params)
         } else {
             GP0State::AwaitArgs(cmd)
         }
@@ -222,7 +219,7 @@ impl Gpu {
     #[inline(always)]
     fn process_command(&mut self, data: u32) -> GP0State {
         let command = Command(data);
-        let (len, cmd): (usize, fn(&mut Gpu, ArrayVec<Command, 16>)) = match command.opcode() {
+        let (len, cmd): (usize, CommandFn) = match command.opcode() {
             0x00 => (1, Gpu::gp0_nop),
             0x01 => (1, Gpu::gp0_clear_cache),
             0x02 => (3, Gpu::gp0_quick_rect_fill),

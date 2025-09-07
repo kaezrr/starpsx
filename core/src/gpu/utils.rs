@@ -192,14 +192,16 @@ pub struct VramCopyFields {
     pub current_col: u16,
 }
 
+pub type CommandFn = fn(&mut Gpu, ArrayVec<Command, 16>) -> GP0State;
+
 pub struct CommandArguments {
-    pub func: fn(&mut Gpu, ArrayVec<Command, 16>),
+    pub func: CommandFn,
     pub params: ArrayVec<Command, 16>,
     target_len: usize,
 }
 
 impl CommandArguments {
-    pub fn new(func: fn(&mut Gpu, ArrayVec<Command, 16>), target_len: usize) -> Self {
+    pub fn new(func: CommandFn, target_len: usize) -> Self {
         Self {
             func,
             params: ArrayVec::new(),
