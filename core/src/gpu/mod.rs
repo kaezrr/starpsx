@@ -7,7 +7,7 @@ use utils::{
     DisplayDepth, DmaDirection, Field, GP0State, HorizontalRes, TextureDepth, VMode, VerticalRes,
 };
 
-use crate::gpu::utils::VramCopyFields;
+use crate::gpu::utils::{CommandArguments, VramCopyFields};
 
 bitfield::bitfield! {
     #[derive(Clone, Copy)]
@@ -37,7 +37,7 @@ bitfield::bitfield! {
 }
 
 bitfield::bitfield! {
-    #[derive(Clone, Copy)]
+    #[derive(Clone, Copy, Debug)]
     pub struct Command(u32);
     u8, opcode, _ : 31, 24;
     register_index, _ : 23, 0;
@@ -105,7 +105,6 @@ pub struct Gpu {
     pub renderer: Renderer,
     gpu_read: u32,
     stat: GpuStat,
-    gp0_params: ArrayVec<Command, 16>,
     gp0_state: GP0State,
 }
 
@@ -115,7 +114,6 @@ impl Default for Gpu {
             renderer: Renderer::default(),
             gpu_read: 0,
             stat: GpuStat(0),
-            gp0_params: ArrayVec::new(),
             gp0_state: GP0State::AwaitCommand,
         }
     }
@@ -136,15 +134,16 @@ impl Gpu {
 
     pub fn read(&mut self) -> u32 {
         if let GP0State::CopyFromVram(fields) = self.gp0_state {
-            self.process_vram_to_cpu_copy(fields);
+            self.gp0_state = self.process_vram_to_cpu_copy(fields);
         }
         self.gpu_read
     }
 
     pub fn gp0(&mut self, data: u32) {
-        match self.gp0_state {
+        println!("{data:08x}");
+        self.gp0_state = match std::mem::replace(&mut self.gp0_state, GP0State::AwaitCommand) {
             GP0State::AwaitCommand => self.process_command(data),
-            GP0State::AwaitArgs { cmd, len } => self.process_argument(data, cmd, len),
+            GP0State::AwaitArgs(x) => self.process_argument(data, x),
             GP0State::CopyToVram(x) => self.process_cpu_to_vram_copy(data, x),
             GP0State::CopyFromVram(_) => panic!("VRAM currently being copying to CPU!"),
         };
@@ -167,7 +166,7 @@ impl Gpu {
         }
     }
 
-    fn process_cpu_to_vram_copy(&mut self, word: u32, mut fields: VramCopyFields) {
+    fn process_cpu_to_vram_copy(&mut self, word: u32, mut fields: VramCopyFields) -> GP0State {
         for i in 0..2 {
             let halfword = (word >> (16 * i)) as u16;
             let vram_row = ((fields.vram_y + fields.current_row) & 0x1FF) as usize;
@@ -180,14 +179,14 @@ impl Gpu {
                 fields.current_row += 1;
 
                 if fields.current_row == fields.height {
-                    return self.gp0_state = GP0State::AwaitCommand;
+                    return GP0State::AwaitCommand;
                 }
             }
         }
-        self.gp0_state = GP0State::CopyToVram(fields);
+        GP0State::CopyToVram(fields)
     }
 
-    fn process_vram_to_cpu_copy(&mut self, mut fields: VramCopyFields) {
+    fn process_vram_to_cpu_copy(&mut self, mut fields: VramCopyFields) -> GP0State {
         let vram_row = ((fields.vram_y + fields.current_row) & 0x1FF) as usize;
         let vram_col = ((fields.vram_x + fields.current_col) & 0x3FF) as usize;
 
@@ -202,27 +201,28 @@ impl Gpu {
             fields.current_row += 1;
 
             if fields.current_row == fields.height {
-                return self.gp0_state = GP0State::AwaitCommand;
+                return GP0State::AwaitCommand;
             }
         }
-        self.gp0_state = GP0State::CopyFromVram(fields);
         self.gpu_read = data;
+        GP0State::CopyFromVram(fields)
     }
 
-    fn process_argument(&mut self, data: u32, cmd: fn(&mut Gpu), len: usize) {
+    fn process_argument(&mut self, data: u32, mut cmd: CommandArguments) -> GP0State {
         let command = Command(data);
-        self.gp0_params.push(command);
-        if self.gp0_params.len() == len {
-            self.gp0_state = GP0State::AwaitCommand;
-            (cmd)(self);
-            self.gp0_params.clear();
+        cmd.params.push(command);
+        if cmd.done() {
+            (cmd.func)(self, cmd.params);
+            GP0State::AwaitCommand
+        } else {
+            GP0State::AwaitArgs(cmd)
         }
     }
 
     #[inline(always)]
-    fn process_command(&mut self, data: u32) {
+    fn process_command(&mut self, data: u32) -> GP0State {
         let command = Command(data);
-        let (len, cmd): (usize, fn(&mut Gpu)) = match command.opcode() {
+        let (len, cmd): (usize, fn(&mut Gpu, ArrayVec<Command, 16>)) = match command.opcode() {
             0x00 => (1, Gpu::gp0_nop),
             0x01 => (1, Gpu::gp0_clear_cache),
             0x02 => (3, Gpu::gp0_quick_rect_fill),
@@ -242,8 +242,7 @@ impl Gpu {
             0xE6 => (1, Gpu::gp0_mask_bit_setting),
             _ => panic!("Unknown GP0 command {data:08x}"),
         };
-        self.gp0_state = GP0State::AwaitArgs { cmd, len };
-        self.process_argument(data, cmd, len);
+        self.process_argument(data, CommandArguments::new(cmd, len))
     }
 
     pub fn get_resolution(&self) -> (usize, usize) {

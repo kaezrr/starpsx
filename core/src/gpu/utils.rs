@@ -182,7 +182,7 @@ impl From<DmaDirection> for u8 {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct VramCopyFields {
     pub vram_x: u16,
     pub vram_y: u16,
@@ -192,10 +192,29 @@ pub struct VramCopyFields {
     pub current_col: u16,
 }
 
-#[derive(Debug)]
+pub struct CommandArguments {
+    pub func: fn(&mut Gpu, ArrayVec<Command, 16>),
+    pub params: ArrayVec<Command, 16>,
+    target_len: usize,
+}
+
+impl CommandArguments {
+    pub fn new(func: fn(&mut Gpu, ArrayVec<Command, 16>), target_len: usize) -> Self {
+        Self {
+            func,
+            params: ArrayVec::new(),
+            target_len,
+        }
+    }
+
+    pub fn done(&self) -> bool {
+        self.params.len() == self.target_len
+    }
+}
+
 pub enum GP0State {
     AwaitCommand,
-    AwaitArgs { cmd: fn(&mut Gpu), len: usize },
+    AwaitArgs(CommandArguments),
     CopyToVram(VramCopyFields),
     CopyFromVram(VramCopyFields),
 }
