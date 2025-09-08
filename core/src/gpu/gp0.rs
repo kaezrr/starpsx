@@ -262,4 +262,37 @@ impl Gpu {
             .draw_rectangle_mono(Vec2::new(x as i32, y as i32), 1, 1, color);
         GP0State::AwaitCommand
     }
+
+    pub fn gp0_line_single_mono_opaque(&mut self, _params: ArrayVec<Command, 16>) -> GP0State {
+        println!("single mono opaque line");
+        GP0State::AwaitCommand
+    }
+
+    pub fn gp0_line_single_mono_trans(&mut self, _params: ArrayVec<Command, 16>) -> GP0State {
+        println!("single mono transparent line");
+        GP0State::AwaitCommand
+    }
+
+    pub fn gp0_line_single_shaded_opaque(&mut self, _params: ArrayVec<Command, 16>) -> GP0State {
+        println!("single shaded opaque line");
+        GP0State::AwaitCommand
+    }
+
+    pub fn gp0_line_poly_mono_opaque(
+        &mut self,
+        _vertices: Vec<u32>,
+        _color: Option<Vec<u32>>,
+    ) -> GP0State {
+        println!("poly mono opaque line");
+        GP0State::AwaitCommand
+    }
+
+    pub fn gp0_line_poly_mono_trans(
+        &mut self,
+        _vertices: Vec<u32>,
+        _color: Option<Vec<u32>>,
+    ) -> GP0State {
+        println!("poly mono transparent line");
+        GP0State::AwaitCommand
+    }
 }

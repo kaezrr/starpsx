@@ -193,10 +193,11 @@ pub struct VramCopyFields {
 }
 
 pub type CommandFn = fn(&mut Gpu, ArrayVec<Command, 16>) -> GP0State;
+pub type PolyLineFn = fn(&mut Gpu, Vec<u32>, Option<Vec<u32>>) -> GP0State;
 
 pub struct CommandArguments {
-    pub func: CommandFn,
-    pub params: ArrayVec<Command, 16>,
+    func: CommandFn,
+    params: ArrayVec<Command, 16>,
     target_len: usize,
 }
 
@@ -209,8 +210,63 @@ impl CommandArguments {
         }
     }
 
+    pub fn push(&mut self, data: Command) {
+        self.params.push(data);
+    }
+
     pub fn done(&self) -> bool {
         self.params.len() == self.target_len
+    }
+
+    pub fn call(self, gpu: &mut Gpu) -> GP0State {
+        (self.func)(gpu, self.params)
+    }
+}
+
+pub struct PolyLineArguments {
+    func: PolyLineFn,
+    vertices: Vec<u32>,
+    colors: Option<Vec<u32>>,
+    done: bool,
+}
+
+impl PolyLineArguments {
+    pub fn new(func: PolyLineFn, color: bool) -> Self {
+        Self {
+            func,
+            vertices: Vec::new(),
+            colors: color.then_some(Vec::new()),
+            done: false,
+        }
+    }
+
+    pub fn push(&mut self, data: u32) {
+        if self.done {
+            return;
+        }
+
+        match self.colors.as_mut() {
+            Some(x) if x.len() <= self.vertices.len() => {
+                if data & 0xF000F000 == 0x50005000 {
+                    return self.done = true;
+                }
+                x.push(data);
+            }
+            Some(_) | None => {
+                if data & 0xF000F000 == 0x50005000 {
+                    return self.done = true;
+                }
+                self.vertices.push(data);
+            }
+        };
+    }
+
+    pub fn call(self, gpu: &mut Gpu) -> GP0State {
+        (self.func)(gpu, self.vertices, self.colors)
+    }
+
+    pub fn done(&self) -> bool {
+        self.done
     }
 }
 
@@ -219,6 +275,7 @@ pub enum GP0State {
     AwaitArgs(CommandArguments),
     CopyToVram(VramCopyFields),
     CopyFromVram(VramCopyFields),
+    PolyLine(PolyLineArguments),
 }
 
 pub fn parse_xy(data: u32) -> (u32, u32) {

@@ -4,10 +4,13 @@ mod utils;
 
 use arrayvec::ArrayVec;
 use starpsx_renderer::Renderer;
+
 use utils::{
     CommandArguments, CommandFn, DisplayDepth, DmaDirection, Field, GP0State, HorizontalRes,
-    TextureDepth, VMode, VerticalRes, VramCopyFields,
+    PolyLineArguments, TextureDepth, VMode, VerticalRes, VramCopyFields,
 };
+
+use crate::gpu::utils::PolyLineFn;
 
 bitfield::bitfield! {
     #[derive(Clone, Copy)]
@@ -41,6 +44,8 @@ bitfield::bitfield! {
     pub struct Command(u32);
     u8, opcode, _ : 31, 24;
     register_index, _ : 23, 0;
+
+    polyline, _: 27;
 
     //GP0 Draw Mode
     page_base_x, _ : 3, 0;
@@ -140,10 +145,12 @@ impl Gpu {
     }
 
     pub fn gp0(&mut self, data: u32) {
+        println!("{data:08x}");
         self.gp0_state = match std::mem::replace(&mut self.gp0_state, GP0State::AwaitCommand) {
             GP0State::AwaitCommand => self.process_command(data),
             GP0State::AwaitArgs(x) => self.process_argument(data, x),
             GP0State::CopyToVram(x) => self.process_cpu_to_vram_copy(data, x),
+            GP0State::PolyLine(x) => self.process_polyline_argument(data, x),
             GP0State::CopyFromVram(_) => panic!("VRAM currently being copying to CPU!"),
         };
     }
@@ -163,6 +170,23 @@ impl Gpu {
             0x10 => self.gp1_read_internal_reg(command),
             _ => panic!("Unknown GP1 command {data:08x}"),
         }
+    }
+
+    fn process_argument(&mut self, word: u32, mut cmd: CommandArguments) -> GP0State {
+        let command = Command(word);
+        cmd.push(command);
+        if cmd.done() {
+            return cmd.call(self);
+        }
+        GP0State::AwaitArgs(cmd)
+    }
+
+    fn process_polyline_argument(&mut self, word: u32, mut cmd: PolyLineArguments) -> GP0State {
+        cmd.push(word);
+        if cmd.done() {
+            return cmd.call(self);
+        }
+        GP0State::PolyLine(cmd)
     }
 
     fn process_cpu_to_vram_copy(&mut self, word: u32, mut fields: VramCopyFields) -> GP0State {
@@ -207,40 +231,41 @@ impl Gpu {
         GP0State::CopyFromVram(fields)
     }
 
-    fn process_argument(&mut self, data: u32, mut cmd: CommandArguments) -> GP0State {
-        let command = Command(data);
-        cmd.params.push(command);
-        if cmd.done() {
-            (cmd.func)(self, cmd.params)
-        } else {
-            GP0State::AwaitArgs(cmd)
-        }
-    }
-
     #[inline(always)]
     fn process_command(&mut self, data: u32) -> GP0State {
         let command = Command(data);
-        let (len, cmd): (usize, CommandFn) = match command.opcode() {
-            0x00 => (1, Gpu::gp0_nop),
-            0x01 => (1, Gpu::gp0_clear_cache),
-            0x02 => (3, Gpu::gp0_quick_rect_fill),
-            0x28 => (5, Gpu::gp0_quad_mono_opaque),
-            0x2C => (9, Gpu::gp0_quad_texture_blend_opaque),
-            0x30 => (6, Gpu::gp0_triangle_shaded_opaque),
-            0x38 => (8, Gpu::gp0_quad_shaded_opaque),
-            0x68 => (2, Gpu::gp0_draw_1x1_rectangle),
-            0x80 => (4, Gpu::gp0_vram_to_vram_blit),
-            0xA0 => (3, Gpu::gp0_image_load),
-            0xC0 => (3, Gpu::gp0_image_store),
-            0xE1 => (1, Gpu::gp0_draw_mode),
-            0xE2 => (1, Gpu::gp0_texture_window),
-            0xE3 => (1, Gpu::gp0_drawing_area_top_left),
-            0xE4 => (1, Gpu::gp0_drawing_area_bottom_right),
-            0xE5 => (1, Gpu::gp0_drawing_area_offset),
-            0xE6 => (1, Gpu::gp0_mask_bit_setting),
-            _ => panic!("Unknown GP0 command {data:08x}"),
+
+        let (color, cmd): (bool, PolyLineFn) = match command.opcode() {
+            0x48 => (false, Gpu::gp0_line_poly_mono_opaque),
+            0x4a => (false, Gpu::gp0_line_poly_mono_trans),
+            _ => {
+                let (len, cmd): (usize, CommandFn) = match command.opcode() {
+                    0x00 => (1, Gpu::gp0_nop),
+                    0x01 => (1, Gpu::gp0_clear_cache),
+                    0x02 => (3, Gpu::gp0_quick_rect_fill),
+                    0x28 => (5, Gpu::gp0_quad_mono_opaque),
+                    0x2C => (9, Gpu::gp0_quad_texture_blend_opaque),
+                    0x30 => (6, Gpu::gp0_triangle_shaded_opaque),
+                    0x38 => (8, Gpu::gp0_quad_shaded_opaque),
+                    0x40 => (3, Gpu::gp0_line_single_mono_opaque),
+                    0x42 => (3, Gpu::gp0_line_single_mono_trans),
+                    0x50 => (4, Gpu::gp0_line_single_shaded_opaque),
+                    0x68 => (2, Gpu::gp0_draw_1x1_rectangle),
+                    0x80 => (4, Gpu::gp0_vram_to_vram_blit),
+                    0xA0 => (3, Gpu::gp0_image_load),
+                    0xC0 => (3, Gpu::gp0_image_store),
+                    0xE1 => (1, Gpu::gp0_draw_mode),
+                    0xE2 => (1, Gpu::gp0_texture_window),
+                    0xE3 => (1, Gpu::gp0_drawing_area_top_left),
+                    0xE4 => (1, Gpu::gp0_drawing_area_bottom_right),
+                    0xE5 => (1, Gpu::gp0_drawing_area_offset),
+                    0xE6 => (1, Gpu::gp0_mask_bit_setting),
+                    _ => panic!("Unknown GP0 command {data:08x}"),
+                };
+                return self.process_argument(data, CommandArguments::new(cmd, len));
+            }
         };
-        self.process_argument(data, CommandArguments::new(cmd, len))
+        self.process_polyline_argument(data, PolyLineArguments::new(cmd, color))
     }
 
     pub fn get_resolution(&self) -> (usize, usize) {
