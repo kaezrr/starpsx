@@ -193,7 +193,7 @@ pub struct VramCopyFields {
 }
 
 pub type CommandFn = fn(&mut Gpu, ArrayVec<Command, 16>) -> GP0State;
-pub type PolyLineFn = fn(&mut Gpu, Vec<u32>, Option<Vec<u32>>) -> GP0State;
+pub type PolyLineFn = fn(&mut Gpu, Vec<u32>, Vec<u32>) -> GP0State;
 
 pub struct CommandArguments {
     func: CommandFn,
@@ -226,7 +226,8 @@ impl CommandArguments {
 pub struct PolyLineArguments {
     func: PolyLineFn,
     vertices: Vec<u32>,
-    colors: Option<Vec<u32>>,
+    colors: Vec<u32>,
+    shaded: bool,
     done: bool,
 }
 
@@ -235,7 +236,8 @@ impl PolyLineArguments {
         Self {
             func,
             vertices: Vec::new(),
-            colors: color.then_some(Vec::new()),
+            colors: Vec::new(),
+            shaded: color,
             done: false,
         }
     }
@@ -245,20 +247,19 @@ impl PolyLineArguments {
             return;
         }
 
-        match self.colors.as_mut() {
-            Some(x) if x.len() <= self.vertices.len() => {
-                if data & 0xF000F000 == 0x50005000 {
-                    return self.done = true;
-                }
-                x.push(data);
-            }
-            Some(_) | None => {
-                if data & 0xF000F000 == 0x50005000 {
-                    return self.done = true;
-                }
-                self.vertices.push(data);
-            }
-        };
+        if data & 0xF000F000 == 0x50005000 {
+            self.done = true;
+            return;
+        }
+
+        let needs_color =
+            self.colors.is_empty() || (self.shaded && self.colors.len() <= self.vertices.len());
+
+        if needs_color {
+            self.colors.push(data);
+        } else {
+            self.vertices.push(data);
+        }
     }
 
     pub fn call(self, gpu: &mut Gpu) -> GP0State {

@@ -120,6 +120,12 @@ impl Renderer {
         self.draw_triangle_texture_opaque(triangle_half_2, uvs[1..].try_into().unwrap(), tex);
     }
 
+    pub fn draw_line_poly_mono(&mut self, ls: Vec<Vec2>, color: u16, trans: bool) {
+        for i in 1..ls.len() {
+            self.draw_line_mono([ls[i - 1], ls[i]], color, trans);
+        }
+    }
+
     pub fn draw_triangle_shaded_opaque(&mut self, mut t: [Vec2; 3], mut colors: [u16; 3]) {
         if needs_vertex_reordering(&t) {
             t.swap(0, 1);

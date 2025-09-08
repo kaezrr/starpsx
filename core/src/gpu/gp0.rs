@@ -309,28 +309,38 @@ impl Gpu {
         GP0State::AwaitCommand
     }
 
-    pub fn gp0_line_poly_mono_opaque(
-        &mut self,
-        _vertices: Vec<u32>,
-        _color: Option<Vec<u32>>,
-    ) -> GP0State {
-        println!("poly mono opaque line");
+    pub fn gp0_line_poly_mono_opaque(&mut self, vertices: Vec<u32>, color: Vec<u32>) -> GP0State {
+        let vertices = vertices
+            .into_iter()
+            .map(|word| {
+                let (x, y) = parse_xy(word);
+                Vec2::new(x as i32, y as i32)
+            })
+            .collect();
+
+        let color = Color::new_8bit(color[0]).to_5bit();
+        self.renderer.draw_line_poly_mono(vertices, color, false);
         GP0State::AwaitCommand
     }
 
-    pub fn gp0_line_poly_mono_trans(
-        &mut self,
-        _vertices: Vec<u32>,
-        _color: Option<Vec<u32>>,
-    ) -> GP0State {
-        println!("poly mono transparent line");
+    pub fn gp0_line_poly_mono_trans(&mut self, vertices: Vec<u32>, color: Vec<u32>) -> GP0State {
+        let vertices = vertices
+            .into_iter()
+            .map(|word| {
+                let (x, y) = parse_xy(word);
+                Vec2::new(x as i32, y as i32)
+            })
+            .collect();
+
+        let color = Color::new_8bit(color[0]).to_5bit();
+        self.renderer.draw_line_poly_mono(vertices, color, true);
         GP0State::AwaitCommand
     }
 
     pub fn gp0_line_poly_shaded_opaque(
         &mut self,
         _vertices: Vec<u32>,
-        _color: Option<Vec<u32>>,
+        _color: Vec<u32>,
     ) -> GP0State {
         println!("poly shaded opaque line");
         GP0State::AwaitCommand
@@ -339,7 +349,7 @@ impl Gpu {
     pub fn gp0_line_poly_shaded_trans(
         &mut self,
         _vertices: Vec<u32>,
-        _color: Option<Vec<u32>>,
+        _color: Vec<u32>,
     ) -> GP0State {
         println!("poly shaded transparent line");
         GP0State::AwaitCommand
