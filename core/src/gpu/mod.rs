@@ -238,6 +238,8 @@ impl Gpu {
         let (color, cmd): (bool, PolyLineFn) = match command.opcode() {
             0x48 => (false, Gpu::gp0_line_poly_mono_opaque),
             0x4a => (false, Gpu::gp0_line_poly_mono_trans),
+            0x58 => (true, Gpu::gp0_line_poly_shaded_opaque),
+            0x5a => (true, Gpu::gp0_line_poly_shaded_trans),
             _ => {
                 let (len, cmd): (usize, CommandFn) = match command.opcode() {
                     0x00 => (1, Gpu::gp0_nop),
@@ -250,6 +252,7 @@ impl Gpu {
                     0x40 => (3, Gpu::gp0_line_single_mono_opaque),
                     0x42 => (3, Gpu::gp0_line_single_mono_trans),
                     0x50 => (4, Gpu::gp0_line_single_shaded_opaque),
+                    0x52 => (4, Gpu::gp0_line_single_shaded_trans),
                     0x68 => (2, Gpu::gp0_draw_1x1_rectangle),
                     0x80 => (4, Gpu::gp0_vram_to_vram_blit),
                     0xA0 => (3, Gpu::gp0_image_load),

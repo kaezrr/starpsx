@@ -278,6 +278,11 @@ impl Gpu {
         GP0State::AwaitCommand
     }
 
+    pub fn gp0_line_single_shaded_trans(&mut self, _params: ArrayVec<Command, 16>) -> GP0State {
+        println!("single shaded transparent line");
+        GP0State::AwaitCommand
+    }
+
     pub fn gp0_line_poly_mono_opaque(
         &mut self,
         _vertices: Vec<u32>,
@@ -293,6 +298,24 @@ impl Gpu {
         _color: Option<Vec<u32>>,
     ) -> GP0State {
         println!("poly mono transparent line");
+        GP0State::AwaitCommand
+    }
+
+    pub fn gp0_line_poly_shaded_opaque(
+        &mut self,
+        _vertices: Vec<u32>,
+        _color: Option<Vec<u32>>,
+    ) -> GP0State {
+        println!("poly shaded opaque line");
+        GP0State::AwaitCommand
+    }
+
+    pub fn gp0_line_poly_shaded_trans(
+        &mut self,
+        _vertices: Vec<u32>,
+        _color: Option<Vec<u32>>,
+    ) -> GP0State {
+        println!("poly shaded transparent line");
         GP0State::AwaitCommand
     }
 }
