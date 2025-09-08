@@ -126,6 +126,12 @@ impl Renderer {
         }
     }
 
+    pub fn draw_line_poly_shaded(&mut self, ls: Vec<Vec2>, color: Vec<u16>, trans: bool) {
+        for i in 1..ls.len() {
+            self.draw_line_shaded([ls[i - 1], ls[i]], [color[i - 1], color[i]], trans);
+        }
+    }
+
     pub fn draw_triangle_shaded_opaque(&mut self, mut t: [Vec2; 3], mut colors: [u16; 3]) {
         if needs_vertex_reordering(&t) {
             t.swap(0, 1);
@@ -229,8 +235,8 @@ impl Renderer {
     }
 
     pub fn draw_line_mono(&mut self, l: [Vec2; 2], color: u16, trans: bool) {
-        let (mut x0, x1) = (l[0].x, l[1].x);
-        let (mut y0, y1) = (l[0].y, l[1].y);
+        let (x0, x1) = (l[0].x, l[1].x);
+        let (y0, y1) = (l[0].y, l[1].y);
 
         let dx = (x1 - x0).abs();
         let dy = -(y1 - y0).abs();
@@ -239,29 +245,78 @@ impl Renderer {
         let sy = if y0 < y1 { 1 } else { -1 };
 
         let mut err = dx + dy;
+        let mut x = x0;
+        let mut y = y0;
 
         loop {
             let mut color = Color::new_5bit(color);
             if trans {
-                let old = self.vram_read(x0 as usize, y0 as usize);
+                let old = self.vram_read(x as usize, y as usize);
                 color.blend(Color::new_5bit(old), self.ctx.transparency_weights);
             }
-            self.vram_write(x0 as usize, y0 as usize, color.to_5bit());
+            self.vram_write(x as usize, y as usize, color.to_5bit());
             let e2 = 2 * err;
             if e2 >= dy {
-                if x0 == x1 {
+                if x == x1 {
                     break;
                 }
                 err += dy;
-                x0 += sx;
+                x += sx;
             }
-
             if e2 <= dx {
-                if y0 == y1 {
+                if y == y1 {
                     break;
                 }
                 err += dx;
-                y0 += sy;
+                y += sy;
+            }
+        }
+    }
+
+    pub fn draw_line_shaded(&mut self, l: [Vec2; 2], colors: [u16; 2], trans: bool) {
+        let (x0, x1) = (l[0].x, l[1].x);
+        let (y0, y1) = (l[0].y, l[1].y);
+
+        let dx = (x1 - x0).abs();
+        let dy = -(y1 - y0).abs();
+
+        let sx = if x0 < x1 { 1 } else { -1 };
+        let sy = if y0 < y1 { 1 } else { -1 };
+
+        let mut err = dx + dy;
+        let mut x = x0;
+        let mut y = y0;
+
+        loop {
+            let t = if dx >= -dy {
+                f64::from(x - x0) / f64::from(dx)
+            } else {
+                f64::from(y - y0) / f64::from(-dy)
+            };
+            let mut color = Color::lerp(
+                Color::new_5bit(colors[0]),
+                Color::new_5bit(colors[1]),
+                t.abs(),
+            );
+            if trans {
+                let old = self.vram_read(x as usize, y as usize);
+                color.blend(Color::new_5bit(old), self.ctx.transparency_weights);
+            }
+            self.vram_write(x as usize, y as usize, color.to_5bit());
+            let e2 = 2 * err;
+            if e2 >= dy {
+                if x == x1 {
+                    break;
+                }
+                err += dy;
+                x += sx;
+            }
+            if e2 <= dx {
+                if y == y1 {
+                    break;
+                }
+                err += dx;
+                y += sy;
             }
         }
     }

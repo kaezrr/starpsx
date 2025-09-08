@@ -21,6 +21,7 @@ impl Color {
         let r = convert_5bit_to_8bit(pixel & 0x1F);
         let g = convert_5bit_to_8bit((pixel >> 5) & 0x1F);
         let b = convert_5bit_to_8bit((pixel >> 10) & 0x1F);
+
         Self { r, g, b, a: 0 }
     }
 
@@ -28,6 +29,7 @@ impl Color {
         let r = (pixel & 0xFF) as u8;
         let g = ((pixel >> 8) & 0xFF) as u8;
         let b = ((pixel >> 16) & 0xFF) as u8;
+
         Self { r, g, b, a: 0 }
     }
 
@@ -35,11 +37,13 @@ impl Color {
         let r = (self.r >> 3) as u16;
         let g = (self.g >> 3) as u16;
         let b = (self.b >> 3) as u16;
+
         b << 10 | g << 5 | r
     }
 
     pub fn apply_dithering(&mut self, p: Vec2) {
         let offset = DITHER_TABLE[(p.y & 3) as usize][(p.x & 3) as usize];
+
         self.r = self.r.saturating_add_signed(offset);
         self.g = self.g.saturating_add_signed(offset);
         self.b = self.b.saturating_add_signed(offset);
@@ -48,9 +52,21 @@ impl Color {
     pub fn blend(&mut self, back: Color, weights: (f64, f64)) {
         let b = (f64::from(back.r), f64::from(back.g), f64::from(back.b));
         let f = (f64::from(self.r), f64::from(self.g), f64::from(self.b));
+
         self.r = (b.0 * weights.0 + f.0 * weights.1).round() as u8;
         self.g = (b.1 * weights.0 + f.1 * weights.1).round() as u8;
         self.b = (b.2 * weights.0 + f.2 * weights.1).round() as u8;
+    }
+
+    pub fn lerp(a: Color, b: Color, t: f64) -> Self {
+        let a = (f64::from(a.r), f64::from(a.g), f64::from(a.b));
+        let b = (f64::from(b.r), f64::from(b.g), f64::from(b.b));
+
+        let r = (a.0 * (1.0 - t) + b.0 * t).round() as u8;
+        let g = (a.1 * (1.0 - t) + b.1 * t).round() as u8;
+        let b = (a.2 * (1.0 - t) + b.2 * t).round() as u8;
+
+        Self { r, g, b, a: 0 }
     }
 }
 

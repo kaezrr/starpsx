@@ -299,17 +299,43 @@ impl Gpu {
         GP0State::AwaitCommand
     }
 
-    pub fn gp0_line_single_shaded_opaque(&mut self, _params: ArrayVec<Command, 16>) -> GP0State {
-        println!("single shaded opaque line");
+    pub fn gp0_line_single_shaded_opaque(&mut self, params: ArrayVec<Command, 16>) -> GP0State {
+        let (x0, y0) = parse_xy(params[1].0);
+        let (x1, y1) = parse_xy(params[3].0);
+
+        let line = [
+            Vec2::new(x0 as i32, y0 as i32),
+            Vec2::new(x1 as i32, y1 as i32),
+        ];
+
+        let colors = [
+            Color::new_8bit(params[0].0).to_5bit(),
+            Color::new_8bit(params[2].0).to_5bit(),
+        ];
+
+        self.renderer.draw_line_shaded(line, colors, false);
         GP0State::AwaitCommand
     }
 
-    pub fn gp0_line_single_shaded_trans(&mut self, _params: ArrayVec<Command, 16>) -> GP0State {
-        println!("single shaded transparent line");
+    pub fn gp0_line_single_shaded_trans(&mut self, params: ArrayVec<Command, 16>) -> GP0State {
+        let (x0, y0) = parse_xy(params[1].0);
+        let (x1, y1) = parse_xy(params[3].0);
+
+        let line = [
+            Vec2::new(x0 as i32, y0 as i32),
+            Vec2::new(x1 as i32, y1 as i32),
+        ];
+
+        let colors = [
+            Color::new_8bit(params[0].0).to_5bit(),
+            Color::new_8bit(params[2].0).to_5bit(),
+        ];
+
+        self.renderer.draw_line_shaded(line, colors, true);
         GP0State::AwaitCommand
     }
 
-    pub fn gp0_line_poly_mono_opaque(&mut self, vertices: Vec<u32>, color: Vec<u32>) -> GP0State {
+    pub fn gp0_line_poly_mono_opaque(&mut self, vertices: Vec<u32>, colors: Vec<u32>) -> GP0State {
         let vertices = vertices
             .into_iter()
             .map(|word| {
@@ -318,12 +344,12 @@ impl Gpu {
             })
             .collect();
 
-        let color = Color::new_8bit(color[0]).to_5bit();
+        let color = Color::new_8bit(colors[0]).to_5bit();
         self.renderer.draw_line_poly_mono(vertices, color, false);
         GP0State::AwaitCommand
     }
 
-    pub fn gp0_line_poly_mono_trans(&mut self, vertices: Vec<u32>, color: Vec<u32>) -> GP0State {
+    pub fn gp0_line_poly_mono_trans(&mut self, vertices: Vec<u32>, colors: Vec<u32>) -> GP0State {
         let vertices = vertices
             .into_iter()
             .map(|word| {
@@ -332,26 +358,48 @@ impl Gpu {
             })
             .collect();
 
-        let color = Color::new_8bit(color[0]).to_5bit();
+        let color = Color::new_8bit(colors[0]).to_5bit();
         self.renderer.draw_line_poly_mono(vertices, color, true);
         GP0State::AwaitCommand
     }
 
     pub fn gp0_line_poly_shaded_opaque(
         &mut self,
-        _vertices: Vec<u32>,
-        _color: Vec<u32>,
+        vertices: Vec<u32>,
+        colors: Vec<u32>,
     ) -> GP0State {
-        println!("poly shaded opaque line");
+        let vertices = vertices
+            .into_iter()
+            .map(|word| {
+                let (x, y) = parse_xy(word);
+                Vec2::new(x as i32, y as i32)
+            })
+            .collect();
+
+        let colors = colors
+            .into_iter()
+            .map(|word| Color::new_8bit(word).to_5bit())
+            .collect();
+
+        self.renderer.draw_line_poly_shaded(vertices, colors, false);
         GP0State::AwaitCommand
     }
 
-    pub fn gp0_line_poly_shaded_trans(
-        &mut self,
-        _vertices: Vec<u32>,
-        _color: Vec<u32>,
-    ) -> GP0State {
-        println!("poly shaded transparent line");
+    pub fn gp0_line_poly_shaded_trans(&mut self, vertices: Vec<u32>, colors: Vec<u32>) -> GP0State {
+        let vertices = vertices
+            .into_iter()
+            .map(|word| {
+                let (x, y) = parse_xy(word);
+                Vec2::new(x as i32, y as i32)
+            })
+            .collect();
+
+        let colors = colors
+            .into_iter()
+            .map(|word| Color::new_8bit(word).to_5bit())
+            .collect();
+
+        self.renderer.draw_line_poly_shaded(vertices, colors, true);
         GP0State::AwaitCommand
     }
 }
