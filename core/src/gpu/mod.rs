@@ -145,7 +145,6 @@ impl Gpu {
     }
 
     pub fn gp0(&mut self, data: u32) {
-        println!("{data:08x}");
         self.gp0_state = match std::mem::replace(&mut self.gp0_state, GP0State::AwaitCommand) {
             GP0State::AwaitCommand => self.process_command(data),
             GP0State::AwaitArgs(x) => self.process_argument(data, x),

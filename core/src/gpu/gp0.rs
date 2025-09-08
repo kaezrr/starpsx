@@ -263,8 +263,17 @@ impl Gpu {
         GP0State::AwaitCommand
     }
 
-    pub fn gp0_line_single_mono_opaque(&mut self, _params: ArrayVec<Command, 16>) -> GP0State {
-        println!("single mono opaque line");
+    pub fn gp0_line_single_mono_opaque(&mut self, params: ArrayVec<Command, 16>) -> GP0State {
+        let (x0, y0) = parse_xy(params[1].0);
+        let (x1, y1) = parse_xy(params[2].0);
+        let color = Color::new_8bit(params[0].0).to_5bit();
+
+        let line = [
+            Vec2::new(x0 as i32, y0 as i32),
+            Vec2::new(x1 as i32, y1 as i32),
+        ];
+
+        self.renderer.draw_line_mono(line, color, false);
         GP0State::AwaitCommand
     }
 

@@ -221,4 +221,32 @@ impl Renderer {
             }
         }
     }
+
+    pub fn draw_line_mono(&mut self, l: [Vec2; 2], color: u16, _trans: bool) {
+        let min_x = std::cmp::min(l[0].x, l[1].x);
+        let min_y = std::cmp::min(l[0].y, l[1].y);
+        let max_x = std::cmp::max(l[0].x, l[1].x);
+        let max_y = std::cmp::max(l[0].y, l[1].y);
+
+        let min_x = std::cmp::max(min_x, self.ctx.drawing_area_top_left.x);
+        let min_y = std::cmp::max(min_y, self.ctx.drawing_area_top_left.y);
+        let max_x = std::cmp::min(max_x, self.ctx.drawing_area_bottom_right.x);
+        let max_y = std::cmp::min(max_y, self.ctx.drawing_area_bottom_right.y);
+
+        let dx = max_x - min_x;
+        let dy = max_y - min_y;
+
+        let mut diff = 2 * dy - dx;
+        let mut y = min_y;
+
+        let color = Color::new_5bit(color);
+        for x in min_x..=max_x {
+            self.vram_write(x as usize, y as usize, color.to_5bit());
+            if diff > 0 {
+                y += 1;
+                diff -= 2 * dx;
+            }
+            diff += 2 * dy;
+        }
+    }
 }
