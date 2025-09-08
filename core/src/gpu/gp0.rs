@@ -22,9 +22,17 @@ impl Gpu {
         self.stat.set_dithering(params[0].dithering());
         self.stat.set_draw_to_display(params[0].draw_to_display());
         self.stat.set_texture_disable(params[0].texture_disable());
+
         self.renderer.ctx.texture_rect_x_flip = params[0].texture_rect_x_flip();
         self.renderer.ctx.texture_rect_y_flip = params[0].texture_rect_y_flip();
         self.renderer.ctx.dithering = self.stat.dithering();
+        self.renderer.ctx.transparency_weights = match self.stat.semi_transparency() {
+            0 => (0.5, 0.5),
+            1 => (1.0, 1.0),
+            2 => (1.0, -1.0),
+            3 => (1.0, 0.25),
+            _ => unreachable!("2 bit value cant reach here"),
+        };
         GP0State::AwaitCommand
     }
 
@@ -277,8 +285,17 @@ impl Gpu {
         GP0State::AwaitCommand
     }
 
-    pub fn gp0_line_single_mono_trans(&mut self, _params: ArrayVec<Command, 16>) -> GP0State {
-        println!("single mono transparent line");
+    pub fn gp0_line_single_mono_trans(&mut self, params: ArrayVec<Command, 16>) -> GP0State {
+        let (x0, y0) = parse_xy(params[1].0);
+        let (x1, y1) = parse_xy(params[2].0);
+        let color = Color::new_8bit(params[0].0).to_5bit();
+
+        let line = [
+            Vec2::new(x0 as i32, y0 as i32),
+            Vec2::new(x1 as i32, y1 as i32),
+        ];
+
+        self.renderer.draw_line_mono(line, color, true);
         GP0State::AwaitCommand
     }
 

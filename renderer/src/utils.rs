@@ -44,6 +44,14 @@ impl Color {
         self.g = self.g.saturating_add_signed(offset);
         self.b = self.b.saturating_add_signed(offset);
     }
+
+    pub fn blend(&mut self, back: Color, weights: (f64, f64)) {
+        let b = (f64::from(back.r), f64::from(back.g), f64::from(back.b));
+        let f = (f64::from(self.r), f64::from(self.g), f64::from(self.b));
+        self.r = (b.0 * weights.0 + f.0 * weights.1).round() as u8;
+        self.g = (b.1 * weights.0 + f.1 * weights.1).round() as u8;
+        self.b = (b.2 * weights.0 + f.2 * weights.1).round() as u8;
+    }
 }
 
 // TODO: Convert to a lookup table later
@@ -61,6 +69,7 @@ pub struct DrawContext {
     pub texture_rect_x_flip: bool,
     pub texture_rect_y_flip: bool,
     pub dithering: bool,
+    pub transparency_weights: (f64, f64),
 
     pub texture_window_mask: Vec2,
     pub texture_window_offset: Vec2,

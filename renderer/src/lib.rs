@@ -222,31 +222,41 @@ impl Renderer {
         }
     }
 
-    pub fn draw_line_mono(&mut self, l: [Vec2; 2], color: u16, _trans: bool) {
-        let min_x = std::cmp::min(l[0].x, l[1].x);
-        let min_y = std::cmp::min(l[0].y, l[1].y);
-        let max_x = std::cmp::max(l[0].x, l[1].x);
-        let max_y = std::cmp::max(l[0].y, l[1].y);
+    pub fn draw_line_mono(&mut self, l: [Vec2; 2], color: u16, trans: bool) {
+        let (mut x0, x1) = (l[0].x, l[1].x);
+        let (mut y0, y1) = (l[0].y, l[1].y);
 
-        let min_x = std::cmp::max(min_x, self.ctx.drawing_area_top_left.x);
-        let min_y = std::cmp::max(min_y, self.ctx.drawing_area_top_left.y);
-        let max_x = std::cmp::min(max_x, self.ctx.drawing_area_bottom_right.x);
-        let max_y = std::cmp::min(max_y, self.ctx.drawing_area_bottom_right.y);
+        let dx = (x1 - x0).abs();
+        let dy = -(y1 - y0).abs();
 
-        let dx = max_x - min_x;
-        let dy = max_y - min_y;
+        let sx = if x0 < x1 { 1 } else { -1 };
+        let sy = if y0 < y1 { 1 } else { -1 };
 
-        let mut diff = 2 * dy - dx;
-        let mut y = min_y;
+        let mut err = dx + dy;
 
-        let color = Color::new_5bit(color);
-        for x in min_x..=max_x {
-            self.vram_write(x as usize, y as usize, color.to_5bit());
-            if diff > 0 {
-                y += 1;
-                diff -= 2 * dx;
+        loop {
+            let mut color = Color::new_5bit(color);
+            if trans {
+                let old = self.vram_read(x0 as usize, y0 as usize);
+                color.blend(Color::new_5bit(old), self.ctx.transparency_weights);
             }
-            diff += 2 * dy;
+            self.vram_write(x0 as usize, y0 as usize, color.to_5bit());
+            let e2 = 2 * err;
+            if e2 >= dy {
+                if x0 == x1 {
+                    break;
+                }
+                err += dy;
+                x0 += sx;
+            }
+
+            if e2 <= dx {
+                if y0 == y1 {
+                    break;
+                }
+                err += dx;
+                y0 += sy;
+            }
         }
     }
 }
