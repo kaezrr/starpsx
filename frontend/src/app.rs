@@ -6,8 +6,8 @@ use std::time::{Duration, Instant};
 use winit::{application::ApplicationHandler, event::WindowEvent};
 use winit::{dpi::LogicalSize, window::Window};
 
-const APP_WINDOW_WIDTH: u32 = 1600;
-const APP_WINDOW_HEIGHT: u32 = 800;
+const APP_WINDOW_WIDTH: u32 = 960;
+const APP_WINDOW_HEIGHT: u32 = 720;
 
 const WINDOW_SIZE: LogicalSize<u32> = LogicalSize::new(APP_WINDOW_WIDTH, APP_WINDOW_HEIGHT);
 const FRAME_TIME: Duration = Duration::from_nanos(1_000_000_000 / TARGET_FPS);

@@ -59,15 +59,15 @@ impl Renderer {
     }
 
     pub fn copy_vram_to_fb(&mut self) {
-        let sx = 0;
-        let sy = 0;
-        let width = 1024;
-        let height = 512;
-        // let sx = self.ctx.display_vram_start.x as usize;
-        // let sy = self.ctx.display_vram_start.y as usize;
-        //
-        // let width = self.ctx.resolution.x as usize;
-        // let height = self.ctx.resolution.y as usize;
+        // let sx = 0;
+        // let sy = 0;
+        // let width = 1024;
+        // let height = 512;
+        let sx = self.ctx.display_vram_start.x as usize;
+        let sy = self.ctx.display_vram_start.y as usize;
+
+        let width = self.ctx.resolution.x as usize;
+        let height = self.ctx.resolution.y as usize;
 
         for y in 0..height {
             for x in 0..width {
@@ -238,6 +238,23 @@ impl Renderer {
         let (x0, x1) = (l[0].x, l[1].x);
         let (y0, y1) = (l[0].y, l[1].y);
 
+        let x0 = x0.clamp(
+            self.ctx.drawing_area_top_left.x,
+            self.ctx.drawing_area_bottom_right.x,
+        );
+        let x1 = x1.clamp(
+            self.ctx.drawing_area_top_left.x,
+            self.ctx.drawing_area_bottom_right.x,
+        );
+        let y0 = y0.clamp(
+            self.ctx.drawing_area_top_left.y,
+            self.ctx.drawing_area_bottom_right.y,
+        );
+        let y1 = y1.clamp(
+            self.ctx.drawing_area_top_left.y,
+            self.ctx.drawing_area_bottom_right.y,
+        );
+
         let dx = (x1 - x0).abs();
         let dy = -(y1 - y0).abs();
 
@@ -276,6 +293,23 @@ impl Renderer {
     pub fn draw_line_shaded(&mut self, l: [Vec2; 2], colors: [u16; 2], trans: bool) {
         let (x0, x1) = (l[0].x, l[1].x);
         let (y0, y1) = (l[0].y, l[1].y);
+
+        let x0 = x0.clamp(
+            self.ctx.drawing_area_top_left.x,
+            self.ctx.drawing_area_bottom_right.x,
+        );
+        let x1 = x1.clamp(
+            self.ctx.drawing_area_top_left.x,
+            self.ctx.drawing_area_bottom_right.x,
+        );
+        let y0 = y0.clamp(
+            self.ctx.drawing_area_top_left.y,
+            self.ctx.drawing_area_bottom_right.y,
+        );
+        let y1 = y1.clamp(
+            self.ctx.drawing_area_top_left.y,
+            self.ctx.drawing_area_bottom_right.y,
+        );
 
         let dx = (x1 - x0).abs();
         let dy = -(y1 - y0).abs();

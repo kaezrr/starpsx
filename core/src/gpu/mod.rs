@@ -271,20 +271,20 @@ impl Gpu {
     }
 
     pub fn get_resolution(&self) -> (usize, usize) {
-        // let width = match self.stat.hres() {
-        //     HorizontalRes::X256 => 256,
-        //     HorizontalRes::X320 => 320,
-        //     HorizontalRes::X512 => 512,
-        //     HorizontalRes::X368 => 368,
-        //     HorizontalRes::X640 => 640,
-        // };
-        //
-        // let height = match self.stat.vres() {
-        //     VerticalRes::Y240 => 240,
-        //     VerticalRes::Y480 => 480,
-        // };
-        //
-        // (width, height)
-        (1024, 512)
+        let width = match self.stat.hres() {
+            HorizontalRes::X256 => 256,
+            HorizontalRes::X320 => 320,
+            HorizontalRes::X512 => 512,
+            HorizontalRes::X368 => 368,
+            HorizontalRes::X640 => 640,
+        };
+
+        let height = match self.stat.vres() {
+            VerticalRes::Y240 => 240,
+            VerticalRes::Y480 => 480,
+        };
+
+        (width, height)
+        // (1024, 512)
     }
 }
