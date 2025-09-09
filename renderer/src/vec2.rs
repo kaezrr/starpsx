@@ -64,20 +64,33 @@ fn signed_area(a: Vec2, b: Vec2, p: Vec2) -> i32 {
     ap.x * ab.y - ab.x * ap.y
 }
 
+fn is_top_left(a: Vec2, b: Vec2) -> bool {
+    if a.y == b.y { a.x < b.x } else { a.y < b.y }
+}
+
 // Test if a point is inside triangle ABC
 pub fn point_in_triangle(t: [Vec2; 3], p: Vec2) -> bool {
-    let side_ab = signed_area(t[0], t[1], p) >= 0;
-    let side_bc = signed_area(t[1], t[2], p) >= 0;
-    let side_ca = signed_area(t[2], t[0], p) >= 0;
-    side_ab && side_bc && side_ca
+    let edges = [
+        (signed_area(t[0], t[1], p), is_top_left(t[0], t[1])), // AB
+        (signed_area(t[1], t[2], p), is_top_left(t[1], t[2])), // BC
+        (signed_area(t[2], t[0], p), is_top_left(t[2], t[0])), // CA
+    ];
+    edges
+        .into_iter()
+        .all(|(area, top_left)| area > 0 || (area == 0 && top_left))
 }
 
 pub fn compute_barycentric_coords(t: [Vec2; 3], p: Vec2) -> Option<[f64; 3]> {
-    let area_ab = signed_area(t[0], t[1], p);
-    let area_bc = signed_area(t[1], t[2], p);
-    let area_ca = signed_area(t[2], t[0], p);
+    let edges = [
+        (signed_area(t[0], t[1], p), is_top_left(t[0], t[1])), // AB
+        (signed_area(t[1], t[2], p), is_top_left(t[1], t[2])), // BC
+        (signed_area(t[2], t[0], p), is_top_left(t[2], t[0])), // CA
+    ];
 
-    if area_ab < 0 || area_bc < 0 || area_ca < 0 {
+    if !edges
+        .iter()
+        .all(|&(area, top_left)| area > 0 || (area == 0 && top_left))
+    {
         return None;
     }
 
@@ -86,9 +99,9 @@ pub fn compute_barycentric_coords(t: [Vec2; 3], p: Vec2) -> Option<[f64; 3]> {
         return Some([1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0]);
     }
     let denominator = f64::from(denominator);
-    let weight0 = f64::from(area_bc) / denominator;
-    let weight1 = f64::from(area_ca) / denominator;
-    let weight2 = f64::from(area_ab) / denominator;
+    let weight0 = f64::from(edges[1].0) / denominator;
+    let weight1 = f64::from(edges[2].0) / denominator;
+    let weight2 = f64::from(edges[0].0) / denominator;
 
     Some([weight0, weight1, weight2])
 }
