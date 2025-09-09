@@ -96,20 +96,20 @@ impl Renderer {
         }
     }
 
-    pub fn draw_quad_mono_opaque(&mut self, q: [Vec2; 4], color: u16) {
+    pub fn draw_quad_mono(&mut self, q: [Vec2; 4], color: u16, trans: bool) {
         let triangle_half_1 = [q[0], q[1], q[2]];
         let triangle_half_2 = [q[1], q[2], q[3]];
 
-        self.draw_triangle_mono_opaque(triangle_half_1, color);
-        self.draw_triangle_mono_opaque(triangle_half_2, color);
+        self.draw_triangle_mono(triangle_half_1, color, trans);
+        self.draw_triangle_mono(triangle_half_2, color, trans);
     }
 
-    pub fn draw_quad_shaded_opaque(&mut self, q: [Vec2; 4], colors: [u16; 4]) {
+    pub fn draw_quad_shaded(&mut self, q: [Vec2; 4], colors: [u16; 4], trans: bool) {
         let triangle_half_1 = [q[0], q[1], q[2]];
         let triangle_half_2 = [q[1], q[2], q[3]];
 
-        self.draw_triangle_shaded_opaque(triangle_half_1, colors[..3].try_into().unwrap());
-        self.draw_triangle_shaded_opaque(triangle_half_2, colors[1..].try_into().unwrap());
+        self.draw_triangle_shaded(triangle_half_1, colors[..3].try_into().unwrap(), trans);
+        self.draw_triangle_shaded(triangle_half_2, colors[1..].try_into().unwrap(), trans);
     }
 
     pub fn draw_quad_texture_blend_opaque(&mut self, q: [Vec2; 4], uvs: [Vec2; 4], tex: Texture) {
@@ -132,7 +132,7 @@ impl Renderer {
         }
     }
 
-    pub fn draw_triangle_shaded_opaque(&mut self, mut t: [Vec2; 3], mut colors: [u16; 3]) {
+    pub fn draw_triangle_shaded(&mut self, mut t: [Vec2; 3], mut colors: [u16; 3], trans: bool) {
         if needs_vertex_reordering(&t) {
             t.swap(0, 1);
             colors.swap(0, 1);
@@ -156,6 +156,10 @@ impl Renderer {
                     let mut color = interpolate_color(weights, colors);
                     if self.ctx.dithering {
                         color.apply_dithering(p);
+                    }
+                    if trans {
+                        let old = self.vram_read(x as usize, y as usize);
+                        color.blend(Color::new_5bit(old), self.ctx.transparency_weights);
                     }
                     self.vram_write(x as usize, y as usize, color.to_5bit());
                 };
@@ -205,7 +209,7 @@ impl Renderer {
         }
     }
 
-    pub fn draw_triangle_mono_opaque(&mut self, mut t: [Vec2; 3], color: u16) {
+    pub fn draw_triangle_mono(&mut self, mut t: [Vec2; 3], color: u16, trans: bool) {
         if needs_vertex_reordering(&t) {
             t.swap(0, 1);
         }
@@ -227,6 +231,10 @@ impl Renderer {
                     let mut color = color;
                     if self.ctx.dithering {
                         color.apply_dithering(p);
+                    }
+                    if trans {
+                        let old = self.vram_read(x as usize, y as usize);
+                        color.blend(Color::new_5bit(old), self.ctx.transparency_weights);
                     }
                     self.vram_write(x as usize, y as usize, color.to_5bit());
                 };
