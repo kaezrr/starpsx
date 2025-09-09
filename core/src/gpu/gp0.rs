@@ -150,6 +150,7 @@ impl Gpu {
             width as i32,
             height as i32,
             color,
+            false,
         );
         GP0State::AwaitCommand
     }
@@ -358,14 +359,6 @@ impl Gpu {
         GP0State::AwaitCommand
     }
 
-    pub fn gp0_draw_1x1_rectangle(&mut self, params: ArrayVec<Command, 16>) -> GP0State {
-        let color = Color::new_8bit(params[0].0).to_5bit();
-        let (x, y) = parse_xy(params[1].0);
-        self.renderer
-            .draw_rectangle_mono(Vec2::new(x as i32, y as i32), 1, 1, color);
-        GP0State::AwaitCommand
-    }
-
     pub fn gp0_line_single_mono_opaque(&mut self, params: ArrayVec<Command, 16>) -> GP0State {
         let (x0, y0) = parse_xy(params[1].0);
         let (x1, y1) = parse_xy(params[2].0);
@@ -495,6 +488,82 @@ impl Gpu {
             .collect();
 
         self.renderer.draw_line_poly_shaded(vertices, colors, true);
+        GP0State::AwaitCommand
+    }
+
+    pub fn gp0_rect_1x1_opaque(&mut self, params: ArrayVec<Command, 16>) -> GP0State {
+        let color = Color::new_8bit(params[0].0).to_5bit();
+        let (x, y) = parse_xy(params[1].0);
+        self.renderer
+            .draw_rectangle_mono(Vec2::new(x as i32, y as i32), 1, 1, color, false);
+        GP0State::AwaitCommand
+    }
+
+    pub fn gp0_rect_1x1_trans(&mut self, params: ArrayVec<Command, 16>) -> GP0State {
+        let color = Color::new_8bit(params[0].0).to_5bit();
+        let (x, y) = parse_xy(params[1].0);
+        self.renderer
+            .draw_rectangle_mono(Vec2::new(x as i32, y as i32), 1, 1, color, true);
+        GP0State::AwaitCommand
+    }
+
+    pub fn gp0_rect_8x8_opaque(&mut self, params: ArrayVec<Command, 16>) -> GP0State {
+        let color = Color::new_8bit(params[0].0).to_5bit();
+        let (x, y) = parse_xy(params[1].0);
+        self.renderer
+            .draw_rectangle_mono(Vec2::new(x as i32, y as i32), 8, 8, color, false);
+        GP0State::AwaitCommand
+    }
+
+    pub fn gp0_rect_8x8_trans(&mut self, params: ArrayVec<Command, 16>) -> GP0State {
+        let color = Color::new_8bit(params[0].0).to_5bit();
+        let (x, y) = parse_xy(params[1].0);
+        self.renderer
+            .draw_rectangle_mono(Vec2::new(x as i32, y as i32), 8, 8, color, true);
+        GP0State::AwaitCommand
+    }
+
+    pub fn gp0_rect_16x16_opaque(&mut self, params: ArrayVec<Command, 16>) -> GP0State {
+        let color = Color::new_8bit(params[0].0).to_5bit();
+        let (x, y) = parse_xy(params[1].0);
+        self.renderer
+            .draw_rectangle_mono(Vec2::new(x as i32, y as i32), 16, 16, color, false);
+        GP0State::AwaitCommand
+    }
+
+    pub fn gp0_rect_16x16_trans(&mut self, params: ArrayVec<Command, 16>) -> GP0State {
+        let color = Color::new_8bit(params[0].0).to_5bit();
+        let (x, y) = parse_xy(params[1].0);
+        self.renderer
+            .draw_rectangle_mono(Vec2::new(x as i32, y as i32), 16, 16, color, true);
+        GP0State::AwaitCommand
+    }
+
+    pub fn gp0_rect_var_opaque(&mut self, params: ArrayVec<Command, 16>) -> GP0State {
+        let color = Color::new_8bit(params[0].0).to_5bit();
+        let (x, y) = parse_xy(params[1].0);
+        let (width, height) = parse_xy(params[2].0);
+        self.renderer.draw_rectangle_mono(
+            Vec2::new(x as i32, y as i32),
+            width as i32,
+            height as i32,
+            color,
+            false,
+        );
+        GP0State::AwaitCommand
+    }
+
+    pub fn gp0_rect_var_trans(&mut self, params: ArrayVec<Command, 16>) -> GP0State {
+        let color = Color::new_8bit(params[0].0).to_5bit();
+        let (x, y) = parse_xy(params[1].0);
+        let (width, height) = parse_xy(params[2].0);
+        self.renderer.draw_rectangle_mono(
+            Vec2::new(x as i32, y as i32),
+            width as i32,
+            height as i32,
+            color,
+            true,
+        );
         GP0State::AwaitCommand
     }
 }

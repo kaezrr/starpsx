@@ -78,7 +78,14 @@ impl Renderer {
     }
 
     // BEWARE OF OFF BY ONE ERRORS!!!
-    pub fn draw_rectangle_mono(&mut self, r: Vec2, side_x: i32, side_y: i32, color: u16) {
+    pub fn draw_rectangle_mono(
+        &mut self,
+        r: Vec2,
+        side_x: i32,
+        side_y: i32,
+        color: u16,
+        trans: bool,
+    ) {
         let min_x = r.x;
         let min_y = r.y;
         let max_x = r.x + side_x - 1;
@@ -91,7 +98,12 @@ impl Renderer {
 
         for x in min_x..=max_x {
             for y in min_y..=max_y {
-                self.vram_write(x as usize, y as usize, color);
+                let mut color = Color::new_5bit(color);
+                if trans {
+                    let old = self.vram_read(x as usize, y as usize);
+                    color.blend(Color::new_5bit(old), self.ctx.transparency_weights);
+                }
+                self.vram_write(x as usize, y as usize, color.to_5bit());
             }
         }
     }

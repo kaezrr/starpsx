@@ -145,6 +145,7 @@ impl Gpu {
     }
 
     pub fn gp0(&mut self, data: u32) {
+        println!("{data:08x}");
         self.gp0_state = match std::mem::replace(&mut self.gp0_state, GP0State::AwaitCommand) {
             GP0State::AwaitCommand => self.process_command(data),
             GP0State::AwaitArgs(x) => self.process_argument(data, x),
@@ -257,7 +258,14 @@ impl Gpu {
                     0x42 => (3, Gpu::gp0_line_single_mono_trans),
                     0x50 => (4, Gpu::gp0_line_single_shaded_opaque),
                     0x52 => (4, Gpu::gp0_line_single_shaded_trans),
-                    0x68 => (2, Gpu::gp0_draw_1x1_rectangle),
+                    0x60 => (3, Gpu::gp0_rect_var_opaque),
+                    0x62 => (3, Gpu::gp0_rect_var_trans),
+                    0x68 => (2, Gpu::gp0_rect_1x1_opaque),
+                    0x6a => (2, Gpu::gp0_rect_1x1_trans),
+                    0x70 => (2, Gpu::gp0_rect_8x8_opaque),
+                    0x72 => (2, Gpu::gp0_rect_8x8_trans),
+                    0x78 => (2, Gpu::gp0_rect_16x16_opaque),
+                    0x7a => (2, Gpu::gp0_rect_16x16_trans),
                     0x80 => (4, Gpu::gp0_vram_to_vram_blit),
                     0xA0 => (3, Gpu::gp0_image_load),
                     0xC0 => (3, Gpu::gp0_image_store),
