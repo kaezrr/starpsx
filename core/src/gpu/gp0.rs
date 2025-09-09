@@ -170,6 +170,32 @@ impl Gpu {
         GP0State::AwaitCommand
     }
 
+    pub fn gp0_triangle_mono_opaque(&mut self, params: ArrayVec<Command, 16>) -> GP0State {
+        let color = Color::new_8bit(params[0].0).to_5bit();
+        let (x0, y0) = parse_xy(params[1].0);
+        let (x1, y1) = parse_xy(params[2].0);
+        let (x2, y2) = parse_xy(params[3].0);
+
+        let triangle = [
+            Vec2::new(x0 as i32, y0 as i32),
+            Vec2::new(x1 as i32, y1 as i32),
+            Vec2::new(x2 as i32, y2 as i32),
+        ];
+
+        self.renderer.draw_triangle_mono_opaque(triangle, color);
+        GP0State::AwaitCommand
+    }
+
+    pub fn gp0_triangle_mono_trans(&mut self, _params: ArrayVec<Command, 16>) -> GP0State {
+        println!("gp0_triangle_mono_trans");
+        GP0State::AwaitCommand
+    }
+
+    pub fn gp0_quad_mono_trans(&mut self, _params: ArrayVec<Command, 16>) -> GP0State {
+        println!("gp0_quad_mono_trans");
+        GP0State::AwaitCommand
+    }
+
     pub fn gp0_quad_mono_opaque(&mut self, params: ArrayVec<Command, 16>) -> GP0State {
         let color = Color::new_8bit(params[0].0).to_5bit();
         let (x0, y0) = parse_xy(params[1].0);
@@ -230,6 +256,16 @@ impl Gpu {
         ];
 
         self.renderer.draw_triangle_shaded_opaque(triangle, colors);
+        GP0State::AwaitCommand
+    }
+
+    pub fn gp0_triangle_shaded_trans(&mut self, _params: ArrayVec<Command, 16>) -> GP0State {
+        println!("gp0_triangle_shaded_trans");
+        GP0State::AwaitCommand
+    }
+
+    pub fn gp0_quad_shaded_trans(&mut self, _params: ArrayVec<Command, 16>) -> GP0State {
+        println!("gp0_quad_shaded_trans");
         GP0State::AwaitCommand
     }
 
