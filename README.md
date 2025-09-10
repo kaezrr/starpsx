@@ -3,6 +3,23 @@
 StarPSX is a free and open-source PlayStation 1 (PS1) emulator written in Rust.  
 This project is highly work in progress and not suitable for playing games yet.
 
+## Project Structure
+
+The project is split into three crates:
+
+- **core**  
+  A library crate that hosts the main emulator functionality.
+
+- **renderer**  
+  A software rasterizer written from scratch.  
+  This is a library crate used by `core` for drawing to a framebuffer.  
+  In the future, support for switchable renderers is planned (e.g. software vs hardware backends).
+
+- **frontend**  
+  The main binary crate that provides the frontend GUI.  
+  Currently, it uses a basic `winit` + `softbuffer` window for output.  
+  The long-term plan is to integrate a fully featured GUI framework.
+
 ## Component Status
 
 - [ ] CPU
