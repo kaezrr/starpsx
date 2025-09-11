@@ -241,41 +241,10 @@ impl Renderer {
         }
     }
 
-    pub fn draw_quad(
-        &mut self,
-        q: [Vec2; 4],
-        colors: [u16; 4],
-        shaded: bool,
-        transparent: bool,
-        textured: Option<(Texture, bool, [Vec2; 4])>,
-    ) {
-        let triangle1 = [q[0], q[1], q[2]];
-        let triangle2 = [q[1], q[2], q[3]];
-
-        let colors1: [u16; 3] = colors[..3].try_into().unwrap();
-        let colors2: [u16; 3] = colors[1..].try_into().unwrap();
-
-        let textured1 = textured.map(|(t, b, uvs)| (t, b, uvs[..3].try_into().unwrap()));
-        let textured2 = textured.map(|(t, b, uvs)| (t, b, uvs[1..].try_into().unwrap()));
-
-        self.draw_triangle(triangle1, colors1, shaded, transparent, textured1);
-        self.draw_triangle(triangle2, colors2, shaded, transparent, textured2);
-    }
-
-    pub fn draw_triangle(
-        &mut self,
-        mut t: [Vec2; 3],
-        mut colors: [u16; 3],
-        shaded: bool,
-        transparent: bool,
-        mut textured: Option<(Texture, bool, [Vec2; 3])>,
-    ) {
+    pub fn draw_triangle(&mut self, mut t: [Vec2; 3], mut options: DrawOptions) {
         if needs_vertex_reordering(&t) {
             t.swap(0, 1);
-            colors.swap(0, 1);
-            if let Some((_, _, uvs)) = textured.as_mut() {
-                uvs.swap(0, 1);
-            }
+            options.swap_first_two_vertex();
         }
 
         let min_x = std::cmp::min(t[0].x, std::cmp::min(t[1].x, t[2].x));
@@ -288,8 +257,6 @@ impl Renderer {
         let max_x = std::cmp::min(max_x, self.ctx.drawing_area_bottom_right.x);
         let max_y = std::cmp::min(max_y, self.ctx.drawing_area_bottom_right.y);
 
-        let colors = colors.map(Color::new_5bit);
-
         for x in min_x..=max_x {
             for y in min_y..=max_y {
                 let p = Vec2::new(x, y);
@@ -297,39 +264,62 @@ impl Renderer {
                     continue;
                 }
 
-                let mut color = if !shaded {
-                    colors[0]
-                } else {
-                    let weights = compute_barycentric_coords(t, p);
-                    let poly_color = interpolate_color(weights, colors);
+                let mut color = match options.color {
+                    ColorOptions::Mono(color) => color,
+                    ColorOptions::Shaded(colors) => {
+                        let weights = compute_barycentric_coords(t, p);
+                        let poly_color = interpolate_color(weights, colors);
 
-                    match textured {
-                        Some((texture, blended, uvs)) => {
-                            let uv = interpolate_uv(weights, uvs);
-                            let mut tex_color = texture.get_texel(self, uv);
-                            // Fully black texels are ignored
-                            if tex_color.to_5bit() == 0 {
-                                continue;
+                        match options.textured {
+                            Some((texture, blended, uvs)) => {
+                                let uv = interpolate_uv(weights, uvs);
+                                let mut tex_color = texture.get_texel(self, uv);
+                                // Fully black texels are ignored
+                                if tex_color.to_5bit() == 0 {
+                                    continue;
+                                }
+                                if blended {
+                                    tex_color.blend(poly_color);
+                                }
+                                tex_color
                             }
-                            if blended {
-                                tex_color.blend(poly_color);
-                            }
-                            tex_color
+                            None => poly_color,
                         }
-                        None => poly_color,
                     }
                 };
 
                 if self.ctx.dithering {
                     color.apply_dithering(p);
                 }
-                if transparent {
+                if options.transparent {
                     let old = self.vram_read(x as usize, y as usize);
                     color.blend_screen(Color::new_5bit(old), self.ctx.transparency_weights);
                 }
 
                 self.vram_write(x as usize, y as usize, color.to_5bit());
             }
+        }
+    }
+}
+
+pub enum ColorOptions {
+    Mono(Color),
+    Shaded([Color; 3]),
+}
+
+pub struct DrawOptions {
+    pub color: ColorOptions,
+    pub transparent: bool,
+    pub textured: Option<(Texture, bool, [Vec2; 3])>,
+}
+
+impl DrawOptions {
+    pub fn swap_first_two_vertex(&mut self) {
+        if let ColorOptions::Shaded(ref mut x) = self.color {
+            x.swap(0, 1);
+        }
+        if let Some((_, _, uvs)) = self.textured.as_mut() {
+            uvs.swap(0, 1);
         }
     }
 }

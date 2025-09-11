@@ -1,4 +1,7 @@
-use starpsx_renderer::utils::{Clut, Texture};
+use starpsx_renderer::{
+    utils::{Clut, Texture},
+    vec2::Vec2,
+};
 
 use super::*;
 
@@ -279,10 +282,10 @@ pub enum GP0State {
     PolyLine(PolyLineArguments),
 }
 
-pub fn parse_xy(data: u32) -> (u32, u32) {
+pub fn parse_xy(data: u32) -> Vec2 {
     let x = data & 0x3FF;
     let y = (data >> 16) & 0x1FF;
-    (x, y)
+    Vec2::new(x as i32, y as i32)
 }
 
 pub fn parse_clut_uv(data: u32) -> (Clut, u32, u32) {
