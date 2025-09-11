@@ -108,19 +108,7 @@ impl Renderer {
         }
     }
 
-    pub fn draw_line_poly_mono(&mut self, ls: Vec<Vec2>, color: u16, trans: bool) {
-        for i in 1..ls.len() {
-            self.draw_line_mono([ls[i - 1], ls[i]], color, trans);
-        }
-    }
-
-    pub fn draw_line_poly_shaded(&mut self, ls: Vec<Vec2>, color: Vec<u16>, trans: bool) {
-        for i in 1..ls.len() {
-            self.draw_line_shaded([ls[i - 1], ls[i]], [color[i - 1], color[i]], trans);
-        }
-    }
-
-    pub fn draw_line_mono(&mut self, l: [Vec2; 2], color: u16, trans: bool) {
+    pub fn draw_line(&mut self, l: [Vec2; 2], options: DrawOptions<2>) {
         let (x0, x1) = (l[0].x, l[1].x);
         let (y0, y1) = (l[0].y, l[1].y);
 
@@ -152,76 +140,23 @@ impl Renderer {
         let mut y = y0;
 
         loop {
-            let mut color = Color::new_5bit(color);
-            if trans {
-                let old = self.vram_read(x as usize, y as usize);
-                color.blend_screen(Color::new_5bit(old), self.ctx.transparency_weights);
-            }
-            self.vram_write(x as usize, y as usize, color.to_5bit());
-            let e2 = 2 * err;
-            if e2 >= dy {
-                if x == x1 {
-                    break;
+            let mut color = match options.color {
+                ColorOptions::Mono(color) => color,
+                ColorOptions::Shaded(colors) => {
+                    let t = if dx >= -dy {
+                        f64::from(x - x0) / f64::from(dx)
+                    } else {
+                        f64::from(y - y0) / f64::from(-dy)
+                    };
+                    Color::lerp(colors[0], colors[1], t.abs())
                 }
-                err += dy;
-                x += sx;
-            }
-            if e2 <= dx {
-                if y == y1 {
-                    break;
-                }
-                err += dx;
-                y += sy;
-            }
-        }
-    }
-
-    pub fn draw_line_shaded(&mut self, l: [Vec2; 2], colors: [u16; 2], trans: bool) {
-        let (x0, x1) = (l[0].x, l[1].x);
-        let (y0, y1) = (l[0].y, l[1].y);
-
-        let x0 = x0.clamp(
-            self.ctx.drawing_area_top_left.x,
-            self.ctx.drawing_area_bottom_right.x,
-        );
-        let x1 = x1.clamp(
-            self.ctx.drawing_area_top_left.x,
-            self.ctx.drawing_area_bottom_right.x,
-        );
-        let y0 = y0.clamp(
-            self.ctx.drawing_area_top_left.y,
-            self.ctx.drawing_area_bottom_right.y,
-        );
-        let y1 = y1.clamp(
-            self.ctx.drawing_area_top_left.y,
-            self.ctx.drawing_area_bottom_right.y,
-        );
-
-        let dx = (x1 - x0).abs();
-        let dy = -(y1 - y0).abs();
-
-        let sx = if x0 < x1 { 1 } else { -1 };
-        let sy = if y0 < y1 { 1 } else { -1 };
-
-        let mut err = dx + dy;
-        let mut x = x0;
-        let mut y = y0;
-
-        loop {
-            let t = if dx >= -dy {
-                f64::from(x - x0) / f64::from(dx)
-            } else {
-                f64::from(y - y0) / f64::from(-dy)
             };
-            let mut color = Color::lerp(
-                Color::new_5bit(colors[0]),
-                Color::new_5bit(colors[1]),
-                t.abs(),
-            );
-            if trans {
+
+            if options.transparent {
                 let old = self.vram_read(x as usize, y as usize);
                 color.blend_screen(Color::new_5bit(old), self.ctx.transparency_weights);
             }
+
             self.vram_write(x as usize, y as usize, color.to_5bit());
             let e2 = 2 * err;
             if e2 >= dy {
@@ -241,7 +176,7 @@ impl Renderer {
         }
     }
 
-    pub fn draw_triangle(&mut self, mut t: [Vec2; 3], mut options: DrawOptions) {
+    pub fn draw_triangle(&mut self, mut t: [Vec2; 3], mut options: DrawOptions<3>) {
         if needs_vertex_reordering(&t) {
             t.swap(0, 1);
             options.swap_first_two_vertex();
@@ -301,19 +236,19 @@ impl Renderer {
 }
 
 #[derive(Debug)]
-pub enum ColorOptions {
+pub enum ColorOptions<const SIZE: usize> {
     Mono(Color),
-    Shaded([Color; 3]),
+    Shaded([Color; SIZE]),
 }
 
 #[derive(Debug)]
-pub struct DrawOptions {
-    pub color: ColorOptions,
+pub struct DrawOptions<const SIZE: usize> {
+    pub color: ColorOptions<SIZE>,
     pub transparent: bool,
     pub textured: Option<(Texture, bool, [Vec2; 3])>,
 }
 
-impl DrawOptions {
+impl DrawOptions<3> {
     pub fn swap_first_two_vertex(&mut self) {
         if let ColorOptions::Shaded(ref mut x) = self.color {
             x.swap(0, 1);

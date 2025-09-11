@@ -235,10 +235,10 @@ impl Gpu {
         let command = Command(data);
 
         let (color, cmd): (bool, PolyLineFn) = match command.opcode() {
-            0x48 => (false, Gpu::gp0_line_poly_mono_opaque),
-            0x4a => (false, Gpu::gp0_line_poly_mono_trans),
-            0x58 => (true, Gpu::gp0_line_poly_shaded_opaque),
-            0x5a => (true, Gpu::gp0_line_poly_shaded_trans),
+            0x48 => (false, Gpu::gp0_line_mono_poly::<false>),
+            0x4a => (false, Gpu::gp0_line_mono_poly::<true>),
+            0x58 => (true, Gpu::gp0_line_shaded_poly::<false>),
+            0x5a => (true, Gpu::gp0_line_shaded_poly::<true>),
             _ => {
                 let (len, cmd): (usize, CommandFn) = match command.opcode() {
                     0x00 => (1, Gpu::gp0_nop),
@@ -260,10 +260,10 @@ impl Gpu {
                     0x32 => (6, Gpu::gp0_poly_shaded::<false, true>),
                     0x38 => (8, Gpu::gp0_poly_shaded::<true, false>),
                     0x3A => (8, Gpu::gp0_poly_shaded::<true, true>),
-                    0x40 => (3, Gpu::gp0_line_single_mono_opaque),
-                    0x42 => (3, Gpu::gp0_line_single_mono_trans),
-                    0x50 => (4, Gpu::gp0_line_single_shaded_opaque),
-                    0x52 => (4, Gpu::gp0_line_single_shaded_trans),
+                    0x40 => (3, Gpu::gp0_line_mono::<false>),
+                    0x42 => (3, Gpu::gp0_line_mono::<true>),
+                    0x50 => (4, Gpu::gp0_line_shaded::<false>),
+                    0x52 => (4, Gpu::gp0_line_shaded::<true>),
                     0x60 => (3, Gpu::gp0_rect_variable::<false>),
                     0x62 => (3, Gpu::gp0_rect_variable::<true>),
                     0x68 => (2, Gpu::gp0_rect_fixed::<1, false>),

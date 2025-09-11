@@ -288,91 +288,82 @@ impl Gpu {
         GP0State::AwaitCommand
     }
 
-    pub fn gp0_line_single_mono_opaque(&mut self, params: ArrayVec<Command, 16>) -> GP0State {
+    pub fn gp0_line_mono<const TRANS: bool>(&mut self, params: ArrayVec<Command, 16>) -> GP0State {
         let v0 = parse_xy(params[1].0);
         let v1 = parse_xy(params[2].0);
-        let color = Color::new_8bit(params[0].0).to_5bit();
+        let color = Color::new_8bit(params[0].0);
 
-        self.renderer.draw_line_mono([v0, v1], color, false);
+        self.renderer.draw_line(
+            [v0, v1],
+            DrawOptions {
+                color: ColorOptions::Mono(color),
+                transparent: TRANS,
+                textured: None,
+            },
+        );
         GP0State::AwaitCommand
     }
 
-    pub fn gp0_line_single_mono_trans(&mut self, params: ArrayVec<Command, 16>) -> GP0State {
-        let v0 = parse_xy(params[1].0);
-        let v1 = parse_xy(params[2].0);
-        let color = Color::new_8bit(params[0].0).to_5bit();
-
-        self.renderer.draw_line_mono([v0, v1], color, true);
-        GP0State::AwaitCommand
-    }
-
-    pub fn gp0_line_single_shaded_opaque(&mut self, params: ArrayVec<Command, 16>) -> GP0State {
+    pub fn gp0_line_shaded<const TRANS: bool>(
+        &mut self,
+        params: ArrayVec<Command, 16>,
+    ) -> GP0State {
         let v0 = parse_xy(params[1].0);
         let v1 = parse_xy(params[3].0);
 
-        let colors = [
-            Color::new_8bit(params[0].0).to_5bit(),
-            Color::new_8bit(params[2].0).to_5bit(),
-        ];
+        let c0 = Color::new_8bit(params[0].0);
+        let c1 = Color::new_8bit(params[2].0);
 
-        self.renderer.draw_line_shaded([v0, v1], colors, false);
+        self.renderer.draw_line(
+            [v0, v1],
+            DrawOptions {
+                color: ColorOptions::Shaded([c0, c1]),
+                transparent: TRANS,
+                textured: None,
+            },
+        );
         GP0State::AwaitCommand
     }
 
-    pub fn gp0_line_single_shaded_trans(&mut self, params: ArrayVec<Command, 16>) -> GP0State {
-        let v0 = parse_xy(params[1].0);
-        let v1 = parse_xy(params[3].0);
-
-        let colors = [
-            Color::new_8bit(params[0].0).to_5bit(),
-            Color::new_8bit(params[2].0).to_5bit(),
-        ];
-
-        self.renderer.draw_line_shaded([v0, v1], colors, true);
-        GP0State::AwaitCommand
-    }
-
-    pub fn gp0_line_poly_mono_opaque(&mut self, vertices: Vec<u32>, colors: Vec<u32>) -> GP0State {
-        let vertices = vertices.into_iter().map(parse_xy).collect();
-
-        let color = Color::new_8bit(colors[0]).to_5bit();
-        self.renderer.draw_line_poly_mono(vertices, color, false);
-        GP0State::AwaitCommand
-    }
-
-    pub fn gp0_line_poly_mono_trans(&mut self, vertices: Vec<u32>, colors: Vec<u32>) -> GP0State {
-        let vertices = vertices.into_iter().map(parse_xy).collect();
-
-        let color = Color::new_8bit(colors[0]).to_5bit();
-        self.renderer.draw_line_poly_mono(vertices, color, true);
-        GP0State::AwaitCommand
-    }
-
-    pub fn gp0_line_poly_shaded_opaque(
+    pub fn gp0_line_mono_poly<const TRANS: bool>(
         &mut self,
         vertices: Vec<u32>,
         colors: Vec<u32>,
     ) -> GP0State {
-        let vertices = vertices.into_iter().map(parse_xy).collect();
+        let vertices: Vec<Vec2> = vertices.into_iter().map(parse_xy).collect();
+        let color = Color::new_8bit(colors[0]);
 
-        let colors = colors
-            .into_iter()
-            .map(|word| Color::new_8bit(word).to_5bit())
-            .collect();
-
-        self.renderer.draw_line_poly_shaded(vertices, colors, false);
+        for i in 1..vertices.len() {
+            self.renderer.draw_line(
+                [vertices[i - 1], vertices[i]],
+                DrawOptions {
+                    color: ColorOptions::Mono(color),
+                    transparent: TRANS,
+                    textured: None,
+                },
+            );
+        }
         GP0State::AwaitCommand
     }
 
-    pub fn gp0_line_poly_shaded_trans(&mut self, vertices: Vec<u32>, colors: Vec<u32>) -> GP0State {
-        let vertices = vertices.into_iter().map(parse_xy).collect();
+    pub fn gp0_line_shaded_poly<const TRANS: bool>(
+        &mut self,
+        vertices: Vec<u32>,
+        colors: Vec<u32>,
+    ) -> GP0State {
+        let vertices: Vec<Vec2> = vertices.into_iter().map(parse_xy).collect();
+        let colors: Vec<Color> = colors.into_iter().map(Color::new_8bit).collect();
 
-        let colors = colors
-            .into_iter()
-            .map(|word| Color::new_8bit(word).to_5bit())
-            .collect();
-
-        self.renderer.draw_line_poly_shaded(vertices, colors, true);
+        for i in 1..vertices.len() {
+            self.renderer.draw_line(
+                [vertices[i - 1], vertices[i]],
+                DrawOptions {
+                    color: ColorOptions::Shaded([colors[i - 1], colors[i]]),
+                    transparent: TRANS,
+                    textured: None,
+                },
+            );
+        }
         GP0State::AwaitCommand
     }
 
