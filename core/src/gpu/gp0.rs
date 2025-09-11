@@ -1,7 +1,9 @@
 use super::utils::{parse_clut_uv, parse_page_uv, parse_uv, parse_xy};
 use super::*;
-use starpsx_renderer::{ColorOptions, DrawOptions};
-use starpsx_renderer::{utils::Color, vec2::Vec2};
+use starpsx_renderer::{
+    utils::{Color, ColorOptions, DrawOptions},
+    vec2::Vec2,
+};
 
 impl Gpu {
     pub fn gp0_nop(&mut self, _params: ArrayVec<Command, 16>) -> GP0State {
@@ -279,6 +281,48 @@ impl Gpu {
                 [v1, v2, v3],
                 DrawOptions {
                     color: ColorOptions::Mono(color),
+                    transparent: TRANS,
+                    textured: Some((texture, BLEND, [uv1, uv2, uv3])),
+                },
+            );
+        }
+
+        GP0State::AwaitCommand
+    }
+
+    pub fn gp0_poly_texture_shaded<const QUAD: bool, const TRANS: bool, const BLEND: bool>(
+        &mut self,
+        params: ArrayVec<Command, 16>,
+    ) -> GP0State {
+        let c0 = Color::new_8bit(params[0].0);
+        let c1 = Color::new_8bit(params[3].0);
+        let c2 = Color::new_8bit(params[6].0);
+
+        let v0 = parse_xy(params[1].0);
+        let v1 = parse_xy(params[4].0);
+        let v2 = parse_xy(params[7].0);
+
+        let (clut, uv0) = parse_clut_uv(params[2].0);
+        let (texture, uv1) = parse_page_uv(params[5].0, clut);
+        let uv2 = parse_uv(params[8].0);
+
+        self.renderer.draw_triangle(
+            [v0, v1, v2],
+            DrawOptions {
+                color: ColorOptions::Shaded([c0, c1, c2]),
+                transparent: TRANS,
+                textured: Some((texture, BLEND, [uv0, uv1, uv2])),
+            },
+        );
+
+        if QUAD {
+            let c3 = Color::new_8bit(params[9].0);
+            let v3 = parse_xy(params[10].0);
+            let uv3 = parse_uv(params[11].0);
+            self.renderer.draw_triangle(
+                [v1, v2, v3],
+                DrawOptions {
+                    color: ColorOptions::Shaded([c1, c2, c3]),
                     transparent: TRANS,
                     textured: Some((texture, BLEND, [uv1, uv2, uv3])),
                 },

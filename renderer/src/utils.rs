@@ -215,3 +215,31 @@ impl Texture {
         self.clut.get_color(renderer, clut_index as u8)
     }
 }
+
+#[derive(Debug)]
+pub enum ColorOptions<const SIZE: usize> {
+    Mono(Color),
+    Shaded([Color; SIZE]),
+}
+
+#[derive(Debug)]
+pub struct DrawOptions<const SIZE: usize> {
+    pub color: ColorOptions<SIZE>,
+    pub transparent: bool,
+    pub textured: Option<(Texture, bool, [Vec2; 3])>,
+}
+
+impl DrawOptions<3> {
+    pub fn swap_first_two_vertex(&mut self) {
+        if let ColorOptions::Shaded(ref mut x) = self.color {
+            x.swap(0, 1);
+        }
+        if let Some((_, _, uvs)) = self.textured.as_mut() {
+            uvs.swap(0, 1);
+        }
+    }
+
+    pub fn needs_weights(&self) -> bool {
+        matches!(self.color, ColorOptions::Shaded(_)) || self.textured.is_some()
+    }
+}

@@ -2,7 +2,7 @@ pub mod utils;
 pub mod vec2;
 
 use crate::{
-    utils::{Color, DrawContext, Texture, interpolate_color, interpolate_uv},
+    utils::{Color, ColorOptions, DrawContext, DrawOptions, interpolate_color, interpolate_uv},
     vec2::{Vec2, compute_barycentric_coords, needs_vertex_reordering, point_in_triangle},
 };
 
@@ -232,33 +232,5 @@ impl Renderer {
                 self.vram_write(x as usize, y as usize, color.to_5bit());
             }
         }
-    }
-}
-
-#[derive(Debug)]
-pub enum ColorOptions<const SIZE: usize> {
-    Mono(Color),
-    Shaded([Color; SIZE]),
-}
-
-#[derive(Debug)]
-pub struct DrawOptions<const SIZE: usize> {
-    pub color: ColorOptions<SIZE>,
-    pub transparent: bool,
-    pub textured: Option<(Texture, bool, [Vec2; 3])>,
-}
-
-impl DrawOptions<3> {
-    pub fn swap_first_two_vertex(&mut self) {
-        if let ColorOptions::Shaded(ref mut x) = self.color {
-            x.swap(0, 1);
-        }
-        if let Some((_, _, uvs)) = self.textured.as_mut() {
-            uvs.swap(0, 1);
-        }
-    }
-
-    pub fn needs_weights(&self) -> bool {
-        matches!(self.color, ColorOptions::Shaded(_)) || self.textured.is_some()
     }
 }

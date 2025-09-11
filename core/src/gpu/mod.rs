@@ -230,10 +230,14 @@ impl Gpu {
         GP0State::CopyFromVram(fields)
     }
 
-    #[inline(always)]
     fn process_command(&mut self, data: u32) -> GP0State {
+        // match data >> 29 {
+        //     0b001 => self.process_poly(data),
+        //     0b010 => self.process_line(data),
+        //     0b011 => self.process_rect(data),
+        //     _ => (),
+        // };
         let command = Command(data);
-
         let (color, cmd): (bool, PolyLineFn) = match command.opcode() {
             0x48 => (false, Gpu::gp0_line_mono_poly::<false>),
             0x4a => (false, Gpu::gp0_line_mono_poly::<true>),
@@ -258,6 +262,9 @@ impl Gpu {
                     0x2F => (9, Gpu::gp0_poly_texture::<true, true, false>),
                     0x30 => (6, Gpu::gp0_poly_shaded::<false, false>),
                     0x32 => (6, Gpu::gp0_poly_shaded::<false, true>),
+                    0x34 => (12, Gpu::gp0_poly_texture_shaded::<false, false, true>),
+                    0x3c => (12, Gpu::gp0_poly_texture_shaded::<true, false, true>),
+                    0x3e => (12, Gpu::gp0_poly_texture_shaded::<true, true, true>),
                     0x38 => (8, Gpu::gp0_poly_shaded::<true, false>),
                     0x3A => (8, Gpu::gp0_poly_shaded::<true, true>),
                     0x40 => (3, Gpu::gp0_line_mono::<false>),
