@@ -145,7 +145,6 @@ impl Gpu {
     }
 
     pub fn gp0(&mut self, data: u32) {
-        println!("{data:08x}");
         self.gp0_state = match std::mem::replace(&mut self.gp0_state, GP0State::AwaitCommand) {
             GP0State::AwaitCommand => self.process_command(data),
             GP0State::AwaitArgs(x) => self.process_argument(data, x),
@@ -247,16 +246,16 @@ impl Gpu {
                     0x02 => (3, Gpu::gp0_quick_rect_fill),
                     0x20 => (4, Gpu::gp0_poly_mono::<false, false>),
                     0x22 => (4, Gpu::gp0_poly_mono::<false, true>),
-                    0x24 => (7, Gpu::gp0_triangle_texture_blend_opaque),
-                    0x25 => (7, Gpu::gp0_triangle_texture_raw_opaque),
-                    0x26 => (7, Gpu::gp0_triangle_texture_blend_trans),
-                    0x27 => (7, Gpu::gp0_triangle_texture_raw_trans),
+                    0x24 => (7, Gpu::gp0_poly_texture::<false, false, true>),
+                    0x25 => (7, Gpu::gp0_poly_texture::<false, false, false>),
+                    0x26 => (7, Gpu::gp0_poly_texture::<false, true, true>),
+                    0x27 => (7, Gpu::gp0_poly_texture::<false, true, false>),
                     0x28 => (5, Gpu::gp0_poly_mono::<true, false>),
                     0x2A => (5, Gpu::gp0_poly_mono::<true, true>),
-                    0x2C => (9, Gpu::gp0_quad_texture_blend_opaque),
-                    0x2D => (9, Gpu::gp0_quad_texture_raw_opaque),
-                    0x2E => (9, Gpu::gp0_quad_texture_blend_trans),
-                    0x2F => (9, Gpu::gp0_quad_texture_raw_trans),
+                    0x2C => (9, Gpu::gp0_poly_texture::<true, false, true>),
+                    0x2D => (9, Gpu::gp0_poly_texture::<true, false, false>),
+                    0x2E => (9, Gpu::gp0_poly_texture::<true, true, true>),
+                    0x2F => (9, Gpu::gp0_poly_texture::<true, true, false>),
                     0x30 => (6, Gpu::gp0_poly_shaded::<false, false>),
                     0x32 => (6, Gpu::gp0_poly_shaded::<false, true>),
                     0x38 => (8, Gpu::gp0_poly_shaded::<true, false>),

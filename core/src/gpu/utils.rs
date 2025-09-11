@@ -288,20 +288,20 @@ pub fn parse_xy(data: u32) -> Vec2 {
     Vec2::new(x as i32, y as i32)
 }
 
-pub fn parse_clut_uv(data: u32) -> (Clut, u32, u32) {
-    let (u, v) = parse_uv(data);
+pub fn parse_clut_uv(data: u32) -> (Clut, Vec2) {
+    let uv = parse_uv(data);
     let clut = Clut::new((data >> 16) as u16);
-    (clut, u, v)
+    (clut, uv)
 }
 
-pub fn parse_page_uv(data: u32, clut: Clut) -> (Texture, u32, u32) {
-    let (u, v) = parse_uv(data);
+pub fn parse_page_uv(data: u32, clut: Clut) -> (Texture, Vec2) {
+    let uv = parse_uv(data);
     let texpage = Texture::new((data >> 16) as u16, clut);
-    (texpage, u, v)
+    (texpage, uv)
 }
 
-pub fn parse_uv(data: u32) -> (u32, u32) {
+pub fn parse_uv(data: u32) -> Vec2 {
     let u = data & 0xFF;
     let v = (data >> 8) & 0xFF;
-    (u, v)
+    Vec2::new(u as i32, v as i32)
 }

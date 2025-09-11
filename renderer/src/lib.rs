@@ -264,29 +264,27 @@ impl Renderer {
                     continue;
                 }
 
+                let weights = options
+                    .needs_weights()
+                    .then(|| compute_barycentric_coords(t, p));
+
                 let mut color = match options.color {
                     ColorOptions::Mono(color) => color,
-                    ColorOptions::Shaded(colors) => {
-                        let weights = compute_barycentric_coords(t, p);
-                        let poly_color = interpolate_color(weights, colors);
-
-                        match options.textured {
-                            Some((texture, blended, uvs)) => {
-                                let uv = interpolate_uv(weights, uvs);
-                                let mut tex_color = texture.get_texel(self, uv);
-                                // Fully black texels are ignored
-                                if tex_color.to_5bit() == 0 {
-                                    continue;
-                                }
-                                if blended {
-                                    tex_color.blend(poly_color);
-                                }
-                                tex_color
-                            }
-                            None => poly_color,
-                        }
-                    }
+                    ColorOptions::Shaded(colors) => interpolate_color(weights.unwrap(), colors),
                 };
+
+                if let Some((texture, blended, uvs)) = options.textured {
+                    let uv = interpolate_uv(weights.unwrap(), uvs);
+                    let mut tex_color = texture.get_texel(self, uv);
+                    // Fully black texels are ignored
+                    if tex_color.to_5bit() == 0 {
+                        continue;
+                    }
+                    if blended {
+                        tex_color.blend(color);
+                    }
+                    color = tex_color
+                }
 
                 if self.ctx.dithering {
                     color.apply_dithering(p);
@@ -302,11 +300,13 @@ impl Renderer {
     }
 }
 
+#[derive(Debug)]
 pub enum ColorOptions {
     Mono(Color),
     Shaded([Color; 3]),
 }
 
+#[derive(Debug)]
 pub struct DrawOptions {
     pub color: ColorOptions,
     pub transparent: bool,
@@ -321,5 +321,9 @@ impl DrawOptions {
         if let Some((_, _, uvs)) = self.textured.as_mut() {
             uvs.swap(0, 1);
         }
+    }
+
+    pub fn needs_weights(&self) -> bool {
+        matches!(self.color, ColorOptions::Shaded(_)) || self.textured.is_some()
     }
 }

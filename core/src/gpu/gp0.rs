@@ -148,19 +148,14 @@ impl Gpu {
     // DRAW COMMANDS
     pub fn gp0_quick_rect_fill(&mut self, params: ArrayVec<Command, 16>) -> GP0State {
         let color = Color::new_8bit(params[0].0).to_5bit();
-        let Vec2 { x, y } = parse_xy(params[1].0);
+        let v = parse_xy(params[1].0);
         let Vec2 {
             x: width,
             y: height,
         } = parse_xy(params[2].0);
 
-        self.renderer.draw_rectangle_mono(
-            Vec2::new(x as i32, y as i32),
-            width as i32,
-            height as i32,
-            color,
-            false,
-        );
+        self.renderer
+            .draw_rectangle_mono(v, width, height, color, false);
         GP0State::AwaitCommand
     }
 
@@ -254,71 +249,42 @@ impl Gpu {
         GP0State::AwaitCommand
     }
 
-    pub fn gp0_triangle_texture_raw_opaque(&mut self, params: ArrayVec<Command, 16>) -> GP0State {
-        println!("gp0_triangle_texture_raw_opaque");
-        GP0State::AwaitCommand
-    }
+    pub fn gp0_poly_texture<const QUAD: bool, const TRANS: bool, const BLEND: bool>(
+        &mut self,
+        params: ArrayVec<Command, 16>,
+    ) -> GP0State {
+        let color = Color::new_8bit(params[0].0);
 
-    pub fn gp0_triangle_texture_raw_trans(&mut self, params: ArrayVec<Command, 16>) -> GP0State {
-        println!("gp0_triangle_texture_raw_trans");
-        GP0State::AwaitCommand
-    }
+        let v0 = parse_xy(params[1].0);
+        let v1 = parse_xy(params[3].0);
+        let v2 = parse_xy(params[5].0);
 
-    pub fn gp0_triangle_texture_blend_opaque(&mut self, params: ArrayVec<Command, 16>) -> GP0State {
-        println!("gp0_triangle_texture_blend_opaque");
-        GP0State::AwaitCommand
-    }
+        let (clut, uv0) = parse_clut_uv(params[2].0);
+        let (texture, uv1) = parse_page_uv(params[4].0, clut);
+        let uv2 = parse_uv(params[6].0);
 
-    pub fn gp0_triangle_texture_blend_trans(&mut self, params: ArrayVec<Command, 16>) -> GP0State {
-        println!("gp0_triangle_texture_blend_trans");
-        GP0State::AwaitCommand
-    }
+        self.renderer.draw_triangle(
+            [v0, v1, v2],
+            DrawOptions {
+                color: ColorOptions::Mono(color),
+                transparent: TRANS,
+                textured: Some((texture, BLEND, [uv0, uv1, uv2])),
+            },
+        );
 
-    pub fn gp0_quad_texture_raw_opaque(&mut self, params: ArrayVec<Command, 16>) -> GP0State {
-        println!("gp0_quad_texture_raw_opaque");
-        GP0State::AwaitCommand
-    }
+        if QUAD {
+            let v3 = parse_xy(params[7].0);
+            let uv3 = parse_uv(params[8].0);
+            self.renderer.draw_triangle(
+                [v1, v2, v3],
+                DrawOptions {
+                    color: ColorOptions::Mono(color),
+                    transparent: TRANS,
+                    textured: Some((texture, BLEND, [uv1, uv2, uv3])),
+                },
+            );
+        }
 
-    pub fn gp0_quad_texture_raw_trans(&mut self, params: ArrayVec<Command, 16>) -> GP0State {
-        println!("gp0_quad_texture_raw_trans");
-        GP0State::AwaitCommand
-    }
-
-    pub fn gp0_quad_texture_blend_opaque(&mut self, params: ArrayVec<Command, 16>) -> GP0State {
-        // let (x0, y0) = parse_xy(params[1].0);
-        // let (x1, y1) = parse_xy(params[3].0);
-        // let (x2, y2) = parse_xy(params[5].0);
-        // let (x3, y3) = parse_xy(params[7].0);
-        //
-        // let quad = [
-        //     Vec2::new(x0 as i32, y0 as i32),
-        //     Vec2::new(x1 as i32, y1 as i32),
-        //     Vec2::new(x2 as i32, y2 as i32),
-        //     Vec2::new(x3 as i32, y3 as i32),
-        // ];
-        //
-        // let (clut, u0, v0) = parse_clut_uv(params[2].0);
-        // let (texture, u1, v1) = parse_page_uv(params[4].0, clut);
-        // let (u2, v2) = parse_uv(params[6].0);
-        // let (u3, v3) = parse_uv(params[8].0);
-        //
-        // let color = Color::new_8bit(params[0].0).to_5bit();
-        //
-        // let uvs = [
-        //     Vec2::new(u0 as i32, v0 as i32),
-        //     Vec2::new(u1 as i32, v1 as i32),
-        //     Vec2::new(u2 as i32, v2 as i32),
-        //     Vec2::new(u3 as i32, v3 as i32),
-        // ];
-        //
-        // self.renderer
-        //     .draw_quad_texture(quad, uvs, texture, false, Some(color));
-        println!("gp0_quad_texture_blend_opaque");
-        GP0State::AwaitCommand
-    }
-
-    pub fn gp0_quad_texture_blend_trans(&mut self, params: ArrayVec<Command, 16>) -> GP0State {
-        println!("gp0_quad_texture_blend_trans");
         GP0State::AwaitCommand
     }
 
@@ -367,7 +333,7 @@ impl Gpu {
     }
 
     pub fn gp0_line_poly_mono_opaque(&mut self, vertices: Vec<u32>, colors: Vec<u32>) -> GP0State {
-        let vertices = vertices.into_iter().map(|word| parse_xy(word)).collect();
+        let vertices = vertices.into_iter().map(parse_xy).collect();
 
         let color = Color::new_8bit(colors[0]).to_5bit();
         self.renderer.draw_line_poly_mono(vertices, color, false);
@@ -375,7 +341,7 @@ impl Gpu {
     }
 
     pub fn gp0_line_poly_mono_trans(&mut self, vertices: Vec<u32>, colors: Vec<u32>) -> GP0State {
-        let vertices = vertices.into_iter().map(|word| parse_xy(word)).collect();
+        let vertices = vertices.into_iter().map(parse_xy).collect();
 
         let color = Color::new_8bit(colors[0]).to_5bit();
         self.renderer.draw_line_poly_mono(vertices, color, true);
@@ -387,7 +353,7 @@ impl Gpu {
         vertices: Vec<u32>,
         colors: Vec<u32>,
     ) -> GP0State {
-        let vertices = vertices.into_iter().map(|word| parse_xy(word)).collect();
+        let vertices = vertices.into_iter().map(parse_xy).collect();
 
         let colors = colors
             .into_iter()
@@ -399,7 +365,7 @@ impl Gpu {
     }
 
     pub fn gp0_line_poly_shaded_trans(&mut self, vertices: Vec<u32>, colors: Vec<u32>) -> GP0State {
-        let vertices = vertices.into_iter().map(|word| parse_xy(word)).collect();
+        let vertices = vertices.into_iter().map(parse_xy).collect();
 
         let colors = colors
             .into_iter()
