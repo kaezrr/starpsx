@@ -80,28 +80,21 @@ pub fn point_in_triangle(t: [Vec2; 3], p: Vec2) -> bool {
         .all(|(area, top_left)| area > 0 || (area == 0 && top_left))
 }
 
-pub fn compute_barycentric_coords(t: [Vec2; 3], p: Vec2) -> Option<[f64; 3]> {
+pub fn compute_barycentric_coords(t: [Vec2; 3], p: Vec2) -> [f64; 3] {
     let edges = [
-        (signed_area(t[0], t[1], p), is_top_left(t[0], t[1])), // AB
-        (signed_area(t[1], t[2], p), is_top_left(t[1], t[2])), // BC
-        (signed_area(t[2], t[0], p), is_top_left(t[2], t[0])), // CA
+        signed_area(t[0], t[1], p), // AB
+        signed_area(t[1], t[2], p), // BC
+        signed_area(t[2], t[0], p), // CA
     ];
-
-    if !edges
-        .iter()
-        .all(|&(area, top_left)| area > 0 || (area == 0 && top_left))
-    {
-        return None;
-    }
 
     let denominator = signed_area(t[0], t[1], t[2]);
     if denominator == 0 {
-        return Some([1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0]);
+        return [1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0];
     }
     let denominator = f64::from(denominator);
-    let weight0 = f64::from(edges[1].0) / denominator;
-    let weight1 = f64::from(edges[2].0) / denominator;
-    let weight2 = f64::from(edges[0].0) / denominator;
+    let weight0 = f64::from(edges[1]) / denominator;
+    let weight1 = f64::from(edges[2]) / denominator;
+    let weight2 = f64::from(edges[0]) / denominator;
 
-    Some([weight0, weight1, weight2])
+    [weight0, weight1, weight2]
 }

@@ -49,13 +49,22 @@ impl Color {
         self.b = self.b.saturating_add_signed(offset);
     }
 
-    pub fn blend(&mut self, back: Color, weights: (f64, f64)) {
+    pub fn blend_screen(&mut self, back: Color, weights: (f64, f64)) {
         let b = (f64::from(back.r), f64::from(back.g), f64::from(back.b));
         let f = (f64::from(self.r), f64::from(self.g), f64::from(self.b));
 
         self.r = (b.0 * weights.0 + f.0 * weights.1).round() as u8;
         self.g = (b.1 * weights.0 + f.1 * weights.1).round() as u8;
         self.b = (b.2 * weights.0 + f.2 * weights.1).round() as u8;
+    }
+
+    pub fn blend(&mut self, poly: Color) {
+        let b = (f64::from(poly.r), f64::from(poly.g), f64::from(poly.b));
+        let f = (f64::from(self.r), f64::from(self.g), f64::from(self.b));
+
+        self.r = ((b.0 * f.0) / 128.0).round() as u8;
+        self.g = ((b.1 * f.1) / 128.0).round() as u8;
+        self.b = ((b.2 * f.2) / 128.0).round() as u8;
     }
 
     pub fn lerp(a: Color, b: Color, t: f64) -> Self {
