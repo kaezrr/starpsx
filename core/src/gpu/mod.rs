@@ -124,6 +124,13 @@ impl Default for Gpu {
     }
 }
 
+const OPAQUE: bool = false;
+const SEMI_TRANS: bool = true;
+const BLEND: bool = true;
+const RAW: bool = false;
+const QUAD: bool = true;
+const TRI: bool = false;
+
 impl Gpu {
     pub fn stat(&self) -> u32 {
         let mut ret = self.stat;
@@ -232,58 +239,64 @@ impl Gpu {
     }
 
     fn process_command(&mut self, data: u32) -> GP0State {
-        // match data >> 29 {
-        //     0b001 => self.process_poly(data),
-        //     0b010 => self.process_line(data),
-        //     0b011 => self.process_rect(data),
-        //     _ => (),
-        // };
         let command = Command(data);
         let (color, cmd): (bool, PolyLineFn) = match command.opcode() {
-            0x48 => (false, Gpu::gp0_line_mono_poly::<false>),
-            0x4a => (false, Gpu::gp0_line_mono_poly::<true>),
-            0x58 => (true, Gpu::gp0_line_shaded_poly::<false>),
-            0x5a => (true, Gpu::gp0_line_shaded_poly::<true>),
+            // Polyline
+            0x48 => (false, Gpu::gp0_line_mono_poly::<OPAQUE>),
+            0x4a => (false, Gpu::gp0_line_mono_poly::<SEMI_TRANS>),
+            0x58 => (true, Gpu::gp0_line_shaded_poly::<OPAQUE>),
+            0x5a => (true, Gpu::gp0_line_shaded_poly::<SEMI_TRANS>),
             _ => {
                 let (len, cmd): (usize, CommandFn) = match command.opcode() {
-                    0x00 => (1, Gpu::gp0_nop),
-                    0x01 => (1, Gpu::gp0_clear_cache),
+                    // Polygons Triangles
+                    0x20 => (4, Gpu::gp0_poly_mono::<TRI, OPAQUE>),
+                    0x22 => (4, Gpu::gp0_poly_mono::<TRI, SEMI_TRANS>),
+                    0x30 => (6, Gpu::gp0_poly_shaded::<TRI, OPAQUE>),
+                    0x32 => (6, Gpu::gp0_poly_shaded::<TRI, SEMI_TRANS>),
+                    0x24 => (7, Gpu::gp0_poly_texture::<TRI, OPAQUE, BLEND>),
+                    0x25 => (7, Gpu::gp0_poly_texture::<TRI, OPAQUE, RAW>),
+                    0x26 => (7, Gpu::gp0_poly_texture::<TRI, SEMI_TRANS, BLEND>),
+                    0x27 => (7, Gpu::gp0_poly_texture::<TRI, SEMI_TRANS, RAW>),
+                    0x34 => (9, Gpu::gp0_poly_texture_shaded::<TRI, OPAQUE, BLEND>),
+                    0x36 => (9, Gpu::gp0_poly_texture_shaded::<TRI, SEMI_TRANS, BLEND>),
+
+                    // Polygons Quads
+                    0x28 => (5, Gpu::gp0_poly_mono::<QUAD, OPAQUE>),
+                    0x2A => (5, Gpu::gp0_poly_mono::<QUAD, SEMI_TRANS>),
+                    0x38 => (8, Gpu::gp0_poly_shaded::<QUAD, OPAQUE>),
+                    0x3A => (8, Gpu::gp0_poly_shaded::<QUAD, SEMI_TRANS>),
+                    0x2C => (9, Gpu::gp0_poly_texture::<QUAD, OPAQUE, BLEND>),
+                    0x2D => (9, Gpu::gp0_poly_texture::<QUAD, OPAQUE, RAW>),
+                    0x2E => (9, Gpu::gp0_poly_texture::<QUAD, SEMI_TRANS, BLEND>),
+                    0x2F => (9, Gpu::gp0_poly_texture::<QUAD, SEMI_TRANS, RAW>),
+                    0x3c => (12, Gpu::gp0_poly_texture_shaded::<QUAD, OPAQUE, BLEND>),
+                    0x3e => (12, Gpu::gp0_poly_texture_shaded::<QUAD, SEMI_TRANS, BLEND>),
+
+                    // Single Line
+                    0x40 => (3, Gpu::gp0_line_mono::<OPAQUE>),
+                    0x42 => (3, Gpu::gp0_line_mono::<SEMI_TRANS>),
+                    0x50 => (4, Gpu::gp0_line_shaded::<OPAQUE>),
+                    0x52 => (4, Gpu::gp0_line_shaded::<SEMI_TRANS>),
+
+                    // Rectangle
+                    0x60 => (3, Gpu::gp0_rect_variable::<OPAQUE>),
+                    0x68 => (2, Gpu::gp0_rect_fixed::<1, OPAQUE>),
+                    0x70 => (2, Gpu::gp0_rect_fixed::<8, OPAQUE>),
+                    0x78 => (2, Gpu::gp0_rect_fixed::<16, OPAQUE>),
+                    0x62 => (3, Gpu::gp0_rect_variable::<SEMI_TRANS>),
+                    0x6A => (2, Gpu::gp0_rect_fixed::<1, SEMI_TRANS>),
+                    0x72 => (2, Gpu::gp0_rect_fixed::<8, SEMI_TRANS>),
+                    0x7A => (2, Gpu::gp0_rect_fixed::<16, SEMI_TRANS>),
+
+                    // Transfer
                     0x02 => (3, Gpu::gp0_quick_rect_fill),
-                    0x20 => (4, Gpu::gp0_poly_mono::<false, false>),
-                    0x22 => (4, Gpu::gp0_poly_mono::<false, true>),
-                    0x24 => (7, Gpu::gp0_poly_texture::<false, false, true>),
-                    0x25 => (7, Gpu::gp0_poly_texture::<false, false, false>),
-                    0x26 => (7, Gpu::gp0_poly_texture::<false, true, true>),
-                    0x27 => (7, Gpu::gp0_poly_texture::<false, true, false>),
-                    0x28 => (5, Gpu::gp0_poly_mono::<true, false>),
-                    0x2A => (5, Gpu::gp0_poly_mono::<true, true>),
-                    0x2C => (9, Gpu::gp0_poly_texture::<true, false, true>),
-                    0x2D => (9, Gpu::gp0_poly_texture::<true, false, false>),
-                    0x2E => (9, Gpu::gp0_poly_texture::<true, true, true>),
-                    0x2F => (9, Gpu::gp0_poly_texture::<true, true, false>),
-                    0x30 => (6, Gpu::gp0_poly_shaded::<false, false>),
-                    0x32 => (6, Gpu::gp0_poly_shaded::<false, true>),
-                    0x34 => (9, Gpu::gp0_poly_texture_shaded::<false, false, true>),
-                    0x36 => (9, Gpu::gp0_poly_texture_shaded::<false, true, true>),
-                    0x3c => (12, Gpu::gp0_poly_texture_shaded::<true, false, true>),
-                    0x3e => (12, Gpu::gp0_poly_texture_shaded::<true, true, true>),
-                    0x38 => (8, Gpu::gp0_poly_shaded::<true, false>),
-                    0x3A => (8, Gpu::gp0_poly_shaded::<true, true>),
-                    0x40 => (3, Gpu::gp0_line_mono::<false>),
-                    0x42 => (3, Gpu::gp0_line_mono::<true>),
-                    0x50 => (4, Gpu::gp0_line_shaded::<false>),
-                    0x52 => (4, Gpu::gp0_line_shaded::<true>),
-                    0x60 => (3, Gpu::gp0_rect_variable::<false>),
-                    0x62 => (3, Gpu::gp0_rect_variable::<true>),
-                    0x68 => (2, Gpu::gp0_rect_fixed::<1, false>),
-                    0x6A => (2, Gpu::gp0_rect_fixed::<1, true>),
-                    0x70 => (2, Gpu::gp0_rect_fixed::<8, false>),
-                    0x72 => (2, Gpu::gp0_rect_fixed::<8, true>),
-                    0x78 => (2, Gpu::gp0_rect_fixed::<16, false>),
-                    0x7A => (2, Gpu::gp0_rect_fixed::<16, true>),
                     0x80 => (4, Gpu::gp0_vram_to_vram_blit),
                     0xA0 => (3, Gpu::gp0_image_load),
                     0xC0 => (3, Gpu::gp0_image_store),
+
+                    // Environment
+                    0x00 => (1, Gpu::gp0_nop),
+                    0x01 => (1, Gpu::gp0_clear_cache),
                     0xE1 => (1, Gpu::gp0_draw_mode),
                     0xE2 => (1, Gpu::gp0_texture_window),
                     0xE3 => (1, Gpu::gp0_drawing_area_top_left),

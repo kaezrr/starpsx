@@ -180,7 +180,7 @@ impl Gpu {
         GP0State::AwaitCommand
     }
 
-    pub fn gp0_poly_mono<const QUAD: bool, const TRANS: bool>(
+    pub fn gp0_poly_mono<const QUAD: bool, const SEMI_TRANS: bool>(
         &mut self,
         params: ArrayVec<Command, 16>,
     ) -> GP0State {
@@ -194,7 +194,7 @@ impl Gpu {
             [v0, v1, v2],
             DrawOptions {
                 color: ColorOptions::Mono(color),
-                transparent: TRANS,
+                transparent: SEMI_TRANS,
                 textured: None,
             },
         );
@@ -205,7 +205,7 @@ impl Gpu {
                 [v1, v2, v3],
                 DrawOptions {
                     color: ColorOptions::Mono(color),
-                    transparent: TRANS,
+                    transparent: SEMI_TRANS,
                     textured: None,
                 },
             );
@@ -214,7 +214,7 @@ impl Gpu {
         GP0State::AwaitCommand
     }
 
-    pub fn gp0_poly_shaded<const QUAD: bool, const TRANS: bool>(
+    pub fn gp0_poly_shaded<const QUAD: bool, const SEMI_TRANS: bool>(
         &mut self,
         params: ArrayVec<Command, 16>,
     ) -> GP0State {
@@ -230,7 +230,7 @@ impl Gpu {
             [v0, v1, v2],
             DrawOptions {
                 color: ColorOptions::Shaded([c0, c1, c2]),
-                transparent: TRANS,
+                transparent: SEMI_TRANS,
                 textured: None,
             },
         );
@@ -242,7 +242,7 @@ impl Gpu {
                 [v1, v2, v3],
                 DrawOptions {
                     color: ColorOptions::Shaded([c1, c2, c3]),
-                    transparent: TRANS,
+                    transparent: SEMI_TRANS,
                     textured: None,
                 },
             );
@@ -251,11 +251,11 @@ impl Gpu {
         GP0State::AwaitCommand
     }
 
-    pub fn gp0_poly_texture<const QUAD: bool, const TRANS: bool, const BLEND: bool>(
+    pub fn gp0_poly_texture<const QUAD: bool, const SEMI_TRANS: bool, const BLEND: bool>(
         &mut self,
         params: ArrayVec<Command, 16>,
     ) -> GP0State {
-        println!("TEXTURE {TRANS}");
+        println!("TEXTURE {SEMI_TRANS}");
         let color = Color::new_5bit(params[0].0);
 
         let v0 = parse_xy(params[1].0);
@@ -270,7 +270,7 @@ impl Gpu {
             [v0, v1, v2],
             DrawOptions {
                 color: ColorOptions::Mono(color),
-                transparent: TRANS,
+                transparent: SEMI_TRANS,
                 textured: Some((texture, BLEND, [uv0, uv1, uv2])),
             },
         );
@@ -282,7 +282,7 @@ impl Gpu {
                 [v1, v2, v3],
                 DrawOptions {
                     color: ColorOptions::Mono(color),
-                    transparent: TRANS,
+                    transparent: SEMI_TRANS,
                     textured: Some((texture, BLEND, [uv1, uv2, uv3])),
                 },
             );
@@ -291,11 +291,11 @@ impl Gpu {
         GP0State::AwaitCommand
     }
 
-    pub fn gp0_poly_texture_shaded<const QUAD: bool, const TRANS: bool, const BLEND: bool>(
+    pub fn gp0_poly_texture_shaded<const QUAD: bool, const SEMI_TRANS: bool, const BLEND: bool>(
         &mut self,
         params: ArrayVec<Command, 16>,
     ) -> GP0State {
-        println!("TEXTURE SHADED {TRANS}");
+        println!("TEXTURE SHADED {SEMI_TRANS}");
         let c0 = Color::new_5bit(params[0].0);
         let c1 = Color::new_5bit(params[3].0);
         let c2 = Color::new_5bit(params[6].0);
@@ -312,7 +312,7 @@ impl Gpu {
             [v0, v1, v2],
             DrawOptions {
                 color: ColorOptions::Shaded([c0, c1, c2]),
-                transparent: TRANS,
+                transparent: SEMI_TRANS,
                 textured: Some((texture, BLEND, [uv0, uv1, uv2])),
             },
         );
@@ -325,7 +325,7 @@ impl Gpu {
                 [v1, v2, v3],
                 DrawOptions {
                     color: ColorOptions::Shaded([c1, c2, c3]),
-                    transparent: TRANS,
+                    transparent: SEMI_TRANS,
                     textured: Some((texture, BLEND, [uv1, uv2, uv3])),
                 },
             );
@@ -334,7 +334,10 @@ impl Gpu {
         GP0State::AwaitCommand
     }
 
-    pub fn gp0_line_mono<const TRANS: bool>(&mut self, params: ArrayVec<Command, 16>) -> GP0State {
+    pub fn gp0_line_mono<const SEMI_TRANS: bool>(
+        &mut self,
+        params: ArrayVec<Command, 16>,
+    ) -> GP0State {
         let v0 = parse_xy(params[1].0);
         let v1 = parse_xy(params[2].0);
         let color = Color::new_5bit(params[0].0);
@@ -343,14 +346,14 @@ impl Gpu {
             [v0, v1],
             DrawOptions {
                 color: ColorOptions::Mono(color),
-                transparent: TRANS,
+                transparent: SEMI_TRANS,
                 textured: None,
             },
         );
         GP0State::AwaitCommand
     }
 
-    pub fn gp0_line_shaded<const TRANS: bool>(
+    pub fn gp0_line_shaded<const SEMI_TRANS: bool>(
         &mut self,
         params: ArrayVec<Command, 16>,
     ) -> GP0State {
@@ -364,14 +367,14 @@ impl Gpu {
             [v0, v1],
             DrawOptions {
                 color: ColorOptions::Shaded([c0, c1]),
-                transparent: TRANS,
+                transparent: SEMI_TRANS,
                 textured: None,
             },
         );
         GP0State::AwaitCommand
     }
 
-    pub fn gp0_line_mono_poly<const TRANS: bool>(
+    pub fn gp0_line_mono_poly<const SEMI_TRANS: bool>(
         &mut self,
         vertices: Vec<u32>,
         colors: Vec<u32>,
@@ -384,7 +387,7 @@ impl Gpu {
                 [vertices[i - 1], vertices[i]],
                 DrawOptions {
                     color: ColorOptions::Mono(color),
-                    transparent: TRANS,
+                    transparent: SEMI_TRANS,
                     textured: None,
                 },
             );
@@ -392,7 +395,7 @@ impl Gpu {
         GP0State::AwaitCommand
     }
 
-    pub fn gp0_line_shaded_poly<const TRANS: bool>(
+    pub fn gp0_line_shaded_poly<const SEMI_TRANS: bool>(
         &mut self,
         vertices: Vec<u32>,
         colors: Vec<u32>,
@@ -405,7 +408,7 @@ impl Gpu {
                 [vertices[i - 1], vertices[i]],
                 DrawOptions {
                     color: ColorOptions::Shaded([colors[i - 1], colors[i]]),
-                    transparent: TRANS,
+                    transparent: SEMI_TRANS,
                     textured: None,
                 },
             );
@@ -413,18 +416,18 @@ impl Gpu {
         GP0State::AwaitCommand
     }
 
-    pub fn gp0_rect_fixed<const SIDE: i32, const TRANS: bool>(
+    pub fn gp0_rect_fixed<const SIDE: i32, const SEMI_TRANS: bool>(
         &mut self,
         params: ArrayVec<Command, 16>,
     ) -> GP0State {
         let color = Color::new_8bit(params[0].0).to_5bit();
         let v = parse_xy(params[1].0);
         self.renderer
-            .draw_rectangle_mono(v, SIDE, SIDE, color, TRANS);
+            .draw_rectangle_mono(v, SIDE, SIDE, color, SEMI_TRANS);
         GP0State::AwaitCommand
     }
 
-    pub fn gp0_rect_variable<const TRANS: bool>(
+    pub fn gp0_rect_variable<const SEMI_TRANS: bool>(
         &mut self,
         params: ArrayVec<Command, 16>,
     ) -> GP0State {
@@ -436,7 +439,7 @@ impl Gpu {
         } = parse_xy(params[2].0);
 
         self.renderer
-            .draw_rectangle_mono(v, width, height, color, TRANS);
+            .draw_rectangle_mono(v, width, height, color, SEMI_TRANS);
 
         GP0State::AwaitCommand
     }
