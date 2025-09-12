@@ -208,13 +208,12 @@ impl Texture {
         }
     }
 
-    pub fn get_texel(&self, renderer: &Renderer, p: Vec2) -> Color {
-        let val = match self.depth {
+    pub fn get_texel(&self, renderer: &Renderer, p: Vec2) -> u16 {
+        match self.depth {
             PageColor::Bit4 => self.get_texel_4bit(renderer, p),
             PageColor::Bit8 => self.get_texel_8bit(renderer, p),
             PageColor::Bit15 => self.get_texel_16bit(renderer, p),
-        };
-        Color::new_5bit(val)
+        }
     }
 
     fn get_texel_16bit(&self, renderer: &Renderer, p: Vec2) -> u16 {

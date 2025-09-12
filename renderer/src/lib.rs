@@ -213,11 +213,12 @@ impl Renderer {
 
                 if let Some((texture, blended, uvs)) = options.textured {
                     let uv = interpolate_uv(weights.unwrap(), uvs);
-                    let mut tex_color = texture.get_texel(self, uv);
+                    let texel = texture.get_texel(self, uv);
                     // Fully black texels are ignored
-                    if tex_color.to_5bit() == 0 {
+                    if texel == 0 {
                         continue;
                     }
+                    let mut tex_color = Color::new_5bit(texel);
                     if blended {
                         tex_color.blend(color);
                     }
