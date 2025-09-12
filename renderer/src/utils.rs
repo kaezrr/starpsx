@@ -16,13 +16,36 @@ const DITHER_TABLE: [[i8; 4]; 4] = [
     [3, -1, 2, -2],
 ];
 
-impl Color {
-    pub fn new_5bit(pixel: u16) -> Self {
-        let r = convert_5bit_to_8bit(pixel & 0x1F);
-        let g = convert_5bit_to_8bit((pixel >> 5) & 0x1F);
-        let b = convert_5bit_to_8bit((pixel >> 10) & 0x1F);
+pub trait From5Bit {
+    fn to_color(self) -> Color;
+}
 
-        Self { r, g, b, a: 0 }
+impl From5Bit for u16 {
+    fn to_color(self) -> Color {
+        let r = convert_5bit_to_8bit(self & 0x1F);
+        let g = convert_5bit_to_8bit((self >> 5) & 0x1F);
+        let b = convert_5bit_to_8bit((self >> 10) & 0x1F);
+        Color { r, g, b, a: 0 }
+    }
+}
+
+impl From5Bit for u32 {
+    fn to_color(self) -> Color {
+        let r = (self & 0xFF) as u16;
+        let g = ((self >> 8) & 0xFF) as u16;
+        let b = ((self >> 16) & 0xFF) as u16;
+
+        let r = convert_5bit_to_8bit(r >> 3);
+        let g = convert_5bit_to_8bit(g >> 3);
+        let b = convert_5bit_to_8bit(b >> 3);
+
+        Color { r, g, b, a: 0 }
+    }
+}
+
+impl Color {
+    pub fn new_5bit<T: From5Bit>(pixel: T) -> Self {
+        pixel.to_color()
     }
 
     pub fn new_8bit(pixel: u32) -> Self {
@@ -171,7 +194,7 @@ impl Texture {
     pub fn new(data: u16, clut: Clut) -> Self {
         let base_x = ((data & 0xF) << 6).into();
         let base_y = (((data >> 4) & 1) << 8).into();
-        let depth = match (data >> 6) & 3 {
+        let depth = match (data >> 7) & 3 {
             0 => PageColor::Bit4,
             1 => PageColor::Bit8,
             2 => PageColor::Bit15,

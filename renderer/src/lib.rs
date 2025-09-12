@@ -23,6 +23,13 @@ impl Default for Renderer {
             vram: Box::new([0; VRAM_SIZE]),
             pixel_buffer: Box::new([Color::default(); VRAM_SIZE]),
         }
+
+        // FOR TESTING
+        // renderer.ctx.transparency_weights = (0.5, 0.5);
+        // renderer.ctx.drawing_area_top_left = Vec2::zero();
+        // renderer.ctx.drawing_area_bottom_right = Vec2::new(1023, 511);
+        // renderer.ctx.display_vram_start = Vec2::zero();
+        // renderer.ctx.resolution = Vec2::new(1024, 512);
     }
 }
 
@@ -59,10 +66,6 @@ impl Renderer {
     }
 
     pub fn copy_vram_to_fb(&mut self) {
-        // let sx = 0;
-        // let sy = 0;
-        // let width = 1024;
-        // let height = 512;
         let sx = self.ctx.display_vram_start.x as usize;
         let sy = self.ctx.display_vram_start.y as usize;
 
@@ -221,12 +224,13 @@ impl Renderer {
                     color = tex_color
                 }
 
-                if self.ctx.dithering {
-                    color.apply_dithering(p);
-                }
                 if options.transparent {
                     let old = self.vram_read(x as usize, y as usize);
                     color.blend_screen(Color::new_5bit(old), self.ctx.transparency_weights);
+                }
+
+                if self.ctx.dithering {
+                    color.apply_dithering(p);
                 }
 
                 self.vram_write(x as usize, y as usize, color.to_5bit());

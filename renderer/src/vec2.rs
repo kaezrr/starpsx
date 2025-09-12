@@ -42,14 +42,6 @@ impl Vec2 {
     pub fn dot(self, other: Vec2) -> i32 {
         self.x * other.x + self.y * other.y
     }
-
-    // Return a 90 degrees clockwise rotated vector
-    pub fn perpendicular(self) -> Self {
-        Self {
-            x: self.y,
-            y: -self.x,
-        }
-    }
 }
 
 // Test that vertices v0, v1, v2 are in clockwise order
@@ -64,8 +56,9 @@ fn signed_area(a: Vec2, b: Vec2, p: Vec2) -> i32 {
     ap.x * ab.y - ab.x * ap.y
 }
 
+// Test if edge AB is a top or left edge
 fn is_top_left(a: Vec2, b: Vec2) -> bool {
-    if a.y == b.y { a.x < b.x } else { a.y < b.y }
+    if a.y == b.y { a.x > b.x } else { a.y < b.y }
 }
 
 // Test if a point is inside triangle ABC
@@ -89,12 +82,12 @@ pub fn compute_barycentric_coords(t: [Vec2; 3], p: Vec2) -> [f64; 3] {
 
     let denominator = signed_area(t[0], t[1], t[2]);
     if denominator == 0 {
-        return [1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0];
+        return [0.33, 0.33, 0.33];
     }
     let denominator = f64::from(denominator);
     let weight0 = f64::from(edges[1]) / denominator;
     let weight1 = f64::from(edges[2]) / denominator;
-    let weight2 = f64::from(edges[0]) / denominator;
+    let weight2 = 1.0 - weight1 - weight0;
 
     [weight0, weight1, weight2]
 }

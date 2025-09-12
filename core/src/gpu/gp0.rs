@@ -184,7 +184,7 @@ impl Gpu {
         &mut self,
         params: ArrayVec<Command, 16>,
     ) -> GP0State {
-        let color = Color::new_8bit(params[0].0);
+        let color = Color::new_5bit(params[0].0);
 
         let v0 = parse_xy(params[1].0);
         let v1 = parse_xy(params[2].0);
@@ -222,9 +222,9 @@ impl Gpu {
         let v1 = parse_xy(params[3].0);
         let v2 = parse_xy(params[5].0);
 
-        let c0 = Color::new_8bit(params[0].0);
-        let c1 = Color::new_8bit(params[2].0);
-        let c2 = Color::new_8bit(params[4].0);
+        let c0 = Color::new_5bit(params[0].0);
+        let c1 = Color::new_5bit(params[2].0);
+        let c2 = Color::new_5bit(params[4].0);
 
         self.renderer.draw_triangle(
             [v0, v1, v2],
@@ -237,7 +237,7 @@ impl Gpu {
 
         if QUAD {
             let v3 = parse_xy(params[7].0);
-            let c3 = Color::new_8bit(params[6].0);
+            let c3 = Color::new_5bit(params[6].0);
             self.renderer.draw_triangle(
                 [v1, v2, v3],
                 DrawOptions {
@@ -255,7 +255,7 @@ impl Gpu {
         &mut self,
         params: ArrayVec<Command, 16>,
     ) -> GP0State {
-        let color = Color::new_8bit(params[0].0);
+        let color = Color::new_5bit(params[0].0);
 
         let v0 = parse_xy(params[1].0);
         let v1 = parse_xy(params[3].0);
@@ -294,9 +294,9 @@ impl Gpu {
         &mut self,
         params: ArrayVec<Command, 16>,
     ) -> GP0State {
-        let c0 = Color::new_8bit(params[0].0);
-        let c1 = Color::new_8bit(params[3].0);
-        let c2 = Color::new_8bit(params[6].0);
+        let c0 = Color::new_5bit(params[0].0);
+        let c1 = Color::new_5bit(params[3].0);
+        let c2 = Color::new_5bit(params[6].0);
 
         let v0 = parse_xy(params[1].0);
         let v1 = parse_xy(params[4].0);
@@ -316,7 +316,7 @@ impl Gpu {
         );
 
         if QUAD {
-            let c3 = Color::new_8bit(params[9].0);
+            let c3 = Color::new_5bit(params[9].0);
             let v3 = parse_xy(params[10].0);
             let uv3 = parse_uv(params[11].0);
             self.renderer.draw_triangle(
@@ -335,7 +335,7 @@ impl Gpu {
     pub fn gp0_line_mono<const TRANS: bool>(&mut self, params: ArrayVec<Command, 16>) -> GP0State {
         let v0 = parse_xy(params[1].0);
         let v1 = parse_xy(params[2].0);
-        let color = Color::new_8bit(params[0].0);
+        let color = Color::new_5bit(params[0].0);
 
         self.renderer.draw_line(
             [v0, v1],
@@ -355,8 +355,8 @@ impl Gpu {
         let v0 = parse_xy(params[1].0);
         let v1 = parse_xy(params[3].0);
 
-        let c0 = Color::new_8bit(params[0].0);
-        let c1 = Color::new_8bit(params[2].0);
+        let c0 = Color::new_5bit(params[0].0);
+        let c1 = Color::new_5bit(params[2].0);
 
         self.renderer.draw_line(
             [v0, v1],
@@ -375,7 +375,7 @@ impl Gpu {
         colors: Vec<u32>,
     ) -> GP0State {
         let vertices: Vec<Vec2> = vertices.into_iter().map(parse_xy).collect();
-        let color = Color::new_8bit(colors[0]);
+        let color = Color::new_5bit(colors[0]);
 
         for i in 1..vertices.len() {
             self.renderer.draw_line(
@@ -396,7 +396,7 @@ impl Gpu {
         colors: Vec<u32>,
     ) -> GP0State {
         let vertices: Vec<Vec2> = vertices.into_iter().map(parse_xy).collect();
-        let colors: Vec<Color> = colors.into_iter().map(Color::new_8bit).collect();
+        let colors: Vec<Color> = colors.into_iter().map(Color::new_5bit).collect();
 
         for i in 1..vertices.len() {
             self.renderer.draw_line(
