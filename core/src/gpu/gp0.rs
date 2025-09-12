@@ -255,6 +255,7 @@ impl Gpu {
         &mut self,
         params: ArrayVec<Command, 16>,
     ) -> GP0State {
+        println!("TEXTURE {TRANS}");
         let color = Color::new_5bit(params[0].0);
 
         let v0 = parse_xy(params[1].0);
@@ -294,6 +295,7 @@ impl Gpu {
         &mut self,
         params: ArrayVec<Command, 16>,
     ) -> GP0State {
+        println!("TEXTURE SHADED {TRANS}");
         let c0 = Color::new_5bit(params[0].0);
         let c1 = Color::new_5bit(params[3].0);
         let c2 = Color::new_5bit(params[6].0);
