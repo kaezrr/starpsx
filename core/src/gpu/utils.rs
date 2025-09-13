@@ -129,31 +129,6 @@ impl From<VMode> for u8 {
     }
 }
 
-/// Display color bits per pixel
-pub enum DisplayDepth {
-    D15,
-    D24,
-}
-
-impl From<u8> for DisplayDepth {
-    fn from(v: u8) -> Self {
-        match v {
-            0 => Self::D15,
-            1 => Self::D24,
-            _ => unreachable!(),
-        }
-    }
-}
-
-impl From<DisplayDepth> for u8 {
-    fn from(v: DisplayDepth) -> Self {
-        match v {
-            DisplayDepth::D15 => 0,
-            DisplayDepth::D24 => 1,
-        }
-    }
-}
-
 /// Requested DMA direction
 pub enum DmaDirection {
     Off,

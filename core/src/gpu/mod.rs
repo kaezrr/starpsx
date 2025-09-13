@@ -3,11 +3,11 @@ mod gp1;
 mod utils;
 
 use arrayvec::ArrayVec;
-use starpsx_renderer::Renderer;
+use starpsx_renderer::{Renderer, utils::DisplayDepth};
 
 use utils::{
-    CommandArguments, CommandFn, DisplayDepth, DmaDirection, Field, GP0State, HorizontalRes,
-    PolyLineArguments, TextureDepth, VMode, VerticalRes, VramCopyFields,
+    CommandArguments, CommandFn, DmaDirection, Field, GP0State, HorizontalRes, PolyLineArguments,
+    TextureDepth, VMode, VerticalRes, VramCopyFields,
 };
 
 use crate::gpu::utils::PolyLineFn;

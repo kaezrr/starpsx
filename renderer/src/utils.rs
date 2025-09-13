@@ -137,6 +137,8 @@ pub struct DrawContext {
 
     pub preserve_masked_pixels: bool,
     pub force_set_masked_bit: bool,
+
+    pub display_depth: DisplayDepth,
 }
 
 impl DrawContext {
@@ -278,5 +280,32 @@ impl DrawOptions<3> {
 
     pub fn needs_weights(&self) -> bool {
         matches!(self.color, ColorOptions::Shaded(_)) || self.textured.is_some()
+    }
+}
+
+/// Display color bits per pixel
+#[derive(Default, Debug, Clone, Copy)]
+pub enum DisplayDepth {
+    #[default]
+    D15,
+    D24,
+}
+
+impl From<u8> for DisplayDepth {
+    fn from(v: u8) -> Self {
+        match v {
+            0 => Self::D15,
+            1 => Self::D24,
+            _ => unreachable!(),
+        }
+    }
+}
+
+impl From<DisplayDepth> for u8 {
+    fn from(v: DisplayDepth) -> Self {
+        match v {
+            DisplayDepth::D15 => 0,
+            DisplayDepth::D24 => 1,
+        }
     }
 }

@@ -72,10 +72,41 @@ impl Renderer {
         let width = self.ctx.resolution.x as usize;
         let height = self.ctx.resolution.y as usize;
 
-        for y in 0..height {
-            for x in 0..width {
-                let pixel = self.vram_read(sx + x, sy + y);
-                self.pixel_buffer[width * y + x] = Color::new_5bit(pixel);
+        match self.ctx.display_depth {
+            utils::DisplayDepth::D15 => {
+                for y in 0..height {
+                    for x in 0..width {
+                        let pixel = self.vram_read(sx + x, sy + y);
+                        self.pixel_buffer[width * y + x] = Color::new_5bit(pixel);
+                    }
+                }
+            }
+            utils::DisplayDepth::D24 => {
+                let mut vram_x = 0;
+                for y in 0..height {
+                    for x in (0..width).step_by(2) {
+                        let w0 = self.vram_read(sx + vram_x, sy + y);
+                        let w1 = self.vram_read(sx + vram_x + 1, sy + y);
+                        let w2 = self.vram_read(sx + vram_x + 2, sy + y);
+
+                        let r0 = (w0 & 0xFF) as u8;
+                        let g0 = (w0 >> 8) as u8;
+                        let b0 = (w1 & 0xFF) as u8;
+
+                        let r1 = (w1 >> 8) as u8;
+                        let g1 = (w2 & 0xFF) as u8;
+                        let b1 = (w2 >> 8) as u8;
+
+                        let pixel0 = u32::from_le_bytes([r0, g0, b0, 0]);
+                        let pixel1 = u32::from_le_bytes([r1, g1, b1, 0]);
+
+                        self.pixel_buffer[width * y + x] = Color::new_8bit(pixel0);
+                        self.pixel_buffer[width * y + x + 1] = Color::new_8bit(pixel1);
+
+                        vram_x += 3; // 3 words per 2 pixels
+                    }
+                    vram_x = 0;
+                }
             }
         }
     }

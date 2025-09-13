@@ -20,6 +20,7 @@ impl Gpu {
 
         let (x, y) = self.get_resolution();
         self.renderer.ctx.resolution = Vec2::new(x as i32, y as i32);
+        self.renderer.ctx.display_depth = command.display_depth();
 
         if command.flip_screen() {
             panic!("Flip screen bit not supported!");
