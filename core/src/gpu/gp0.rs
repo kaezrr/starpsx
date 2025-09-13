@@ -30,8 +30,6 @@ impl Gpu {
             .set_texture_disable(params[0].texture_disable());
 
         self.renderer.ctx.rect_texture = Texture::new(params[0].0 as u16, None);
-        self.renderer.ctx.texture_rect_x_flip = params[0].texture_rect_x_flip();
-        self.renderer.ctx.texture_rect_y_flip = params[0].texture_rect_y_flip();
         self.renderer.ctx.dithering = self.gpu_stat.dithering();
         self.renderer.ctx.transparency_weights = match self.gpu_stat.semi_transparency() {
             0 => (0.5, 0.5),

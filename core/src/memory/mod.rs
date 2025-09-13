@@ -248,7 +248,6 @@ impl Bus {
         }
 
         if let Some(offs) = map::DMA.contains(masked) {
-            eprintln!("DMA write: {offs:x}");
             if let Some(port) = self.dma.set_reg(offs, data) {
                 self.do_dma(port);
             }

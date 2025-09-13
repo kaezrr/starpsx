@@ -120,8 +120,6 @@ pub struct DrawContext {
     pub drawing_area_bottom_right: Vec2,
     pub drawing_area_offset: Vec2,
 
-    pub texture_rect_x_flip: bool,
-    pub texture_rect_y_flip: bool,
     pub dithering: bool,
     pub transparency_weights: (f64, f64),
 
@@ -226,6 +224,21 @@ impl Texture {
     }
 
     pub fn get_texel(&self, renderer: &Renderer, p: Vec2) -> u16 {
+        let Vec2 {
+            x: x_mask,
+            y: y_mask,
+        } = renderer.ctx.texture_window_mask;
+        let Vec2 {
+            x: x_offset,
+            y: y_offset,
+        } = renderer.ctx.texture_window_offset;
+
+        // Calculate new texcoords based on some offsets and masks
+        let p = Vec2::new(
+            (p.x & (!(x_mask * 8))) | ((x_offset & x_mask) * 8),
+            (p.y & (!(y_mask * 8))) | ((y_offset & y_mask) * 8),
+        );
+
         match self.depth {
             PageColor::Bit4 => self.get_texel_4bit(renderer, p),
             PageColor::Bit8 => self.get_texel_8bit(renderer, p),

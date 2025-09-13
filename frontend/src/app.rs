@@ -104,6 +104,7 @@ impl AppState {
         buffer.present().unwrap();
     }
 
+    #[allow(dead_code)]
     fn draw_vram_to_screen(&mut self) {
         let (width, height) = (1024, 512);
         self.surface
