@@ -2,7 +2,9 @@ pub mod utils;
 pub mod vec2;
 
 use crate::{
-    utils::{Color, ColorOptions, DrawContext, DrawOptions, interpolate_color, interpolate_uv},
+    utils::{
+        Clut, Color, ColorOptions, DrawContext, DrawOptions, interpolate_color, interpolate_uv,
+    },
     vec2::{Vec2, compute_barycentric_coords, needs_vertex_reordering, point_in_triangle},
 };
 
@@ -23,13 +25,6 @@ impl Default for Renderer {
             vram: Box::new([0; VRAM_SIZE]),
             pixel_buffer: Box::new([Color::default(); VRAM_SIZE]),
         }
-
-        // FOR TESTING
-        // renderer.ctx.transparency_weights = (0.5, 0.5);
-        // renderer.ctx.drawing_area_top_left = Vec2::zero();
-        // renderer.ctx.drawing_area_bottom_right = Vec2::new(1023, 511);
-        // renderer.ctx.display_vram_start = Vec2::zero();
-        // renderer.ctx.resolution = Vec2::new(1024, 512);
     }
 }
 
@@ -48,6 +43,7 @@ impl Renderer {
         self.vram[index] = data;
     }
 
+    // Should be affected by mask bit, fix in the future
     pub fn vram_self_copy(
         &mut self,
         src_x: usize,
@@ -69,7 +65,7 @@ impl Renderer {
         bytemuck::cast_slice(self.pixel_buffer.as_ref())
     }
 
-    pub fn copy_vram_to_fb(&mut self) {
+    pub fn copy_display_to_fb(&mut self) {
         let sx = self.ctx.display_vram_start.x as usize;
         let sy = self.ctx.display_vram_start.y as usize;
 
@@ -84,6 +80,21 @@ impl Renderer {
         }
     }
 
+    pub fn copy_vram_to_fb(&mut self) {
+        let sx = 0;
+        let sy = 0;
+        let width = 1024;
+        let height = 512;
+
+        for y in 0..height {
+            for x in 0..width {
+                let pixel = self.vram_read(sx + x, sy + y);
+                self.pixel_buffer[width * y + x] = Color::new_5bit(pixel);
+            }
+        }
+    }
+
+    // Don't reuse the rectangle drawer for this because this isn't affected by masked bit
     pub fn vram_quick_fill(&mut self, r: Vec2, side_x: i32, side_y: i32, color: Color) {
         let min_x = r.x;
         let min_y = r.y;
@@ -104,13 +115,13 @@ impl Renderer {
     }
 
     // BEWARE OF OFF BY ONE ERRORS!!!
-    pub fn draw_rectangle_mono(
+    pub fn draw_rectangle_mono<const SEMI_TRANS: bool>(
         &mut self,
         r: Vec2,
         side_x: i32,
         side_y: i32,
         color: Color,
-        trans: bool,
+        textured: Option<(Clut, bool, Vec2)>,
     ) {
         let min_x = r.x;
         let min_y = r.y;
@@ -122,17 +133,42 @@ impl Renderer {
         let max_x = std::cmp::min(max_x, self.ctx.drawing_area_bottom_right.x);
         let max_y = std::cmp::min(max_y, self.ctx.drawing_area_bottom_right.y);
 
+        if let Some((clut, _, _)) = textured {
+            self.ctx.rect_texture.set_clut(clut);
+        }
+
         for x in min_x..=max_x {
             for y in min_y..=max_y {
                 let mut color = color;
-                if trans {
+
+                if let Some((_, blended, start_uv)) = textured {
+                    let uv = start_uv + Vec2::new(x - min_x, y - min_y);
+                    let texel = self.ctx.rect_texture.get_texel(self, uv);
+                    // Fully black texels are ignored
+                    if texel == 0 {
+                        continue;
+                    }
+                    let mut tex_color = Color::new_5bit(texel);
+                    if blended {
+                        tex_color.blend(color);
+                    }
+                    color = tex_color
+                }
+
+                if SEMI_TRANS {
                     let old = self.vram_read(x as usize, y as usize);
                     color.blend_screen(Color::new_5bit(old), self.ctx.transparency_weights);
                 }
+
                 self.vram_write(
                     x as usize,
                     y as usize,
-                    color.to_5bit((self.ctx.force_set_masked_bit).then_some(true)),
+                    color.to_5bit(
+                        self.ctx
+                            .force_set_masked_bit
+                            .then_some(true)
+                            .or_else(|| textured.is_none().then_some(false)),
+                    ),
                 );
             }
         }

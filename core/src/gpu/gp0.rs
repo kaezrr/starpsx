@@ -1,5 +1,6 @@
 use super::utils::{parse_clut_uv, parse_page_uv, parse_uv, parse_xy};
 use super::*;
+use starpsx_renderer::utils::Texture;
 use starpsx_renderer::{
     utils::{Color, ColorOptions, DrawOptions},
     vec2::Vec2,
@@ -28,6 +29,7 @@ impl Gpu {
         self.gpu_stat
             .set_texture_disable(params[0].texture_disable());
 
+        self.renderer.ctx.rect_texture = Texture::new(params[0].0 as u16, None);
         self.renderer.ctx.texture_rect_x_flip = params[0].texture_rect_x_flip();
         self.renderer.ctx.texture_rect_y_flip = params[0].texture_rect_y_flip();
         self.renderer.ctx.dithering = self.gpu_stat.dithering();
@@ -424,7 +426,26 @@ impl Gpu {
         let color = Color::new_8bit(params[0].0);
         let v = parse_xy(params[1].0);
         self.renderer
-            .draw_rectangle_mono(v, SIDE, SIDE, color, SEMI_TRANS);
+            .draw_rectangle_mono::<SEMI_TRANS>(v, SIDE, SIDE, color, None);
+        GP0State::AwaitCommand
+    }
+
+    pub fn gp0_rect_texture_fixed<const SIDE: i32, const SEMI_TRANS: bool, const BLEND: bool>(
+        &mut self,
+        params: ArrayVec<Command, 16>,
+    ) -> GP0State {
+        let color = Color::new_8bit(params[0].0);
+        let v = parse_xy(params[1].0);
+        let (clut, uv) = parse_clut_uv(params[2].0);
+
+        self.renderer.draw_rectangle_mono::<SEMI_TRANS>(
+            v,
+            SIDE,
+            SIDE,
+            color,
+            Some((clut, BLEND, uv)),
+        );
+
         GP0State::AwaitCommand
     }
 
@@ -440,7 +461,30 @@ impl Gpu {
         } = parse_xy(params[2].0);
 
         self.renderer
-            .draw_rectangle_mono(v, width, height, color, SEMI_TRANS);
+            .draw_rectangle_mono::<SEMI_TRANS>(v, width, height, color, None);
+
+        GP0State::AwaitCommand
+    }
+
+    pub fn gp0_rect_texture_variable<const SEMI_TRANS: bool, const BLEND: bool>(
+        &mut self,
+        params: ArrayVec<Command, 16>,
+    ) -> GP0State {
+        let color = Color::new_8bit(params[0].0);
+        let v = parse_xy(params[1].0);
+        let (clut, uv) = parse_clut_uv(params[2].0);
+        let Vec2 {
+            x: width,
+            y: height,
+        } = parse_xy(params[3].0);
+
+        self.renderer.draw_rectangle_mono::<SEMI_TRANS>(
+            v,
+            width,
+            height,
+            color,
+            Some((clut, BLEND, uv)),
+        );
 
         GP0State::AwaitCommand
     }

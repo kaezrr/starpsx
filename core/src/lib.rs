@@ -58,6 +58,10 @@ impl StarPSX {
         &self.bus.gpu.renderer.frame_buffer()[..(width * height)]
     }
 
+    pub fn frame_buffer_vram(&self) -> &[u32] {
+        self.bus.gpu.renderer.frame_buffer()
+    }
+
     pub fn get_resolution(&self) -> (u32, u32) {
         let (width, height) = self.bus.gpu.get_resolution();
         (width as u32, height as u32)
@@ -68,7 +72,7 @@ impl StarPSX {
             self.cpu.run_instruction(&mut self.bus);
             self.check_for_tty_output();
         }
-        self.bus.gpu.renderer.copy_vram_to_fb();
+        self.bus.gpu.renderer.copy_display_to_fb();
     }
 
     pub fn sideload_exe(&mut self, filepath: &String) -> Result<(), Box<dyn Error>> {

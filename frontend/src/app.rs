@@ -103,4 +103,18 @@ impl AppState {
         buffer.copy_from_slice(self.psx.frame_buffer());
         buffer.present().unwrap();
     }
+
+    fn draw_vram_to_screen(&mut self) {
+        let (width, height) = (1024, 512);
+        self.surface
+            .resize(
+                NonZeroU32::new(width).unwrap(),
+                NonZeroU32::new(height).unwrap(),
+            )
+            .unwrap();
+
+        let mut buffer = self.surface.buffer_mut().unwrap();
+        buffer.copy_from_slice(self.psx.frame_buffer_vram());
+        buffer.present().unwrap();
+    }
 }

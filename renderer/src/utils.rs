@@ -133,6 +133,7 @@ pub struct DrawContext {
     pub display_line_range: Vec2,
 
     pub resolution: Vec2,
+    pub rect_texture: Texture,
 
     pub preserve_masked_pixels: bool,
     pub force_set_masked_bit: bool,
@@ -184,23 +185,24 @@ impl Clut {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub enum PageColor {
+    #[default]
     Bit4,
     Bit8,
     Bit15,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct Texture {
     page_x: usize,
     page_y: usize,
     depth: PageColor,
-    clut: Clut,
+    clut: Option<Clut>,
 }
 
 impl Texture {
-    pub fn new(data: u16, clut: Clut) -> Self {
+    pub fn new(data: u16, clut: Option<Clut>) -> Self {
         let base_x = ((data & 0xF) << 6).into();
         let base_y = (((data >> 4) & 1) << 8).into();
         let depth = match (data >> 7) & 3 {
@@ -215,6 +217,10 @@ impl Texture {
             depth,
             clut,
         }
+    }
+
+    pub fn set_clut(&mut self, clut: Clut) {
+        self.clut = Some(clut);
     }
 
     pub fn get_texel(&self, renderer: &Renderer, p: Vec2) -> u16 {
@@ -235,7 +241,7 @@ impl Texture {
         let texel = renderer.vram_read(self.page_x + u / 2, self.page_y + v);
         let clut_index = (texel >> ((u % 2) * 8)) & 0xFF;
 
-        self.clut.get_color(renderer, clut_index as u8)
+        self.clut.unwrap().get_color(renderer, clut_index as u8)
     }
 
     fn get_texel_4bit(&self, renderer: &Renderer, p: Vec2) -> u16 {
@@ -243,7 +249,7 @@ impl Texture {
         let texel = renderer.vram_read(self.page_x + u / 4, self.page_y + v);
         let clut_index = (texel >> ((u % 4) * 4)) & 0xF;
 
-        self.clut.get_color(renderer, clut_index as u8)
+        self.clut.unwrap().get_color(renderer, clut_index as u8)
     }
 }
 

@@ -152,7 +152,6 @@ impl Gpu {
     }
 
     pub fn gp0(&mut self, data: u32) {
-        println!("{data:08x}");
         self.gp0_state = match std::mem::replace(&mut self.gp0_state, GP0State::AwaitCommand) {
             GP0State::AwaitCommand => self.process_command(data),
             GP0State::AwaitArgs(x) => self.process_argument(data, x),
@@ -280,13 +279,32 @@ impl Gpu {
 
                     // Rectangle
                     0x60 => (3, Gpu::gp0_rect_variable::<OPAQUE>),
-                    0x68 => (2, Gpu::gp0_rect_fixed::<1, OPAQUE>),
-                    0x70 => (2, Gpu::gp0_rect_fixed::<8, OPAQUE>),
-                    0x78 => (2, Gpu::gp0_rect_fixed::<16, OPAQUE>),
                     0x62 => (3, Gpu::gp0_rect_variable::<SEMI_TRANS>),
+                    0x64 => (4, Gpu::gp0_rect_texture_variable::<OPAQUE, BLEND>),
+                    0x65 => (4, Gpu::gp0_rect_texture_variable::<OPAQUE, RAW>),
+                    0x66 => (4, Gpu::gp0_rect_texture_variable::<SEMI_TRANS, BLEND>),
+                    0x67 => (4, Gpu::gp0_rect_texture_variable::<SEMI_TRANS, RAW>),
+
+                    0x68 => (2, Gpu::gp0_rect_fixed::<1, OPAQUE>),
                     0x6A => (2, Gpu::gp0_rect_fixed::<1, SEMI_TRANS>),
+                    0x6C => (3, Gpu::gp0_rect_texture_fixed::<1, OPAQUE, BLEND>),
+                    0x6D => (3, Gpu::gp0_rect_texture_fixed::<1, OPAQUE, RAW>),
+                    0x6E => (3, Gpu::gp0_rect_texture_fixed::<1, SEMI_TRANS, BLEND>),
+                    0x6F => (3, Gpu::gp0_rect_texture_fixed::<1, SEMI_TRANS, RAW>),
+
+                    0x70 => (2, Gpu::gp0_rect_fixed::<8, OPAQUE>),
                     0x72 => (2, Gpu::gp0_rect_fixed::<8, SEMI_TRANS>),
+                    0x74 => (3, Gpu::gp0_rect_texture_fixed::<8, OPAQUE, BLEND>),
+                    0x75 => (3, Gpu::gp0_rect_texture_fixed::<8, OPAQUE, RAW>),
+                    0x76 => (3, Gpu::gp0_rect_texture_fixed::<8, SEMI_TRANS, BLEND>),
+                    0x77 => (3, Gpu::gp0_rect_texture_fixed::<8, SEMI_TRANS, RAW>),
+
+                    0x78 => (2, Gpu::gp0_rect_fixed::<16, OPAQUE>),
                     0x7A => (2, Gpu::gp0_rect_fixed::<16, SEMI_TRANS>),
+                    0x7C => (3, Gpu::gp0_rect_texture_fixed::<16, OPAQUE, BLEND>),
+                    0x7D => (3, Gpu::gp0_rect_texture_fixed::<16, OPAQUE, RAW>),
+                    0x7E => (3, Gpu::gp0_rect_texture_fixed::<16, SEMI_TRANS, BLEND>),
+                    0x7F => (3, Gpu::gp0_rect_texture_fixed::<16, SEMI_TRANS, RAW>),
 
                     // Transfer
                     0x02 => (3, Gpu::gp0_quick_rect_fill),

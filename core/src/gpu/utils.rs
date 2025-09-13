@@ -296,7 +296,7 @@ pub fn parse_clut_uv(data: u32) -> (Clut, Vec2) {
 
 pub fn parse_page_uv(data: u32, clut: Clut) -> (Texture, Vec2) {
     let uv = parse_uv(data);
-    let texpage = Texture::new((data >> 16) as u16, clut);
+    let texpage = Texture::new((data >> 16) as u16, Some(clut));
     (texpage, uv)
 }
 
