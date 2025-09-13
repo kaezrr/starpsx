@@ -37,7 +37,7 @@ impl ApplicationHandler for App {
                 Ok(psx) => psx,
                 Err(err) => {
                     eprintln!("Error building emulator: {err}");
-                    return event_loop.exit();
+                    std::process::exit(1);
                 }
             };
 
