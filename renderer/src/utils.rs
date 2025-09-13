@@ -6,7 +6,7 @@ pub struct Color {
     pub b: u8,
     pub g: u8,
     pub r: u8,
-    pub a: u8,
+    mask: u8,
 }
 
 const DITHER_TABLE: [[i8; 4]; 4] = [
@@ -25,7 +25,8 @@ impl From5Bit for u16 {
         let r = convert_5bit_to_8bit(self & 0x1F);
         let g = convert_5bit_to_8bit((self >> 5) & 0x1F);
         let b = convert_5bit_to_8bit((self >> 10) & 0x1F);
-        Color { r, g, b, a: 0 }
+        let mask = (self >> 15) as u8;
+        Color { r, g, b, mask }
     }
 }
 
@@ -39,7 +40,7 @@ impl From5Bit for u32 {
         let g = convert_5bit_to_8bit(g >> 3);
         let b = convert_5bit_to_8bit(b >> 3);
 
-        Color { r, g, b, a: 0 }
+        Color { r, g, b, mask: 0 }
     }
 }
 
@@ -48,20 +49,25 @@ impl Color {
         pixel.to_color()
     }
 
+    pub fn is_masked(&self) -> bool {
+        self.mask == 1
+    }
+
     pub fn new_8bit(pixel: u32) -> Self {
         let r = (pixel & 0xFF) as u8;
         let g = ((pixel >> 8) & 0xFF) as u8;
         let b = ((pixel >> 16) & 0xFF) as u8;
 
-        Self { r, g, b, a: 0 }
+        Self { r, g, b, mask: 0 }
     }
 
-    pub fn to_5bit(&self) -> u16 {
+    pub fn to_5bit(&self, mask: Option<bool>) -> u16 {
         let r = (self.r >> 3) as u16;
         let g = (self.g >> 3) as u16;
         let b = (self.b >> 3) as u16;
+        let m = mask.unwrap_or(self.mask == 1) as u16;
 
-        b << 10 | g << 5 | r
+        m << 15 | b << 10 | g << 5 | r
     }
 
     pub fn apply_dithering(&mut self, p: Vec2) {
@@ -98,7 +104,7 @@ impl Color {
         let g = (a.1 * (1.0 - t) + b.1 * t).round() as u8;
         let b = (a.2 * (1.0 - t) + b.2 * t).round() as u8;
 
-        Self { r, g, b, a: 0 }
+        Self { r, g, b, mask: 0 }
     }
 }
 
@@ -127,6 +133,9 @@ pub struct DrawContext {
     pub display_line_range: Vec2,
 
     pub resolution: Vec2,
+
+    pub preserve_masked_pixels: bool,
+    pub force_set_masked_bit: bool,
 }
 
 impl DrawContext {
@@ -144,7 +153,7 @@ pub fn interpolate_color(weights: [f64; 3], colors: [Color; 3]) -> Color {
     let g = (weights[0] * colg[0] + weights[1] * colg[1] + weights[2] * colg[2]).round() as u8;
     let b = (weights[0] * colb[0] + weights[1] * colb[1] + weights[2] * colb[2]).round() as u8;
 
-    Color { r, g, b, a: 0 }
+    Color { r, g, b, mask: 0 }
 }
 
 pub fn interpolate_uv(weights: [f64; 3], uvs: [Vec2; 3]) -> Vec2 {

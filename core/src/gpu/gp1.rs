@@ -3,7 +3,7 @@ use starpsx_renderer::vec2::Vec2;
 
 impl Gpu {
     pub fn gp1_reset(&mut self) {
-        self.stat.0 = 0;
+        self.gpu_stat.0 = 0;
         self.renderer.ctx.reset();
 
         // NOTE: Clear command cache and invalidate GPU cache here if I ever implement it
@@ -12,11 +12,11 @@ impl Gpu {
 
     pub fn gp1_display_mode(&mut self, command: Command) {
         let hres = command.hres_1() | (command.hres_2() << 2);
-        self.stat.set_hres(hres);
-        self.stat.set_vres(command.vres());
-        self.stat.set_vmode(command.vmode());
-        self.stat.set_display_depth(command.display_depth());
-        self.stat.set_interlaced(command.interlaced());
+        self.gpu_stat.set_hres(hres);
+        self.gpu_stat.set_vres(command.vres());
+        self.gpu_stat.set_vmode(command.vmode());
+        self.gpu_stat.set_display_depth(command.display_depth());
+        self.gpu_stat.set_interlaced(command.interlaced());
 
         let (x, y) = self.get_resolution();
         self.renderer.ctx.resolution = Vec2::new(x as i32, y as i32);
@@ -27,7 +27,7 @@ impl Gpu {
     }
 
     pub fn gp1_dma_direction(&mut self, command: Command) {
-        self.stat.set_dma_direction(command.dma_direction());
+        self.gpu_stat.set_dma_direction(command.dma_direction());
     }
 
     pub fn gp1_display_vram_start(&mut self, command: Command) {
@@ -55,7 +55,7 @@ impl Gpu {
     }
 
     pub fn gp1_display_enable(&mut self, command: Command) {
-        self.stat.set_display_disabled(command.display_off());
+        self.gpu_stat.set_display_disabled(command.display_off());
     }
 
     pub fn gp1_reset_command_buffer(&mut self) {
@@ -63,7 +63,7 @@ impl Gpu {
     }
 
     pub fn gp1_acknowledge_irq(&mut self) {
-        self.stat.set_interrupt(false);
+        self.gpu_stat.set_interrupt(false);
     }
 
     pub fn gp1_read_internal_reg(&mut self, command: Command) {

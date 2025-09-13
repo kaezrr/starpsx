@@ -109,7 +109,7 @@ bitfield::bitfield! {
 pub struct Gpu {
     pub renderer: Renderer,
     gpu_read: u32,
-    stat: GpuStat,
+    gpu_stat: GpuStat,
     gp0_state: GP0State,
 }
 
@@ -118,7 +118,7 @@ impl Default for Gpu {
         Self {
             renderer: Renderer::default(),
             gpu_read: 0,
-            stat: GpuStat(0),
+            gpu_stat: GpuStat(0),
             gp0_state: GP0State::AwaitCommand,
         }
     }
@@ -133,7 +133,7 @@ const TRI: bool = false;
 
 impl Gpu {
     pub fn stat(&self) -> u32 {
-        let mut ret = self.stat;
+        let mut ret = self.gpu_stat;
         // GPU always ready for commands, for now
         ret.set_ready_cmd(true);
         ret.set_ready_vram(true);
@@ -269,8 +269,8 @@ impl Gpu {
                     0x2D => (9, Gpu::gp0_poly_texture::<QUAD, OPAQUE, RAW>),
                     0x2E => (9, Gpu::gp0_poly_texture::<QUAD, SEMI_TRANS, BLEND>),
                     0x2F => (9, Gpu::gp0_poly_texture::<QUAD, SEMI_TRANS, RAW>),
-                    0x3c => (12, Gpu::gp0_poly_texture_shaded::<QUAD, OPAQUE, BLEND>),
-                    0x3e => (12, Gpu::gp0_poly_texture_shaded::<QUAD, SEMI_TRANS, BLEND>),
+                    0x3C => (12, Gpu::gp0_poly_texture_shaded::<QUAD, OPAQUE, BLEND>),
+                    0x3E => (12, Gpu::gp0_poly_texture_shaded::<QUAD, SEMI_TRANS, BLEND>),
 
                     // Single Line
                     0x40 => (3, Gpu::gp0_line_mono::<OPAQUE>),
@@ -312,7 +312,7 @@ impl Gpu {
     }
 
     pub fn get_resolution(&self) -> (usize, usize) {
-        let width = match self.stat.hres() {
+        let width = match self.gpu_stat.hres() {
             HorizontalRes::X256 => 256,
             HorizontalRes::X320 => 320,
             HorizontalRes::X512 => 512,
@@ -320,7 +320,7 @@ impl Gpu {
             HorizontalRes::X640 => 640,
         };
 
-        let height = match self.stat.vres() {
+        let height = match self.gpu_stat.vres() {
             VerticalRes::Y240 => 240,
             VerticalRes::Y480 => 480,
         };

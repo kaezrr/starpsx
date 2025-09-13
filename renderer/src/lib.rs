@@ -40,6 +40,10 @@ impl Renderer {
     }
 
     pub fn vram_write(&mut self, x: usize, y: usize, data: u16) {
+        if self.ctx.preserve_masked_pixels && (self.vram_read(x, y) & 0x8000) != 0 {
+            return;
+        }
+
         let index = VRAM_WIDTH * y + x;
         self.vram[index] = data;
     }
@@ -80,13 +84,32 @@ impl Renderer {
         }
     }
 
+    pub fn vram_quick_fill(&mut self, r: Vec2, side_x: i32, side_y: i32, color: Color) {
+        let min_x = r.x;
+        let min_y = r.y;
+        let max_x = r.x + side_x - 1;
+        let max_y = r.y + side_y - 1;
+
+        let min_x = std::cmp::max(min_x, self.ctx.drawing_area_top_left.x) as usize;
+        let min_y = std::cmp::max(min_y, self.ctx.drawing_area_top_left.y) as usize;
+        let max_x = std::cmp::min(max_x, self.ctx.drawing_area_bottom_right.x) as usize;
+        let max_y = std::cmp::min(max_y, self.ctx.drawing_area_bottom_right.y) as usize;
+
+        for x in min_x..=max_x {
+            for y in min_y..=max_y {
+                let index = VRAM_WIDTH * y + x;
+                self.vram[index] = color.to_5bit(None);
+            }
+        }
+    }
+
     // BEWARE OF OFF BY ONE ERRORS!!!
     pub fn draw_rectangle_mono(
         &mut self,
         r: Vec2,
         side_x: i32,
         side_y: i32,
-        color: u16,
+        color: Color,
         trans: bool,
     ) {
         let min_x = r.x;
@@ -101,12 +124,16 @@ impl Renderer {
 
         for x in min_x..=max_x {
             for y in min_y..=max_y {
-                let mut color = Color::new_5bit(color);
+                let mut color = color;
                 if trans {
                     let old = self.vram_read(x as usize, y as usize);
                     color.blend_screen(Color::new_5bit(old), self.ctx.transparency_weights);
                 }
-                self.vram_write(x as usize, y as usize, color.to_5bit());
+                self.vram_write(
+                    x as usize,
+                    y as usize,
+                    color.to_5bit((self.ctx.force_set_masked_bit).then_some(true)),
+                );
             }
         }
     }
@@ -160,7 +187,12 @@ impl Renderer {
                 color.blend_screen(Color::new_5bit(old), self.ctx.transparency_weights);
             }
 
-            self.vram_write(x as usize, y as usize, color.to_5bit());
+            self.vram_write(
+                x as usize,
+                y as usize,
+                color.to_5bit(Some(self.ctx.force_set_masked_bit)),
+            );
+
             let e2 = 2 * err;
             if e2 >= dy {
                 if x == x1 {
@@ -234,7 +266,16 @@ impl Renderer {
                     color.apply_dithering(p);
                 }
 
-                self.vram_write(x as usize, y as usize, color.to_5bit());
+                self.vram_write(
+                    x as usize,
+                    y as usize,
+                    color.to_5bit(
+                        self.ctx
+                            .force_set_masked_bit
+                            .then_some(true)
+                            .or_else(|| options.textured.is_none().then_some(false)),
+                    ),
+                );
             }
         }
     }

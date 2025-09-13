@@ -17,19 +17,21 @@ impl Gpu {
     }
 
     pub fn gp0_draw_mode(&mut self, params: ArrayVec<Command, 16>) -> GP0State {
-        self.stat.set_page_base_x(params[0].page_base_x());
-        self.stat.set_page_base_y(params[0].page_base_y());
-        self.stat
+        self.gpu_stat.set_page_base_x(params[0].page_base_x());
+        self.gpu_stat.set_page_base_y(params[0].page_base_y());
+        self.gpu_stat
             .set_semi_transparency(params[0].semi_transparency());
-        self.stat.set_texture_depth(params[0].texture_depth());
-        self.stat.set_dithering(params[0].dithering());
-        self.stat.set_draw_to_display(params[0].draw_to_display());
-        self.stat.set_texture_disable(params[0].texture_disable());
+        self.gpu_stat.set_texture_depth(params[0].texture_depth());
+        self.gpu_stat.set_dithering(params[0].dithering());
+        self.gpu_stat
+            .set_draw_to_display(params[0].draw_to_display());
+        self.gpu_stat
+            .set_texture_disable(params[0].texture_disable());
 
         self.renderer.ctx.texture_rect_x_flip = params[0].texture_rect_x_flip();
         self.renderer.ctx.texture_rect_y_flip = params[0].texture_rect_y_flip();
-        self.renderer.ctx.dithering = self.stat.dithering();
-        self.renderer.ctx.transparency_weights = match self.stat.semi_transparency() {
+        self.renderer.ctx.dithering = self.gpu_stat.dithering();
+        self.renderer.ctx.transparency_weights = match self.gpu_stat.semi_transparency() {
             0 => (0.5, 0.5),
             1 => (1.0, 1.0),
             2 => (1.0, -1.0),
@@ -82,10 +84,12 @@ impl Gpu {
     }
 
     pub fn gp0_mask_bit_setting(&mut self, params: ArrayVec<Command, 16>) -> GP0State {
-        self.stat
+        self.gpu_stat
             .set_force_set_mask_bit(params[0].force_set_mask_bit());
-        self.stat
+        self.gpu_stat
             .set_preserve_masked_pixels(params[0].preserve_masked_pixels());
+        self.renderer.ctx.force_set_masked_bit = params[0].force_set_mask_bit();
+        self.renderer.ctx.preserve_masked_pixels = params[0].preserve_masked_pixels();
         GP0State::AwaitCommand
     }
 
@@ -149,15 +153,14 @@ impl Gpu {
     }
     // DRAW COMMANDS
     pub fn gp0_quick_rect_fill(&mut self, params: ArrayVec<Command, 16>) -> GP0State {
-        let color = Color::new_8bit(params[0].0).to_5bit();
+        let color = Color::new_8bit(params[0].0);
         let v = parse_xy(params[1].0);
         let Vec2 {
             x: width,
             y: height,
         } = parse_xy(params[2].0);
 
-        self.renderer
-            .draw_rectangle_mono(v, width, height, color, false);
+        self.renderer.vram_quick_fill(v, width, height, color);
         GP0State::AwaitCommand
     }
 
@@ -255,7 +258,6 @@ impl Gpu {
         &mut self,
         params: ArrayVec<Command, 16>,
     ) -> GP0State {
-        println!("TEXTURE {SEMI_TRANS}");
         let color = Color::new_5bit(params[0].0);
 
         let v0 = parse_xy(params[1].0);
@@ -295,7 +297,6 @@ impl Gpu {
         &mut self,
         params: ArrayVec<Command, 16>,
     ) -> GP0State {
-        println!("TEXTURE SHADED {SEMI_TRANS}");
         let c0 = Color::new_5bit(params[0].0);
         let c1 = Color::new_5bit(params[3].0);
         let c2 = Color::new_5bit(params[6].0);
@@ -420,7 +421,7 @@ impl Gpu {
         &mut self,
         params: ArrayVec<Command, 16>,
     ) -> GP0State {
-        let color = Color::new_8bit(params[0].0).to_5bit();
+        let color = Color::new_8bit(params[0].0);
         let v = parse_xy(params[1].0);
         self.renderer
             .draw_rectangle_mono(v, SIDE, SIDE, color, SEMI_TRANS);
@@ -431,7 +432,7 @@ impl Gpu {
         &mut self,
         params: ArrayVec<Command, 16>,
     ) -> GP0State {
-        let color = Color::new_8bit(params[0].0).to_5bit();
+        let color = Color::new_8bit(params[0].0);
         let v = parse_xy(params[1].0);
         let Vec2 {
             x: width,
