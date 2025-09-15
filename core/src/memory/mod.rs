@@ -134,11 +134,7 @@ impl Bus {
         }
 
         if let Some(offs) = map::GPU.contains(masked) {
-            return match offs {
-                4 => Ok(self.gpu.stat()),
-                0 => Ok(self.gpu.read()),
-                _ => panic!("Unknown GPU register read {offs:x}"),
-            };
+            return Ok(self.gpu.read_reg(offs));
         }
 
         panic!("Unmapped read::<u32> at {masked:#08X}");
@@ -256,11 +252,7 @@ impl Bus {
         }
 
         if let Some(offs) = map::GPU.contains(masked) {
-            match offs {
-                0 => self.gpu.gp0(data),
-                4 => self.gpu.gp1(data),
-                _ => panic!("Unknown GPU register write {offs:x} <- {data:08x}"),
-            }
+            self.gpu.write_reg(offs, data);
             return Ok(());
         }
 

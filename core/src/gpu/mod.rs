@@ -132,7 +132,23 @@ const QUAD: bool = true;
 const TRI: bool = false;
 
 impl Gpu {
-    pub fn stat(&self) -> u32 {
+    pub fn write_reg(&mut self, offs: u32, data: u32) {
+        match offs {
+            0 => self.gp0(data),
+            4 => self.gp1(data),
+            _ => panic!("Unknown GPU register write {offs:x} <- {data:08x}"),
+        }
+    }
+
+    pub fn read_reg(&mut self, offs: u32) -> u32 {
+        match offs {
+            0 => self.read(),
+            4 => self.stat(),
+            _ => panic!("Unknown GPU register read {offs:x}"),
+        }
+    }
+
+    fn stat(&self) -> u32 {
         let mut ret = self.gpu_stat;
         // GPU always ready for commands, for now
         ret.set_ready_cmd(true);
@@ -144,7 +160,7 @@ impl Gpu {
         ret.0
     }
 
-    pub fn read(&mut self) -> u32 {
+    fn read(&mut self) -> u32 {
         if let GP0State::CopyFromVram(fields) = self.gp0_state {
             self.gp0_state = self.process_vram_to_cpu_copy(fields);
         }
@@ -161,7 +177,7 @@ impl Gpu {
         };
     }
 
-    pub fn gp1(&mut self, data: u32) {
+    fn gp1(&mut self, data: u32) {
         let command = Command(data);
         match command.opcode() {
             0x00 => self.gp1_reset(),
@@ -279,28 +295,36 @@ impl Gpu {
 
                     // Rectangle
                     0x60 => (3, Gpu::gp0_rect_variable::<OPAQUE>),
+                    0x61 => (3, Gpu::gp0_rect_variable::<OPAQUE>),
                     0x62 => (3, Gpu::gp0_rect_variable::<SEMI_TRANS>),
+                    0x63 => (3, Gpu::gp0_rect_variable::<SEMI_TRANS>),
                     0x64 => (4, Gpu::gp0_rect_texture_variable::<OPAQUE, BLEND>),
                     0x65 => (4, Gpu::gp0_rect_texture_variable::<OPAQUE, RAW>),
                     0x66 => (4, Gpu::gp0_rect_texture_variable::<SEMI_TRANS, BLEND>),
                     0x67 => (4, Gpu::gp0_rect_texture_variable::<SEMI_TRANS, RAW>),
 
                     0x68 => (2, Gpu::gp0_rect_fixed::<1, OPAQUE>),
+                    0x69 => (2, Gpu::gp0_rect_fixed::<1, OPAQUE>),
                     0x6A => (2, Gpu::gp0_rect_fixed::<1, SEMI_TRANS>),
+                    0x6B => (2, Gpu::gp0_rect_fixed::<1, SEMI_TRANS>),
                     0x6C => (3, Gpu::gp0_rect_texture_fixed::<1, OPAQUE, BLEND>),
                     0x6D => (3, Gpu::gp0_rect_texture_fixed::<1, OPAQUE, RAW>),
                     0x6E => (3, Gpu::gp0_rect_texture_fixed::<1, SEMI_TRANS, BLEND>),
                     0x6F => (3, Gpu::gp0_rect_texture_fixed::<1, SEMI_TRANS, RAW>),
 
                     0x70 => (2, Gpu::gp0_rect_fixed::<8, OPAQUE>),
+                    0x71 => (2, Gpu::gp0_rect_fixed::<8, OPAQUE>),
                     0x72 => (2, Gpu::gp0_rect_fixed::<8, SEMI_TRANS>),
+                    0x73 => (2, Gpu::gp0_rect_fixed::<8, SEMI_TRANS>),
                     0x74 => (3, Gpu::gp0_rect_texture_fixed::<8, OPAQUE, BLEND>),
                     0x75 => (3, Gpu::gp0_rect_texture_fixed::<8, OPAQUE, RAW>),
                     0x76 => (3, Gpu::gp0_rect_texture_fixed::<8, SEMI_TRANS, BLEND>),
                     0x77 => (3, Gpu::gp0_rect_texture_fixed::<8, SEMI_TRANS, RAW>),
 
                     0x78 => (2, Gpu::gp0_rect_fixed::<16, OPAQUE>),
+                    0x79 => (2, Gpu::gp0_rect_fixed::<16, OPAQUE>),
                     0x7A => (2, Gpu::gp0_rect_fixed::<16, SEMI_TRANS>),
+                    0x7B => (2, Gpu::gp0_rect_fixed::<16, SEMI_TRANS>),
                     0x7C => (3, Gpu::gp0_rect_texture_fixed::<16, OPAQUE, BLEND>),
                     0x7D => (3, Gpu::gp0_rect_texture_fixed::<16, OPAQUE, RAW>),
                     0x7E => (3, Gpu::gp0_rect_texture_fixed::<16, SEMI_TRANS, BLEND>),
