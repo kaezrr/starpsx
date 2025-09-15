@@ -1,3 +1,5 @@
+use crate::memory::utils::ByteAddressable;
+
 pub struct Ram {
     pub bytes: Box<[u8; 0x200000]>,
 }
@@ -11,27 +13,13 @@ impl Default for Ram {
 }
 
 impl Ram {
-    pub fn read8(&self, addr: u32) -> u8 {
-        self.bytes[addr as usize]
+    pub fn read<T: ByteAddressable>(&self, addr: u32) -> T {
+        let addr = addr as usize;
+        T::from_le_bytes(self.bytes[addr..addr + size_of::<T>()].try_into().unwrap())
     }
 
-    pub fn read16(&self, addr: u32) -> u16 {
-        u16::from_le_bytes(*self.bytes[(addr as usize)..].first_chunk().unwrap())
-    }
-
-    pub fn read32(&self, addr: u32) -> u32 {
-        u32::from_le_bytes(*self.bytes[(addr as usize)..].first_chunk().unwrap())
-    }
-
-    pub fn write8(&mut self, addr: u32, val: u8) {
-        self.bytes[addr as usize] = val
-    }
-
-    pub fn write16(&mut self, addr: u32, val: u16) {
-        *self.bytes[(addr as usize)..].first_chunk_mut().unwrap() = val.to_le_bytes();
-    }
-
-    pub fn write32(&mut self, addr: u32, val: u32) {
-        *self.bytes[(addr as usize)..].first_chunk_mut().unwrap() = val.to_le_bytes();
+    pub fn write<T: ByteAddressable>(&mut self, addr: u32, val: T) {
+        let addr = addr as usize;
+        self.bytes[addr..addr + size_of::<T>()].copy_from_slice(val.to_le_bytes().as_ref());
     }
 }

@@ -2,6 +2,7 @@ mod bios;
 mod map;
 mod ram;
 mod scratch;
+mod utils;
 
 use crate::Config;
 use crate::cpu::utils::Exception;
@@ -44,15 +45,15 @@ impl Bus {
         let masked = map::mask_region(addr);
 
         if let Some(offs) = map::BIOS.contains(masked) {
-            return self.bios.read8(offs);
+            return self.bios.read::<u8>(offs);
         }
 
         if let Some(offs) = map::RAM.contains(masked) {
-            return self.ram.read8(offs);
+            return self.ram.read::<u8>(offs);
         }
 
         if let Some(offs) = map::SCRATCH.contains(masked) {
-            return self.scratch.read8(offs);
+            return self.scratch.read::<u8>(offs);
         }
 
         if let Some(offs) = map::EXPANSION1.contains(masked) {
@@ -75,11 +76,11 @@ impl Bus {
         let masked = map::mask_region(addr);
 
         if let Some(offs) = map::RAM.contains(masked) {
-            return Ok(self.ram.read16(offs));
+            return Ok(self.ram.read::<u16>(offs));
         }
 
         if let Some(offs) = map::SCRATCH.contains(masked) {
-            return Ok(self.scratch.read16(offs));
+            return Ok(self.scratch.read::<u16>(offs));
         }
 
         if let Some(offs) = map::SPU.contains(masked) {
@@ -107,15 +108,15 @@ impl Bus {
         let masked = map::mask_region(addr);
 
         if let Some(offs) = map::BIOS.contains(masked) {
-            return Ok(self.bios.read32(offs));
+            return Ok(self.bios.read::<u32>(offs));
         }
 
         if let Some(offs) = map::RAM.contains(masked) {
-            return Ok(self.ram.read32(offs));
+            return Ok(self.ram.read::<u32>(offs));
         }
 
         if let Some(offs) = map::SCRATCH.contains(masked) {
-            return Ok(self.scratch.read32(offs));
+            return Ok(self.scratch.read::<u32>(offs));
         }
 
         if let Some(offs) = map::TIMERS.contains(masked) {
@@ -140,7 +141,7 @@ impl Bus {
             };
         }
 
-        panic!("Unmapped read32 at {masked:#08X}");
+        panic!("Unmapped read::<u32> at {masked:#08X}");
     }
 
     pub fn write8(&mut self, addr: u32, data: u8) {
@@ -151,11 +152,11 @@ impl Bus {
         }
 
         if let Some(offs) = map::RAM.contains(masked) {
-            return self.ram.write8(offs, data);
+            return self.ram.write::<u8>(offs, data);
         }
 
         if let Some(offs) = map::SCRATCH.contains(masked) {
-            return self.scratch.write8(offs, data);
+            return self.scratch.write::<u8>(offs, data);
         }
 
         panic!("Unmapped write8 at {addr:#08X}");
@@ -168,7 +169,7 @@ impl Bus {
         let masked = map::mask_region(addr);
 
         if let Some(offs) = map::RAM.contains(masked) {
-            self.ram.write16(offs, data);
+            self.ram.write::<u16>(offs, data);
             return Ok(());
         }
 
@@ -178,7 +179,7 @@ impl Bus {
         }
 
         if let Some(offs) = map::SCRATCH.contains(masked) {
-            self.scratch.write16(offs, data);
+            self.scratch.write::<u16>(offs, data);
             return Ok(());
         }
 
@@ -207,7 +208,7 @@ impl Bus {
         let masked = map::mask_region(addr);
 
         if let Some(offs) = map::RAM.contains(masked) {
-            self.ram.write32(offs, data);
+            self.ram.write::<u32>(offs, data);
             return Ok(());
         }
 
@@ -229,7 +230,7 @@ impl Bus {
         }
 
         if let Some(offs) = map::SCRATCH.contains(masked) {
-            self.scratch.write32(offs, data);
+            self.scratch.write::<u32>(offs, data);
             return Ok(());
         }
 
@@ -268,7 +269,7 @@ impl Bus {
             return Ok(());
         }
 
-        panic!("Unmapped write32 at {addr:#08X}");
+        panic!("Unmapped write::<u32> at {addr:#08X}");
     }
 
     pub fn do_dma(&mut self, port: Port) {
@@ -301,10 +302,10 @@ impl Bus {
                         },
                         _ => panic!("Unhandled DMA source port"),
                     };
-                    self.ram.write32(cur_addr, src_word);
+                    self.ram.write::<u32>(cur_addr, src_word);
                 }
                 Direction::FromRam => {
-                    let src_word = self.ram.read32(cur_addr);
+                    let src_word = self.ram.read::<u32>(cur_addr);
                     match port {
                         Port::Gpu => self.gpu.gp0(src_word),
                         _ => panic!("Unhandled DMA destination port"),
@@ -327,11 +328,11 @@ impl Bus {
 
         let mut addr = channel.base & 0x1FFFFC;
         loop {
-            let header = self.ram.read32(addr);
+            let header = self.ram.read::<u32>(addr);
             let size = header >> 24;
 
             for i in 0..size {
-                let data = self.ram.read32(addr + 4 * (i + 1));
+                let data = self.ram.read::<u32>(addr + 4 * (i + 1));
                 self.gpu.gp0(data);
             }
 
