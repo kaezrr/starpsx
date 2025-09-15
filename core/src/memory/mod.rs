@@ -1,5 +1,4 @@
 mod bios;
-mod map;
 mod ram;
 mod scratch;
 mod utils;
@@ -11,6 +10,7 @@ use crate::dma::{
     utils::{Direction, Port, Step, Sync},
 };
 use crate::gpu::Gpu;
+use crate::memory::utils::map;
 use bios::Bios;
 use ram::Ram;
 use scratch::Scratch;
@@ -42,7 +42,7 @@ impl Bus {
     }
 
     pub fn read8(&self, addr: u32) -> u8 {
-        let masked = map::mask_region(addr);
+        let masked = utils::mask_region(addr);
 
         if let Some(offs) = map::BIOS.contains(masked) {
             return self.bios.read::<u8>(offs);
@@ -73,7 +73,7 @@ impl Bus {
         if addr & 1 != 0 {
             return Err(Exception::LoadAddressError(addr));
         }
-        let masked = map::mask_region(addr);
+        let masked = utils::mask_region(addr);
 
         if let Some(offs) = map::RAM.contains(masked) {
             return Ok(self.ram.read::<u16>(offs));
@@ -105,7 +105,7 @@ impl Bus {
         if addr & 3 != 0 {
             return Err(Exception::LoadAddressError(addr));
         }
-        let masked = map::mask_region(addr);
+        let masked = utils::mask_region(addr);
 
         if let Some(offs) = map::BIOS.contains(masked) {
             return Ok(self.bios.read::<u32>(offs));
@@ -145,7 +145,7 @@ impl Bus {
     }
 
     pub fn write8(&mut self, addr: u32, data: u8) {
-        let masked = map::mask_region(addr);
+        let masked = utils::mask_region(addr);
 
         if let Some(offs) = map::EXPANSION2.contains(masked) {
             return eprintln!("Unhandled write to expansion2 register{offs:x}");
@@ -166,7 +166,7 @@ impl Bus {
         if addr & 1 != 0 {
             return Err(Exception::StoreAddressError(addr));
         }
-        let masked = map::mask_region(addr);
+        let masked = utils::mask_region(addr);
 
         if let Some(offs) = map::RAM.contains(masked) {
             self.ram.write::<u16>(offs, data);
@@ -205,7 +205,7 @@ impl Bus {
         if addr & 3 != 0 {
             return Err(Exception::StoreAddressError(addr));
         }
-        let masked = map::mask_region(addr);
+        let masked = utils::mask_region(addr);
 
         if let Some(offs) = map::RAM.contains(masked) {
             self.ram.write::<u32>(offs, data);
