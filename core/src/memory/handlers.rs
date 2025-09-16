@@ -40,7 +40,7 @@ impl Bus {
             panic!("unmapped dma read half word");
         }
         if let Some(port) = self.dma.write_reg(offs, data.to_u32()) {
-            self.do_dma(port);
+            self.dma.do_dma(port, &mut self.ram, &mut self.gpu);
         }
     }
 }

@@ -3,8 +3,9 @@ pub mod utils;
 
 use std::array::from_fn;
 
+use crate::{gpu::Gpu, memory::Ram};
 use channel::Channel;
-use utils::Port;
+use utils::{Direction, Port, Step, Sync};
 
 bitfield::bitfield! {
     #[derive(Copy, Clone)]
@@ -89,5 +90,79 @@ impl Dma {
             }
             _ => None,
         }
+    }
+
+    pub fn do_dma(&mut self, port: Port, ram: &mut Ram, gpu: &mut Gpu) {
+        match self.channels[port as usize].ctl.sync() {
+            Sync::LinkedList => self.do_dma_linked_list(port, ram, gpu),
+            _ => self.do_dma_block(port, ram, gpu),
+        }
+    }
+
+    fn do_dma_block(&mut self, port: Port, ram: &mut Ram, gpu: &mut Gpu) {
+        let (step, dir, base, size) = {
+            let channel = &mut self.channels[port as usize];
+            let step: i32 = match channel.ctl.step() {
+                Step::Increment => 4,
+                Step::Decrement => -4,
+            };
+            let size = channel.transfer_size().expect("Should not be none!");
+            (step, channel.ctl.dir(), channel.base, size)
+        };
+
+        let mut addr = base;
+        for s in (1..=size).rev() {
+            let cur_addr = addr & 0x1FFFFC;
+            match dir {
+                Direction::ToRam => {
+                    let src_word = match port {
+                        Port::Otc => match s {
+                            1 => 0xFFFFFF,
+                            _ => addr.wrapping_sub(4) & 0x1FFFFF,
+                        },
+                        _ => panic!("Unhandled DMA source port"),
+                    };
+                    ram.write::<u32>(cur_addr, src_word);
+                }
+                Direction::FromRam => {
+                    let src_word = ram.read::<u32>(cur_addr);
+                    match port {
+                        Port::Gpu => gpu.gp0(src_word),
+                        _ => panic!("Unhandled DMA destination port"),
+                    }
+                }
+            }
+            addr = addr.wrapping_add_signed(step);
+        }
+        self.channels[port as usize].done();
+    }
+
+    fn do_dma_linked_list(&mut self, port: Port, ram: &mut Ram, gpu: &mut Gpu) {
+        let channel = &mut self.channels[port as usize];
+        if channel.ctl.dir() == Direction::ToRam {
+            panic!("Invalid DMA direction for linked list mode.");
+        }
+        if port != Port::Gpu {
+            panic!("Attempted linked list DMA on port {}", port as usize);
+        }
+
+        let mut addr = channel.base & 0x1FFFFC;
+        loop {
+            let header = ram.read::<u32>(addr);
+            let size = header >> 24;
+
+            for i in 0..size {
+                let data = ram.read::<u32>(addr + 4 * (i + 1));
+                gpu.gp0(data);
+            }
+
+            let next_addr = header & 0xFFFFFF;
+            if next_addr & (1 << 23) != 0 {
+                break;
+            }
+            addr = next_addr;
+        }
+
+        channel.done();
     }
 }

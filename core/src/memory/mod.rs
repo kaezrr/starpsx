@@ -4,12 +4,9 @@ mod utils;
 
 use crate::Config;
 use crate::cpu::utils::Exception;
-use crate::dma::{
-    self, Dma,
-    utils::{Direction, Port, Step, Sync},
-};
+use crate::dma::{self, Dma};
 use crate::gpu::{self, Gpu};
-use fastmem::{
+pub use fastmem::{
     bios::{self, Bios},
     ram::{self, Ram},
     scratch::{self, Scratch},
@@ -61,6 +58,12 @@ impl Bus {
 
             bios::PADDR_START..=bios::PADDR_END => self.bios.read(addr),
 
+            scratch::PADDR_START..=scratch::PADDR_END => self.scratch.read(addr),
+
+            gpu::PADDR_START..=gpu::PADDR_END => self.gpu_read_handler(addr),
+
+            dma::PADDR_START..=dma::PADDR_END => self.dma_read_handler(addr),
+
             0x1F801000..=0x1F801023 => panic!("Unhandled read to memctl"),
 
             0x1F801060..=0x1F801063 => panic!("Unhandled read to ramsize"),
@@ -76,12 +79,6 @@ impl Bus {
             0x1F801070..=0x1F801077 => stubbed!("Unhandled read to the irqctl reg{addr:08x}"),
 
             0x1F801100..=0x1F80112F => stubbed!("Unhandled read to the timers"),
-
-            dma::PADDR_START..=dma::PADDR_END => self.dma_read_handler(addr),
-
-            gpu::PADDR_START..=gpu::PADDR_END => self.gpu_read_handler(addr),
-
-            scratch::PADDR_START..=scratch::PADDR_END => self.scratch.read(addr),
 
             0x1F801040..=0x1F80105F => stubbed!("Unhandled read to the io port"),
 
@@ -100,6 +97,12 @@ impl Bus {
         match addr {
             ram::PADDR_START..=ram::PADDR_END => self.ram.write(addr, data),
 
+            scratch::PADDR_START..=scratch::PADDR_END => self.scratch.write(addr, data),
+
+            gpu::PADDR_START..=gpu::PADDR_END => self.gpu_write_handler(addr, data),
+
+            dma::PADDR_START..=dma::PADDR_END => self.dma_write_handler(addr, data),
+
             0x1F801000..=0x1F801023 => eprintln!("Unhandled write to memctl"),
 
             0x1F801060..=0x1F801063 => eprintln!("Unhandled write to ramsize"),
@@ -116,91 +119,11 @@ impl Bus {
 
             0x1F801100..=0x1F80112F => eprintln!("Unhandled write to the irqctl"),
 
-            dma::PADDR_START..=dma::PADDR_END => self.dma_write_handler(addr, data),
-
-            gpu::PADDR_START..=gpu::PADDR_END => self.gpu_write_handler(addr, data),
-
-            scratch::PADDR_START..=scratch::PADDR_END => self.scratch.write(addr, data),
-
             0x1F801040..=0x1F80105F => eprintln!("Unhandled write to the io port"),
 
             _ => panic!("Unmapped write at {addr:#08X}"),
         };
 
         Ok(())
-    }
-
-    pub fn do_dma(&mut self, port: Port) {
-        match self.dma.channels[port as usize].ctl.sync() {
-            Sync::LinkedList => self.do_dma_linked_list(port),
-            _ => self.do_dma_block(port),
-        }
-    }
-
-    pub fn do_dma_block(&mut self, port: Port) {
-        let (step, dir, base, size) = {
-            let channel = &mut self.dma.channels[port as usize];
-            let step: i32 = match channel.ctl.step() {
-                Step::Increment => 4,
-                Step::Decrement => -4,
-            };
-            let size = channel.transfer_size().expect("Should not be none!");
-            (step, channel.ctl.dir(), channel.base, size)
-        };
-
-        let mut addr = base;
-        for s in (1..=size).rev() {
-            let cur_addr = addr & 0x1FFFFC;
-            match dir {
-                Direction::ToRam => {
-                    let src_word = match port {
-                        Port::Otc => match s {
-                            1 => 0xFFFFFF,
-                            _ => addr.wrapping_sub(4) & 0x1FFFFF,
-                        },
-                        _ => panic!("Unhandled DMA source port"),
-                    };
-                    self.ram.write::<u32>(cur_addr, src_word);
-                }
-                Direction::FromRam => {
-                    let src_word = self.ram.read::<u32>(cur_addr);
-                    match port {
-                        Port::Gpu => self.gpu.gp0(src_word),
-                        _ => panic!("Unhandled DMA destination port"),
-                    }
-                }
-            }
-            addr = addr.wrapping_add_signed(step);
-        }
-        self.dma.channels[port as usize].done();
-    }
-
-    pub fn do_dma_linked_list(&mut self, port: Port) {
-        let channel = &mut self.dma.channels[port as usize];
-        if channel.ctl.dir() == Direction::ToRam {
-            panic!("Invalid DMA direction for linked list mode.");
-        }
-        if port != Port::Gpu {
-            panic!("Attempted linked list DMA on port {}", port as usize);
-        }
-
-        let mut addr = channel.base & 0x1FFFFC;
-        loop {
-            let header = self.ram.read::<u32>(addr);
-            let size = header >> 24;
-
-            for i in 0..size {
-                let data = self.ram.read::<u32>(addr + 4 * (i + 1));
-                self.gpu.gp0(data);
-            }
-
-            let next_addr = header & 0xFFFFFF;
-            if next_addr & (1 << 23) != 0 {
-                break;
-            }
-            addr = next_addr;
-        }
-
-        channel.done();
     }
 }
