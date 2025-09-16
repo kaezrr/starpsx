@@ -4,52 +4,52 @@ impl Cpu {
     // Load and store instructions
 
     /// Load byte
-    pub fn lb(&mut self, instr: Instruction, bus: &Bus) -> Result<(), Exception> {
+    pub fn lb(&mut self, instr: Instruction, bus: &mut Bus) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let im = instr.imm16_se();
 
         let addr = self.regs[rs].wrapping_add(im);
-        let data = bus.read8(addr) as i8;
+        let data = bus.read::<u8>(addr)? as i8;
 
         self.take_delayed_load(rt, data as u32);
         Ok(())
     }
 
     /// Load byte unsigned
-    pub fn lbu(&mut self, instr: Instruction, bus: &Bus) -> Result<(), Exception> {
+    pub fn lbu(&mut self, instr: Instruction, bus: &mut Bus) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let im = instr.imm16_se();
 
         let addr = self.regs[rs].wrapping_add(im);
-        let data = bus.read8(addr);
+        let data = bus.read::<u8>(addr)?;
 
         self.take_delayed_load(rt, data as u32);
         Ok(())
     }
 
     /// Load half word
-    pub fn lh(&mut self, instr: Instruction, bus: &Bus) -> Result<(), Exception> {
+    pub fn lh(&mut self, instr: Instruction, bus: &mut Bus) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let im = instr.imm16_se();
 
         let addr = self.regs[rs].wrapping_add(im);
-        let data = bus.read16(addr)? as i16;
+        let data = bus.read::<u16>(addr)? as i16;
 
         self.take_delayed_load(rt, data as u32);
         Ok(())
     }
 
     /// Load half word unsigned
-    pub fn lhu(&mut self, instr: Instruction, bus: &Bus) -> Result<(), Exception> {
+    pub fn lhu(&mut self, instr: Instruction, bus: &mut Bus) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let im = instr.imm16_se();
 
         let addr = self.regs[rs].wrapping_add(im);
-        let data = bus.read16(addr)?;
+        let data = bus.read::<u16>(addr)?;
 
         self.take_delayed_load(rt, data as u32);
         Ok(())
@@ -67,7 +67,7 @@ impl Cpu {
         let im = instr.imm16_se();
 
         let addr = self.regs[rs].wrapping_add(im);
-        let data = bus.read32(addr)?;
+        let data = bus.read::<u32>(addr)?;
 
         self.take_delayed_load(rt, data);
         Ok(())
@@ -86,8 +86,7 @@ impl Cpu {
         let addr = self.regs[rs].wrapping_add(im);
         let data = self.regs[rt] as u8;
 
-        bus.write8(addr, data);
-        Ok(())
+        bus.write::<u8>(addr, data)
     }
 
     /// Store half word
@@ -103,7 +102,7 @@ impl Cpu {
         let addr = self.regs[rs].wrapping_add(im);
         let data = self.regs[rt] as u16;
 
-        bus.write16(addr, data)?;
+        bus.write::<u16>(addr, data)?;
         Ok(())
     }
 
@@ -121,7 +120,7 @@ impl Cpu {
         let addr = self.regs[rs].wrapping_add(im);
         let data = self.regs[rt];
 
-        bus.write32(addr, data)?;
+        bus.write::<u32>(addr, data)?;
         Ok(())
     }
 
@@ -135,7 +134,7 @@ impl Cpu {
         let val = self.regd[rt];
 
         let aligned_addr = addr & !3;
-        let word = bus.read32(aligned_addr)?;
+        let word = bus.read::<u32>(aligned_addr)?;
 
         let data = match addr & 3 {
             0 => (val & 0x00FFFFFF) | (word << 24),
@@ -159,7 +158,7 @@ impl Cpu {
         let val = self.regd[rt];
 
         let aligned_addr = addr & !3;
-        let word = bus.read32(aligned_addr)?;
+        let word = bus.read::<u32>(aligned_addr)?;
 
         let data = match addr & 3 {
             0 => word,
@@ -183,7 +182,7 @@ impl Cpu {
         let val = self.regs[rt];
 
         let aligned_addr = addr & !3;
-        let word = bus.read32(aligned_addr)?;
+        let word = bus.read::<u32>(aligned_addr)?;
 
         let data = match addr & 3 {
             0 => (word & 0xFFFFFF00) | (val >> 24),
@@ -193,7 +192,7 @@ impl Cpu {
             _ => unreachable!(),
         };
 
-        bus.write32(aligned_addr, data)?;
+        bus.write::<u32>(aligned_addr, data)?;
         Ok(())
     }
 
@@ -207,7 +206,7 @@ impl Cpu {
         let val = self.regs[rt];
 
         let aligned_addr = addr & !3;
-        let word = bus.read32(aligned_addr)?;
+        let word = bus.read::<u32>(aligned_addr)?;
 
         let data = match addr & 3 {
             0 => val,
@@ -217,7 +216,7 @@ impl Cpu {
             _ => unreachable!(),
         };
 
-        bus.write32(aligned_addr, data)?;
+        bus.write::<u32>(aligned_addr, data)?;
         Ok(())
     }
 

@@ -1,4 +1,5 @@
 mod bios;
+mod handlers;
 mod ram;
 mod scratch;
 mod utils;
@@ -10,11 +11,11 @@ use crate::dma::{
     utils::{Direction, Port, Step, Sync},
 };
 use crate::gpu::Gpu;
-use crate::memory::utils::map;
 use bios::Bios;
 use ram::Ram;
 use scratch::Scratch;
 use std::error::Error;
+use utils::{ByteAddressable, map};
 
 pub struct Bus {
     bios: Bios,
@@ -41,141 +42,84 @@ impl Bus {
         })
     }
 
-    pub fn read8(&self, addr: u32) -> u8 {
+    pub fn read<T: ByteAddressable>(&mut self, addr: u32) -> Result<T, Exception> {
+        if !addr.is_multiple_of(T::LEN as u32) {
+            return Err(Exception::LoadAddressError(addr));
+        }
+
         let masked = utils::mask_region(addr);
 
         if let Some(offs) = map::BIOS.contains(masked) {
-            return self.bios.read::<u8>(offs);
+            return Ok(self.bios.read::<T>(offs));
         }
 
         if let Some(offs) = map::RAM.contains(masked) {
-            return self.ram.read::<u8>(offs);
+            return Ok(self.ram.read::<T>(offs));
         }
 
         if let Some(offs) = map::SCRATCH.contains(masked) {
-            return self.scratch.read::<u8>(offs);
+            return Ok(self.scratch.read::<T>(offs));
         }
 
         if let Some(offs) = map::EXPANSION1.contains(masked) {
-            eprintln!("Unhandled read8 to the expansion1 {offs:x}");
-            return 0;
+            eprintln!("Unhandled read to the expansion1 {offs:x}");
+            return Ok(T::zeroed());
+        }
+
+        if let Some(offs) = map::SPU.contains(masked) {
+            eprintln!("Unhandled read to the SPU reg{offs:x}");
+            return Ok(T::zeroed());
         }
 
         if let Some(offs) = map::PERIPHERAL.contains(masked) {
-            eprintln!("Unhandled read8 to the io port reg{offs:x}");
-            return 0;
+            eprintln!("Unhandled read to the io port reg{offs:x}");
+            return Ok(T::zeroed());
+        }
+
+        if let Some(offs) = map::IRQCTL.contains(masked) {
+            eprintln!("Unhandled read to the irqctl reg{offs:x}");
+            return Ok(T::zeroed());
+        }
+
+        if let Some(offs) = map::TIMERS.contains(masked) {
+            eprintln!("TIMER: {offs:x}");
+            return Ok(T::zeroed());
+        }
+
+        if let Some(offs) = map::DMA.contains(masked) {
+            return Ok(self.dma_read_handler::<T>(offs));
+        }
+
+        if let Some(offs) = map::GPU.contains(masked) {
+            return Ok(self.gpu_read_handler::<T>(offs));
         }
 
         panic!("Unmapped read8 at {masked:#08X}");
     }
 
-    pub fn read16(&self, addr: u32) -> Result<u16, Exception> {
-        if addr & 1 != 0 {
-            return Err(Exception::LoadAddressError(addr));
-        }
-        let masked = utils::mask_region(addr);
-
-        if let Some(offs) = map::RAM.contains(masked) {
-            return Ok(self.ram.read::<u16>(offs));
-        }
-
-        if let Some(offs) = map::SCRATCH.contains(masked) {
-            return Ok(self.scratch.read::<u16>(offs));
-        }
-
-        if let Some(offs) = map::SPU.contains(masked) {
-            eprintln!("Unhandled read16 to the SPU reg{offs:x}");
-            return Ok(0);
-        }
-
-        if let Some(offs) = map::PERIPHERAL.contains(masked) {
-            eprintln!("Unhandled read16 to the io port reg{offs:x}");
-            return Ok(0);
-        }
-
-        if let Some(offs) = map::IRQCTL.contains(masked) {
-            eprintln!("Unhandled read16 to the irqctl reg{offs:x}");
-            return Ok(0);
-        }
-
-        panic!("Unmapped read16 at {masked:#08X}");
-    }
-
-    pub fn read32(&mut self, addr: u32) -> Result<u32, Exception> {
-        if addr & 3 != 0 {
-            return Err(Exception::LoadAddressError(addr));
-        }
-        let masked = utils::mask_region(addr);
-
-        if let Some(offs) = map::BIOS.contains(masked) {
-            return Ok(self.bios.read::<u32>(offs));
-        }
-
-        if let Some(offs) = map::RAM.contains(masked) {
-            return Ok(self.ram.read::<u32>(offs));
-        }
-
-        if let Some(offs) = map::SCRATCH.contains(masked) {
-            return Ok(self.scratch.read::<u32>(offs));
-        }
-
-        if let Some(offs) = map::TIMERS.contains(masked) {
-            eprintln!("TIMER: {offs:x}");
-            return Ok(0);
-        }
-
-        if let Some(offs) = map::IRQCTL.contains(masked) {
-            eprintln!("IRQCTL read: {offs:x}");
-            return Ok(0);
-        }
-
-        if let Some(offs) = map::DMA.contains(masked) {
-            return Ok(self.dma.get_reg(offs));
-        }
-
-        if let Some(offs) = map::GPU.contains(masked) {
-            return Ok(self.gpu.read_reg(offs));
-        }
-
-        panic!("Unmapped read::<u32> at {masked:#08X}");
-    }
-
-    pub fn write8(&mut self, addr: u32, data: u8) {
-        let masked = utils::mask_region(addr);
-
-        if let Some(offs) = map::EXPANSION2.contains(masked) {
-            return eprintln!("Unhandled write to expansion2 register{offs:x}");
-        }
-
-        if let Some(offs) = map::RAM.contains(masked) {
-            return self.ram.write::<u8>(offs, data);
-        }
-
-        if let Some(offs) = map::SCRATCH.contains(masked) {
-            return self.scratch.write::<u8>(offs, data);
-        }
-
-        panic!("Unmapped write8 at {addr:#08X}");
-    }
-
-    pub fn write16(&mut self, addr: u32, data: u16) -> Result<(), Exception> {
-        if addr & 1 != 0 {
+    pub fn write<T: ByteAddressable>(&mut self, addr: u32, data: T) -> Result<(), Exception> {
+        if !addr.is_multiple_of(T::LEN as u32) {
             return Err(Exception::StoreAddressError(addr));
         }
         let masked = utils::mask_region(addr);
 
         if let Some(offs) = map::RAM.contains(masked) {
-            self.ram.write::<u16>(offs, data);
+            self.ram.write::<T>(offs, data);
+            return Ok(());
+        }
+
+        if let Some(offs) = map::SCRATCH.contains(masked) {
+            self.scratch.write::<T>(offs, data);
+            return Ok(());
+        }
+
+        if let Some(offs) = map::EXPANSION2.contains(masked) {
+            eprintln!("Unhandled write to expansion2 register{offs:x}");
             return Ok(());
         }
 
         if let Some(offs) = map::PERIPHERAL.contains(masked) {
             eprintln!("Unhandled write to io port reg{offs:x}");
-            return Ok(());
-        }
-
-        if let Some(offs) = map::SCRATCH.contains(masked) {
-            self.scratch.write::<u16>(offs, data);
             return Ok(());
         }
 
@@ -185,48 +129,17 @@ impl Bus {
         }
 
         if let Some(offs) = map::TIMERS.contains(masked) {
-            eprintln!("TIMER: {offs:x} <- {data:08x}");
+            eprintln!("Unhandled write to the TIMERS reg{offs:x}");
             return Ok(());
         }
 
         if let Some(offs) = map::IRQCTL.contains(masked) {
-            eprintln!("IRQCTL: {offs:x} <- {data:08x}");
-            return Ok(());
-        }
-
-        panic!("Unmapped write16 at {addr:#08X}");
-    }
-
-    pub fn write32(&mut self, addr: u32, data: u32) -> Result<(), Exception> {
-        if addr & 3 != 0 {
-            return Err(Exception::StoreAddressError(addr));
-        }
-        let masked = utils::mask_region(addr);
-
-        if let Some(offs) = map::RAM.contains(masked) {
-            self.ram.write::<u32>(offs, data);
+            eprintln!("Unhandled write to the IRQCTL reg{offs:x}");
             return Ok(());
         }
 
         if let Some(offs) = map::MEMCTL.contains(masked) {
-            match offs {
-                0 => {
-                    if data != 0x1F000000 {
-                        panic!("Bad expansion 1 base address {data:#08X}");
-                    }
-                }
-                4 => {
-                    if data != 0x1F802000 {
-                        panic!("Bad expansion 2 base address {data:#08X}");
-                    }
-                }
-                _ => eprintln!("Unhandled write to MEMCTRL"),
-            }
-            return Ok(());
-        }
-
-        if let Some(offs) = map::SCRATCH.contains(masked) {
-            self.scratch.write::<u32>(offs, data);
+            self.memctl_write_handler(offs, data);
             return Ok(());
         }
 
@@ -239,29 +152,17 @@ impl Bus {
             return Ok(());
         }
 
-        if let Some(offs) = map::IRQCTL.contains(masked) {
-            eprintln!("IRQCTL: {offs:x} <- {data:08x}");
-            return Ok(());
-        }
-
         if let Some(offs) = map::DMA.contains(masked) {
-            if let Some(port) = self.dma.set_reg(offs, data) {
-                self.do_dma(port);
-            }
+            self.dma_write_handler(offs, data);
             return Ok(());
         }
 
         if let Some(offs) = map::GPU.contains(masked) {
-            self.gpu.write_reg(offs, data);
+            self.gpu_write_handler(offs, data);
             return Ok(());
         }
 
-        if let Some(offs) = map::TIMERS.contains(masked) {
-            eprintln!("TIMER: {offs:x} <- {data:08x}");
-            return Ok(());
-        }
-
-        panic!("Unmapped write::<u32> at {addr:#08X}");
+        Ok(())
     }
 
     pub fn do_dma(&mut self, port: Port) {

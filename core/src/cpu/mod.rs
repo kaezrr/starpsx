@@ -55,7 +55,7 @@ impl Default for Cpu {
 impl Cpu {
     /// Run a single instruction and return the number of cycles
     pub fn run_instruction(&mut self, bus: &mut Bus) {
-        let instr = Instruction(match bus.read32(self.pc) {
+        let instr = Instruction(match bus.read::<u32>(self.pc) {
             Ok(v) => v,
             Err(e) => return self.handle_exception(e, false),
         });

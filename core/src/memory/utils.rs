@@ -35,20 +35,34 @@ pub const fn mask_region(addr: u32) -> u32 {
 }
 
 pub trait ByteAddressable {
+    const LEN: usize;
     type Bytes: for<'a> TryFrom<&'a [u8], Error: core::fmt::Debug> + AsRef<[u8]>;
     fn from_le_bytes(bytes: Self::Bytes) -> Self;
     fn to_le_bytes(self) -> Self::Bytes;
+    fn from_u32(val: u32) -> Self;
+    fn to_u32(self) -> u32;
+    fn zeroed() -> Self;
 }
 
 macro_rules! int_impl {
     ($int:ty) => {
         impl ByteAddressable for $int {
-            type Bytes = [u8; size_of::<Self>()];
+            const LEN: usize = size_of::<Self>();
+            type Bytes = [u8; Self::LEN];
             fn from_le_bytes(bytes: Self::Bytes) -> Self {
                 <$int>::from_le_bytes(bytes)
             }
             fn to_le_bytes(self) -> Self::Bytes {
                 self.to_le_bytes()
+            }
+            fn from_u32(val: u32) -> Self {
+                val as Self
+            }
+            fn to_u32(self) -> u32 {
+                self as u32
+            }
+            fn zeroed() -> Self {
+                unsafe { std::mem::zeroed() }
             }
         }
     };

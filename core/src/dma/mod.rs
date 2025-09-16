@@ -46,7 +46,7 @@ impl Dma {
         &self.channels[Port::from(x) as usize]
     }
 
-    pub fn get_reg(&self, offs: u32) -> u32 {
+    pub fn read_reg(&self, offs: u32) -> u32 {
         let major = (offs >> 4) & 0x7;
         let minor = (offs) & 0xF;
 
@@ -60,7 +60,7 @@ impl Dma {
         }
     }
 
-    pub fn set_reg(&mut self, offs: u32, data: u32) -> Option<Port> {
+    pub fn write_reg(&mut self, offs: u32, data: u32) -> Option<Port> {
         let major = (offs >> 4) & 0x7;
         let minor = (offs) & 0xF;
 
