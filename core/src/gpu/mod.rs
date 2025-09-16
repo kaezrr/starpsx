@@ -106,6 +106,9 @@ bitfield::bitfield! {
     display_off, _ : 0;
 }
 
+pub const PADDR_START: u32 = 0x1F801810;
+pub const PADDR_END: u32 = 0x1F801817;
+
 pub struct Gpu {
     pub renderer: Renderer,
     gpu_read: u32,
@@ -132,7 +135,8 @@ const QUAD: bool = true;
 const TRI: bool = false;
 
 impl Gpu {
-    pub fn write_reg(&mut self, offs: u32, data: u32) {
+    pub fn write_reg(&mut self, addr: u32, data: u32) {
+        let offs = addr - PADDR_START;
         match offs {
             0 => self.gp0(data),
             4 => self.gp1(data),
@@ -140,7 +144,8 @@ impl Gpu {
         }
     }
 
-    pub fn read_reg(&mut self, offs: u32) -> u32 {
+    pub fn read_reg(&mut self, addr: u32) -> u32 {
+        let offs = addr - PADDR_START;
         match offs {
             0 => self.read(),
             4 => self.stat(),

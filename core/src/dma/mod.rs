@@ -31,6 +31,9 @@ impl Default for Dma {
     }
 }
 
+pub const PADDR_START: u32 = 0x1F801080;
+pub const PADDR_END: u32 = 0x1F8010FF;
+
 impl Dma {
     /// Status of DMA interrupt
     pub fn irq_stat(&self) -> bool {
@@ -46,7 +49,8 @@ impl Dma {
         &self.channels[Port::from(x) as usize]
     }
 
-    pub fn read_reg(&self, offs: u32) -> u32 {
+    pub fn read_reg(&self, addr: u32) -> u32 {
+        let offs = addr - PADDR_START;
         let major = (offs >> 4) & 0x7;
         let minor = (offs) & 0xF;
 
@@ -60,7 +64,8 @@ impl Dma {
         }
     }
 
-    pub fn write_reg(&mut self, offs: u32, data: u32) -> Option<Port> {
+    pub fn write_reg(&mut self, addr: u32, data: u32) -> Option<Port> {
+        let offs = addr - PADDR_START;
         let major = (offs >> 4) & 0x7;
         let minor = (offs) & 0xF;
 
