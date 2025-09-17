@@ -16,15 +16,15 @@ bitfield::bitfield! {
     channel_irq_fl, set_channel_irq_fl: 22, 16;
 }
 
-pub struct Dma {
+pub struct DMAController {
     control: u32,
     interrupt: Interrupt,
     pub channels: [Channel; 8],
 }
 
-impl Default for Dma {
+impl Default for DMAController {
     fn default() -> Self {
-        Dma {
+        DMAController {
             control: 0x07654321,
             interrupt: Interrupt(0),
             channels: from_fn(|_| Channel::new()),
@@ -35,7 +35,7 @@ impl Default for Dma {
 pub const PADDR_START: u32 = 0x1F801080;
 pub const PADDR_END: u32 = 0x1F8010FF;
 
-impl Dma {
+impl DMAController {
     /// Status of DMA interrupt
     pub fn irq_stat(&self) -> bool {
         let channel_irq = self.interrupt.channel_irq_en() & self.interrupt.channel_irq_fl();

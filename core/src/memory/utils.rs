@@ -1,3 +1,5 @@
+use std::fmt::{Display, LowerHex};
+
 pub const fn mask_region(addr: u32) -> u32 {
     addr & match addr >> 29 {
         0b000..=0b011 => 0xFFFFFFFF, // KUSEG
@@ -8,7 +10,7 @@ pub const fn mask_region(addr: u32) -> u32 {
     }
 }
 
-pub trait ByteAddressable: Copy {
+pub trait ByteAddressable: Copy + LowerHex + Display {
     const LEN: usize;
 
     type Bytes: for<'a> TryFrom<&'a [u8], Error: core::fmt::Debug> + AsRef<[u8]>;

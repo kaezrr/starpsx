@@ -1,16 +1,18 @@
 mod fastmem;
 mod handlers;
+mod irqctl;
 mod utils;
 
 use crate::Config;
 use crate::cpu::utils::Exception;
-use crate::dma::{self, Dma};
+use crate::dma::{self, DMAController};
 use crate::gpu::{self, Gpu};
 pub use fastmem::{
     bios::{self, Bios},
     ram::{self, Ram},
     scratch::{self, Scratch},
 };
+use irqctl::InterruptController;
 use std::error::Error;
 use utils::ByteAddressable;
 
@@ -26,16 +28,18 @@ pub struct Bus {
     pub gpu: Gpu,
     pub ram: Ram,
     scratch: Scratch,
-    dma: Dma,
+    irqctl: InterruptController,
+    dma: DMAController,
 }
 
 impl Bus {
     pub fn build(conf: &Config) -> Result<Self, Box<dyn Error>> {
         let bios = Bios::build(&conf.bios_path)?;
         let ram = Ram::default();
-        let dma = Dma::default();
+        let dma = DMAController::default();
         let gpu = Gpu::default();
         let scratch = Scratch::default();
+        let irqctl = InterruptController::default();
 
         Ok(Bus {
             gpu,
@@ -43,6 +47,7 @@ impl Bus {
             ram,
             scratch,
             dma,
+            irqctl,
         })
     }
 
@@ -64,6 +69,8 @@ impl Bus {
 
             dma::PADDR_START..=dma::PADDR_END => self.dma_read_handler(addr),
 
+            irqctl::PADDR_START..=irqctl::PADDR_END => self.irq_read_handler(addr),
+
             0x1F801000..=0x1F801023 => panic!("Unhandled read to memctl"),
 
             0x1F801060..=0x1F801063 => panic!("Unhandled read to ramsize"),
@@ -75,8 +82,6 @@ impl Bus {
             0x1F802000..=0x1F802041 => panic!("Unhandled read to expansion2"),
 
             0x1F000000..=0x1F0000FF => stubbed!("Unhandled read to the expansion1"),
-
-            0x1F801070..=0x1F801077 => stubbed!("Unhandled read to the irqctl reg{addr:08x}"),
 
             0x1F801100..=0x1F80112F => stubbed!("Unhandled read to the timers"),
 
@@ -103,6 +108,8 @@ impl Bus {
 
             dma::PADDR_START..=dma::PADDR_END => self.dma_write_handler(addr, data),
 
+            irqctl::PADDR_START..=irqctl::PADDR_END => self.irq_write_handler(addr, data),
+
             0x1F801000..=0x1F801023 => eprintln!("Unhandled write to memctl"),
 
             0x1F801060..=0x1F801063 => eprintln!("Unhandled write to ramsize"),
@@ -114,8 +121,6 @@ impl Bus {
             0x1F802000..=0x1F802041 => eprintln!("Unhandled write to expansion2"),
 
             0x1F000000..=0x1F0000FF => eprintln!("Unhandled write to the expansion1"),
-
-            0x1F801070..=0x1F801077 => eprintln!("Unhandled write to the irqctl reg{addr:08x}"),
 
             0x1F801100..=0x1F80112F => eprintln!("Unhandled write to the irqctl"),
 
