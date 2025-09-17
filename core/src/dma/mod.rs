@@ -36,12 +36,6 @@ pub const PADDR_START: u32 = 0x1F801080;
 pub const PADDR_END: u32 = 0x1F8010FF;
 
 impl DMAController {
-    /// Status of DMA interrupt
-    pub fn irq_stat(&self) -> bool {
-        let channel_irq = self.interrupt.channel_irq_en() & self.interrupt.channel_irq_fl();
-        self.interrupt.bus_er() || (self.interrupt.irq_en() && channel_irq != 0)
-    }
-
     pub fn get_mut_channel(&mut self, x: u32) -> &mut Channel {
         &mut self.channels[Port::from(x) as usize]
     }

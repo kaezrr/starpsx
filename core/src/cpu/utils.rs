@@ -31,6 +31,7 @@ impl Instruction {
 }
 
 pub enum Exception {
+    ExternalInterrupt,
     LoadAddressError(u32),
     StoreAddressError(u32),
     Syscall,
@@ -43,6 +44,7 @@ pub enum Exception {
 impl Exception {
     pub fn code(&self) -> u32 {
         match self {
+            Exception::ExternalInterrupt => 0x0,
             Exception::LoadAddressError(_) => 0x4,
             Exception::StoreAddressError(_) => 0x5,
             Exception::Syscall => 0x8,

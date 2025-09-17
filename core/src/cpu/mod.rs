@@ -81,11 +81,32 @@ impl Cpu {
             self.handle_exception(exception, in_delay_slot);
             return;
         };
+
+        if let Err(exception) = self.pending_interrupts(bus) {
+            self.handle_exception(exception, in_delay_slot);
+            return;
+        }
+
         self.regs = self.regd;
         self.regs[0] = 0;
 
         // Increment program counter
         self.pc = next_pc;
+    }
+
+    fn pending_interrupts(&mut self, bus: &Bus) -> Result<(), Exception> {
+        if !bus.irqctl.pending() {
+            return Ok(());
+        }
+
+        // cause register bit 10 gets set.
+        self.cop0.cause |= 1 << 10;
+
+        // Interrupt is executed only if bit 0 and bit 10 is set for cop0 sr
+        match self.cop0.sr & 0x401 {
+            0x401 => Err(Exception::ExternalInterrupt),
+            _ => Ok(()),
+        }
     }
 
     fn handle_exception(&mut self, cause: Exception, branch: bool) {

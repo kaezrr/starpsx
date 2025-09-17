@@ -24,12 +24,13 @@ macro_rules! stubbed {
 }
 
 pub struct Bus {
+    dma: DMAController,
     bios: Bios,
+    scratch: Scratch,
+
     pub gpu: Gpu,
     pub ram: Ram,
-    scratch: Scratch,
-    irqctl: InterruptController,
-    dma: DMAController,
+    pub irqctl: InterruptController,
 }
 
 impl Bus {
