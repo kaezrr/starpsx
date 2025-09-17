@@ -76,13 +76,13 @@ impl Bus {
 
             0x1F801060..=0x1F801063 => panic!("Unhandled read to ramsize"),
 
-            0x1F801C00..=0x1F801E7F => stubbed!("Unhandled read to the SPU reg"),
+            0x1F801C00..=0x1F801E7F => stubbed!("Unhandled read to the SPU"),
 
             0xFFFE0130..=0xFFFE0133 => panic!("Unhandled read to cachectl"),
 
-            0x1F802000..=0x1F802041 => panic!("Unhandled read to expansion2"),
-
             0x1F000000..=0x1F0000FF => stubbed!("Unhandled read to the expansion1"),
+
+            0x1F802000..=0x1F802041 => panic!("Unhandled read to expansion2"),
 
             0x1F801100..=0x1F80112F => stubbed!("Unhandled read to the timers"),
 
@@ -119,11 +119,11 @@ impl Bus {
 
             0xFFFE0130..=0xFFFE0133 => eprintln!("Unhandled write to cachectl"),
 
-            0x1F802000..=0x1F802041 => eprintln!("Unhandled write to expansion2"),
-
             0x1F000000..=0x1F0000FF => eprintln!("Unhandled write to the expansion1"),
 
-            0x1F801100..=0x1F80112F => eprintln!("Unhandled write to the irqctl"),
+            0x1F802000..=0x1F802041 => eprintln!("Unhandled write to expansion2"),
+
+            0x1F801100..=0x1F80112F => eprintln!("Unhandled write to the timers"),
 
             0x1F801040..=0x1F80105F => eprintln!("Unhandled write to the io port"),
 

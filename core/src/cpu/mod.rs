@@ -82,10 +82,11 @@ impl Cpu {
             return;
         };
 
-        if let Err(exception) = self.pending_interrupts(bus) {
-            self.handle_exception(exception, in_delay_slot);
-            return;
-        }
+        // if let Err(exception) = self.pending_interrupts(bus) {
+        //     println!("{:032b} {:032b}", self.cop0.cause, self.cop0.sr);
+        //     self.handle_exception(exception, in_delay_slot);
+        //     return;
+        // }
 
         self.regs = self.regd;
         self.regs[0] = 0;

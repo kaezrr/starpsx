@@ -72,6 +72,7 @@ impl StarPSX {
             self.cpu.run_instruction(&mut self.bus);
             self.check_for_tty_output();
         }
+        self.bus.irqctl.stat().set_vblank(true);
         self.bus.gpu.renderer.copy_display_to_fb();
     }
 
