@@ -82,11 +82,10 @@ impl Cpu {
             return;
         };
 
-        // if let Err(exception) = self.pending_interrupts(bus) {
-        //     println!("{:032b} {:032b}", self.cop0.cause, self.cop0.sr);
-        //     self.handle_exception(exception, in_delay_slot);
-        //     return;
-        // }
+        if let Err(exception) = self.pending_interrupts(bus) {
+            self.handle_exception(exception, in_delay_slot);
+            return;
+        }
 
         self.regs = self.regd;
         self.regs[0] = 0;
@@ -97,31 +96,35 @@ impl Cpu {
 
     fn pending_interrupts(&mut self, bus: &Bus) -> Result<(), Exception> {
         if !bus.irqctl.pending() {
+            self.cop0.cause &= !0x400;
             return Ok(());
         }
 
-        // cause register bit 10 gets set.
-        self.cop0.cause |= 1 << 10;
+        self.cop0.cause |= 0x400;
 
-        // Interrupt is executed only if bit 0 and bit 10 is set for cop0 sr
-        match self.cop0.sr & 0x401 {
-            0x401 => Err(Exception::ExternalInterrupt),
-            _ => Ok(()),
+        let ip = (self.cop0.cause >> 8) & 0xFF;
+        let im = (self.cop0.sr >> 8) & 0xFF;
+
+        if (ip & im) != 0 && (self.cop0.sr & 1) == 1 {
+            return Err(Exception::ExternalInterrupt);
         }
+        Ok(())
     }
 
     fn handle_exception(&mut self, cause: Exception, branch: bool) {
-        // Exception handler address based on BEV field of Cop0 SR
-        let handler: u32 = match (self.cop0.sr >> 22) & 1 == 1 {
-            true => 0xBFC00180,
-            false => 0x80000080,
-        };
-
         let mode = self.cop0.sr & 0x3F;
         self.cop0.sr = (self.cop0.sr & !0x3F) | (mode << 2 & 0x3F);
 
-        self.cop0.cause = cause.code() << 2 | (branch as u32) << 31;
-        self.cop0.epc = if branch { self.pc - 4 } else { self.pc };
+        self.cop0.cause &= !0x7c;
+        self.cop0.cause |= cause.code() << 2;
+
+        if branch && !matches!(cause, Exception::ExternalInterrupt) {
+            self.cop0.epc = self.pc.wrapping_sub(4);
+            self.cop0.cause |= 1 << 31;
+        } else {
+            self.cop0.epc = self.pc;
+            self.cop0.cause &= !(1 << 31);
+        }
 
         match cause {
             Exception::LoadAddressError(x) => self.cop0.baddr = x,
@@ -129,7 +132,11 @@ impl Cpu {
             _ => (),
         }
 
-        self.pc = handler;
+        // Exception handler address based on BEV field of Cop0 SR
+        self.pc = match (self.cop0.sr >> 22) & 1 == 1 {
+            true => 0xBFC00180,
+            false => 0x80000080,
+        };
     }
 
     fn cop2(&mut self, instr: Instruction) -> Result<(), Exception> {
