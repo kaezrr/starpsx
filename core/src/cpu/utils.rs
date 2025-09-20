@@ -30,6 +30,7 @@ impl Instruction {
     }
 }
 
+#[derive(Debug)]
 pub enum Exception {
     ExternalInterrupt,
     LoadAddressError(u32),

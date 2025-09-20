@@ -76,6 +76,7 @@ impl StarPSX {
         self.bus.gpu.renderer.copy_display_to_fb();
     }
 
+    #[allow(unused_must_use)]
     pub fn sideload_exe(&mut self, filepath: &String) -> Result<(), Box<dyn Error>> {
         let exe = std::fs::read(filepath)?;
         while self.cpu.pc != 0x80030000 {
@@ -101,6 +102,29 @@ impl StarPSX {
         }
 
         self.cpu.pc = init_pc;
+
+        // Pass args to amidogs exe
+        // let args = ["auto\0", "console\0", "release\0"];
+        // let arg_len: u32 = 2; // only first 2 args
+        // let mut len: usize = 0;
+        //
+        // for i in 0..arg_len {
+        //     // write pointer to the string
+        //     self.bus
+        //         .write::<u32>(0x1f800004 + i * 4, 0x1f800044 + len as u32);
+        //
+        //     let s = args[i as usize];
+        //     let n = s.len();
+        //
+        //     for x in len..len + n {
+        //         let byte = s.as_bytes()[x - len];
+        //         self.bus.write::<u8>(0x1f800044 + x as u32, byte);
+        //     }
+        //
+        //     len += n;
+        // }
+        //
+        // self.bus.write::<u32>(0x1f800000, arg_len);
 
         Ok(())
     }

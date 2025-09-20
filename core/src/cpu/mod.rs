@@ -82,22 +82,21 @@ impl Cpu {
             return;
         };
 
-        if let Err(exception) = self.pending_interrupts(bus) {
-            self.handle_exception(exception, in_delay_slot);
-            return;
-        }
-
         self.regs = self.regd;
         self.regs[0] = 0;
 
         // Increment program counter
         self.pc = next_pc;
+
+        if self.pending_interrupts(bus) {
+            self.handle_exception(Exception::ExternalInterrupt, false);
+        }
     }
 
-    fn pending_interrupts(&mut self, bus: &Bus) -> Result<(), Exception> {
+    fn pending_interrupts(&mut self, bus: &Bus) -> bool {
         if !bus.irqctl.pending() {
             self.cop0.cause &= !0x400;
-            return Ok(());
+            return false;
         }
 
         self.cop0.cause |= 0x400;
@@ -105,20 +104,20 @@ impl Cpu {
         let ip = (self.cop0.cause >> 8) & 0xFF;
         let im = (self.cop0.sr >> 8) & 0xFF;
 
-        if (ip & im) != 0 && (self.cop0.sr & 1) == 1 {
-            return Err(Exception::ExternalInterrupt);
-        }
-        Ok(())
+        (ip & im) != 0 && (self.cop0.sr & 1) == 1
     }
 
     fn handle_exception(&mut self, cause: Exception, branch: bool) {
+        // SR shifting
         let mode = self.cop0.sr & 0x3F;
         self.cop0.sr = (self.cop0.sr & !0x3F) | (mode << 2 & 0x3F);
 
+        // Set the exception code
         self.cop0.cause &= !0x7c;
         self.cop0.cause |= cause.code() << 2;
 
-        if branch && !matches!(cause, Exception::ExternalInterrupt) {
+        // Check if currently in Branch Delay Slot
+        if branch {
             self.cop0.epc = self.pc.wrapping_sub(4);
             self.cop0.cause |= 1 << 31;
         } else {
@@ -126,6 +125,7 @@ impl Cpu {
             self.cop0.cause &= !(1 << 31);
         }
 
+        // If bad address exception then store that in cop0r8
         match cause {
             Exception::LoadAddressError(x) => self.cop0.baddr = x,
             Exception::StoreAddressError(x) => self.cop0.baddr = x,
