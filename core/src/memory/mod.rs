@@ -72,7 +72,7 @@ impl Bus {
 
             irqctl::PADDR_START..=irqctl::PADDR_END => self.irq_read_handler(addr),
 
-            0x1F801000..=0x1F801023 => panic!("Unhandled read to memctl"),
+            0x1F801000..=0x1F801023 => stubbed!("Unhandled read to memctl"),
 
             0x1F801060..=0x1F801063 => panic!("Unhandled read to ramsize"),
 

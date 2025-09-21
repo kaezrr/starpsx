@@ -37,7 +37,7 @@ impl Cpu {
             8 => self.cop0.baddr = data,
             12 => self.cop0.sr = data,
             // Only bits 8 and 9 are writable
-            13 => self.cop0.cause = (self.cop0.cause & !0x300) & (data & 0x300),
+            13 => self.cop0.cause = (self.cop0.cause & !0x300) | (data & 0x300),
             _ => panic!("Unhandled cop0r{cop_r} write <- {data:x}"),
         }
         Ok(())
