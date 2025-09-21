@@ -77,6 +77,14 @@ impl Cpu {
             _ => (),
         }
 
+        // if unsafe { LOG } {
+        //     let disasm = decode_instruction(instr.0, self.pc);
+        //     println!(
+        //         "{:08x}: {:08x} {} {:08x} {:08x}",
+        //         self.pc, instr.0, disasm, self.regs[0], self.regs[27]
+        //     );
+        // }
+
         if let Err(exception) = self.execute_opcode(instr, bus) {
             self.handle_exception(exception, in_delay_slot);
             return;
@@ -90,17 +98,17 @@ impl Cpu {
     }
 
     fn pending_interrupts(&mut self, bus: &Bus) -> bool {
-        if !bus.irqctl.pending() {
-            self.cop0.cause &= !0x400;
-            return false;
+        // Bit 10 of cause corresponds to any pending external interrupts
+        if bus.irqctl.pending() {
+            self.cop0.cause |= 1 << 10;
+        } else {
+            self.cop0.cause &= !(1 << 10);
         }
 
-        self.cop0.cause |= 0x400;
+        // Mask Bit 10 and Bit 9 - 8 (Software Interrrupts) with SR
+        let pending = (self.cop0.cause & self.cop0.sr) & 0x700;
 
-        let ip = (self.cop0.cause >> 8) & 0xFF;
-        let im = (self.cop0.sr >> 8) & 0xFF;
-
-        (ip & im) != 0 && (self.cop0.sr & 1) == 1
+        pending != 0 && (self.cop0.sr & 1 != 0)
     }
 
     fn handle_exception(&mut self, cause: Exception, branch: bool) {
