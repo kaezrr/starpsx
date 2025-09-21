@@ -60,22 +60,22 @@ impl Cpu {
             Err(e) => return self.handle_exception(e, false),
         });
 
+        // Are we in a branch delay slot?
         let (next_pc, in_delay_slot) = match self.delayed_branch.take() {
             Some(addr) => (addr, true),
             None => (self.pc.wrapping_add(4), false),
         };
+
+        if self.pending_interrupts(bus) {
+            self.handle_exception(Exception::ExternalInterrupt, in_delay_slot);
+            return;
+        }
 
         // Execute any pending loads
         match self.load.take() {
             Some((reg, val)) if reg != 0 => self.regd[reg] = val,
             _ => (),
         }
-
-        // let disasm = decode_instruction(instr.0, self.pc);
-        // println!(
-        //     "{:08x}: {:08x} {} {:08x} {:08x}",
-        //     self.pc, instr.0, disasm, self.regs[0], self.regs[27]
-        // );
 
         if let Err(exception) = self.execute_opcode(instr, bus) {
             self.handle_exception(exception, in_delay_slot);
@@ -87,10 +87,6 @@ impl Cpu {
 
         // Increment program counter
         self.pc = next_pc;
-
-        if self.pending_interrupts(bus) {
-            self.handle_exception(Exception::ExternalInterrupt, false);
-        }
     }
 
     fn pending_interrupts(&mut self, bus: &Bus) -> bool {
