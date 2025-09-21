@@ -22,14 +22,16 @@ The project is split into three crates:
 
 ## Component Status
 
-- [ ] CPU
-- [ ] GPU
-- [x] DMA
-- [ ] CDROM
-- [ ] SPIO
-- [ ] SPU
-- [ ] GTE
-- [ ] MDEC
+| Component | Status      | Notes                      |
+| --------- | ----------- | -------------------------- |
+| CPU       | In progress | Interrupts and timers left |
+| GPU       | Done        | Might have some bugs       |
+| DMA       | Partial     | Only GPU port implemented  |
+| CDROM     | Not started |                            |
+| SPIO      | Not started |                            |
+| SPU       | Not started |                            |
+| GTE       | Not started |                            |
+| MDEC      | Not started |                            |
 
 ## Current Status
 
