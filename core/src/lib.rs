@@ -2,13 +2,16 @@ use cpu::Cpu;
 use memory::Bus;
 use std::error::Error;
 
+use crate::scheduler::{EventScheduler, EventType};
+
 mod cpu;
 mod dma;
 pub mod gpu;
 mod memory;
+mod scheduler;
 
 pub const TARGET_FPS: u64 = 60;
-const MCYCLES_PER_SECOND: u32 = 564480;
+const MCYCLES_PER_SECOND: u64 = 564480;
 
 pub struct Config {
     pub bios_path: String,
@@ -36,20 +39,26 @@ pub struct StarPSX {
     cpu: Cpu,
     bus: Bus,
     tty: String,
+    scheduler: EventScheduler,
 }
 
 impl StarPSX {
     pub fn build(config: Config) -> Result<Self, Box<dyn Error>> {
         let bus = Bus::build(&config)?;
         let cpu = Cpu::default();
+        let scheduler = EventScheduler::default();
+
         let mut psx = StarPSX {
             cpu,
             bus,
             tty: String::new(),
+            scheduler,
         };
+
         if let Some(exe_path) = config.exe_path {
             psx.sideload_exe(&exe_path)?;
         }
+
         Ok(psx)
     }
 
@@ -68,11 +77,28 @@ impl StarPSX {
     }
 
     pub fn step_frame(&mut self) {
-        for _ in (0..MCYCLES_PER_SECOND).step_by(2) {
-            self.cpu.run_instruction(&mut self.bus);
-            self.check_for_tty_output();
+        self.scheduler
+            .schedule_event(EventType::VBlank, MCYCLES_PER_SECOND);
+
+        loop {
+            let cycles = self.scheduler.cycles_till_next_event();
+
+            for _ in (0..cycles).step_by(2) {
+                self.cpu.run_instruction(&mut self.bus);
+                self.check_for_tty_output();
+            }
+
+            self.scheduler.progress(cycles);
+
+            match self.scheduler.get_next_event() {
+                EventType::VBlank => {
+                    self.bus.irqctl.stat().set_vblank(true);
+                    break;
+                }
+                EventType::HBlank => (),
+            }
         }
-        self.bus.irqctl.stat().set_vblank(true);
+
         self.bus.gpu.renderer.copy_display_to_fb();
     }
 
