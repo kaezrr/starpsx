@@ -15,7 +15,7 @@ const FRAME_TIME: Duration = Duration::from_nanos(1_000_000_000 / TARGET_FPS);
 pub struct AppState {
     window: Rc<Window>,
     surface: Surface<Rc<Window>, Rc<Window>>,
-    psx: System,
+    system: System,
 }
 
 #[derive(Default)]
@@ -42,7 +42,7 @@ impl ApplicationHandler for App {
             };
 
             self.state = Some(AppState {
-                psx,
+                system: psx,
                 window,
                 surface,
             })
@@ -65,7 +65,7 @@ impl ApplicationHandler for App {
         };
 
         let frame_start = Instant::now();
-        state.psx.step_frame();
+        state.system.step_frame();
 
         match event {
             WindowEvent::RedrawRequested => {
@@ -91,7 +91,7 @@ impl ApplicationHandler for App {
 
 impl AppState {
     fn draw_to_screen(&mut self) {
-        let (width, height) = self.psx.get_resolution();
+        let (width, height) = self.system.get_resolution();
         self.surface
             .resize(
                 NonZeroU32::new(width).unwrap(),
@@ -100,7 +100,7 @@ impl AppState {
             .unwrap();
 
         let mut buffer = self.surface.buffer_mut().unwrap();
-        buffer.copy_from_slice(self.psx.frame_buffer());
+        buffer.copy_from_slice(self.system.frame_buffer());
         buffer.present().unwrap();
     }
 
@@ -115,7 +115,7 @@ impl AppState {
             .unwrap();
 
         let mut buffer = self.surface.buffer_mut().unwrap();
-        buffer.copy_from_slice(self.psx.frame_buffer_vram());
+        buffer.copy_from_slice(self.system.frame_buffer_vram());
         buffer.present().unwrap();
     }
 }
