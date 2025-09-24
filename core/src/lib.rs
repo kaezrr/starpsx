@@ -37,20 +37,20 @@ impl Config {
     }
 }
 
-pub struct StarPSX {
+pub struct System {
     cpu: Cpu,
     bus: Bus,
     tty: String,
     scheduler: EventScheduler,
 }
 
-impl StarPSX {
+impl System {
     pub fn build(config: Config) -> Result<Self, Box<dyn Error>> {
         let bus = Bus::build(&config)?;
         let cpu = Cpu::default();
         let scheduler = EventScheduler::default();
 
-        let mut psx = StarPSX {
+        let mut psx = System {
             cpu,
             bus,
             tty: String::new(),
@@ -60,6 +60,10 @@ impl StarPSX {
         if let Some(exe_path) = config.exe_path {
             psx.sideload_exe(&exe_path)?;
         }
+
+        // Schedule some initial events
+        psx.scheduler.schedule(Event::VBlank, CYCLES_PER_FRAME);
+        psx.scheduler.schedule(Event::HBlank, CYCLES_PER_LINE);
 
         Ok(psx)
     }
@@ -79,11 +83,6 @@ impl StarPSX {
     }
 
     pub fn step_frame(&mut self) {
-        self.scheduler
-            .schedule_event(Event::VBlank, CYCLES_PER_FRAME);
-        self.scheduler
-            .schedule_event(Event::HBlank, CYCLES_PER_LINE);
-
         loop {
             let cycles = self.scheduler.cycles_till_next_event();
 
@@ -96,13 +95,13 @@ impl StarPSX {
 
             match self.scheduler.get_next_event() {
                 Event::VBlank => {
-                    self.bus.irqctl.stat().set_vblank(true);
                     self.bus.gpu.renderer.copy_display_to_fb();
+                    self.bus.irqctl.stat().set_vblank(true);
+                    self.scheduler.schedule(Event::VBlank, CYCLES_PER_FRAME);
                     return;
                 }
                 Event::HBlank => {
-                    self.scheduler
-                        .schedule_event(Event::HBlank, CYCLES_PER_LINE);
+                    self.scheduler.schedule(Event::HBlank, CYCLES_PER_LINE);
                 }
             }
         }

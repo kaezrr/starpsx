@@ -25,7 +25,7 @@ impl EventScheduler {
         self.events.first().unwrap().1.saturating_sub(self.sysclk)
     }
 
-    pub fn schedule_event(&mut self, event_type: Event, cycles: u64) {
+    pub fn schedule(&mut self, event_type: Event, cycles: u64) {
         self.events.retain(|e| e.0 != event_type);
 
         let target_cycle = self.sysclk + cycles;

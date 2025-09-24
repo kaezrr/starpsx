@@ -1,5 +1,5 @@
 use softbuffer::Surface;
-use starpsx_core::{Config, StarPSX, TARGET_FPS};
+use starpsx_core::{Config, System, TARGET_FPS};
 use std::num::NonZeroU32;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
@@ -15,7 +15,7 @@ const FRAME_TIME: Duration = Duration::from_nanos(1_000_000_000 / TARGET_FPS);
 pub struct AppState {
     window: Rc<Window>,
     surface: Surface<Rc<Window>, Rc<Window>>,
-    psx: StarPSX,
+    psx: System,
 }
 
 #[derive(Default)]
@@ -33,7 +33,7 @@ impl ApplicationHandler for App {
             let window = Rc::new(event_loop.create_window(win_attr).unwrap());
             let context = softbuffer::Context::new(window.clone()).unwrap();
             let surface = softbuffer::Surface::new(&context, window.clone()).unwrap();
-            let psx = match StarPSX::build(config) {
+            let psx = match System::build(config) {
                 Ok(psx) => psx,
                 Err(err) => {
                     eprintln!("Error building emulator: {err}");
