@@ -46,15 +46,29 @@ impl Bus {
 
     pub fn irq_read_handler<T: ByteAddressable>(&mut self, offs: u32) -> T {
         if T::LEN == 1 {
-            panic!("unmapped irq read byte {offs:08x}");
+            panic!("unmapped irq read byte");
         }
         T::from_u32(self.irqctl.read_reg(offs))
     }
 
     pub fn irq_write_handler<T: ByteAddressable>(&mut self, offs: u32, data: T) {
         if T::LEN == 1 {
-            panic!("unmapped irq write byte {offs:08x} {data:08x}");
+            panic!("unmapped irq write byte");
         }
         self.irqctl.write_reg(offs, data.to_u32())
+    }
+
+    pub fn timer_read_handler<T: ByteAddressable>(&mut self, offs: u32) -> T {
+        if T::LEN == 1 {
+            panic!("unmapped timer read byte");
+        }
+        T::from_u32(self.timer.read_reg(offs))
+    }
+
+    pub fn timer_write_handler<T: ByteAddressable>(&mut self, offs: u32, data: T) {
+        if T::LEN == 1 {
+            panic!("unmapped timer write byte");
+        }
+        self.timer.write_reg(offs, data.to_u32())
     }
 }

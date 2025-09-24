@@ -2,16 +2,18 @@ use cpu::Cpu;
 use memory::Bus;
 use std::error::Error;
 
-use crate::scheduler::{EventScheduler, EventType};
+use crate::scheduler::{Event, EventScheduler};
 
 mod cpu;
 mod dma;
 pub mod gpu;
 mod memory;
 mod scheduler;
+mod timer;
 
 pub const TARGET_FPS: u64 = 60;
-const MCYCLES_PER_SECOND: u64 = 564480;
+const CYCLES_PER_FRAME: u64 = 564480;
+const CYCLES_PER_LINE: u64 = CYCLES_PER_FRAME / 263;
 
 pub struct Config {
     pub bios_path: String,
@@ -78,7 +80,9 @@ impl StarPSX {
 
     pub fn step_frame(&mut self) {
         self.scheduler
-            .schedule_event(EventType::VBlank, MCYCLES_PER_SECOND);
+            .schedule_event(Event::VBlank, CYCLES_PER_FRAME);
+        self.scheduler
+            .schedule_event(Event::HBlank, CYCLES_PER_LINE);
 
         loop {
             let cycles = self.scheduler.cycles_till_next_event();
@@ -91,15 +95,17 @@ impl StarPSX {
             self.scheduler.progress(cycles);
 
             match self.scheduler.get_next_event() {
-                EventType::VBlank => {
+                Event::VBlank => {
                     self.bus.irqctl.stat().set_vblank(true);
-                    break;
+                    self.bus.gpu.renderer.copy_display_to_fb();
+                    return;
                 }
-                EventType::HBlank => (),
+                Event::HBlank => {
+                    self.scheduler
+                        .schedule_event(Event::HBlank, CYCLES_PER_LINE);
+                }
             }
         }
-
-        self.bus.gpu.renderer.copy_display_to_fb();
     }
 
     #[allow(unused_must_use)]

@@ -5,7 +5,7 @@ mod utils;
 use arrayvec::ArrayVec;
 use starpsx_renderer::{Renderer, utils::DisplayDepth};
 
-use utils::{
+pub use utils::{
     CommandArguments, CommandFn, DmaDirection, Field, GP0State, HorizontalRes, PolyLineArguments,
     TextureDepth, VMode, VerticalRes, VramCopyFields,
 };
@@ -374,5 +374,9 @@ impl Gpu {
 
         (width, height)
         // (1024, 512)
+    }
+
+    pub fn get_hori_resolution(&self) -> HorizontalRes {
+        self.gpu_stat.hres()
     }
 }
