@@ -1,27 +1,29 @@
 mod cpu;
 mod dma;
 mod gpu;
-mod irqctl;
-mod memory;
-mod scheduler;
+mod irq;
+mod mem;
+mod sched;
 mod timer;
 
-use crate::dma::DMAController;
-use crate::gpu::Gpu;
-use crate::irqctl::InterruptController;
-use crate::scheduler::{Event, EventScheduler};
-use crate::timer::Timers;
 use cpu::Cpu;
-use memory::Bus;
+use dma::DMAController;
+use gpu::Gpu;
+use irq::InterruptController;
+use mem::bios::Bios;
+use mem::ram::Ram;
+use mem::scratch::Scratch;
+use sched::{Event, EventScheduler};
 use std::error::Error;
+use timer::Timers;
 
 pub const TARGET_FPS: u64 = 60;
 const CYCLES_PER_FRAME: u64 = 564480;
 const CYCLES_PER_LINE: u64 = CYCLES_PER_FRAME / 263;
 
 pub struct Config {
-    pub bios_path: String,
-    pub exe_path: Option<String>,
+    bios_path: String,
+    exe_path: Option<String>,
 }
 
 impl Config {
@@ -43,32 +45,41 @@ impl Config {
 
 pub struct System {
     cpu: Cpu,
-    bus: Bus,
-    tty: String,
     gpu: Gpu,
-    timer: Timers,
+
+    ram: Ram,
+    bios: Bios,
+    scratch: Scratch,
+
     dma: DMAController,
+    timer: Timers,
     irqctl: InterruptController,
+
+    tty: String,
     scheduler: EventScheduler,
 }
 
 impl System {
     pub fn build(config: Config) -> Result<Self, Box<dyn Error>> {
-        let bus = Bus::build(&config)?;
         let cpu = Cpu::default();
         let scheduler = EventScheduler::default();
         let dma = DMAController::default();
         let gpu = Gpu::default();
         let irqctl = InterruptController::default();
         let timer = Timers::default();
+        let bios = Bios::build(&config.bios_path)?;
+        let ram = Ram::default();
+        let scratch = Scratch::default();
 
         let mut psx = System {
-            dma,
-            gpu,
-            irqctl,
-            timer,
             cpu,
-            bus,
+            gpu,
+            ram,
+            bios,
+            scratch,
+            dma,
+            timer,
+            irqctl,
             tty: String::new(),
             scheduler,
         };
@@ -122,7 +133,6 @@ impl System {
         }
     }
 
-    #[allow(unused_must_use)]
     pub fn sideload_exe(&mut self, filepath: &String) -> Result<(), Box<dyn Error>> {
         let exe = std::fs::read(filepath)?;
         while self.cpu.pc != 0x80030000 {
@@ -138,7 +148,7 @@ impl System {
         let init_sp = u32::from_le_bytes(exe[0x30..0x34].try_into().unwrap());
 
         // Copy EXE data to RAM
-        self.bus.ram.bytes[exe_addr as usize..(exe_addr + exe_size) as usize]
+        self.ram.bytes[exe_addr as usize..(exe_addr + exe_size) as usize]
             .copy_from_slice(&exe[2048..2048 + exe_size as usize]);
 
         self.cpu.regs[28] = init_r28;

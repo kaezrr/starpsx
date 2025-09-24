@@ -3,7 +3,7 @@ pub mod disasm;
 mod instrs;
 pub mod utils;
 
-use crate::{System, memory::Bus};
+use crate::System;
 use cop0::Cop0;
 use utils::{Exception, Instruction};
 
@@ -55,7 +55,7 @@ impl Default for Cpu {
 impl Cpu {
     /// Run a single instruction and return the number of cycles
     pub fn run_instruction(system: &mut System) {
-        let instr = Instruction(match Bus::read::<u32>(system, system.cpu.pc) {
+        let instr = Instruction(match system.read::<u32>(system.cpu.pc) {
             Ok(v) => v,
             Err(e) => return system.cpu.handle_exception(e, false),
         });

@@ -1,5 +1,4 @@
 use super::*;
-use crate::memory::Bus;
 
 impl Cpu {
     // Load and store instructions
@@ -11,7 +10,7 @@ impl Cpu {
         let im = instr.imm16_se();
 
         let addr = system.cpu.regs[rs].wrapping_add(im);
-        let data = Bus::read::<u8>(system, addr)? as i8;
+        let data = system.read::<u8>(addr)? as i8;
 
         system.cpu.take_delayed_load(rt, data as u32);
         Ok(())
@@ -24,7 +23,7 @@ impl Cpu {
         let im = instr.imm16_se();
 
         let addr = system.cpu.regs[rs].wrapping_add(im);
-        let data = Bus::read::<u8>(system, addr)?;
+        let data = system.read::<u8>(addr)?;
 
         system.cpu.take_delayed_load(rt, data as u32);
         Ok(())
@@ -37,7 +36,7 @@ impl Cpu {
         let im = instr.imm16_se();
 
         let addr = system.cpu.regs[rs].wrapping_add(im);
-        let data = Bus::read::<u16>(system, addr)? as i16;
+        let data = system.read::<u16>(addr)? as i16;
 
         system.cpu.take_delayed_load(rt, data as u32);
         Ok(())
@@ -50,7 +49,7 @@ impl Cpu {
         let im = instr.imm16_se();
 
         let addr = system.cpu.regs[rs].wrapping_add(im);
-        let data = Bus::read::<u16>(system, addr)?;
+        let data = system.read::<u16>(addr)?;
 
         system.cpu.take_delayed_load(rt, data as u32);
         Ok(())
@@ -68,7 +67,7 @@ impl Cpu {
         let im = instr.imm16_se();
 
         let addr = system.cpu.regs[rs].wrapping_add(im);
-        let data = Bus::read::<u32>(system, addr)?;
+        let data = system.read::<u32>(addr)?;
 
         system.cpu.take_delayed_load(rt, data);
         Ok(())
@@ -87,7 +86,7 @@ impl Cpu {
         let addr = system.cpu.regs[rs].wrapping_add(im);
         let data = system.cpu.regs[rt] as u8;
 
-        Bus::write::<u8>(system, addr, data)
+        system.write::<u8>(addr, data)
     }
 
     /// Store half word
@@ -103,7 +102,7 @@ impl Cpu {
         let addr = system.cpu.regs[rs].wrapping_add(im);
         let data = system.cpu.regs[rt] as u16;
 
-        Bus::write::<u16>(system, addr, data)?;
+        system.write::<u16>(addr, data)?;
         Ok(())
     }
 
@@ -121,7 +120,7 @@ impl Cpu {
         let addr = system.cpu.regs[rs].wrapping_add(im);
         let data = system.cpu.regs[rt];
 
-        Bus::write::<u32>(system, addr, data)?;
+        system.write::<u32>(addr, data)?;
         Ok(())
     }
 
@@ -135,7 +134,7 @@ impl Cpu {
         let val = system.cpu.regd[rt];
 
         let aligned_addr = addr & !3;
-        let word = Bus::read::<u32>(system, aligned_addr)?;
+        let word = system.read::<u32>(aligned_addr)?;
 
         let data = match addr & 3 {
             0 => (val & 0x00FFFFFF) | (word << 24),
@@ -159,7 +158,7 @@ impl Cpu {
         let val = system.cpu.regd[rt];
 
         let aligned_addr = addr & !3;
-        let word = Bus::read::<u32>(system, aligned_addr)?;
+        let word = system.read::<u32>(aligned_addr)?;
 
         let data = match addr & 3 {
             0 => word,
@@ -183,7 +182,7 @@ impl Cpu {
         let val = system.cpu.regs[rt];
 
         let aligned_addr = addr & !3;
-        let word = Bus::read::<u32>(system, aligned_addr)?;
+        let word = system.read::<u32>(aligned_addr)?;
 
         let data = match addr & 3 {
             0 => (word & 0xFFFFFF00) | (val >> 24),
@@ -193,7 +192,7 @@ impl Cpu {
             _ => unreachable!(),
         };
 
-        Bus::write::<u32>(system, aligned_addr, data)?;
+        system.write::<u32>(aligned_addr, data)?;
         Ok(())
     }
 
@@ -207,7 +206,7 @@ impl Cpu {
         let val = system.cpu.regs[rt];
 
         let aligned_addr = addr & !3;
-        let word = Bus::read::<u32>(system, aligned_addr)?;
+        let word = system.read::<u32>(aligned_addr)?;
 
         let data = match addr & 3 {
             0 => val,
@@ -217,7 +216,7 @@ impl Cpu {
             _ => unreachable!(),
         };
 
-        Bus::write::<u32>(system, aligned_addr, data)?;
+        system.write::<u32>(aligned_addr, data)?;
         Ok(())
     }
 
