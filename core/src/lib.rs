@@ -62,8 +62,10 @@ impl System {
         }
 
         // Schedule some initial events
-        psx.scheduler.schedule(Event::VBlank, CYCLES_PER_FRAME);
-        psx.scheduler.schedule(Event::HBlank, CYCLES_PER_LINE);
+        psx.scheduler
+            .subscribe(Event::VBlank, CYCLES_PER_FRAME, true);
+        psx.scheduler
+            .subscribe(Event::HBlank, CYCLES_PER_LINE, true);
 
         Ok(psx)
     }
@@ -97,12 +99,9 @@ impl System {
                 Event::VBlank => {
                     self.bus.gpu.renderer.copy_display_to_fb();
                     self.bus.irqctl.stat().set_vblank(true);
-                    self.scheduler.schedule(Event::VBlank, CYCLES_PER_FRAME);
                     return;
                 }
-                Event::HBlank => {
-                    self.scheduler.schedule(Event::HBlank, CYCLES_PER_LINE);
-                }
+                Event::HBlank => {}
             }
         }
     }

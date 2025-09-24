@@ -3,7 +3,7 @@ pub mod disasm;
 mod instrs;
 pub mod utils;
 
-use crate::memory::Bus;
+use crate::{System, memory::Bus};
 use cop0::Cop0;
 use utils::{Exception, Instruction};
 

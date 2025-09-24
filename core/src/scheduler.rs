@@ -6,15 +6,25 @@ pub enum Event {
     HBlank,
 }
 
+struct Task {
+    pub event: Event,
+    pub cycle: u64,
+    pub repeat: Option<u64>,
+}
+
 #[derive(Default)]
 pub struct EventScheduler {
     sysclk: u64,
-    events: ArrayVec<(Event, u64), 3>,
+    tasks: ArrayVec<Task, 2>,
 }
 
 impl EventScheduler {
     pub fn get_next_event(&mut self) -> Event {
-        self.events.remove(0).0
+        let task = self.tasks.remove(0);
+        if let Some(cycles) = task.repeat {
+            self.subscribe(task.event, cycles, true);
+        }
+        task.event
     }
 
     pub fn progress(&mut self, cycles: u64) {
@@ -22,19 +32,30 @@ impl EventScheduler {
     }
 
     pub fn cycles_till_next_event(&self) -> u64 {
-        self.events.first().unwrap().1.saturating_sub(self.sysclk)
+        self.tasks
+            .first()
+            .unwrap()
+            .cycle
+            .saturating_sub(self.sysclk)
     }
 
-    pub fn schedule(&mut self, event_type: Event, cycles: u64) {
-        self.events.retain(|e| e.0 != event_type);
+    pub fn subscribe(&mut self, event: Event, cycles_length: u64, repeat: bool) {
+        self.tasks.retain(|e| e.event != event);
 
-        let target_cycle = self.sysclk + cycles;
+        let cycle = self.sysclk + cycles_length;
         let pos = self
-            .events
+            .tasks
             .iter()
-            .position(|e| e.1 > target_cycle)
-            .unwrap_or(self.events.len());
+            .position(|e| e.cycle > cycle)
+            .unwrap_or(self.tasks.len());
 
-        self.events.insert(pos, (event_type, target_cycle));
+        self.tasks.insert(
+            pos,
+            Task {
+                event,
+                cycle,
+                repeat: repeat.then_some(cycles_length),
+            },
+        );
     }
 }
