@@ -89,7 +89,7 @@ impl System {
             let cycles = self.scheduler.cycles_till_next_event();
 
             for _ in (0..cycles).step_by(2) {
-                self.cpu.run_instruction(&mut self.bus);
+                Cpu::run_instruction(self);
                 self.check_for_tty_output();
             }
 
@@ -110,7 +110,7 @@ impl System {
     pub fn sideload_exe(&mut self, filepath: &String) -> Result<(), Box<dyn Error>> {
         let exe = std::fs::read(filepath)?;
         while self.cpu.pc != 0x80030000 {
-            self.cpu.run_instruction(&mut self.bus);
+            Cpu::run_instruction(self);
             self.check_for_tty_output();
         }
 

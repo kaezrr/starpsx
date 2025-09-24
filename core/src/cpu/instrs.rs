@@ -4,60 +4,60 @@ impl Cpu {
     // Load and store instructions
 
     /// Load byte
-    pub fn lb(&mut self, instr: Instruction, bus: &mut Bus) -> Result<(), Exception> {
+    pub fn lb(system: &mut System, instr: Instruction) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let im = instr.imm16_se();
 
-        let addr = self.regs[rs].wrapping_add(im);
-        let data = bus.read::<u8>(addr)? as i8;
+        let addr = system.cpu.regs[rs].wrapping_add(im);
+        let data = system.bus.read::<u8>(addr)? as i8;
 
-        self.take_delayed_load(rt, data as u32);
+        system.cpu.take_delayed_load(rt, data as u32);
         Ok(())
     }
 
     /// Load byte unsigned
-    pub fn lbu(&mut self, instr: Instruction, bus: &mut Bus) -> Result<(), Exception> {
+    pub fn lbu(system: &mut System, instr: Instruction) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let im = instr.imm16_se();
 
-        let addr = self.regs[rs].wrapping_add(im);
-        let data = bus.read::<u8>(addr)?;
+        let addr = system.cpu.regs[rs].wrapping_add(im);
+        let data = system.bus.read::<u8>(addr)?;
 
-        self.take_delayed_load(rt, data as u32);
+        system.cpu.take_delayed_load(rt, data as u32);
         Ok(())
     }
 
     /// Load half word
-    pub fn lh(&mut self, instr: Instruction, bus: &mut Bus) -> Result<(), Exception> {
+    pub fn lh(system: &mut System, instr: Instruction) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let im = instr.imm16_se();
 
-        let addr = self.regs[rs].wrapping_add(im);
-        let data = bus.read::<u16>(addr)? as i16;
+        let addr = system.cpu.regs[rs].wrapping_add(im);
+        let data = system.bus.read::<u16>(addr)? as i16;
 
-        self.take_delayed_load(rt, data as u32);
+        system.cpu.take_delayed_load(rt, data as u32);
         Ok(())
     }
 
     /// Load half word unsigned
-    pub fn lhu(&mut self, instr: Instruction, bus: &mut Bus) -> Result<(), Exception> {
+    pub fn lhu(system: &mut System, instr: Instruction) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let im = instr.imm16_se();
 
-        let addr = self.regs[rs].wrapping_add(im);
-        let data = bus.read::<u16>(addr)?;
+        let addr = system.cpu.regs[rs].wrapping_add(im);
+        let data = system.bus.read::<u16>(addr)?;
 
-        self.take_delayed_load(rt, data as u32);
+        system.cpu.take_delayed_load(rt, data as u32);
         Ok(())
     }
 
     /// Load word
-    pub fn lw(&mut self, instr: Instruction, bus: &mut Bus) -> Result<(), Exception> {
-        if self.cop0.sr & 0x10000 != 0 {
+    pub fn lw(system: &mut System, instr: Instruction) -> Result<(), Exception> {
+        if system.cpu.cop0.sr & 0x10000 != 0 {
             eprintln!("ignoring load while cache is isolated");
             return Ok(());
         }
@@ -66,16 +66,16 @@ impl Cpu {
         let rs = instr.rs();
         let im = instr.imm16_se();
 
-        let addr = self.regs[rs].wrapping_add(im);
-        let data = bus.read::<u32>(addr)?;
+        let addr = system.cpu.regs[rs].wrapping_add(im);
+        let data = system.bus.read::<u32>(addr)?;
 
-        self.take_delayed_load(rt, data);
+        system.cpu.take_delayed_load(rt, data);
         Ok(())
     }
 
     /// Store byte
-    pub fn sb(&mut self, instr: Instruction, bus: &mut Bus) -> Result<(), Exception> {
-        if self.cop0.sr & 0x10000 != 0 {
+    pub fn sb(system: &mut System, instr: Instruction) -> Result<(), Exception> {
+        if system.cpu.cop0.sr & 0x10000 != 0 {
             eprintln!("ignoring store while cache is isolated");
             return Ok(());
         }
@@ -83,15 +83,15 @@ impl Cpu {
         let rs = instr.rs();
         let im = instr.imm16_se();
 
-        let addr = self.regs[rs].wrapping_add(im);
-        let data = self.regs[rt] as u8;
+        let addr = system.cpu.regs[rs].wrapping_add(im);
+        let data = system.cpu.regs[rt] as u8;
 
-        bus.write::<u8>(addr, data)
+        system.bus.write::<u8>(addr, data)
     }
 
     /// Store half word
-    pub fn sh(&mut self, instr: Instruction, bus: &mut Bus) -> Result<(), Exception> {
-        if self.cop0.sr & 0x10000 != 0 {
+    pub fn sh(system: &mut System, instr: Instruction) -> Result<(), Exception> {
+        if system.cpu.cop0.sr & 0x10000 != 0 {
             eprintln!("ignoring store while cache is isolated");
             return Ok(());
         }
@@ -99,16 +99,16 @@ impl Cpu {
         let rs = instr.rs();
         let im = instr.imm16_se();
 
-        let addr = self.regs[rs].wrapping_add(im);
-        let data = self.regs[rt] as u16;
+        let addr = system.cpu.regs[rs].wrapping_add(im);
+        let data = system.cpu.regs[rt] as u16;
 
-        bus.write::<u16>(addr, data)?;
+        system.bus.write::<u16>(addr, data)?;
         Ok(())
     }
 
     /// Store word
-    pub fn sw(&mut self, instr: Instruction, bus: &mut Bus) -> Result<(), Exception> {
-        if self.cop0.sr & 0x10000 != 0 {
+    pub fn sw(system: &mut System, instr: Instruction) -> Result<(), Exception> {
+        if system.cpu.cop0.sr & 0x10000 != 0 {
             eprintln!("ignoring store while cache is isolated");
             return Ok(());
         }
@@ -117,24 +117,24 @@ impl Cpu {
         let rs = instr.rs();
         let im = instr.imm16_se();
 
-        let addr = self.regs[rs].wrapping_add(im);
-        let data = self.regs[rt];
+        let addr = system.cpu.regs[rs].wrapping_add(im);
+        let data = system.cpu.regs[rt];
 
-        bus.write::<u32>(addr, data)?;
+        system.bus.write::<u32>(addr, data)?;
         Ok(())
     }
 
     /// Unaligned left word load
-    pub fn lwl(&mut self, instr: Instruction, bus: &mut Bus) -> Result<(), Exception> {
+    pub fn lwl(system: &mut System, instr: Instruction) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let im = instr.imm16_se();
 
-        let addr = self.regd[rs].wrapping_add(im);
-        let val = self.regd[rt];
+        let addr = system.cpu.regd[rs].wrapping_add(im);
+        let val = system.cpu.regd[rt];
 
         let aligned_addr = addr & !3;
-        let word = bus.read::<u32>(aligned_addr)?;
+        let word = system.bus.read::<u32>(aligned_addr)?;
 
         let data = match addr & 3 {
             0 => (val & 0x00FFFFFF) | (word << 24),
@@ -144,21 +144,21 @@ impl Cpu {
             _ => unreachable!(),
         };
 
-        self.take_delayed_load(rt, data as u32);
+        system.cpu.take_delayed_load(rt, data as u32);
         Ok(())
     }
 
     /// Unaligned right word load
-    pub fn lwr(&mut self, instr: Instruction, bus: &mut Bus) -> Result<(), Exception> {
+    pub fn lwr(system: &mut System, instr: Instruction) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let im = instr.imm16_se();
 
-        let addr = self.regd[rs].wrapping_add(im);
-        let val = self.regd[rt];
+        let addr = system.cpu.regd[rs].wrapping_add(im);
+        let val = system.cpu.regd[rt];
 
         let aligned_addr = addr & !3;
-        let word = bus.read::<u32>(aligned_addr)?;
+        let word = system.bus.read::<u32>(aligned_addr)?;
 
         let data = match addr & 3 {
             0 => word,
@@ -168,21 +168,21 @@ impl Cpu {
             _ => unreachable!(),
         };
 
-        self.take_delayed_load(rt, data as u32);
+        system.cpu.take_delayed_load(rt, data as u32);
         Ok(())
     }
 
     /// Unaligned left word store
-    pub fn swl(&mut self, instr: Instruction, bus: &mut Bus) -> Result<(), Exception> {
+    pub fn swl(system: &mut System, instr: Instruction) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let im = instr.imm16_se();
 
-        let addr = self.regs[rs].wrapping_add(im);
-        let val = self.regs[rt];
+        let addr = system.cpu.regs[rs].wrapping_add(im);
+        let val = system.cpu.regs[rt];
 
         let aligned_addr = addr & !3;
-        let word = bus.read::<u32>(aligned_addr)?;
+        let word = system.bus.read::<u32>(aligned_addr)?;
 
         let data = match addr & 3 {
             0 => (word & 0xFFFFFF00) | (val >> 24),
@@ -192,21 +192,21 @@ impl Cpu {
             _ => unreachable!(),
         };
 
-        bus.write::<u32>(aligned_addr, data)?;
+        system.bus.write::<u32>(aligned_addr, data)?;
         Ok(())
     }
 
     /// Unaligned right word store
-    pub fn swr(&mut self, instr: Instruction, bus: &mut Bus) -> Result<(), Exception> {
+    pub fn swr(system: &mut System, instr: Instruction) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let im = instr.imm16_se();
 
-        let addr = self.regs[rs].wrapping_add(im);
-        let val = self.regs[rt];
+        let addr = system.cpu.regs[rs].wrapping_add(im);
+        let val = system.cpu.regs[rt];
 
         let aligned_addr = addr & !3;
-        let word = bus.read::<u32>(aligned_addr)?;
+        let word = system.bus.read::<u32>(aligned_addr)?;
 
         let data = match addr & 3 {
             0 => val,
@@ -216,22 +216,22 @@ impl Cpu {
             _ => unreachable!(),
         };
 
-        bus.write::<u32>(aligned_addr, data)?;
+        system.bus.write::<u32>(aligned_addr, data)?;
         Ok(())
     }
 
     // ALU instructions
 
     /// rd = rs + rt (overflow trap)
-    pub fn add(&mut self, instr: Instruction) -> Result<(), Exception> {
+    pub fn add(system: &mut System, instr: Instruction) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let rd = instr.rd();
 
-        let lhs = self.regs[rs] as i32;
-        let rhs = self.regs[rt] as i32;
+        let lhs = system.cpu.regs[rs] as i32;
+        let rhs = system.cpu.regs[rt] as i32;
 
-        self.regd[rd] = match lhs.checked_add(rhs) {
+        system.cpu.regd[rd] = match lhs.checked_add(rhs) {
             Some(v) => v as u32,
             None => return Err(Exception::Overflow),
         };
@@ -239,28 +239,28 @@ impl Cpu {
     }
 
     /// rd = rs + rt
-    pub fn addu(&mut self, instr: Instruction) -> Result<(), Exception> {
+    pub fn addu(system: &mut System, instr: Instruction) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let rd = instr.rd();
 
-        let lhs = self.regs[rs];
-        let rhs = self.regs[rt];
+        let lhs = system.cpu.regs[rs];
+        let rhs = system.cpu.regs[rt];
 
-        self.regd[rd] = lhs.wrapping_add(rhs);
+        system.cpu.regd[rd] = lhs.wrapping_add(rhs);
         Ok(())
     }
 
     /// rd = rs - rt (overflow trap)
-    pub fn sub(&mut self, instr: Instruction) -> Result<(), Exception> {
+    pub fn sub(system: &mut System, instr: Instruction) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let rd = instr.rd();
 
-        let lhs = self.regs[rs] as i32;
-        let rhs = self.regs[rt] as i32;
+        let lhs = system.cpu.regs[rs] as i32;
+        let rhs = system.cpu.regs[rt] as i32;
 
-        self.regd[rd] = match lhs.checked_sub(rhs) {
+        system.cpu.regd[rd] = match lhs.checked_sub(rhs) {
             Some(v) => v as u32,
             None => return Err(Exception::Overflow),
         };
@@ -269,28 +269,28 @@ impl Cpu {
     }
 
     /// rd = rs - rt
-    pub fn subu(&mut self, instr: Instruction) -> Result<(), Exception> {
+    pub fn subu(system: &mut System, instr: Instruction) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let rd = instr.rd();
 
-        let lhs = self.regs[rs];
-        let rhs = self.regs[rt];
+        let lhs = system.cpu.regs[rs];
+        let rhs = system.cpu.regs[rt];
 
-        self.regd[rd] = lhs.wrapping_sub(rhs);
+        system.cpu.regd[rd] = lhs.wrapping_sub(rhs);
         Ok(())
     }
 
     /// rd = rs + imm (overflow trap)
-    pub fn addi(&mut self, instr: Instruction) -> Result<(), Exception> {
+    pub fn addi(system: &mut System, instr: Instruction) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let im = instr.imm16_se();
 
-        let lhs = self.regs[rs] as i32;
+        let lhs = system.cpu.regs[rs] as i32;
         let rhs = im as i32;
 
-        self.regd[rt] = match lhs.checked_add(rhs) {
+        system.cpu.regd[rt] = match lhs.checked_add(rhs) {
             Some(v) => v as u32,
             None => return Err(Exception::Overflow),
         };
@@ -298,285 +298,285 @@ impl Cpu {
     }
 
     /// rd = rs + imm
-    pub fn addiu(&mut self, instr: Instruction) -> Result<(), Exception> {
+    pub fn addiu(system: &mut System, instr: Instruction) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let im = instr.imm16_se();
 
-        let lhs = self.regs[rs];
+        let lhs = system.cpu.regs[rs];
         let rhs = im as i32;
 
-        self.regd[rt] = lhs.wrapping_add_signed(rhs);
+        system.cpu.regd[rt] = lhs.wrapping_add_signed(rhs);
         Ok(())
     }
 
     /// rd = rs < rt
-    pub fn slt(&mut self, instr: Instruction) -> Result<(), Exception> {
+    pub fn slt(system: &mut System, instr: Instruction) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let rd = instr.rd();
 
-        let lhs = self.regs[rs] as i32;
-        let rhs = self.regs[rt] as i32;
+        let lhs = system.cpu.regs[rs] as i32;
+        let rhs = system.cpu.regs[rt] as i32;
 
-        self.regd[rd] = (lhs < rhs) as u32;
+        system.cpu.regd[rd] = (lhs < rhs) as u32;
         Ok(())
     }
 
     /// rd = rs < rt (unsigned)
-    pub fn sltu(&mut self, instr: Instruction) -> Result<(), Exception> {
+    pub fn sltu(system: &mut System, instr: Instruction) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let rd = instr.rd();
 
-        let lhs = self.regs[rs];
-        let rhs = self.regs[rt];
+        let lhs = system.cpu.regs[rs];
+        let rhs = system.cpu.regs[rt];
 
-        self.regd[rd] = (lhs < rhs) as u32;
+        system.cpu.regd[rd] = (lhs < rhs) as u32;
         Ok(())
     }
 
     /// rd = rs < imm
-    pub fn slti(&mut self, instr: Instruction) -> Result<(), Exception> {
+    pub fn slti(system: &mut System, instr: Instruction) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let im = instr.imm16_se();
 
-        let lhs = self.regs[rs] as i32;
+        let lhs = system.cpu.regs[rs] as i32;
         let rhs = im as i32;
 
-        self.regd[rt] = (lhs < rhs) as u32;
+        system.cpu.regd[rt] = (lhs < rhs) as u32;
         Ok(())
     }
 
     /// rd = rs < imm (unsigned)
-    pub fn sltiu(&mut self, instr: Instruction) -> Result<(), Exception> {
+    pub fn sltiu(system: &mut System, instr: Instruction) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let im = instr.imm16_se();
 
-        let lhs = self.regs[rs];
+        let lhs = system.cpu.regs[rs];
         let rhs = im;
 
-        self.regd[rt] = (lhs < rhs) as u32;
+        system.cpu.regd[rt] = (lhs < rhs) as u32;
         Ok(())
     }
 
     /// rd = rs AND rt
-    pub fn and(&mut self, instr: Instruction) -> Result<(), Exception> {
+    pub fn and(system: &mut System, instr: Instruction) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let rd = instr.rd();
 
-        let lhs = self.regs[rs];
-        let rhs = self.regs[rt];
+        let lhs = system.cpu.regs[rs];
+        let rhs = system.cpu.regs[rt];
 
-        self.regd[rd] = lhs & rhs;
+        system.cpu.regd[rd] = lhs & rhs;
         Ok(())
     }
 
     /// rd = rs OR rt
-    pub fn or(&mut self, instr: Instruction) -> Result<(), Exception> {
+    pub fn or(system: &mut System, instr: Instruction) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let rd = instr.rd();
 
-        let lhs = self.regs[rs];
-        let rhs = self.regs[rt];
+        let lhs = system.cpu.regs[rs];
+        let rhs = system.cpu.regs[rt];
 
-        self.regd[rd] = lhs | rhs;
+        system.cpu.regd[rd] = lhs | rhs;
         Ok(())
     }
 
     /// rd = rs XOR rt
-    pub fn xor(&mut self, instr: Instruction) -> Result<(), Exception> {
+    pub fn xor(system: &mut System, instr: Instruction) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let rd = instr.rd();
 
-        let lhs = self.regs[rs];
-        let rhs = self.regs[rt];
+        let lhs = system.cpu.regs[rs];
+        let rhs = system.cpu.regs[rt];
 
-        self.regd[rd] = lhs ^ rhs;
+        system.cpu.regd[rd] = lhs ^ rhs;
         Ok(())
     }
 
     /// rd = 0xFFFFFFFF XOR (rs OR rt)
-    pub fn nor(&mut self, instr: Instruction) -> Result<(), Exception> {
+    pub fn nor(system: &mut System, instr: Instruction) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let rd = instr.rd();
 
-        let lhs = self.regs[rs];
-        let rhs = self.regs[rt];
+        let lhs = system.cpu.regs[rs];
+        let rhs = system.cpu.regs[rt];
 
-        self.regd[rd] = 0xFFFFFFFF ^ (lhs | rhs);
+        system.cpu.regd[rd] = 0xFFFFFFFF ^ (lhs | rhs);
         Ok(())
     }
 
     /// rt = rs AND imm
-    pub fn andi(&mut self, instr: Instruction) -> Result<(), Exception> {
+    pub fn andi(system: &mut System, instr: Instruction) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let im = instr.imm16();
 
-        let lhs = self.regs[rs];
+        let lhs = system.cpu.regs[rs];
         let rhs = im;
 
-        self.regd[rt] = lhs & rhs;
+        system.cpu.regd[rt] = lhs & rhs;
         Ok(())
     }
 
     /// rt = rs OR imm
-    pub fn ori(&mut self, instr: Instruction) -> Result<(), Exception> {
+    pub fn ori(system: &mut System, instr: Instruction) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let im = instr.imm16();
 
-        let lhs = self.regs[rs];
+        let lhs = system.cpu.regs[rs];
         let rhs = im;
 
-        self.regd[rt] = lhs | rhs;
+        system.cpu.regd[rt] = lhs | rhs;
         Ok(())
     }
 
     /// rt = rs XOR imm
-    pub fn xori(&mut self, instr: Instruction) -> Result<(), Exception> {
+    pub fn xori(system: &mut System, instr: Instruction) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let im = instr.imm16();
 
-        let lhs = self.regs[rs];
+        let lhs = system.cpu.regs[rs];
         let rhs = im;
 
-        self.regd[rt] = lhs ^ rhs;
+        system.cpu.regd[rt] = lhs ^ rhs;
         Ok(())
     }
 
     /// rd = rt SHL (rs AND 1Fh)
-    pub fn sllv(&mut self, instr: Instruction) -> Result<(), Exception> {
+    pub fn sllv(system: &mut System, instr: Instruction) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let rd = instr.rd();
 
-        let lhs = self.regs[rt];
-        let rhs = self.regs[rs];
+        let lhs = system.cpu.regs[rt];
+        let rhs = system.cpu.regs[rs];
 
-        self.regd[rd] = lhs << (rhs & 0x1F);
+        system.cpu.regd[rd] = lhs << (rhs & 0x1F);
         Ok(())
     }
 
     /// rd = rt SHR (rs AND 1Fh)
-    pub fn srlv(&mut self, instr: Instruction) -> Result<(), Exception> {
+    pub fn srlv(system: &mut System, instr: Instruction) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let rd = instr.rd();
 
-        let lhs = self.regs[rt];
-        let rhs = self.regs[rs];
+        let lhs = system.cpu.regs[rt];
+        let rhs = system.cpu.regs[rs];
 
-        self.regd[rd] = lhs >> (rhs & 0x1F);
+        system.cpu.regd[rd] = lhs >> (rhs & 0x1F);
         Ok(())
     }
 
     /// rd = rt SAR (rs AND 1Fh)
-    pub fn srav(&mut self, instr: Instruction) -> Result<(), Exception> {
+    pub fn srav(system: &mut System, instr: Instruction) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
         let rd = instr.rd();
 
-        let lhs = self.regs[rt] as i32;
-        let rhs = self.regs[rs];
+        let lhs = system.cpu.regs[rt] as i32;
+        let rhs = system.cpu.regs[rs];
 
-        self.regd[rd] = lhs.wrapping_shr(rhs) as u32;
+        system.cpu.regd[rd] = lhs.wrapping_shr(rhs) as u32;
         Ok(())
     }
 
     /// rd = rt SHL imm
-    pub fn sll(&mut self, instr: Instruction) -> Result<(), Exception> {
+    pub fn sll(system: &mut System, instr: Instruction) -> Result<(), Exception> {
         let rt = instr.rt();
         let rd = instr.rd();
         let im = instr.imm5();
 
-        let lhs = self.regs[rt];
+        let lhs = system.cpu.regs[rt];
         let rhs = im;
 
-        self.regd[rd] = lhs.wrapping_shl(rhs);
+        system.cpu.regd[rd] = lhs.wrapping_shl(rhs);
         Ok(())
     }
 
     /// rd = rt SHR imm
-    pub fn srl(&mut self, instr: Instruction) -> Result<(), Exception> {
+    pub fn srl(system: &mut System, instr: Instruction) -> Result<(), Exception> {
         let rt = instr.rt();
         let rd = instr.rd();
         let im = instr.imm5();
 
-        let lhs = self.regs[rt];
+        let lhs = system.cpu.regs[rt];
         let rhs = im;
 
-        self.regd[rd] = lhs.unbounded_shr(rhs);
+        system.cpu.regd[rd] = lhs.unbounded_shr(rhs);
         Ok(())
     }
 
     /// rd = rt SAR imm
-    pub fn sra(&mut self, instr: Instruction) -> Result<(), Exception> {
+    pub fn sra(system: &mut System, instr: Instruction) -> Result<(), Exception> {
         let rt = instr.rt();
         let rd = instr.rd();
         let im = instr.imm5();
 
-        let lhs = self.regs[rt] as i32;
+        let lhs = system.cpu.regs[rt] as i32;
         let rhs = im;
 
-        self.regd[rd] = lhs.unbounded_shr(rhs) as u32;
+        system.cpu.regd[rd] = lhs.unbounded_shr(rhs) as u32;
         Ok(())
     }
 
     /// rt = imm << 16
-    pub fn lui(&mut self, instr: Instruction) -> Result<(), Exception> {
+    pub fn lui(system: &mut System, instr: Instruction) -> Result<(), Exception> {
         let rt = instr.rt();
         let im = instr.imm16();
 
-        self.regd[rt] = im << 16;
+        system.cpu.regd[rt] = im << 16;
         Ok(())
     }
 
     /// hi:lo = rs * rt (signed)
-    pub fn mult(&mut self, instr: Instruction) -> Result<(), Exception> {
+    pub fn mult(system: &mut System, instr: Instruction) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
 
-        let lhs = self.regs[rs] as i32 as i64;
-        let rhs = self.regs[rt] as i32 as i64;
+        let lhs = system.cpu.regs[rs] as i32 as i64;
+        let rhs = system.cpu.regs[rt] as i32 as i64;
 
         let res = lhs * rhs;
 
-        self.hi = (res >> 32) as u32;
-        self.lo = res as u32;
+        system.cpu.hi = (res >> 32) as u32;
+        system.cpu.lo = res as u32;
         Ok(())
     }
 
     /// hi:lo = rs * rt (unsigned)
-    pub fn multu(&mut self, instr: Instruction) -> Result<(), Exception> {
+    pub fn multu(system: &mut System, instr: Instruction) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
 
-        let lhs = self.regs[rs] as u64;
-        let rhs = self.regs[rt] as u64;
+        let lhs = system.cpu.regs[rs] as u64;
+        let rhs = system.cpu.regs[rt] as u64;
 
         let res = lhs * rhs;
 
-        self.hi = (res >> 32) as u32;
-        self.lo = res as u32;
+        system.cpu.hi = (res >> 32) as u32;
+        system.cpu.lo = res as u32;
         Ok(())
     }
 
     /// hi:lo = rs / rt (signed)
-    pub fn div(&mut self, instr: Instruction) -> Result<(), Exception> {
+    pub fn div(system: &mut System, instr: Instruction) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
 
-        let lhs = self.regs[rs] as i32;
-        let rhs = self.regs[rt] as i32;
+        let lhs = system.cpu.regs[rs] as i32;
+        let rhs = system.cpu.regs[rt] as i32;
 
         let (quo, rem) = match rhs {
             -1 if lhs == i32::MIN => (i32::MIN, 0),
@@ -584,212 +584,216 @@ impl Cpu {
             _ => (lhs / rhs, lhs % rhs),
         };
 
-        self.hi = rem as u32;
-        self.lo = quo as u32;
+        system.cpu.hi = rem as u32;
+        system.cpu.lo = quo as u32;
         Ok(())
     }
 
     /// hi:lo = rs / rt (unsigned)
-    pub fn divu(&mut self, instr: Instruction) -> Result<(), Exception> {
+    pub fn divu(system: &mut System, instr: Instruction) -> Result<(), Exception> {
         let rt = instr.rt();
         let rs = instr.rs();
 
-        let lhs = self.regs[rs];
-        let rhs = self.regs[rt];
+        let lhs = system.cpu.regs[rs];
+        let rhs = system.cpu.regs[rt];
 
         let (quo, rem) = match rhs {
             0 => (u32::MAX, lhs),
             _ => (lhs / rhs, lhs % rhs),
         };
 
-        self.hi = rem;
-        self.lo = quo;
+        system.cpu.hi = rem;
+        system.cpu.lo = quo;
         Ok(())
     }
 
     /// Move from hi
-    pub fn mfhi(&mut self, instr: Instruction) -> Result<(), Exception> {
+    pub fn mfhi(system: &mut System, instr: Instruction) -> Result<(), Exception> {
         let rd = instr.rd();
-        self.regd[rd] = self.hi;
+        system.cpu.regd[rd] = system.cpu.hi;
         Ok(())
     }
 
     /// Move from lo
-    pub fn mflo(&mut self, instr: Instruction) -> Result<(), Exception> {
+    pub fn mflo(system: &mut System, instr: Instruction) -> Result<(), Exception> {
         let rd = instr.rd();
-        self.regd[rd] = self.lo;
+        system.cpu.regd[rd] = system.cpu.lo;
         Ok(())
     }
 
     /// Move to hi
-    pub fn mthi(&mut self, instr: Instruction) -> Result<(), Exception> {
+    pub fn mthi(system: &mut System, instr: Instruction) -> Result<(), Exception> {
         let rs = instr.rs();
-        self.hi = self.regs[rs];
+        system.cpu.hi = system.cpu.regs[rs];
         Ok(())
     }
 
     /// Move to lo
-    pub fn mtlo(&mut self, instr: Instruction) -> Result<(), Exception> {
+    pub fn mtlo(system: &mut System, instr: Instruction) -> Result<(), Exception> {
         let rs = instr.rs();
-        self.lo = self.regs[rs];
+        system.cpu.lo = system.cpu.regs[rs];
         Ok(())
     }
 
     // Branching instructions
 
     /// Jump
-    pub fn j(&mut self, instr: Instruction) -> Result<(), Exception> {
+    pub fn j(system: &mut System, instr: Instruction) -> Result<(), Exception> {
         let im = instr.imm26();
-        let addr = (self.pc & 0xF0000000) + (im << 2);
+        let addr = (system.cpu.pc & 0xF0000000) + (im << 2);
 
-        self.delayed_branch = Some(addr);
+        system.cpu.delayed_branch = Some(addr);
         Ok(())
     }
 
     /// Jump and link
-    pub fn jal(&mut self, instr: Instruction) -> Result<(), Exception> {
+    pub fn jal(system: &mut System, instr: Instruction) -> Result<(), Exception> {
         let im = instr.imm26();
-        let addr = (self.pc & 0xF0000000) + (im << 2);
+        let addr = (system.cpu.pc & 0xF0000000) + (im << 2);
 
-        self.regd[31] = self.pc.wrapping_add(8);
-        self.delayed_branch = Some(addr);
+        system.cpu.regd[31] = system.cpu.pc.wrapping_add(8);
+        system.cpu.delayed_branch = Some(addr);
         Ok(())
     }
 
     /// Jump from register address
-    pub fn jr(&mut self, instr: Instruction) -> Result<(), Exception> {
+    pub fn jr(system: &mut System, instr: Instruction) -> Result<(), Exception> {
         let rs = instr.rs();
-        let addr = self.regs[rs];
+        let addr = system.cpu.regs[rs];
 
-        self.delayed_branch = Some(addr);
+        system.cpu.delayed_branch = Some(addr);
         Ok(())
     }
 
     /// Jump from register address and link
-    pub fn jalr(&mut self, instr: Instruction) -> Result<(), Exception> {
+    pub fn jalr(system: &mut System, instr: Instruction) -> Result<(), Exception> {
         let rs = instr.rs();
         let rd = instr.rd();
-        let addr = self.regs[rs];
+        let addr = system.cpu.regs[rs];
 
-        self.regd[rd] = self.pc.wrapping_add(8);
-        self.delayed_branch = Some(addr);
+        system.cpu.regd[rd] = system.cpu.pc.wrapping_add(8);
+        system.cpu.delayed_branch = Some(addr);
         Ok(())
     }
 
     /// Branch if equal
-    pub fn beq(&mut self, instr: Instruction) -> Result<(), Exception> {
+    pub fn beq(system: &mut System, instr: Instruction) -> Result<(), Exception> {
         let rs = instr.rs();
         let rt = instr.rt();
         let im = instr.imm16_se();
 
-        if self.regs[rs] == self.regs[rt] {
-            let addr = self.pc.wrapping_add((im << 2).wrapping_add(4));
-            self.delayed_branch = Some(addr);
+        if system.cpu.regs[rs] == system.cpu.regs[rt] {
+            let addr = system.cpu.pc.wrapping_add((im << 2).wrapping_add(4));
+            system.cpu.delayed_branch = Some(addr);
         }
         Ok(())
     }
 
     /// Branch if not equal
-    pub fn bne(&mut self, instr: Instruction) -> Result<(), Exception> {
+    pub fn bne(system: &mut System, instr: Instruction) -> Result<(), Exception> {
         let rs = instr.rs();
         let rt = instr.rt();
         let im = instr.imm16_se();
 
-        if self.regs[rs] != self.regs[rt] {
-            let addr = self.pc.wrapping_add((im << 2).wrapping_add(4));
-            self.delayed_branch = Some(addr);
+        if system.cpu.regs[rs] != system.cpu.regs[rt] {
+            let addr = system.cpu.pc.wrapping_add((im << 2).wrapping_add(4));
+            system.cpu.delayed_branch = Some(addr);
         }
         Ok(())
     }
 
     /// Handles BLTZ, BGEZ, BLTZAL, BGEZAL after decoding the opcode
-    pub fn bxxx(&mut self, instr: Instruction) -> Result<(), Exception> {
+    pub fn bxxx(system: &mut System, instr: Instruction) -> Result<(), Exception> {
         let rs = instr.rs();
         let im = instr.imm16_se();
 
         let ge = (instr.0 >> 16) & 1 == 1;
         let al = (instr.0 >> 17) & 0xF == 0x8;
 
-        let cond = ((self.regs[rs] as i32) < 0) ^ ge;
+        let cond = ((system.cpu.regs[rs] as i32) < 0) ^ ge;
         if al {
-            self.regd[31] = self.pc.wrapping_add(8);
+            system.cpu.regd[31] = system.cpu.pc.wrapping_add(8);
         }
         if cond {
-            let addr = self.pc.wrapping_add((im << 2).wrapping_add(4));
-            self.delayed_branch = Some(addr);
+            let addr = system.cpu.pc.wrapping_add((im << 2).wrapping_add(4));
+            system.cpu.delayed_branch = Some(addr);
         }
         Ok(())
     }
 
     /// Branch if greater than zero
-    pub fn bgtz(&mut self, instr: Instruction) -> Result<(), Exception> {
+    pub fn bgtz(system: &mut System, instr: Instruction) -> Result<(), Exception> {
         let rs = instr.rs();
         let im = instr.imm16_se();
 
-        if (self.regs[rs] as i32) > 0 {
-            let addr = self.pc.wrapping_add((im << 2).wrapping_add(4));
-            self.delayed_branch = Some(addr);
+        if (system.cpu.regs[rs] as i32) > 0 {
+            let addr = system.cpu.pc.wrapping_add((im << 2).wrapping_add(4));
+            system.cpu.delayed_branch = Some(addr);
         }
         Ok(())
     }
 
     /// Branch if less than or equal to zero
-    pub fn blez(&mut self, instr: Instruction) -> Result<(), Exception> {
+    pub fn blez(system: &mut System, instr: Instruction) -> Result<(), Exception> {
         let rs = instr.rs();
         let im = instr.imm16_se();
 
-        if (self.regs[rs] as i32) <= 0 {
-            let addr = self.pc.wrapping_add((im << 2).wrapping_add(4));
-            self.delayed_branch = Some(addr);
+        if (system.cpu.regs[rs] as i32) <= 0 {
+            let addr = system.cpu.pc.wrapping_add((im << 2).wrapping_add(4));
+            system.cpu.delayed_branch = Some(addr);
         }
         Ok(())
     }
 
-    pub fn syscall(&mut self) -> Result<(), Exception> {
+    pub fn syscall() -> Result<(), Exception> {
         Err(Exception::Syscall)
     }
 
-    pub fn breakk(&mut self) -> Result<(), Exception> {
+    pub fn breakk() -> Result<(), Exception> {
         Err(Exception::Break)
     }
 
-    pub fn lwc2(&mut self, instr: Instruction) -> Result<(), Exception> {
+    pub fn cop2(_system: &mut System, instr: Instruction) -> Result<(), Exception> {
+        panic!("Unhandled GTE instruction {:x}", instr.0);
+    }
+
+    pub fn lwc2(_system: &mut System, instr: Instruction) -> Result<(), Exception> {
         panic!("Unhandled GTE load word {:x}", instr.0);
     }
 
-    pub fn swc2(&mut self, instr: Instruction) -> Result<(), Exception> {
+    pub fn swc2(_system: &mut System, instr: Instruction) -> Result<(), Exception> {
         panic!("Unhandled GTE store word {:x}", instr.0);
     }
 
-    pub fn cop1(&mut self) -> Result<(), Exception> {
+    pub fn cop1() -> Result<(), Exception> {
         Err(Exception::CoprocessorError)
     }
 
-    pub fn cop3(&mut self) -> Result<(), Exception> {
+    pub fn cop3() -> Result<(), Exception> {
         Err(Exception::CoprocessorError)
     }
 
-    pub fn lwc0(&mut self) -> Result<(), Exception> {
+    pub fn lwc0() -> Result<(), Exception> {
         Err(Exception::CoprocessorError)
     }
 
-    pub fn lwc1(&mut self) -> Result<(), Exception> {
+    pub fn lwc1() -> Result<(), Exception> {
         Err(Exception::CoprocessorError)
     }
 
-    pub fn lwc3(&mut self) -> Result<(), Exception> {
+    pub fn lwc3() -> Result<(), Exception> {
         Err(Exception::CoprocessorError)
     }
 
-    pub fn swc0(&mut self) -> Result<(), Exception> {
+    pub fn swc0() -> Result<(), Exception> {
         Err(Exception::CoprocessorError)
     }
 
-    pub fn swc1(&mut self) -> Result<(), Exception> {
+    pub fn swc1() -> Result<(), Exception> {
         Err(Exception::CoprocessorError)
     }
 
-    pub fn swc3(&mut self) -> Result<(), Exception> {
+    pub fn swc3() -> Result<(), Exception> {
         Err(Exception::CoprocessorError)
     }
 }
