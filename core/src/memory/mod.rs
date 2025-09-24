@@ -7,7 +7,7 @@ use crate::Config;
 use crate::cpu::utils::Exception;
 use crate::dma::{self, DMAController};
 use crate::gpu::{self, Gpu};
-use crate::timer::{self, Timer};
+use crate::timer::{self, Timers};
 pub use fastmem::{
     bios::{self, Bios},
     ram::{self, Ram},
@@ -28,7 +28,7 @@ pub struct Bus {
     dma: DMAController,
     bios: Bios,
     scratch: Scratch,
-    timer: Timer,
+    timer: Timers,
 
     pub gpu: Gpu,
     pub ram: Ram,
@@ -43,7 +43,7 @@ impl Bus {
         let gpu = Gpu::default();
         let scratch = Scratch::default();
         let irqctl = InterruptController::default();
-        let timer = Timer::default();
+        let timer = Timers::default();
 
         Ok(Bus {
             timer,
