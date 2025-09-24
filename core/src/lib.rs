@@ -1,15 +1,19 @@
-use cpu::Cpu;
-use memory::Bus;
-use std::error::Error;
-
-use crate::scheduler::{Event, EventScheduler};
-
 mod cpu;
 mod dma;
-pub mod gpu;
+mod gpu;
+mod irqctl;
 mod memory;
 mod scheduler;
 mod timer;
+
+use crate::dma::DMAController;
+use crate::gpu::Gpu;
+use crate::irqctl::InterruptController;
+use crate::scheduler::{Event, EventScheduler};
+use crate::timer::Timers;
+use cpu::Cpu;
+use memory::Bus;
+use std::error::Error;
 
 pub const TARGET_FPS: u64 = 60;
 const CYCLES_PER_FRAME: u64 = 564480;
@@ -41,6 +45,10 @@ pub struct System {
     cpu: Cpu,
     bus: Bus,
     tty: String,
+    gpu: Gpu,
+    timer: Timers,
+    dma: DMAController,
+    irqctl: InterruptController,
     scheduler: EventScheduler,
 }
 
@@ -49,8 +57,16 @@ impl System {
         let bus = Bus::build(&config)?;
         let cpu = Cpu::default();
         let scheduler = EventScheduler::default();
+        let dma = DMAController::default();
+        let gpu = Gpu::default();
+        let irqctl = InterruptController::default();
+        let timer = Timers::default();
 
         let mut psx = System {
+            dma,
+            gpu,
+            irqctl,
+            timer,
             cpu,
             bus,
             tty: String::new(),
@@ -71,16 +87,16 @@ impl System {
     }
 
     pub fn frame_buffer(&self) -> &[u32] {
-        let (width, height) = self.bus.gpu.get_resolution();
-        &self.bus.gpu.renderer.frame_buffer()[..(width * height)]
+        let (width, height) = self.gpu.get_resolution();
+        &self.gpu.renderer.frame_buffer()[..(width * height)]
     }
 
     pub fn frame_buffer_vram(&self) -> &[u32] {
-        self.bus.gpu.renderer.frame_buffer()
+        self.gpu.renderer.frame_buffer()
     }
 
     pub fn get_resolution(&self) -> (u32, u32) {
-        let (width, height) = self.bus.gpu.get_resolution();
+        let (width, height) = self.gpu.get_resolution();
         (width as u32, height as u32)
     }
 
@@ -97,8 +113,8 @@ impl System {
 
             match self.scheduler.get_next_event() {
                 Event::VBlank => {
-                    self.bus.gpu.renderer.copy_display_to_fb();
-                    self.bus.irqctl.stat().set_vblank(true);
+                    self.gpu.renderer.copy_display_to_fb();
+                    self.irqctl.stat().set_vblank(true);
                     return;
                 }
                 Event::HBlank => {}

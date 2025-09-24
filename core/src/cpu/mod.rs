@@ -3,7 +3,7 @@ pub mod disasm;
 mod instrs;
 pub mod utils;
 
-use crate::System;
+use crate::{System, memory::Bus};
 use cop0::Cop0;
 use utils::{Exception, Instruction};
 
@@ -55,18 +55,15 @@ impl Default for Cpu {
 impl Cpu {
     /// Run a single instruction and return the number of cycles
     pub fn run_instruction(system: &mut System) {
-        let bus = &mut system.bus;
-        let cpu = &mut system.cpu;
-
-        let instr = Instruction(match bus.read::<u32>(cpu.pc) {
+        let instr = Instruction(match Bus::read::<u32>(system, system.cpu.pc) {
             Ok(v) => v,
-            Err(e) => return cpu.handle_exception(e, false),
+            Err(e) => return system.cpu.handle_exception(e, false),
         });
 
         // Are we in a branch delay slot?
-        let (next_pc, in_delay_slot) = match cpu.delayed_branch.take() {
+        let (next_pc, in_delay_slot) = match system.cpu.delayed_branch.take() {
             Some(addr) => (addr, true),
-            None => (cpu.pc.wrapping_add(4), false),
+            None => (system.cpu.pc.wrapping_add(4), false),
         };
 
         if Cpu::pending_interrupts(system) {
@@ -108,10 +105,9 @@ impl Cpu {
 
     fn pending_interrupts(system: &mut System) -> bool {
         let cpu = &mut system.cpu;
-        let bus = &mut system.bus;
 
         // Bit 10 of cause corresponds to any pending external interrupts
-        if bus.irqctl.pending() {
+        if system.irqctl.pending() {
             cpu.cop0.cause |= 1 << 10;
         } else {
             cpu.cop0.cause &= !(1 << 10);
@@ -119,7 +115,6 @@ impl Cpu {
 
         // Mask Bit 10 and Bit 9 - 8 (Software Interrrupts) with SR
         let pending = (cpu.cop0.cause & cpu.cop0.sr) & 0x700;
-
         pending != 0 && (cpu.cop0.sr & 1 != 0)
     }
 

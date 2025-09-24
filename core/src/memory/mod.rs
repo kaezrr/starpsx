@@ -1,19 +1,14 @@
-mod fastmem;
+mod flatmem;
 mod handlers;
-mod irqctl;
 mod utils;
 
-use crate::Config;
 use crate::cpu::utils::Exception;
-use crate::dma::{self, DMAController};
-use crate::gpu::{self, Gpu};
-use crate::timer::{self, Timers};
-pub use fastmem::{
+use crate::{Config, System, dma, gpu, irqctl, timer};
+pub use flatmem::{
     bios::{self, Bios},
     ram::{self, Ram},
     scratch::{self, Scratch},
 };
-use irqctl::InterruptController;
 use std::error::Error;
 use utils::ByteAddressable;
 
@@ -25,38 +20,21 @@ macro_rules! stubbed {
 }
 
 pub struct Bus {
-    dma: DMAController,
     bios: Bios,
     scratch: Scratch,
-    timer: Timers,
-
-    pub gpu: Gpu,
     pub ram: Ram,
-    pub irqctl: InterruptController,
 }
 
 impl Bus {
     pub fn build(conf: &Config) -> Result<Self, Box<dyn Error>> {
         let bios = Bios::build(&conf.bios_path)?;
         let ram = Ram::default();
-        let dma = DMAController::default();
-        let gpu = Gpu::default();
         let scratch = Scratch::default();
-        let irqctl = InterruptController::default();
-        let timer = Timers::default();
 
-        Ok(Bus {
-            timer,
-            gpu,
-            bios,
-            ram,
-            scratch,
-            dma,
-            irqctl,
-        })
+        Ok(Bus { bios, ram, scratch })
     }
 
-    pub fn read<T: ByteAddressable>(&mut self, addr: u32) -> Result<T, Exception> {
+    pub fn read<T: ByteAddressable>(system: &mut System, addr: u32) -> Result<T, Exception> {
         if !addr.is_multiple_of(T::LEN as u32) {
             return Err(Exception::LoadAddressError(addr));
         }
@@ -64,19 +42,19 @@ impl Bus {
         let addr = utils::mask_region(addr);
 
         let data = match addr {
-            ram::PADDR_START..=ram::PADDR_END => self.ram.read(addr),
+            ram::PADDR_START..=ram::PADDR_END => system.bus.ram.read(addr),
 
-            bios::PADDR_START..=bios::PADDR_END => self.bios.read(addr),
+            bios::PADDR_START..=bios::PADDR_END => system.bus.bios.read(addr),
 
-            scratch::PADDR_START..=scratch::PADDR_END => self.scratch.read(addr),
+            scratch::PADDR_START..=scratch::PADDR_END => system.bus.scratch.read(addr),
 
-            gpu::PADDR_START..=gpu::PADDR_END => self.gpu_read_handler(addr),
+            gpu::PADDR_START..=gpu::PADDR_END => Bus::gpu_read_handler(system, addr),
 
-            dma::PADDR_START..=dma::PADDR_END => self.dma_read_handler(addr),
+            dma::PADDR_START..=dma::PADDR_END => Bus::dma_read_handler(system, addr),
 
-            irqctl::PADDR_START..=irqctl::PADDR_END => self.irq_read_handler(addr),
+            irqctl::PADDR_START..=irqctl::PADDR_END => Bus::irq_read_handler(system, addr),
 
-            timer::PADDR_START..=timer::PADDR_END => self.timer_read_handler(addr),
+            timer::PADDR_START..=timer::PADDR_END => Bus::timer_read_handler(system, addr),
 
             0x1F801000..=0x1F801023 => stubbed!("Unhandled read to memctl"),
 
@@ -98,24 +76,28 @@ impl Bus {
         Ok(data)
     }
 
-    pub fn write<T: ByteAddressable>(&mut self, addr: u32, data: T) -> Result<(), Exception> {
+    pub fn write<T: ByteAddressable>(
+        system: &mut System,
+        addr: u32,
+        data: T,
+    ) -> Result<(), Exception> {
         if !addr.is_multiple_of(T::LEN as u32) {
             return Err(Exception::StoreAddressError(addr));
         }
         let addr = utils::mask_region(addr);
 
         match addr {
-            ram::PADDR_START..=ram::PADDR_END => self.ram.write(addr, data),
+            ram::PADDR_START..=ram::PADDR_END => system.bus.ram.write(addr, data),
 
-            scratch::PADDR_START..=scratch::PADDR_END => self.scratch.write(addr, data),
+            scratch::PADDR_START..=scratch::PADDR_END => system.bus.scratch.write(addr, data),
 
-            gpu::PADDR_START..=gpu::PADDR_END => self.gpu_write_handler(addr, data),
+            gpu::PADDR_START..=gpu::PADDR_END => Bus::gpu_write_handler(system, addr, data),
 
-            dma::PADDR_START..=dma::PADDR_END => self.dma_write_handler(addr, data),
+            dma::PADDR_START..=dma::PADDR_END => Bus::dma_write_handler(system, addr, data),
 
-            irqctl::PADDR_START..=irqctl::PADDR_END => self.irq_write_handler(addr, data),
+            irqctl::PADDR_START..=irqctl::PADDR_END => Bus::irq_write_handler(system, addr, data),
 
-            timer::PADDR_START..=timer::PADDR_END => self.timer_write_handler(addr, data),
+            timer::PADDR_START..=timer::PADDR_END => Bus::timer_write_handler(system, addr, data),
 
             0x1F801000..=0x1F801023 => eprintln!("Unhandled write to memctl"),
 
