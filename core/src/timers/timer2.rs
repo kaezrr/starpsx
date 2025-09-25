@@ -5,7 +5,7 @@ pub struct Timer2 {
     value: u32,
     target: u32,
     last_updated_on: u64,
-    pub mode: TimerMode,
+    mode: TimerMode,
 }
 
 impl Timer2 {
@@ -28,7 +28,7 @@ impl Timer2 {
         // println!("TIMER2 WRITE {offs} -> {val}");
         match offs {
             0 => timer.value = val,
-            4 => Timer2::write_mode(system, val),
+            4 => Self::write_mode(system, val),
             8 => timer.target = val,
             _ => panic!("invalid timer 0 register {offs}"),
         }

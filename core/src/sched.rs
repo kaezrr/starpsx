@@ -1,12 +1,11 @@
 use arrayvec::ArrayVec;
 
-use crate::timers::IRQMode;
-
 #[derive(Clone, Copy, PartialEq)]
 pub enum Event {
-    VBlank,
-    HBlank,
-    Timer2(IRQMode),
+    VBlankStart,
+    VBlankEnd,
+    HBlankStart,
+    HBlankEnd,
 }
 
 pub struct Task {
@@ -35,7 +34,7 @@ impl EventScheduler {
     }
 
     pub fn step(&mut self) {
-        self.sysclk += 1
+        self.sysclk += 2
     }
 
     pub fn cycles_till_next_event(&self) -> u64 {

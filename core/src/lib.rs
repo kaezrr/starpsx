@@ -17,11 +17,9 @@ use sched::{Event, EventScheduler};
 use std::error::Error;
 use timers::Timers;
 
-use crate::timers::IRQMode;
-
 pub const TARGET_FPS: u64 = 60;
-const CYCLES_PER_FRAME: u64 = 564480;
-const CYCLES_PER_LINE: u64 = CYCLES_PER_FRAME / 263;
+pub const LINE_DURATION: u64 = 2172;
+pub const HBLANK_DURATION: u64 = 387;
 
 pub struct Config {
     bios_path: String,
@@ -92,9 +90,9 @@ impl System {
 
         // Schedule some initial events
         psx.scheduler
-            .subscribe(Event::VBlank, CYCLES_PER_FRAME, Some(CYCLES_PER_FRAME));
+            .subscribe(Event::VBlankStart, LINE_DURATION * 240, None);
         psx.scheduler
-            .subscribe(Event::HBlank, CYCLES_PER_LINE, Some(CYCLES_PER_LINE));
+            .subscribe(Event::HBlankStart, LINE_DURATION - HBLANK_DURATION, None);
 
         Ok(psx)
     }
@@ -124,12 +122,27 @@ impl System {
             }
 
             match self.scheduler.get_next_event() {
-                Event::HBlank => {}
-                Event::Timer2(_irq_mode) => {}
-                Event::VBlank => {
-                    self.gpu.renderer.copy_display_to_fb();
+                Event::VBlankStart => {
                     self.irqctl.stat().set_vblank(true);
+                    self.scheduler
+                        .subscribe(Event::VBlankEnd, LINE_DURATION * 13, None);
+                }
+                Event::VBlankEnd => {
+                    self.gpu.renderer.copy_display_to_fb();
+                    self.scheduler
+                        .subscribe(Event::VBlankStart, LINE_DURATION * 240, None);
                     return;
+                }
+                Event::HBlankStart => {
+                    self.scheduler
+                        .subscribe(Event::HBlankEnd, HBLANK_DURATION, None);
+                }
+                Event::HBlankEnd => {
+                    self.scheduler.subscribe(
+                        Event::HBlankStart,
+                        LINE_DURATION - HBLANK_DURATION,
+                        None,
+                    );
                 }
             }
         }
