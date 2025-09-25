@@ -65,8 +65,13 @@ impl Timer2 {
             _ => unreachable!(),
         };
 
+        let reset = match timer.mode.reset_to_target() {
+            true => timer.target,
+            false => 0xFFFF,
+        };
+
         // Actual number of counter increments
         let delta = clk_delta / divisor;
-        timer.value = (timer.value + delta) % (0xFFFF + 1);
+        timer.value = (timer.value + delta) % (reset + 1);
     }
 }
