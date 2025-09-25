@@ -1,7 +1,8 @@
 use crate::System;
 use crate::cpu::utils::Exception;
 use crate::dma::DMAController;
-use crate::{dma, gpu, irq, timer};
+use crate::timers::Timers;
+use crate::{dma, gpu, irq, timers};
 use std::error::Error;
 use std::fmt::{Display, LowerHex};
 
@@ -197,14 +198,14 @@ fn timer_read_handler<T: ByteAddressable>(system: &mut System, offs: u32) -> T {
     if T::LEN == 1 {
         panic!("unmapped timer read byte");
     }
-    T::from_u32(system.timer.read_reg(offs))
+    T::from_u32(Timers::read_reg(system, offs))
 }
 
 fn timer_write_handler<T: ByteAddressable>(system: &mut System, offs: u32, data: T) {
     if T::LEN == 1 {
         panic!("unmapped timer write byte");
     }
-    system.timer.write_reg(offs, data.to_u32())
+    Timers::write_reg(system, offs, data.to_u32())
 }
 
 macro_rules! stubbed {
@@ -245,7 +246,7 @@ impl System {
 
             irq::PADDR_START..=irq::PADDR_END => irq_read_handler(self, addr),
 
-            timer::PADDR_START..=timer::PADDR_END => timer_read_handler(self, addr),
+            timers::PADDR_START..=timers::PADDR_END => timer_read_handler(self, addr),
 
             0x1F801000..=0x1F801023 => stubbed!("Unhandled read to memctl"),
 
@@ -284,7 +285,7 @@ impl System {
 
             irq::PADDR_START..=irq::PADDR_END => irq_write_handler(self, addr, data),
 
-            timer::PADDR_START..=timer::PADDR_END => timer_write_handler(self, addr, data),
+            timers::PADDR_START..=timers::PADDR_END => timer_write_handler(self, addr, data),
 
             0x1F801000..=0x1F801023 => eprintln!("Unhandled write to memctl"),
 

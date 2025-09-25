@@ -1,13 +1,27 @@
-mod timer0;
-mod timer1;
 mod timer2;
 
-use timer0::Timer0;
-use timer1::Timer1;
 use timer2::Timer2;
+
+use crate::System;
 
 pub const PADDR_START: u32 = 0x1F801100;
 pub const PADDR_END: u32 = 0x1F80112F;
+
+#[derive(Clone, Copy, PartialEq)]
+pub enum IRQMode {
+    Pulse,
+    Toggle,
+}
+
+impl From<u8> for IRQMode {
+    fn from(value: u8) -> Self {
+        match value {
+            1 => Self::Toggle,
+            0 => Self::Pulse,
+            _ => unreachable!(),
+        }
+    }
+}
 
 bitfield::bitfield! {
     #[derive(Default)]
@@ -15,46 +29,43 @@ bitfield::bitfield! {
     sync_enable, _ : 0;
     sync_mode, _ : 2, 1;
     reset_to_target, _ : 3;
-    irq_target, _ : 4;
-    irq_ffff, _ : 5;
+    irq_target, _ : 5, 4;
     irq_repeat, _: 6;
-    irq_toggle, _: 7;
+    u8, into IRQMode, irq_toggle, _: 7, 7;
     clock_src, _: 9, 8;
-    interrupt, set_interrupt: 10;
+    pub irq_disable, set_irq_disable: 10;
     reached_target, set_reached_target: 11;
     reached_ffff, set_reached_ffff: 12;
 }
 
 #[derive(Default)]
 pub struct Timers {
-    timer0: Timer0,
-    timer1: Timer1,
-    timer2: Timer2,
+    pub timer2: Timer2,
 }
 
 impl Timers {
-    pub fn read_reg(&mut self, addr: u32) -> u32 {
+    pub fn read_reg(system: &mut System, addr: u32) -> u32 {
         let addr = addr - PADDR_START;
         let offs = addr % 0x10;
         let timer = (addr / 0x10) as usize;
 
         match timer {
-            0 => self.timer0.read(offs),
-            1 => self.timer1.read(offs),
-            2 => self.timer2.read(offs),
+            0 => 0,
+            1 => 0,
+            2 => Timer2::read(system, offs),
             _ => panic!("invalid timer read {timer}"),
         }
     }
 
-    pub fn write_reg(&mut self, addr: u32, val: u32) {
+    pub fn write_reg(system: &mut System, addr: u32, val: u32) {
         let addr = addr - PADDR_START;
         let offs = addr % 0x10;
         let timer = (addr / 0x10) as usize;
 
         match timer {
-            0 => self.timer0.write(offs, val),
-            1 => self.timer1.write(offs, val),
-            2 => self.timer2.write(offs, val),
+            0 => {}
+            1 => {}
+            2 => Timer2::write(system, offs, val),
             _ => panic!("invalid timer write {timer}"),
         }
     }

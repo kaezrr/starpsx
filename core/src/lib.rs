@@ -4,7 +4,7 @@ mod gpu;
 mod irq;
 mod mem;
 mod sched;
-mod timer;
+mod timers;
 
 use cpu::Cpu;
 use dma::DMAController;
@@ -15,7 +15,9 @@ use mem::ram::Ram;
 use mem::scratch::Scratch;
 use sched::{Event, EventScheduler};
 use std::error::Error;
-use timer::Timers;
+use timers::Timers;
+
+use crate::timers::IRQMode;
 
 pub const TARGET_FPS: u64 = 60;
 const CYCLES_PER_FRAME: u64 = 564480;
@@ -52,7 +54,7 @@ pub struct System {
     scratch: Scratch,
 
     dma: DMAController,
-    timer: Timers,
+    timers: Timers,
     irqctl: InterruptController,
 
     tty: String,
@@ -66,7 +68,7 @@ impl System {
         let dma = DMAController::default();
         let gpu = Gpu::default();
         let irqctl = InterruptController::default();
-        let timer = Timers::default();
+        let timers = Timers::default();
         let bios = Bios::build(&config.bios_path)?;
         let ram = Ram::default();
         let scratch = Scratch::default();
@@ -78,7 +80,7 @@ impl System {
             bios,
             scratch,
             dma,
-            timer,
+            timers,
             irqctl,
             tty: String::new(),
             scheduler,
@@ -90,9 +92,9 @@ impl System {
 
         // Schedule some initial events
         psx.scheduler
-            .subscribe(Event::VBlank, CYCLES_PER_FRAME, true);
+            .subscribe(Event::VBlank, CYCLES_PER_FRAME, Some(CYCLES_PER_FRAME));
         psx.scheduler
-            .subscribe(Event::HBlank, CYCLES_PER_LINE, true);
+            .subscribe(Event::HBlank, CYCLES_PER_LINE, Some(CYCLES_PER_LINE));
 
         Ok(psx)
     }
@@ -118,17 +120,17 @@ impl System {
             for _ in (0..cycles).step_by(2) {
                 Cpu::run_instruction(self);
                 self.check_for_tty_output();
+                self.scheduler.step();
             }
 
-            self.scheduler.progress(cycles);
-
             match self.scheduler.get_next_event() {
+                Event::HBlank => {}
+                Event::Timer2(_irq_mode) => {}
                 Event::VBlank => {
                     self.gpu.renderer.copy_display_to_fb();
                     self.irqctl.stat().set_vblank(true);
                     return;
                 }
-                Event::HBlank => {}
             }
         }
     }

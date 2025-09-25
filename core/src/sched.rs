@@ -1,12 +1,15 @@
 use arrayvec::ArrayVec;
 
+use crate::timers::IRQMode;
+
 #[derive(Clone, Copy, PartialEq)]
 pub enum Event {
     VBlank,
     HBlank,
+    Timer2(IRQMode),
 }
 
-struct Task {
+pub struct Task {
     pub event: Event,
     pub cycle: u64,
     pub repeat: Option<u64>,
@@ -15,20 +18,24 @@ struct Task {
 #[derive(Default)]
 pub struct EventScheduler {
     sysclk: u64,
-    tasks: ArrayVec<Task, 2>,
+    tasks: ArrayVec<Task, 5>,
 }
 
 impl EventScheduler {
+    pub fn sysclk(&self) -> u64 {
+        self.sysclk
+    }
+
     pub fn get_next_event(&mut self) -> Event {
         let task = self.tasks.remove(0);
         if let Some(cycles) = task.repeat {
-            self.subscribe(task.event, cycles, true);
+            self.subscribe(task.event, cycles, Some(cycles));
         }
         task.event
     }
 
-    pub fn progress(&mut self, cycles: u64) {
-        self.sysclk += cycles
+    pub fn step(&mut self) {
+        self.sysclk += 1
     }
 
     pub fn cycles_till_next_event(&self) -> u64 {
@@ -39,7 +46,7 @@ impl EventScheduler {
             .saturating_sub(self.sysclk)
     }
 
-    pub fn subscribe(&mut self, event: Event, cycles_length: u64, repeat: bool) {
+    pub fn subscribe(&mut self, event: Event, cycles_length: u64, repeat: Option<u64>) {
         self.tasks.retain(|e| e.event != event);
 
         let cycle = self.sysclk + cycles_length;
@@ -54,7 +61,7 @@ impl EventScheduler {
             Task {
                 event,
                 cycle,
-                repeat: repeat.then_some(cycles_length),
+                repeat,
             },
         );
     }

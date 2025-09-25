@@ -26,7 +26,7 @@ def run_tests(bios_path):
 
         try:
             result = subprocess.run(
-                ["cargo", "run", "--release", "--", bios_path, test_path],
+                ["cargo", "run", "--", bios_path, test_path],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 check=False,

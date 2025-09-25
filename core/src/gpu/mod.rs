@@ -375,8 +375,4 @@ impl Gpu {
         (width, height)
         // (1024, 512)
     }
-
-    pub fn get_hori_resolution(&self) -> HorizontalRes {
-        self.gpu_stat.hres()
-    }
 }
