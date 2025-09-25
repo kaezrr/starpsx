@@ -85,15 +85,19 @@ impl Timer0 {
 
         timer.in_hsync = true;
 
-        match timer.mode.sync_mode() {
-            1 | 2 => timer.value = 0,
-            3 => timer.mode.set_sync_enable(false),
-            _ => {}
+        if timer.mode.sync_enable() && matches!(timer.mode.sync_mode(), 1 | 2) {
+            timer.value = 0;
         }
     }
 
     pub fn exit_hblank(system: &mut System) {
         Self::update_value(system);
-        system.timers.timer0.in_hsync = false;
+        let timer = &mut system.timers.timer0;
+
+        timer.in_hsync = false;
+
+        if timer.mode.sync_enable() && timer.mode.sync_mode() == 3 {
+            timer.mode.set_sync_enable(false);
+        }
     }
 }

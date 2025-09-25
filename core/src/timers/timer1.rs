@@ -87,16 +87,20 @@ impl Timer1 {
 
         timer.in_vsync = true;
 
-        match timer.mode.sync_mode() {
-            1 | 2 => timer.value = 0,
-            3 => timer.mode.set_sync_enable(false),
-            _ => {}
+        if timer.mode.sync_enable() && matches!(timer.mode.sync_mode(), 1 | 2) {
+            timer.value = 0;
         }
     }
 
     pub fn exit_vblank(system: &mut System) {
         Self::update_value(system);
-        system.timers.timer1.in_vsync = false;
+        let timer = &mut system.timers.timer1;
+
+        timer.in_vsync = false;
+
+        if timer.mode.sync_enable() && timer.mode.sync_mode() == 3 {
+            timer.mode.set_sync_enable(false);
+        }
     }
 
     pub fn increment_hblanks(&mut self) {
