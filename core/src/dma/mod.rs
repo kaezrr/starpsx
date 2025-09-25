@@ -3,7 +3,7 @@ pub mod utils;
 
 use std::array::from_fn;
 
-use crate::System;
+use crate::{System, mem::ByteAddressable};
 use channel::Channel;
 use utils::{Direction, Port, Step, Sync};
 
@@ -158,5 +158,15 @@ impl DMAController {
         }
 
         channel.done();
+    }
+}
+
+pub fn read<T: ByteAddressable>(system: &mut System, offs: u32) -> T {
+    T::from_u32(system.dma.read_reg(offs))
+}
+
+pub fn write<T: ByteAddressable>(system: &mut System, offs: u32, data: T) {
+    if let Some(port) = system.dma.write_reg(offs, data.to_u32()) {
+        DMAController::do_dma(system, port);
     }
 }

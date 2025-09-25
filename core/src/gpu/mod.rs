@@ -10,7 +10,7 @@ pub use utils::{
     TextureDepth, VMode, VerticalRes, VramCopyFields,
 };
 
-use crate::gpu::utils::PolyLineFn;
+use crate::{System, gpu::utils::PolyLineFn, mem::ByteAddressable};
 
 bitfield::bitfield! {
     #[derive(Clone, Copy)]
@@ -375,4 +375,12 @@ impl Gpu {
         (width, height)
         // (1024, 512)
     }
+}
+
+pub fn read<T: ByteAddressable>(system: &mut System, offs: u32) -> T {
+    T::from_u32(system.gpu.read_reg(offs))
+}
+
+pub fn write<T: ByteAddressable>(system: &mut System, offs: u32, data: T) {
+    system.gpu.write_reg(offs, data.to_u32())
 }

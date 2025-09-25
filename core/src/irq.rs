@@ -1,3 +1,5 @@
+use crate::{System, mem::ByteAddressable};
+
 pub const PADDR_START: u32 = 0x1F801070;
 pub const PADDR_END: u32 = 0x1F801077;
 
@@ -49,4 +51,12 @@ impl InterruptController {
     pub fn stat(&mut self) -> &mut IStat {
         &mut self.stat
     }
+}
+
+pub fn read<T: ByteAddressable>(system: &mut System, offs: u32) -> T {
+    T::from_u32(system.irqctl.read_reg(offs))
+}
+
+pub fn write<T: ByteAddressable>(system: &mut System, offs: u32, data: T) {
+    system.irqctl.write_reg(offs, data.to_u32())
 }

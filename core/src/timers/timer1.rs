@@ -29,9 +29,9 @@ impl Timer1 {
         let timer = &mut system.timers.timer1;
 
         match offs {
-            0 => timer.value = val,
+            0 => timer.value = val & 0xFFFF,
             4 => Self::write_mode(system, val),
-            8 => timer.target = val,
+            8 => timer.target = val & 0xFFFF,
             _ => panic!("invalid timer 0 register {offs}"),
         }
     }
@@ -94,12 +94,12 @@ impl Timer1 {
         }
     }
 
-    pub fn enter_hblank(&mut self) {
-        self.hblanks += 1;
-    }
-
     pub fn exit_vblank(system: &mut System) {
         Self::update_value(system);
         system.timers.timer1.in_vsync = false;
+    }
+
+    pub fn increment_hblanks(&mut self) {
+        self.hblanks += 1;
     }
 }

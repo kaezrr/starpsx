@@ -28,9 +28,9 @@ impl Timer0 {
         let timer = &mut system.timers.timer0;
 
         match offs {
-            0 => timer.value = val,
+            0 => timer.value = val & 0xFFFF,
             4 => Self::write_mode(system, val),
-            8 => timer.target = val,
+            8 => timer.target = val & 0xFFFF,
             _ => panic!("invalid timer 0 register {offs}"),
         }
     }

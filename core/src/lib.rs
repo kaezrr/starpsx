@@ -17,11 +17,9 @@ use sched::{Event, EventScheduler};
 use std::error::Error;
 use timers::Timers;
 
-use crate::timers::{Timer0, Timer1};
-
 pub const TARGET_FPS: u64 = 60;
 pub const LINE_DURATION: u64 = 2172;
-pub const HBLANK_DURATION: u64 = 387;
+pub const HBLANK_DURATION: u64 = 390;
 
 pub struct Config {
     bios_path: String,
@@ -125,26 +123,25 @@ impl System {
 
             match self.scheduler.get_next_event() {
                 Event::VBlankStart => {
-                    Timer1::enter_vblank(self);
+                    Timers::enter_vblank(self);
                     self.irqctl.stat().set_vblank(true);
                     self.scheduler
                         .subscribe(Event::VBlankEnd, LINE_DURATION * 13, None);
                 }
                 Event::VBlankEnd => {
-                    Timer1::exit_vblank(self);
+                    Timers::exit_vblank(self);
                     self.gpu.renderer.copy_display_to_fb();
                     self.scheduler
                         .subscribe(Event::VBlankStart, LINE_DURATION * 240, None);
                     return;
                 }
                 Event::HBlankStart => {
-                    Timer0::enter_hblank(self);
-                    self.timers.timer1.enter_hblank();
+                    Timers::enter_hblank(self);
                     self.scheduler
                         .subscribe(Event::HBlankEnd, HBLANK_DURATION, None);
                 }
                 Event::HBlankEnd => {
-                    Timer0::exit_hblank(self);
+                    Timers::exit_hblank(self);
                     self.scheduler.subscribe(
                         Event::HBlankStart,
                         LINE_DURATION - HBLANK_DURATION,

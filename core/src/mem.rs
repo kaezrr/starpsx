@@ -1,7 +1,5 @@
 use crate::System;
 use crate::cpu::utils::Exception;
-use crate::dma::DMAController;
-use crate::timers::Timers;
 use crate::{dma, gpu, irq, timers};
 use std::error::Error;
 use std::fmt::{Display, LowerHex};
@@ -138,76 +136,6 @@ pub mod scratch {
     }
 }
 
-fn gpu_read_handler<T: ByteAddressable>(system: &mut System, offs: u32) -> T {
-    if T::LEN == 1 {
-        panic!("unmapped gpu read byte");
-    }
-    if T::LEN == 2 {
-        panic!("unmapped gpu read half word");
-    }
-    T::from_u32(system.gpu.read_reg(offs))
-}
-
-fn gpu_write_handler<T: ByteAddressable>(system: &mut System, offs: u32, data: T) {
-    if T::LEN == 1 {
-        panic!("unmapped gpu write byte");
-    }
-    if T::LEN == 2 {
-        panic!("unmapped gpu write half word");
-    }
-    system.gpu.write_reg(offs, data.to_u32())
-}
-
-fn dma_read_handler<T: ByteAddressable>(system: &mut System, offs: u32) -> T {
-    if T::LEN == 1 {
-        panic!("unmapped dma read byte");
-    }
-    if T::LEN == 2 {
-        panic!("unmapped dma read half word");
-    }
-    T::from_u32(system.dma.read_reg(offs))
-}
-
-fn dma_write_handler<T: ByteAddressable>(system: &mut System, offs: u32, data: T) {
-    if T::LEN == 1 {
-        panic!("unmapped dma write byte");
-    }
-    if T::LEN == 2 {
-        panic!("unmapped dma write half word");
-    }
-    if let Some(port) = system.dma.write_reg(offs, data.to_u32()) {
-        DMAController::do_dma(system, port);
-    }
-}
-
-fn irq_read_handler<T: ByteAddressable>(system: &mut System, offs: u32) -> T {
-    if T::LEN == 1 {
-        panic!("unmapped irq read byte");
-    }
-    T::from_u32(system.irqctl.read_reg(offs))
-}
-
-fn irq_write_handler<T: ByteAddressable>(system: &mut System, offs: u32, data: T) {
-    if T::LEN == 1 {
-        panic!("unmapped irq write byte");
-    }
-    system.irqctl.write_reg(offs, data.to_u32())
-}
-
-fn timer_read_handler<T: ByteAddressable>(system: &mut System, offs: u32) -> T {
-    if T::LEN == 1 {
-        panic!("unmapped timer read byte");
-    }
-    T::from_u32(Timers::read_reg(system, offs))
-}
-
-fn timer_write_handler<T: ByteAddressable>(system: &mut System, offs: u32, data: T) {
-    if T::LEN == 1 {
-        panic!("unmapped timer write byte");
-    }
-    Timers::write_reg(system, offs, data.to_u32())
-}
-
 macro_rules! stubbed {
     ($region:expr) => {{
         eprintln!($region);
@@ -240,13 +168,13 @@ impl System {
 
             scratch::PADDR_START..=scratch::PADDR_END => self.scratch.read(addr),
 
-            gpu::PADDR_START..=gpu::PADDR_END => gpu_read_handler(self, addr),
+            gpu::PADDR_START..=gpu::PADDR_END => gpu::read(self, addr),
 
-            dma::PADDR_START..=dma::PADDR_END => dma_read_handler(self, addr),
+            dma::PADDR_START..=dma::PADDR_END => dma::read(self, addr),
 
-            irq::PADDR_START..=irq::PADDR_END => irq_read_handler(self, addr),
+            irq::PADDR_START..=irq::PADDR_END => irq::read(self, addr),
 
-            timers::PADDR_START..=timers::PADDR_END => timer_read_handler(self, addr),
+            timers::PADDR_START..=timers::PADDR_END => timers::read(self, addr),
 
             0x1F801000..=0x1F801023 => stubbed!("Unhandled read to memctl"),
 
@@ -279,13 +207,13 @@ impl System {
 
             scratch::PADDR_START..=scratch::PADDR_END => self.scratch.write(addr, data),
 
-            gpu::PADDR_START..=gpu::PADDR_END => gpu_write_handler(self, addr, data),
+            gpu::PADDR_START..=gpu::PADDR_END => gpu::write(self, addr, data),
 
-            dma::PADDR_START..=dma::PADDR_END => dma_write_handler(self, addr, data),
+            dma::PADDR_START..=dma::PADDR_END => dma::write(self, addr, data),
 
-            irq::PADDR_START..=irq::PADDR_END => irq_write_handler(self, addr, data),
+            irq::PADDR_START..=irq::PADDR_END => irq::write(self, addr, data),
 
-            timers::PADDR_START..=timers::PADDR_END => timer_write_handler(self, addr, data),
+            timers::PADDR_START..=timers::PADDR_END => timers::write(self, addr, data),
 
             0x1F801000..=0x1F801023 => eprintln!("Unhandled write to memctl"),
 

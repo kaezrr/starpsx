@@ -6,7 +6,7 @@ pub use timer0::Timer0;
 pub use timer1::Timer1;
 pub use timer2::Timer2;
 
-use crate::System;
+use crate::{System, mem::ByteAddressable};
 
 pub const PADDR_START: u32 = 0x1F801100;
 pub const PADDR_END: u32 = 0x1F80112F;
@@ -75,4 +75,29 @@ impl Timers {
             _ => panic!("invalid timer write {timer}"),
         }
     }
+
+    pub fn enter_vblank(system: &mut System) {
+        Timer1::enter_vblank(system);
+    }
+
+    pub fn exit_vblank(system: &mut System) {
+        Timer1::exit_vblank(system);
+    }
+
+    pub fn enter_hblank(system: &mut System) {
+        Timer0::enter_hblank(system);
+        system.timers.timer1.increment_hblanks();
+    }
+
+    pub fn exit_hblank(system: &mut System) {
+        Timer0::exit_hblank(system);
+    }
+}
+
+pub fn read<T: ByteAddressable>(system: &mut System, offs: u32) -> T {
+    T::from_u32(Timers::read_reg(system, offs))
+}
+
+pub fn write<T: ByteAddressable>(system: &mut System, offs: u32, data: T) {
+    Timers::write_reg(system, offs, data.to_u32())
 }
