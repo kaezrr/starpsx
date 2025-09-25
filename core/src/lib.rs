@@ -17,7 +17,7 @@ use sched::{Event, EventScheduler};
 use std::error::Error;
 use timers::Timers;
 
-use crate::timers::Timer1;
+use crate::timers::{Timer0, Timer1};
 
 pub const TARGET_FPS: u64 = 60;
 pub const LINE_DURATION: u64 = 2172;
@@ -138,11 +138,13 @@ impl System {
                     return;
                 }
                 Event::HBlankStart => {
+                    Timer0::enter_hblank(self);
                     self.timers.timer1.enter_hblank();
                     self.scheduler
                         .subscribe(Event::HBlankEnd, HBLANK_DURATION, None);
                 }
                 Event::HBlankEnd => {
+                    Timer0::exit_hblank(self);
                     self.scheduler.subscribe(
                         Event::HBlankStart,
                         LINE_DURATION - HBLANK_DURATION,

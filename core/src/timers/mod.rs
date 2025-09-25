@@ -1,6 +1,8 @@
+mod timer0;
 mod timer1;
 mod timer2;
 
+pub use timer0::Timer0;
 pub use timer1::Timer1;
 pub use timer2::Timer2;
 
@@ -42,8 +44,9 @@ bitfield::bitfield! {
 
 #[derive(Default)]
 pub struct Timers {
-    pub timer2: Timer2,
+    pub timer0: Timer0,
     pub timer1: Timer1,
+    pub timer2: Timer2,
 }
 
 impl Timers {
@@ -53,7 +56,7 @@ impl Timers {
         let timer = (addr / 0x10) as usize;
 
         match timer {
-            0 => 0,
+            0 => Timer0::read(system, offs),
             1 => Timer1::read(system, offs),
             2 => Timer2::read(system, offs),
             _ => panic!("invalid timer read {timer}"),
@@ -66,7 +69,7 @@ impl Timers {
         let timer = (addr / 0x10) as usize;
 
         match timer {
-            0 => {}
+            0 => Timer0::write(system, offs, val),
             1 => Timer1::write(system, offs, val),
             2 => Timer2::write(system, offs, val),
             _ => panic!("invalid timer write {timer}"),
