@@ -62,8 +62,8 @@ impl From<Field> for u8 {
 pub enum HorizontalRes {
     X256,
     X320,
-    X512,
     X368,
+    X512,
     X640,
 }
 

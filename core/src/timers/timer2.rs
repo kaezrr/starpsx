@@ -58,19 +58,18 @@ impl Timer2 {
             return;
         }
 
-        let divisor = match timer.mode.clock_src() {
-            0 | 1 => 1,
-            2 | 3 => 8,
-            _ => unreachable!(),
-        };
-
         let reset = match timer.mode.reset_to_target() {
             true => timer.target,
             false => 0xFFFF,
         };
 
         // Actual number of counter increments
-        let delta = clk_delta / divisor;
+        let delta = match timer.mode.clock_src() {
+            0 | 1 => clk_delta,
+            2 | 3 => clk_delta / 8,
+            _ => unreachable!(),
+        };
+
         timer.value = (timer.value + delta) % (reset + 1);
     }
 }

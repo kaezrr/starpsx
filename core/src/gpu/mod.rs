@@ -375,6 +375,16 @@ impl Gpu {
         (width, height)
         // (1024, 512)
     }
+
+    pub fn get_dot_clock_divider(&self) -> u32 {
+        match self.gpu_stat.hres() {
+            HorizontalRes::X256 => 10,
+            HorizontalRes::X320 => 8,
+            HorizontalRes::X368 => 7,
+            HorizontalRes::X512 => 5,
+            HorizontalRes::X640 => 4,
+        }
+    }
 }
 
 pub fn read<T: ByteAddressable>(system: &mut System, offs: u32) -> T {

@@ -72,7 +72,7 @@ impl Timer0 {
         // Actual number of counter increments
         let delta = match timer.mode.clock_src() {
             0 | 2 => clk_delta,
-            1 | 3 => 0,
+            1 | 3 => clk_delta / system.gpu.get_dot_clock_divider(),
             _ => unreachable!(),
         };
 
