@@ -17,6 +17,8 @@ use sched::{Event, EventScheduler};
 use std::error::Error;
 use timers::Timers;
 
+use crate::timers::Timer1;
+
 pub const TARGET_FPS: u64 = 60;
 pub const LINE_DURATION: u64 = 2172;
 pub const HBLANK_DURATION: u64 = 387;
@@ -115,7 +117,7 @@ impl System {
         loop {
             let cycles = self.scheduler.cycles_till_next_event();
 
-            for _ in (0..cycles).step_by(2) {
+            for _ in 0..cycles {
                 Cpu::run_instruction(self);
                 self.check_for_tty_output();
                 self.scheduler.step();
@@ -123,17 +125,20 @@ impl System {
 
             match self.scheduler.get_next_event() {
                 Event::VBlankStart => {
+                    Timer1::enter_vblank(self);
                     self.irqctl.stat().set_vblank(true);
                     self.scheduler
                         .subscribe(Event::VBlankEnd, LINE_DURATION * 13, None);
                 }
                 Event::VBlankEnd => {
+                    Timer1::exit_vblank(self);
                     self.gpu.renderer.copy_display_to_fb();
                     self.scheduler
                         .subscribe(Event::VBlankStart, LINE_DURATION * 240, None);
                     return;
                 }
                 Event::HBlankStart => {
+                    self.timers.timer1.enter_hblank();
                     self.scheduler
                         .subscribe(Event::HBlankEnd, HBLANK_DURATION, None);
                 }

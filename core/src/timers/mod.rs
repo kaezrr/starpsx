@@ -1,6 +1,8 @@
+mod timer1;
 mod timer2;
 
-use timer2::Timer2;
+pub use timer1::Timer1;
+pub use timer2::Timer2;
 
 use crate::System;
 
@@ -26,7 +28,7 @@ impl From<u8> for IRQMode {
 bitfield::bitfield! {
     #[derive(Default)]
     pub struct TimerMode(u32);
-    sync_enable, _ : 0;
+    sync_enable, set_sync_enable : 0;
     sync_mode, _ : 2, 1;
     reset_to_target, _ : 3;
     irq_target, _ : 5, 4;
@@ -41,6 +43,7 @@ bitfield::bitfield! {
 #[derive(Default)]
 pub struct Timers {
     pub timer2: Timer2,
+    pub timer1: Timer1,
 }
 
 impl Timers {
@@ -51,7 +54,7 @@ impl Timers {
 
         match timer {
             0 => 0,
-            1 => 0,
+            1 => Timer1::read(system, offs),
             2 => Timer2::read(system, offs),
             _ => panic!("invalid timer read {timer}"),
         }
@@ -64,7 +67,7 @@ impl Timers {
 
         match timer {
             0 => {}
-            1 => {}
+            1 => Timer1::write(system, offs, val),
             2 => Timer2::write(system, offs, val),
             _ => panic!("invalid timer write {timer}"),
         }

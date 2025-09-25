@@ -34,7 +34,7 @@ impl EventScheduler {
     }
 
     pub fn step(&mut self) {
-        self.sysclk += 2
+        self.sysclk += 1
     }
 
     pub fn cycles_till_next_event(&self) -> u64 {
