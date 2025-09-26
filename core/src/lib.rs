@@ -123,25 +123,25 @@ impl System {
 
             match self.scheduler.get_next_event() {
                 Event::VBlankStart => {
-                    Timers::enter_vblank(self);
+                    Timers::enter_vsync(self);
                     self.irqctl.stat().set_vblank(true);
                     self.scheduler
                         .subscribe(Event::VBlankEnd, LINE_DURATION * 13, None);
                 }
                 Event::VBlankEnd => {
-                    Timers::exit_vblank(self);
+                    Timers::exit_vsync(self);
                     self.gpu.renderer.copy_display_to_fb();
                     self.scheduler
                         .subscribe(Event::VBlankStart, LINE_DURATION * 240, None);
                     return;
                 }
                 Event::HBlankStart => {
-                    Timers::enter_hblank(self);
+                    Timers::enter_hsync(self);
                     self.scheduler
                         .subscribe(Event::HBlankEnd, HBLANK_DURATION, None);
                 }
                 Event::HBlankEnd => {
-                    Timers::exit_hblank(self);
+                    Timers::exit_hsync(self);
                     self.scheduler.subscribe(
                         Event::HBlankStart,
                         LINE_DURATION - HBLANK_DURATION,

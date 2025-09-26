@@ -16,6 +16,8 @@ pub trait ByteAddressable: Copy + LowerHex + Display {
     fn from_u32(val: u32) -> Self;
 
     fn to_u32(self) -> u32;
+
+    fn to_u16(self) -> u16;
 }
 
 macro_rules! int_impl {
@@ -39,6 +41,10 @@ macro_rules! int_impl {
 
             fn to_u32(self) -> u32 {
                 self as u32
+            }
+
+            fn to_u16(self) -> u16 {
+                self as u16
             }
         }
     };
