@@ -126,7 +126,7 @@ impl System {
                     Timers::enter_vsync(self);
                     self.irqctl.stat().set_vblank(true);
                     self.scheduler
-                        .subscribe(Event::VBlankEnd, LINE_DURATION * 13, None);
+                        .subscribe(Event::VBlankEnd, LINE_DURATION * 23, None);
                 }
                 Event::VBlankEnd => {
                     Timers::exit_vsync(self);
