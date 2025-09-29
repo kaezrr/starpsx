@@ -1,6 +1,10 @@
 use std::ops::{Index, IndexMut};
 
-use crate::{System, mem::ByteAddressable};
+use crate::{
+    System,
+    mem::ByteAddressable,
+    sched::{Event, TimerInterrupt},
+};
 
 pub const PADDR_START: u32 = 0x1F801100;
 pub const PADDR_END: u32 = 0x1F80112F;
@@ -70,7 +74,7 @@ impl Timers {
         let clock_delta = (system.scheduler.sysclk() - timer.last_read) as u32;
         timer.last_read = system.scheduler.sysclk();
 
-        let hblanks = system.timers.hblanks;
+        let hblanks_since_last_read = system.timers.hblanks;
         system.timers.hblanks = 0;
 
         match system.timers.sync_mode(which) {
@@ -92,11 +96,41 @@ impl Timers {
             Clock::Cpu => clock_delta,
             Clock::CpuDiv8 => clock_delta / 8,
             Clock::Dot => clock_delta / system.gpu.get_dot_clock_divider(),
-            Clock::HBlank => hblanks,
+            Clock::HBlank => hblanks_since_last_read,
         };
 
         let timer = &mut system.timers[which];
+        let ticks_until_target = timer.get_ticks_to_target(timer.target, reset);
+        let ticks_until_ffff = timer.get_ticks_to_target(0xFFFF, reset);
+
+        // Actual timer update
         timer.counter = (timer.counter + delta) % (reset + 1);
+
+        // Set Reach Target and FFFF bits
+        timer.mode.set_reached_target(delta >= ticks_until_target);
+        timer.mode.set_reached_ffff(delta >= ticks_until_ffff);
+    }
+
+    pub fn process_interrupt(system: &mut System, irq: TimerInterrupt) {
+        let timer = &mut system.timers[irq.which];
+        let set_irq = if irq.toggle {
+            let prev = timer.mode.irq_disabled();
+            let next = !prev;
+            timer.mode.set_irq_disabled(next);
+            prev && !next
+        } else {
+            timer.mode.set_irq_disabled(true);
+            true
+        };
+
+        if set_irq {
+            match irq.which {
+                0 => system.irqctl.stat().set_timer0(true),
+                1 => system.irqctl.stat().set_timer1(true),
+                2 => system.irqctl.stat().set_timer2(true),
+                _ => unimplemented!(),
+            }
+        }
     }
 }
 
@@ -239,5 +273,16 @@ impl Timer {
         self.mode.0 = val & !0x1800;
         // Bit 10 sets on write
         self.mode.set_irq_disabled(true);
+    }
+
+    fn get_ticks_to_target(&mut self, target: u16, reset: u32) -> u32 {
+        let counter = self.counter;
+        let target = u32::from(target);
+
+        if counter <= target {
+            target - counter
+        } else {
+            (reset + 1 - counter) + target
+        }
     }
 }

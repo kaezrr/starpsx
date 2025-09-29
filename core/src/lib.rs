@@ -115,7 +115,7 @@ impl System {
         loop {
             let cycles = self.scheduler.cycles_till_next_event();
 
-            for _ in 0..cycles {
+            for _ in (0..cycles).step_by(2) {
                 Cpu::run_instruction(self);
                 self.check_for_tty_output();
                 self.scheduler.step();
@@ -147,6 +147,9 @@ impl System {
                         LINE_DURATION - HBLANK_DURATION,
                         None,
                     );
+                }
+                Event::Timer(x) => {
+                    Timers::process_interrupt(self, x);
                 }
             }
         }

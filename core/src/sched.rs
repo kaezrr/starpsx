@@ -1,11 +1,18 @@
 use arrayvec::ArrayVec;
 
 #[derive(Clone, Copy, PartialEq)]
+pub struct TimerInterrupt {
+    pub which: usize,
+    pub toggle: bool,
+}
+
+#[derive(Clone, Copy, PartialEq)]
 pub enum Event {
     VBlankStart,
     VBlankEnd,
     HBlankStart,
     HBlankEnd,
+    Timer(TimerInterrupt),
 }
 
 pub struct Task {
