@@ -100,8 +100,8 @@ impl Timers {
         };
 
         let timer = &mut system.timers[which];
-        let ticks_until_target = timer.get_ticks_to_target(timer.target, reset);
-        let ticks_until_ffff = timer.get_ticks_to_target(0xFFFF, reset);
+        let ticks_until_target = timer.get_ticks_to_value(timer.target);
+        let ticks_until_ffff = timer.get_ticks_to_value(0xFFFF);
 
         // Actual timer update
         timer.counter = (timer.counter + delta) % (reset + 1);
@@ -263,21 +263,28 @@ impl Timer {
     }
 
     fn read_mode(&mut self) -> u16 {
-        self.mode.0
+        let v = self.mode.0;
+        // Bit 12-11 are reset after read
+        self.mode.0 &= !0x1800;
+        v
     }
 
     fn set_mode(&mut self, val: u16) {
         // Reset timer value on mode write
         self.counter = 0;
         // Bit 12-11 are read only
-        self.mode.0 = val & !0x1800;
+        self.mode.0 = (val & !0x1800) | (self.mode.0 & 0x1800);
         // Bit 10 sets on write
         self.mode.set_irq_disabled(true);
     }
 
-    fn get_ticks_to_target(&mut self, target: u16, reset: u32) -> u32 {
+    fn get_ticks_to_value(&mut self, target: u16) -> u32 {
         let counter = self.counter;
         let target = u32::from(target);
+        let reset = match self.mode.reset_to_target() {
+            true => target,
+            false => 0xFFFF,
+        };
 
         if counter <= target {
             target - counter
