@@ -22,17 +22,17 @@ The project is split into three crates:
 
 ## Component Status
 
-| Component | Status      | Notes                     |
-| --------- | ----------- | ------------------------- |
-| CPU       | Done        | Passes most test roms     |
-| GPU       | Done        | Might have some bugs      |
-| DMA       | Partial     | Only GPU port implemented |
-| Timers    | Not Started |                           |
-| CDROM     | Not started |                           |
-| SPIO      | Not started |                           |
-| SPU       | Not started |                           |
-| GTE       | Not started |                           |
-| MDEC      | Not started |                           |
+| Component | Status      | Notes                                |
+| --------- | ----------- | ------------------------------------ |
+| CPU       | Done        | Passes most test roms                |
+| GPU       | Done        | Might have some bugs                 |
+| DMA       | Partial     | Only GPU port implemented            |
+| Timers    | Done        | Roughly works but it might have bugs |
+| CDROM     | Not started |                                      |
+| Gamepad   | Not started |                                      |
+| SPU       | Not started |                                      |
+| GTE       | Not started |                                      |
+| MDEC      | Not started |                                      |
 
 ## Current Status
 
