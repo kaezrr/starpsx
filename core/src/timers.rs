@@ -1,7 +1,7 @@
 use std::ops::{Index, IndexMut};
 
 use crate::{
-    System,
+    LINE_DURATION, System,
     mem::ByteAddressable,
     sched::{Event, TimerInterrupt},
 };
@@ -30,6 +30,16 @@ impl Timers {
             SYNC_MODE_MATRIX[which][sync_raw as usize]
         } else {
             SyncMode::FreeRun
+        }
+    }
+
+    fn ticks_to_cycles(system: &System, which: usize, ticks: u32) -> u64 {
+        let ticks = u64::from(ticks);
+        match system.timers.clock_source(which) {
+            Clock::Cpu => ticks,
+            Clock::CpuDiv8 => ticks * 8,
+            Clock::Dot => ticks * (system.gpu.get_dot_clock_divider() as u64),
+            Clock::HBlank => ticks * LINE_DURATION,
         }
     }
 
@@ -77,6 +87,7 @@ impl Timers {
         let hblanks_since_last_read = system.timers.hblanks;
         system.timers.hblanks = 0;
 
+        // Don't do anything if timer is paused
         match system.timers.sync_mode(which) {
             SyncMode::Paused => return,
             SyncMode::PauseOnHsync if system.timers.in_hsync => return,
@@ -109,6 +120,58 @@ impl Timers {
         // Set Reach Target and FFFF bits
         timer.mode.set_reached_target(delta >= ticks_until_target);
         timer.mode.set_reached_ffff(delta >= ticks_until_ffff);
+    }
+
+    pub fn reschedule_interrupt_if_needed(system: &mut System, which: usize) {
+        // Don't do anything if timer is paused
+        match system.timers.sync_mode(which) {
+            SyncMode::Paused => return,
+            SyncMode::PauseOnHsync if system.timers.in_hsync => return,
+            SyncMode::PauseOnVsync if system.timers.in_vsync => return,
+            SyncMode::HSyncOnly if !system.timers.in_hsync => return,
+            SyncMode::VSyncOnly if !system.timers.in_vsync => return,
+            _ => (),
+        }
+
+        let timer = &mut system.timers[which];
+        let ticks_til_target = timer.get_ticks_to_value(timer.target);
+        let ticks_til_ffff = timer.get_ticks_to_value(0xFFFF);
+        let target = u32::from(timer.target);
+
+        let cycles_til_target = Self::ticks_to_cycles(system, which, ticks_til_target);
+        let cycles_til_target_reset = Self::ticks_to_cycles(system, which, target);
+
+        let cycles_til_ffff = Self::ticks_to_cycles(system, which, ticks_til_ffff);
+        let cycles_til_ffff_reset = Self::ticks_to_cycles(system, which, 0xFFFF);
+
+        let timer = &mut system.timers[which];
+        let (cycles_til_irq, cycles_til_irq_reset) = match timer.mode.irq_target() {
+            // No IRQ
+            0 => return,
+            // Only FFFF IRQ
+            1 => (cycles_til_ffff, cycles_til_ffff_reset),
+            // Only target IRQ
+            2 => (cycles_til_target, cycles_til_target_reset),
+            // Both FFFF and Target IRQ
+            3 => {
+                // (schedule whichever happens first) Not the accurate behavior, change in future
+                if cycles_til_target < cycles_til_ffff {
+                    (cycles_til_target, cycles_til_target_reset)
+                } else {
+                    (cycles_til_ffff, cycles_til_ffff_reset)
+                }
+            }
+            _ => unreachable!(),
+        };
+
+        system.scheduler.subscribe(
+            Event::Timer(TimerInterrupt {
+                which,
+                toggle: timer.mode.irq_toggle(),
+            }),
+            cycles_til_irq,
+            timer.mode.irq_repeat().then_some(cycles_til_irq_reset),
+        );
     }
 
     pub fn process_interrupt(system: &mut System, irq: TimerInterrupt) {
@@ -165,6 +228,8 @@ pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, data: T) {
         8 => timer.target = data,
         n => unimplemented!("timer write {n}"),
     };
+
+    Timers::reschedule_interrupt_if_needed(system, which);
 }
 
 impl Index<usize> for Timers {
