@@ -78,8 +78,10 @@ impl ApplicationHandler for App {
 
         // Thread sleeping locks the framerate here
         let elapsed = frame_start.elapsed();
-        // let actual_fps = 1.0 / elapsed.as_secs_f64();
-        // println!("FPS: {actual_fps:.2}");
+        let actual_fps = 1.0 / elapsed.as_secs_f64();
+        state
+            .window
+            .set_title(&format!("StarPSX - {actual_fps:.2} FPS"));
 
         if let Some(remaining) = FRAME_TIME.checked_sub(elapsed) {
             std::thread::sleep(remaining);
