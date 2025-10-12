@@ -754,15 +754,15 @@ impl Cpu {
     }
 
     pub fn cop2(_system: &mut System, instr: Instruction) -> Result<(), Exception> {
-        panic!("Unhandled GTE instruction {:x}", instr.0);
+        todo!("GTE instruction {:x}", instr.0);
     }
 
     pub fn lwc2(_system: &mut System, instr: Instruction) -> Result<(), Exception> {
-        panic!("Unhandled GTE load word {:x}", instr.0);
+        todo!("GTE load word {:x}", instr.0);
     }
 
     pub fn swc2(_system: &mut System, instr: Instruction) -> Result<(), Exception> {
-        panic!("Unhandled GTE store word {:x}", instr.0);
+        todo!("GTE store word {:x}", instr.0);
     }
 
     pub fn cop1() -> Result<(), Exception> {

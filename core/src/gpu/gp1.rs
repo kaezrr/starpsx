@@ -23,7 +23,7 @@ impl Gpu {
         self.renderer.ctx.display_depth = command.display_depth();
 
         if command.flip_screen() {
-            panic!("Flip screen bit not supported!");
+            unimplemented!("Flip screen bit not supported!");
         }
     }
 

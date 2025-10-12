@@ -31,7 +31,7 @@ impl InterruptController {
         match offs {
             0 => self.stat.0,
             4 => self.mask,
-            _ => panic!("unknown irqctl register {offs}"),
+            _ => unimplemented!("irqctl register {offs}"),
         }
     }
 
@@ -40,7 +40,7 @@ impl InterruptController {
         match offs {
             0 => self.stat.0 &= val,
             4 => self.mask = val,
-            _ => panic!("unknown irqctl register {offs}"),
+            _ => unimplemented!("irqctl register {offs}"),
         };
     }
 

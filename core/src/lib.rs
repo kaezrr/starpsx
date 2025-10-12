@@ -1,3 +1,4 @@
+mod cdrom;
 mod cpu;
 mod dma;
 mod gpu;

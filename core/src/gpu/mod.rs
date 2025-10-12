@@ -140,7 +140,7 @@ impl Gpu {
         match offs {
             0 => self.gp0(data),
             4 => self.gp1(data),
-            _ => panic!("Unknown GPU register write {offs:x} <- {data:08x}"),
+            _ => unimplemented!("GPU register write {offs:x} <- {data:08x}"),
         }
     }
 
@@ -149,7 +149,7 @@ impl Gpu {
         match offs {
             0 => self.read(),
             4 => self.stat(),
-            _ => panic!("Unknown GPU register read {offs:x}"),
+            _ => unimplemented!("GPU register read {offs:x}"),
         }
     }
 
@@ -178,7 +178,7 @@ impl Gpu {
             GP0State::AwaitArgs(x) => self.process_argument(data, x),
             GP0State::CopyToVram(x) => self.process_cpu_to_vram_copy(data, x),
             GP0State::PolyLine(x) => self.process_polyline_argument(data, x),
-            GP0State::CopyFromVram(_) => panic!("VRAM currently being copying to CPU!"),
+            GP0State::CopyFromVram(_) => unimplemented!("VRAM currently being copying to CPU!"),
         };
     }
 
@@ -195,7 +195,7 @@ impl Gpu {
             0x07 => self.gp1_display_vertical_range(command),
             0x08 => self.gp1_display_mode(command),
             0x10 => self.gp1_read_internal_reg(command),
-            _ => panic!("Unknown GP1 command {data:08x}"),
+            _ => unimplemented!("GP1 command {data:08x}"),
         }
     }
 
@@ -350,7 +350,7 @@ impl Gpu {
                     0xE4 => (1, Gpu::gp0_drawing_area_bottom_right),
                     0xE5 => (1, Gpu::gp0_drawing_area_offset),
                     0xE6 => (1, Gpu::gp0_mask_bit_setting),
-                    _ => panic!("Unknown GP0 command {data:08x}"),
+                    _ => unimplemented!("GP0 command {data:08x}"),
                 };
                 return self.process_argument(data, CommandArguments::new(cmd, len));
             }

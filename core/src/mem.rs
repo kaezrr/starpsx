@@ -1,5 +1,5 @@
-use crate::System;
 use crate::cpu::utils::Exception;
+use crate::{System, cdrom};
 use crate::{dma, gpu, irq, timers};
 use std::error::Error;
 use std::fmt::{Display, LowerHex};
@@ -182,21 +182,23 @@ impl System {
 
             timers::PADDR_START..=timers::PADDR_END => timers::read(self, addr),
 
+            cdrom::PADDR_START..=cdrom::PADDR_END => unimplemented!("read to cdrom"),
+
             0x1F801000..=0x1F801023 => stubbed!("Unhandled read to memctl"),
 
-            0x1F801060..=0x1F801063 => panic!("Unhandled read to ramsize"),
+            0x1F801060..=0x1F801063 => unimplemented!("read to ramsize"),
 
             0x1F801C00..=0x1F801E7F => stubbed!("Unhandled read to the SPU"),
 
-            0xFFFE0130..=0xFFFE0133 => panic!("Unhandled read to cachectl"),
+            0xFFFE0130..=0xFFFE0133 => unimplemented!("read to cachectl"),
 
             0x1F000000..=0x1F0000FF => stubbed!("Unhandled read to the expansion1"),
 
-            0x1F802000..=0x1F802041 => panic!("Unhandled read to expansion2"),
+            0x1F802000..=0x1F802041 => unimplemented!("read to expansion2"),
 
             0x1F801040..=0x1F80105F => stubbed!("Unhandled read to the io port"),
 
-            _ => panic!("Unmapped read at {addr:#08X}"),
+            _ => unimplemented!("read at {addr:#08X}"),
         };
 
         Ok(data)
@@ -221,6 +223,8 @@ impl System {
 
             timers::PADDR_START..=timers::PADDR_END => timers::write(self, addr, data),
 
+            cdrom::PADDR_START..=cdrom::PADDR_END => unimplemented!("write to cdrom"),
+
             0x1F801000..=0x1F801023 => eprintln!("Unhandled write to memctl"),
 
             0x1F801060..=0x1F801063 => eprintln!("Unhandled write to ramsize"),
@@ -235,7 +239,7 @@ impl System {
 
             0x1F801040..=0x1F80105F => eprintln!("Unhandled write to the io port"),
 
-            _ => panic!("Unmapped write at {addr:#08X}"),
+            _ => unimplemented!("write at {addr:#08X}"),
         };
 
         Ok(())

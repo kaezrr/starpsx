@@ -55,7 +55,7 @@ impl DMAController {
             (0..=6, 8) => self.get_channel(major).ctl.0,
             (7, 0) => self.control,
             (7, 4) => self.interrupt.0,
-            _ => panic!("Unhandled DMA read {offs:x}"),
+            _ => unimplemented!("DMA read {offs:x}"),
         }
     }
 
@@ -74,7 +74,7 @@ impl DMAController {
                 data.set_channel_irq_fl(!data.channel_irq_fl());
                 self.interrupt.0 = data.0;
             }
-            _ => panic!("Unhandled DMA read {offs:x}"),
+            _ => unimplemented!("DMA read {offs:x}"),
         }
 
         match major {
@@ -114,7 +114,7 @@ impl DMAController {
                             1 => 0xFFFFFF,
                             _ => addr.wrapping_sub(4) & 0x1FFFFF,
                         },
-                        _ => panic!("Unhandled DMA source port"),
+                        _ => unimplemented!("DMA source port"),
                     };
                     system.ram.write::<u32>(cur_addr, src_word);
                 }
@@ -122,7 +122,7 @@ impl DMAController {
                     let src_word = system.ram.read::<u32>(cur_addr);
                     match port {
                         Port::Gpu => system.gpu.gp0(src_word),
-                        _ => panic!("Unhandled DMA destination port"),
+                        _ => unimplemented!("DMA destination port"),
                     }
                 }
             }
@@ -134,10 +134,10 @@ impl DMAController {
     fn do_dma_linked_list(system: &mut System, port: Port) {
         let channel = &mut system.dma.channels[port as usize];
         if channel.ctl.dir() == Direction::ToRam {
-            panic!("Invalid DMA direction for linked list mode.");
+            unimplemented!("Invalid DMA direction for linked list mode.");
         }
         if port != Port::Gpu {
-            panic!("Attempted linked list DMA on port {}", port as usize);
+            unimplemented!("Attempted linked list DMA on port {}", port as usize);
         }
 
         let mut addr = channel.base & 0x1FFFFC;

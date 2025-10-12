@@ -21,7 +21,7 @@ impl Cop0 {
             0x00 => Cop0::mfc0(system, instr),
             0x04 => Cop0::mtc0(system, instr),
             0x10 => Cop0::rfe(system, instr),
-            _ => panic!("Unknown cop0 instruction {:#08X}", instr.0),
+            _ => unimplemented!("cop0 instruction {:#08X}", instr.0),
         }
     }
 
@@ -38,7 +38,7 @@ impl Cop0 {
             12 => system.cpu.cop0.sr = data,
             // Only bits 8 and 9 are writable
             13 => system.cpu.cop0.cause = (system.cpu.cop0.cause & !0x300) | (data & 0x300),
-            _ => panic!("Unhandled cop0r{cop_r} write <- {data:x}"),
+            _ => unimplemented!("cop0r{cop_r} write <- {data:x}"),
         }
         Ok(())
     }
@@ -54,7 +54,7 @@ impl Cop0 {
             12 => system.cpu.cop0.sr,
             13 => system.cpu.cop0.cause,
             14 => system.cpu.cop0.epc,
-            _ => panic!("Unhandled cop0 register read {cop_r}"),
+            _ => unimplemented!("cop0 register read {cop_r}"),
         };
 
         system.cpu.take_delayed_load(cpu_r, data);
@@ -64,7 +64,7 @@ impl Cop0 {
     /// Return from exception
     pub fn rfe(system: &mut System, instr: Instruction) -> Result<(), Exception> {
         if instr.sec() != 0x10 {
-            panic!("Invalid cop0 instruction: {}", instr.0);
+            unimplemented!("cop0 instruction: {}", instr.0);
         }
 
         let mode = system.cpu.cop0.sr & 0x3F;
