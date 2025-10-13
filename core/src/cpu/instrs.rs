@@ -753,8 +753,10 @@ impl Cpu {
         Err(Exception::Break)
     }
 
-    pub fn cop2(_system: &mut System, instr: Instruction) -> Result<(), Exception> {
-        todo!("GTE instruction {:x}", instr.0);
+    // Stubbed GTE for shell stuff
+    pub fn cop2(_system: &mut System, _instr: Instruction) -> Result<(), Exception> {
+        // todo!("GTE instruction {:x}", instr.0);
+        Ok(())
     }
 
     pub fn lwc2(_system: &mut System, instr: Instruction) -> Result<(), Exception> {

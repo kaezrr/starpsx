@@ -48,7 +48,7 @@ impl From<u8> for Sync {
     }
 }
 
-#[derive(PartialEq, Clone, Copy)]
+#[derive(PartialEq, Clone, Copy, Debug)]
 pub enum Port {
     // Macroblock decoder input
     MdecIn,

@@ -202,7 +202,8 @@ impl System {
 
             0x1F802000..=0x1F802041 => unimplemented!("read to expansion2"),
 
-            0x1F801040..=0x1F80105F => stubbed!("Unhandled read to the io port"),
+            // Stubbed controller stuff
+            0x1F801040..=0x1F80105F => T::from_u32(0xFFFF),
 
             _ => unimplemented!("read at {addr:#08X}"),
         };

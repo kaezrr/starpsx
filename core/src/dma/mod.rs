@@ -114,7 +114,7 @@ impl DMAController {
                             1 => 0xFFFFFF,
                             _ => addr.wrapping_sub(4) & 0x1FFFFF,
                         },
-                        _ => unimplemented!("DMA source port"),
+                        _ => todo!("DMA source {port:?}"),
                     };
                     system.ram.write::<u32>(cur_addr, src_word);
                 }
@@ -122,7 +122,7 @@ impl DMAController {
                     let src_word = system.ram.read::<u32>(cur_addr);
                     match port {
                         Port::Gpu => system.gpu.gp0(src_word),
-                        _ => unimplemented!("DMA destination port"),
+                        _ => todo!("DMA destination {port:?}"),
                     }
                 }
             }
