@@ -7,6 +7,7 @@ mod mem;
 mod sched;
 mod timers;
 
+use cdrom::CdRom;
 use cpu::Cpu;
 use dma::DMAController;
 use gpu::Gpu;
@@ -55,6 +56,7 @@ pub struct System {
     dma: DMAController,
     timers: Timers,
     irqctl: InterruptController,
+    cdrom: CdRom,
 
     tty: String,
     scheduler: EventScheduler,
@@ -71,6 +73,7 @@ impl System {
         let bios = Bios::build(&config.bios_path)?;
         let ram = Ram::default();
         let scratch = Scratch::default();
+        let cdrom = CdRom::default();
 
         let mut psx = System {
             cpu,
@@ -83,6 +86,7 @@ impl System {
             irqctl,
             tty: String::new(),
             scheduler,
+            cdrom,
         };
 
         if let Some(exe_path) = config.exe_path {

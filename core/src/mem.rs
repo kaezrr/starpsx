@@ -18,6 +18,8 @@ pub trait ByteAddressable: Copy + LowerHex + Display {
     fn to_u32(self) -> u32;
 
     fn to_u16(self) -> u16;
+
+    fn to_u8(self) -> u8;
 }
 
 macro_rules! int_impl {
@@ -45,6 +47,10 @@ macro_rules! int_impl {
 
             fn to_u16(self) -> u16 {
                 self as u16
+            }
+
+            fn to_u8(self) -> u8 {
+                self as u8
             }
         }
     };
@@ -182,7 +188,7 @@ impl System {
 
             timers::PADDR_START..=timers::PADDR_END => timers::read(self, addr),
 
-            cdrom::PADDR_START..=cdrom::PADDR_END => unimplemented!("read to cdrom"),
+            cdrom::PADDR_START..=cdrom::PADDR_END => cdrom::read(self, addr),
 
             0x1F801000..=0x1F801023 => stubbed!("Unhandled read to memctl"),
 
@@ -223,7 +229,7 @@ impl System {
 
             timers::PADDR_START..=timers::PADDR_END => timers::write(self, addr, data),
 
-            cdrom::PADDR_START..=cdrom::PADDR_END => unimplemented!("write to cdrom"),
+            cdrom::PADDR_START..=cdrom::PADDR_END => cdrom::write(self, addr, data),
 
             0x1F801000..=0x1F801023 => eprintln!("Unhandled write to memctl"),
 
