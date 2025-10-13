@@ -105,15 +105,16 @@ impl DMAController {
         };
 
         let mut addr = base;
-        for s in (1..=size).rev() {
+        for s in (0..size).rev() {
             let cur_addr = addr & 0x1FFFFC;
             match dir {
                 Direction::ToRam => {
                     let src_word = match port {
                         Port::Otc => match s {
-                            1 => 0xFFFFFF,
+                            0 => 0xFFFFFF,
                             _ => addr.wrapping_sub(4) & 0x1FFFFF,
                         },
+                        Port::Gpu => system.gpu.read_reg(0x1F801810),
                         _ => todo!("DMA source {port:?}"),
                     };
                     system.ram.write::<u32>(cur_addr, src_word);
