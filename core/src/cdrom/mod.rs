@@ -1,6 +1,7 @@
+mod commands;
 use arrayvec::ArrayVec;
 
-use crate::{System, mem::ByteAddressable};
+use crate::{System, cdrom::commands::Response, mem::ByteAddressable};
 
 pub const PADDR_START: u32 = 0x1F801800;
 pub const PADDR_END: u32 = 0x1F801803;
@@ -80,7 +81,7 @@ impl CdRom {
     }
 
     fn write_hclrctl(&mut self, val: u8) {
-        let _register = Hclrctl(val);
+        self.hintsts.0 &= !(val & 0x1F)
     }
 
     fn write_hintmsk(&mut self, val: u8) {
@@ -99,18 +100,23 @@ impl CdRom {
         }
     }
 
-    fn test(&mut self, cmd: u8) -> Response {
-        match cmd {
-            // CDROM Version
-            0x20 => Response::INT3([0x94, 0x09, 0x19, 0xC0].into()),
-            _ => unimplemented!("cdrom command Test {cmd:02x}"),
+    fn read_hintsts(&self) -> u8 {
+        self.hintsts.0
+    }
+
+    fn pop_result(&mut self) -> u8 {
+        let val = self.results.remove(0);
+        if self.results.is_empty() {
+            self.address.set_result_read_ready(false);
         }
+        val
     }
 }
 
 fn exec_command(system: &mut System, cmd: u8) {
     let cdrom = &mut system.cdrom;
     let response = match cmd {
+        0x01 => cdrom.nop(),
         0x19 => cdrom.test(cdrom.parameters[0]),
         _ => unimplemented!("cdrom command {cmd:02x}"),
     };
@@ -136,8 +142,15 @@ pub fn read<T: ByteAddressable>(system: &mut System, addr: u32) -> T {
 
     let val: u8 = match (cdrom.address.bank(), offs) {
         (_, 0) => cdrom.read_addr(),
+        (1, 1) => cdrom.pop_result(),
+        (1, 3) => cdrom.read_hintsts(),
         (x, y) => unimplemented!("cdrom read bank {x} reg {y}"),
     };
+
+    eprintln!(
+        "CDROM READ bank {} reg {offs} -> {val:02x}",
+        cdrom.address.bank()
+    );
 
     T::from_u32(u32::from(val))
 }
@@ -147,6 +160,11 @@ pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, data: T) {
     let cdrom = &mut system.cdrom;
     let val = data.to_u8();
 
+    eprintln!(
+        "CDROM WRITE bank {} reg {offs} <- {data:02x}",
+        cdrom.address.bank()
+    );
+
     match (cdrom.address.bank(), offs) {
         (_, 0) => cdrom.write_addr(val),
         (0, 1) => exec_command(system, val),
@@ -155,8 +173,4 @@ pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, data: T) {
         (1, 2) => cdrom.write_hintmsk(val),
         (x, y) => unimplemented!("cdrom write bank {x} reg {y} <- {data:08x}"),
     }
-}
-
-enum Response {
-    INT3(ArrayVec<u8, 4>),
 }
