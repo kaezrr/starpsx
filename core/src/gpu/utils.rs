@@ -257,9 +257,11 @@ pub enum GP0State {
     PolyLine(PolyLineArguments),
 }
 
+// Parses YYYYXXXX to x and y vertex coordinates. Both are 11 bit signed numbers
 pub fn parse_xy(data: u32) -> Vec2 {
-    let x = data & 0x3FF;
-    let y = (data >> 16) & 0x1FF;
+    let x = ((data & 0xFFFF) as i16) << 5 >> 5;
+    let y = (((data >> 16) & 0xFFFF) as i16) << 5 >> 5;
+
     Vec2::new(x as i32, y as i32)
 }
 
