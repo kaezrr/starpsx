@@ -1,5 +1,5 @@
 use crate::cpu::utils::Exception;
-use crate::{System, cdrom};
+use crate::{System, cdrom, sio};
 use crate::{dma, gpu, irq, timers};
 use std::error::Error;
 use std::fmt::{Display, LowerHex};
@@ -190,6 +190,8 @@ impl System {
 
             cdrom::PADDR_START..=cdrom::PADDR_END => cdrom::read(self, addr),
 
+            sio::PADDR_START..=sio::PADDR_END => sio::read(self, addr),
+
             0x1F801000..=0x1F801023 => stubbed!("Unhandled read to memctl"),
 
             0x1F801060..=0x1F801063 => unimplemented!("read to ramsize"),
@@ -201,9 +203,6 @@ impl System {
             0x1F000000..=0x1F0000FF => stubbed!("Unhandled read to the expansion1"),
 
             0x1F802000..=0x1F802041 => unimplemented!("read to expansion2"),
-
-            // Stubbed controller stuff
-            0x1F801040..=0x1F80105F => T::from_u32(0xFFFF),
 
             _ => unimplemented!("read at {addr:#08X}"),
         };
@@ -232,6 +231,8 @@ impl System {
 
             cdrom::PADDR_START..=cdrom::PADDR_END => cdrom::write(self, addr, data),
 
+            sio::PADDR_START..=sio::PADDR_END => sio::write(self, addr, data),
+
             0x1F801000..=0x1F801023 => eprintln!("Unhandled write to memctl"),
 
             0x1F801060..=0x1F801063 => eprintln!("Unhandled write to ramsize"),
@@ -243,8 +244,6 @@ impl System {
             0x1F000000..=0x1F0000FF => eprintln!("Unhandled write to the expansion1"),
 
             0x1F802000..=0x1F802041 => eprintln!("Unhandled write to expansion2"),
-
-            0x1F801040..=0x1F80105F => eprintln!("Unhandled write to the io port"),
 
             _ => unimplemented!("write at {addr:#08X}"),
         };

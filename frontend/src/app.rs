@@ -1,4 +1,4 @@
-use gilrs::{Button, Event, GamepadId, Gilrs};
+use gilrs::{Event, Gilrs};
 use softbuffer::Surface;
 use starpsx_core::{Config, System, TARGET_FPS};
 use std::num::NonZeroU32;
@@ -68,10 +68,10 @@ impl ApplicationHandler for App {
             return;
         };
 
-        state.process_input_events();
-
         let frame_start = Instant::now();
-        // state.system.step_frame();
+
+        state.process_input_events();
+        state.system.step_frame();
 
         match event {
             WindowEvent::RedrawRequested => {

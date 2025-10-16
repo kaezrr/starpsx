@@ -5,6 +5,7 @@ mod gpu;
 mod irq;
 mod mem;
 mod sched;
+mod sio;
 mod timers;
 
 use cdrom::CdRom;
