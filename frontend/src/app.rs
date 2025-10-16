@@ -1,3 +1,4 @@
+use gilrs::{Button, Event, GamepadId, Gilrs};
 use softbuffer::Surface;
 use starpsx_core::{Config, System, TARGET_FPS};
 use std::num::NonZeroU32;
@@ -16,6 +17,7 @@ pub struct AppState {
     window: Rc<Window>,
     surface: Surface<Rc<Window>, Rc<Window>>,
     system: System,
+    gamepad: Gilrs,
 }
 
 #[derive(Default)]
@@ -33,7 +35,8 @@ impl ApplicationHandler for App {
             let window = Rc::new(event_loop.create_window(win_attr).unwrap());
             let context = softbuffer::Context::new(window.clone()).unwrap();
             let surface = softbuffer::Surface::new(&context, window.clone()).unwrap();
-            let psx = match System::build(config) {
+            let gamepad = Gilrs::new().unwrap();
+            let system = match System::build(config) {
                 Ok(psx) => psx,
                 Err(err) => {
                     eprintln!("Error building emulator: {err}");
@@ -42,9 +45,10 @@ impl ApplicationHandler for App {
             };
 
             self.state = Some(AppState {
-                system: psx,
+                system,
                 window,
                 surface,
+                gamepad,
             })
         }
     }
@@ -64,8 +68,10 @@ impl ApplicationHandler for App {
             return;
         };
 
+        state.process_input_events();
+
         let frame_start = Instant::now();
-        state.system.step_frame();
+        // state.system.step_frame();
 
         match event {
             WindowEvent::RedrawRequested => {
@@ -104,6 +110,12 @@ impl AppState {
         let mut buffer = self.surface.buffer_mut().unwrap();
         buffer.copy_from_slice(self.system.frame_buffer());
         buffer.present().unwrap();
+    }
+
+    fn process_input_events(&mut self) {
+        while let Some(Event { event, .. }) = self.gamepad.next_event() {
+            println!("Event {:?}", event);
+        }
     }
 
     #[allow(dead_code)]
