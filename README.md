@@ -28,8 +28,8 @@ The project is split into three crates:
 | GPU       | Done        | Might have some bugs                 |
 | DMA       | Partial     | Only GPU port implemented            |
 | Timers    | Done        | Roughly works but it might have bugs |
-| CDROM     | Not started |                                      |
-| Gamepad   | Not started |                                      |
+| CDROM     | Partial     | Just enough to get to the shell      |
+| Gamepad   | Partial     | Start working on the serial ports    |
 | SPU       | Not started |                                      |
 | GTE       | Not started |                                      |
 | MDEC      | Not started |                                      |

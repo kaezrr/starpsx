@@ -20,6 +20,8 @@ use sched::{Event, EventScheduler};
 use std::error::Error;
 use timers::Timers;
 
+use crate::sio::SerialInterfaces;
+
 pub const TARGET_FPS: u64 = 60;
 pub const LINE_DURATION: u64 = 2172;
 pub const HBLANK_DURATION: u64 = 390;
@@ -57,7 +59,9 @@ pub struct System {
     dma: DMAController,
     timers: Timers,
     irqctl: InterruptController,
+
     cdrom: CdRom,
+    sio: SerialInterfaces,
 
     tty: String,
     scheduler: EventScheduler,
@@ -65,29 +69,19 @@ pub struct System {
 
 impl System {
     pub fn build(config: Config) -> Result<Self, Box<dyn Error>> {
-        let cpu = Cpu::default();
-        let scheduler = EventScheduler::default();
-        let dma = DMAController::default();
-        let gpu = Gpu::default();
-        let irqctl = InterruptController::default();
-        let timers = Timers::default();
-        let bios = Bios::build(&config.bios_path)?;
-        let ram = Ram::default();
-        let scratch = Scratch::default();
-        let cdrom = CdRom::default();
-
         let mut psx = System {
-            cpu,
-            gpu,
-            ram,
-            bios,
-            scratch,
-            dma,
-            timers,
-            irqctl,
+            cpu: Cpu::default(),
+            gpu: Gpu::default(),
+            ram: Ram::default(),
+            bios: Bios::build(&config.bios_path)?,
+            scratch: Scratch::default(),
+            dma: DMAController::default(),
+            timers: Timers::default(),
+            irqctl: InterruptController::default(),
             tty: String::new(),
-            scheduler,
-            cdrom,
+            scheduler: EventScheduler::default(),
+            cdrom: CdRom::default(),
+            sio: SerialInterfaces::default(),
         };
 
         if let Some(exe_path) = config.exe_path {

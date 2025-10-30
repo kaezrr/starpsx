@@ -112,12 +112,6 @@ impl AppState {
         buffer.present().unwrap();
     }
 
-    fn process_input_events(&mut self) {
-        while let Some(Event { event, .. }) = self.gamepad.next_event() {
-            println!("Event {:?}", event);
-        }
-    }
-
     #[allow(dead_code)]
     fn draw_vram_to_screen(&mut self) {
         let (width, height) = (1024, 512);
@@ -131,5 +125,11 @@ impl AppState {
         let mut buffer = self.surface.buffer_mut().unwrap();
         buffer.copy_from_slice(self.system.frame_buffer_vram());
         buffer.present().unwrap();
+    }
+
+    fn process_input_events(&mut self) {
+        while let Some(Event { event, .. }) = self.gamepad.next_event() {
+            println!("Event {:?}", event);
+        }
     }
 }
