@@ -22,7 +22,7 @@ jobs:
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             archive: starpsx-windows-x86_64
-          - os: macos-14
+          - os: macos-latest
             target: aarch64-apple-darwin
             archive: starpsx-macos-arm64
 
@@ -32,19 +32,20 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Cache Cargo
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get install -y libudev-dev
+
+      - name: Set Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Verify Rust version
+        run: rustc --version
+
+      - uses: Swatinem/rust-cache@v2
 
       - name: Build binary
-        run: cargo build --release
+        run: cargo build --release --locked
 
       # Prepare folder for packaging
       - name: Prepare package folder (Unix)
