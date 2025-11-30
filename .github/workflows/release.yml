@@ -1,0 +1,101 @@
+name: Build & Release
+
+on:
+  push:
+    branches: ["main"]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            archive: starpsx-linux-x86_64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            archive: starpsx-windows-x86_64
+          - os: macos-14
+            target: aarch64-apple-darwin
+            archive: starpsx-macos-arm64
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Build binary
+        run: cargo build --release
+
+      # Prepare folder for packaging
+      - name: Prepare package folder (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          mkdir ${{ matrix.archive }}
+          cp target/release/starpsx ${{ matrix.archive }}/
+          cp LICENSE ${{ matrix.archive }}/
+
+      - name: Prepare package folder (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          New-Item -ItemType Directory -Path $env:ARCHIVE
+          Copy-Item target/release/starpsx.exe $env:ARCHIVE/
+          Copy-Item LICENSE $env:ARCHIVE/
+        env:
+          ARCHIVE: ${{ matrix.archive }}
+
+      # Zip the folder
+      - name: Zip package (Unix)
+        if: runner.os != 'Windows'
+        run: zip -r ${{ matrix.archive }}.zip ${{ matrix.archive }}
+
+      - name: Zip package (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          powershell Compress-Archive -Path $env:ARCHIVE -DestinationPath "$env:ARCHIVE.zip"
+        env:
+          ARCHIVE: ${{ matrix.archive }}
+
+      # Upload artifact (for every run)
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.archive }}
+          path: ${{ matrix.archive }}.zip
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/**/*.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
