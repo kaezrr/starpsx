@@ -48,7 +48,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
 
       - name: Build binary
-        run: cargo build --release --locked
+        run: cargo build --release
 
       # Prepare folder for packaging
       - name: Prepare package folder (Unix)
