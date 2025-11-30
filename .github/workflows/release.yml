@@ -10,6 +10,9 @@ on:
 env:
   CARGO_TERM_COLOR: always
 
+permissions:
+  contents: write
+
 jobs:
   build:
     strategy:
@@ -96,8 +99,6 @@ jobs:
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
-        permissions:
-          contents: write
         with:
           files: artifacts/**/*.zip
         env:
