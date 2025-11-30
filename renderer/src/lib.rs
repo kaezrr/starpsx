@@ -22,8 +22,8 @@ impl Default for Renderer {
     fn default() -> Self {
         Self {
             ctx: DrawContext::default(),
-            vram: Box::new([0; VRAM_SIZE]),
-            pixel_buffer: Box::new([Color::default(); VRAM_SIZE]),
+            vram: vec![0; VRAM_SIZE].try_into().unwrap(),
+            pixel_buffer: vec![Color::default(); VRAM_SIZE].try_into().unwrap(),
         }
     }
 }

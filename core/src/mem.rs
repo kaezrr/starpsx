@@ -71,13 +71,10 @@ pub mod bios {
 
     impl Bios {
         pub fn build(bios_path: &String) -> Result<Self, Box<dyn Error>> {
-            let bytes = match std::fs::read(bios_path)?.try_into() {
-                Ok(data) => data,
-                Err(_) => return Err("invalid bios file.".into()),
-            };
+            let bytes = std::fs::read(bios_path)?;
 
             Ok(Bios {
-                bytes: Box::new(bytes),
+                bytes: bytes.try_into().unwrap(),
             })
         }
 
@@ -100,7 +97,7 @@ pub mod ram {
     impl Default for Ram {
         fn default() -> Self {
             Self {
-                bytes: Box::new([0; 0x200000]),
+                bytes: vec![0; 0x200000].try_into().unwrap(),
             }
         }
     }
@@ -130,7 +127,7 @@ pub mod scratch {
     impl Default for Scratch {
         fn default() -> Self {
             Self {
-                bytes: Box::new([0; 0x400]),
+                bytes: vec![0; 0x400].try_into().unwrap(),
             }
         }
     }
