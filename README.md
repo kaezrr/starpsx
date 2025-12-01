@@ -3,6 +3,14 @@
 StarPSX is a free and open-source PlayStation 1 emulator written in Rust.  
 This project is highly work in progress and not suitable for playing games yet.
 
+## Installation
+
+You can download the [latest release](https://github.com/kaezrr/starpsx/releases/tag/v0.1.1) from github, or alternatively StarPSX is also on the AUR:
+
+```sh
+paru -S starpsx-bin
+```
+
 ## Project Structure
 
 The project is split into three crates:
@@ -49,7 +57,7 @@ cargo build --release
 ## Running Instructions
 
 ```sh
-cargo run --release -- <path/to/bios> <path/to/exe>(optional)
+starpsx <path/to/bios> <path/to/exe>(optional)
 
 ```
 
