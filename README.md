@@ -5,7 +5,8 @@ This project is highly work in progress and not suitable for playing games yet.
 
 ## Installation
 
-You can download the [latest release](https://github.com/kaezrr/starpsx/releases/tag/v0.1.1) from github, or alternatively StarPSX is also on the AUR:
+You can download the [latest release](https://github.com/kaezrr/starpsx/releases/latest) from Github.  
+StarPSX is also available on the AUR, for Arch-based distros:
 
 ```sh
 paru -S starpsx-bin
