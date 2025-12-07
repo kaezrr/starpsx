@@ -89,10 +89,26 @@ impl System {
         }
 
         // Schedule some initial events
+        psx.scheduler.schedule(
+            Event::VBlankStart,
+            LINE_DURATION * 240,
+            Some(LINE_DURATION * 263),
+        );
+
+        psx.scheduler.schedule(
+            Event::VBlankEnd,
+            LINE_DURATION * 263,
+            Some(LINE_DURATION * 263),
+        );
+
+        psx.scheduler.schedule(
+            Event::HBlankStart,
+            LINE_DURATION - HBLANK_DURATION,
+            Some(LINE_DURATION),
+        );
+
         psx.scheduler
-            .schedule(Event::VBlankStart, LINE_DURATION * 240, None);
-        psx.scheduler
-            .schedule(Event::HBlankStart, LINE_DURATION - HBLANK_DURATION, None);
+            .schedule(Event::HBlankEnd, LINE_DURATION, Some(LINE_DURATION));
 
         Ok(psx)
     }
@@ -123,8 +139,8 @@ impl System {
             match self.scheduler.pop_next_event() {
                 Event::VBlankStart => self.enter_vsync(),
                 Event::VBlankEnd => return self.exit_vsync(), // Returns because it indicates end of frame
-                Event::HBlankStart => self.enter_hsync(),
-                Event::HBlankEnd => self.exit_hsync(),
+                Event::HBlankStart => Timers::enter_hsync(self),
+                Event::HBlankEnd => Timers::exit_hsync(self),
                 Event::Timer(x) => Timers::process_interrupt(self, x),
             }
         }
@@ -185,27 +201,11 @@ impl System {
     fn enter_vsync(&mut self) {
         Timers::enter_vsync(self);
         self.irqctl.stat().set_vblank(true);
-        self.scheduler
-            .schedule(Event::VBlankEnd, LINE_DURATION * 23, None);
     }
 
     fn exit_vsync(&mut self) {
         Timers::exit_vsync(self);
         self.gpu.renderer.copy_display_to_fb();
-        self.scheduler
-            .schedule(Event::VBlankStart, LINE_DURATION * 240, None);
-    }
-
-    fn enter_hsync(&mut self) {
-        Timers::enter_hsync(self);
-        self.scheduler
-            .schedule(Event::HBlankEnd, HBLANK_DURATION, None);
-    }
-
-    fn exit_hsync(&mut self) {
-        Timers::exit_hsync(self);
-        self.scheduler
-            .schedule(Event::HBlankStart, LINE_DURATION - HBLANK_DURATION, None);
     }
 
     fn check_for_tty_output(&mut self) {
