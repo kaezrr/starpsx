@@ -20,7 +20,7 @@ use sched::{Event, EventScheduler};
 use std::error::Error;
 use timers::Timers;
 
-use crate::sio::SerialInterfaces;
+use crate::sio::SerialInterface;
 
 pub const TARGET_FPS: u64 = 60;
 pub const LINE_DURATION: u64 = 2172;
@@ -61,7 +61,7 @@ pub struct System {
     irqctl: InterruptController,
 
     cdrom: CdRom,
-    sio: SerialInterfaces,
+    sio: SerialInterface,
 
     tty: String,
     scheduler: EventScheduler,
@@ -81,7 +81,7 @@ impl System {
             tty: String::new(),
             scheduler: EventScheduler::default(),
             cdrom: CdRom::default(),
-            sio: SerialInterfaces::default(),
+            sio: SerialInterface::default(),
         };
 
         if let Some(exe_path) = config.exe_path {

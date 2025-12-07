@@ -7,6 +7,8 @@ use crate::System;
 use cop0::Cop0;
 use utils::{Exception, Instruction};
 
+pub static mut START_LOG: bool = false;
+
 pub struct Cpu {
     /// 32-bit general purpose registers, R0 is always zero
     pub regs: [u32; 32],
@@ -65,6 +67,10 @@ impl Cpu {
             Some(addr) => (addr, true),
             None => (system.cpu.pc.wrapping_add(4), false),
         };
+
+        // if unsafe { START_LOG } {
+        //     println!("{:08x}", system.cpu.pc);
+        // }
 
         if Cpu::pending_interrupts(system) {
             system

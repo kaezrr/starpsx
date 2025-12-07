@@ -79,7 +79,8 @@ impl ApplicationHandler for App {
                 state.window.request_redraw();
             }
             WindowEvent::CloseRequested => event_loop.exit(),
-            event => eprintln!("Ignoring window event: {event:?}"),
+            _ => (),
+            // event => eprintln!("Ignoring window event: {event:?}"),
         }
 
         // Thread sleeping locks the framerate here
