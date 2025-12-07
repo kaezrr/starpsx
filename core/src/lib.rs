@@ -90,9 +90,9 @@ impl System {
 
         // Schedule some initial events
         psx.scheduler
-            .subscribe(Event::VBlankStart, LINE_DURATION * 240, None);
+            .schedule(Event::VBlankStart, LINE_DURATION * 240, None);
         psx.scheduler
-            .subscribe(Event::HBlankStart, LINE_DURATION - HBLANK_DURATION, None);
+            .schedule(Event::HBlankStart, LINE_DURATION - HBLANK_DURATION, None);
 
         Ok(psx)
     }
@@ -118,39 +118,14 @@ impl System {
             for _ in (0..cycles).step_by(2) {
                 Cpu::run_instruction(self);
                 self.check_for_tty_output();
-                self.scheduler.step();
             }
 
-            match self.scheduler.get_next_event() {
-                Event::VBlankStart => {
-                    Timers::enter_vsync(self);
-                    self.irqctl.stat().set_vblank(true);
-                    self.scheduler
-                        .subscribe(Event::VBlankEnd, LINE_DURATION * 23, None);
-                }
-                Event::VBlankEnd => {
-                    Timers::exit_vsync(self);
-                    self.gpu.renderer.copy_display_to_fb();
-                    self.scheduler
-                        .subscribe(Event::VBlankStart, LINE_DURATION * 240, None);
-                    return;
-                }
-                Event::HBlankStart => {
-                    Timers::enter_hsync(self);
-                    self.scheduler
-                        .subscribe(Event::HBlankEnd, HBLANK_DURATION, None);
-                }
-                Event::HBlankEnd => {
-                    Timers::exit_hsync(self);
-                    self.scheduler.subscribe(
-                        Event::HBlankStart,
-                        LINE_DURATION - HBLANK_DURATION,
-                        None,
-                    );
-                }
-                Event::Timer(x) => {
-                    Timers::process_interrupt(self, x);
-                }
+            match self.scheduler.pop_next_event() {
+                Event::VBlankStart => self.enter_vsync(),
+                Event::VBlankEnd => return self.exit_vsync(), // Returns because it indicates end of frame
+                Event::HBlankStart => self.enter_hsync(),
+                Event::HBlankEnd => self.exit_hsync(),
+                Event::Timer(x) => Timers::process_interrupt(self, x),
             }
         }
     }
@@ -205,6 +180,32 @@ impl System {
         // self.bus.write::<u32>(0x1f800000, arg_len);
 
         Ok(())
+    }
+
+    fn enter_vsync(&mut self) {
+        Timers::enter_vsync(self);
+        self.irqctl.stat().set_vblank(true);
+        self.scheduler
+            .schedule(Event::VBlankEnd, LINE_DURATION * 23, None);
+    }
+
+    fn exit_vsync(&mut self) {
+        Timers::exit_vsync(self);
+        self.gpu.renderer.copy_display_to_fb();
+        self.scheduler
+            .schedule(Event::VBlankStart, LINE_DURATION * 240, None);
+    }
+
+    fn enter_hsync(&mut self) {
+        Timers::enter_hsync(self);
+        self.scheduler
+            .schedule(Event::HBlankEnd, HBLANK_DURATION, None);
+    }
+
+    fn exit_hsync(&mut self) {
+        Timers::exit_hsync(self);
+        self.scheduler
+            .schedule(Event::HBlankStart, LINE_DURATION - HBLANK_DURATION, None);
     }
 
     fn check_for_tty_output(&mut self) {

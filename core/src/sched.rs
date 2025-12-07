@@ -32,16 +32,15 @@ impl EventScheduler {
         self.sysclk
     }
 
-    pub fn get_next_event(&mut self) -> Event {
+    pub fn pop_next_event(&mut self) -> Event {
         let task = self.tasks.remove(0);
-        if let Some(cycles) = task.repeat {
-            self.subscribe(task.event, cycles, Some(cycles));
-        }
-        task.event
-    }
+        self.sysclk = task.cycle;
 
-    pub fn step(&mut self) {
-        self.sysclk += 2
+        if let Some(cycles) = task.repeat {
+            self.schedule(task.event, cycles, Some(cycles));
+        }
+
+        task.event
     }
 
     pub fn cycles_till_next_event(&self) -> u64 {
@@ -52,10 +51,11 @@ impl EventScheduler {
             .saturating_sub(self.sysclk)
     }
 
-    pub fn subscribe(&mut self, event: Event, cycles_length: u64, repeat: Option<u64>) {
+    pub fn schedule(&mut self, event: Event, cycles_length: u64, repeat: Option<u64>) {
         self.tasks.retain(|e| e.event != event);
 
         let cycle = self.sysclk + cycles_length;
+
         let pos = self
             .tasks
             .iter()

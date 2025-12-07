@@ -1,6 +1,5 @@
 use arrayvec::ArrayVec;
 
-use crate::cpu::START_LOG;
 use crate::{System, mem::ByteAddressable};
 
 pub const PADDR_START: u32 = 0x1F801040;
@@ -111,9 +110,6 @@ impl SerialInterface {
 }
 
 pub fn read<T: ByteAddressable>(system: &mut System, addr: u32) -> T {
-    unsafe {
-        START_LOG = true;
-    }
     let offs = addr - PADDR_START;
 
     let data = match offs & 0x10 {
@@ -126,9 +122,6 @@ pub fn read<T: ByteAddressable>(system: &mut System, addr: u32) -> T {
 }
 
 pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, val: T) {
-    unsafe {
-        START_LOG = true;
-    }
     let offs = addr - PADDR_START;
 
     match offs & 0x10 {

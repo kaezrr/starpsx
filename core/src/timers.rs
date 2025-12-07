@@ -164,7 +164,7 @@ impl Timers {
             _ => unreachable!(),
         };
 
-        system.scheduler.subscribe(
+        system.scheduler.schedule(
             Event::Timer(TimerInterrupt {
                 which,
                 toggle: timer.mode.irq_toggle(),
