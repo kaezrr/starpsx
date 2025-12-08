@@ -142,6 +142,7 @@ impl System {
                 Event::HBlankStart => Timers::enter_hsync(self),
                 Event::HBlankEnd => Timers::exit_hsync(self),
                 Event::Timer(x) => Timers::process_interrupt(self, x),
+                Event::Serial(x) => SerialInterface::process_serial_send(self, x),
             }
         }
     }

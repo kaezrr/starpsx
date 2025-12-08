@@ -1,6 +1,13 @@
 use arrayvec::ArrayVec;
 
-use crate::{System, mem::ByteAddressable};
+use crate::{
+    System,
+    mem::ByteAddressable,
+    sched::{DevicePort, Event, SerialSend},
+    sio::gamepad::Gamepad,
+};
+
+mod gamepad;
 
 pub const PADDR_START: u32 = 0x1F801040;
 pub const PADDR_END: u32 = 0x1F80105F;
@@ -26,18 +33,20 @@ bitfield::bitfield! {
     rx_enabled, _ : 2;
     acknowlegde, _ : 4;
     reset, _ : 6;
+    dsr_interrupt_enable, _ : 12;
 }
 
 #[derive(Default)]
 pub struct SerialInterface {
     received: ArrayVec<u8, 4>,
-    transfer: Option<u8>,
     status: Status,
     control: Control,
 
     // Not used, just there to make reads consistent
     mode: u32,
     baud_timer_reload_value: u16,
+
+    gamepad: Gamepad,
 }
 
 impl SerialInterface {
@@ -77,16 +86,19 @@ impl SerialInterface {
         if self.control.reset() {
             self.reset_registers();
         }
+
+        if !self.control.dtr_output_on() {
+            self.gamepad.reset();
+        }
+
+        self.status.set_dsr_input_on(self.control.dtr_output_on());
     }
 
     fn send_data(system: &mut System, val: u8) {
-        let sio = &mut system.sio;
-
-        if sio.transfer.is_some() {
-            panic!("Transfer not possible");
-        }
-
-        sio.transfer = Some(val);
+        println!("SEND {:02x}", val);
+        system
+            .scheduler
+            .schedule(Event::Serial(SerialSend::new(0x01, val)), 1500, None);
     }
 
     fn pop_received_data(&mut self) -> u32 {
@@ -96,6 +108,7 @@ impl SerialInterface {
             self.status.set_rx_ready(false);
         }
 
+        println!("RECEIVED {:02x}", data);
         data.into()
     }
 
@@ -106,6 +119,14 @@ impl SerialInterface {
     pub fn push_received_data(&mut self, data: u8) {
         self.received.pop_at(0);
         self.received.push(data);
+        self.status.set_rx_ready(true);
+    }
+
+    pub fn process_serial_send(system: &mut System, send: SerialSend) {
+        match send.port {
+            DevicePort::Gamepad => Gamepad::send_and_receive_byte(system, send.data),
+            DevicePort::MemoryCard => todo!("Memory card not yet implemented"),
+        }
     }
 }
 
