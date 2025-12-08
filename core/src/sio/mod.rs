@@ -30,7 +30,7 @@ bitfield::bitfield! {
     struct Control(u16);
     tx_enabled, _ : 0;
     dtr_output_on, _ : 1;
-    rx_enabled, _ : 2;
+    rx_enabled, set_rx_enabled : 2;
     acknowlegde, _ : 4;
     reset, _ : 6;
     dsr_interrupt_enable, _ : 12;
@@ -117,9 +117,15 @@ impl SerialInterface {
     }
 
     pub fn push_received_data(&mut self, data: u8) {
+        // Ignore received data
+        if !self.control.rx_enabled() && !self.control.dtr_output_on() {
+            return;
+        }
+
         self.received.pop_at(0);
         self.received.push(data);
         self.status.set_rx_ready(true);
+        self.control.set_rx_enabled(false);
     }
 
     pub fn process_serial_send(system: &mut System, send: SerialSend) {

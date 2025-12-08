@@ -40,8 +40,16 @@ pub struct Gamepad {
 }
 
 impl Gamepad {
-    pub fn send_and_receive_byte(system: &mut System, _data: u8) {
+    pub fn send_and_receive_byte(system: &mut System, data: u8) {
         let gamepad = &mut system.sio.gamepad;
+
+        // Check for valid communication sequence
+        match gamepad.state {
+            GamepadState::Init if data != 0x01 => panic!("Wrong controller init command"),
+            GamepadState::IdLow if data != b'B' => panic!("Wrong controller read id low command"),
+            _ => (),
+        }
+
         let received = match gamepad.state {
             GamepadState::Init => 0xFF,
 
