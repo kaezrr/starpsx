@@ -1,3 +1,5 @@
+pub mod gamepad;
+
 use arrayvec::ArrayVec;
 
 use crate::{
@@ -6,8 +8,6 @@ use crate::{
     sched::{DevicePort, Event, SerialSend},
     sio::gamepad::Gamepad,
 };
-
-mod gamepad;
 
 pub const PADDR_START: u32 = 0x1F801040;
 pub const PADDR_END: u32 = 0x1F80105F;
@@ -46,7 +46,7 @@ pub struct SerialInterface {
     mode: u32,
     baud_timer_reload_value: u16,
 
-    gamepad: Gamepad,
+    pub gamepad: Gamepad,
 }
 
 impl SerialInterface {

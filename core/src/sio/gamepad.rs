@@ -34,9 +34,30 @@ const GAMEPAD_STATES: [GamepadState; 9] = [
     GamepadState::AnalogInput3,
 ];
 
+#[repr(C)]
+pub enum Button {
+    Select,
+    L3,
+    R3,
+    Start,
+    Up,
+    Down,
+    Left,
+    Right,
+    L2,
+    R2,
+    L1,
+    R1,
+    Triangle,
+    Circle,
+    Cross,
+    Square,
+}
+
 #[derive(Default)]
 pub struct Gamepad {
     state: GamepadState,
+    digital_switches: [bool; 16],
 }
 
 impl Gamepad {
@@ -58,8 +79,8 @@ impl Gamepad {
             GamepadState::IdHigh => 0x5A,
 
             // Gamepad switches state
-            GamepadState::SwitchLow => 0xFF,
-            GamepadState::SwitchHigh => 0xFF,
+            GamepadState::SwitchLow => gamepad.switch_byte() as u8,
+            GamepadState::SwitchHigh => (gamepad.switch_byte() >> 8) as u8,
 
             // Gamepad analog stick state
             GamepadState::AnalogInput0 => todo!("Analog stick 0"),
@@ -74,10 +95,23 @@ impl Gamepad {
         // Controller and Memory Card received byte interrupt
         if system.sio.control.dsr_interrupt_enable() {
             system.irqctl.stat().set_ctl_mem(true);
+            system.sio.status.set_irq(true);
         }
     }
 
     pub fn reset(&mut self) {
         self.state = GamepadState::Init;
+    }
+
+    pub fn set_button_state(&mut self, button: Button, pressed: bool) {
+        self.digital_switches[button as usize] = pressed;
+    }
+
+    fn switch_byte(&self) -> u16 {
+        let mut v = 0u16;
+        for i in 0..16 {
+            v |= (!self.digital_switches[i] as u16) << i;
+        }
+        v
     }
 }

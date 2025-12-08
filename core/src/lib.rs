@@ -20,7 +20,7 @@ use sched::{Event, EventScheduler};
 use std::error::Error;
 use timers::Timers;
 
-use crate::sio::SerialInterface;
+use crate::sio::{SerialInterface, gamepad::Gamepad};
 
 pub const TARGET_FPS: u64 = 60;
 pub const LINE_DURATION: u64 = 2172;
@@ -219,5 +219,9 @@ impl System {
                 self.tty = String::new();
             }
         }
+    }
+
+    pub fn gamepad(&mut self) -> &mut Gamepad {
+        &mut self.sio.gamepad
     }
 }
