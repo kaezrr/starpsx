@@ -1,13 +1,9 @@
+pub mod device_manager;
 pub mod gamepad;
 
 use arrayvec::ArrayVec;
 
-use crate::{
-    System,
-    mem::ByteAddressable,
-    sched::{DevicePort, Event, SerialSend},
-    sio::gamepad::Gamepad,
-};
+use crate::{System, mem::ByteAddressable, sched::Event, sio::gamepad::Gamepad};
 
 pub const PADDR_START: u32 = 0x1F801040;
 pub const PADDR_END: u32 = 0x1F80105F;
@@ -21,7 +17,7 @@ bitfield::bitfield! {
 
 impl Default for Status {
     fn default() -> Self {
-        Self(5) // TX idle and TX ready
+        Self(0x22005) // TX idle and TX ready
     }
 }
 
@@ -31,14 +27,16 @@ bitfield::bitfield! {
     tx_enabled, _ : 0;
     dtr_output_on, _ : 1;
     rx_enabled, set_rx_enabled : 2;
-    acknowlegde, _ : 4;
+    ack, set_ack : 4;
     reset, _ : 6;
     dsr_interrupt_enable, _ : 12;
+    port_select, _: 13;
 }
 
 #[derive(Default)]
 pub struct SerialInterface {
-    received: ArrayVec<u8, 4>,
+    transfer: Option<u8>,
+    received: ArrayVec<u8, 8>,
     status: Status,
     control: Control,
 
@@ -46,12 +44,12 @@ pub struct SerialInterface {
     mode: u32,
     baud_timer_reload_value: u16,
 
+    // Only gamepad 1 is used, gamepad 0 is a dummy gamepad
     pub gamepad: Gamepad,
 }
 
 impl SerialInterface {
     fn read(&mut self, offs: u32) -> u32 {
-        eprintln!("serial read {offs:02x}");
         match offs {
             0x0 => self.pop_received_data(),
             0x4 => self.status.0,
@@ -64,51 +62,77 @@ impl SerialInterface {
 
     fn write(system: &mut System, offs: u32, val: u32) {
         let sio = &mut system.sio;
-
-        eprintln!("serial write {offs:02x} <- {val:08x}");
         match offs {
-            0x0 => Self::send_data(system, val as u8),
+            0x0 => {
+                sio.transfer = Some(val as u8);
+                Self::try_send_data(system);
+            }
             0x8 => sio.mode = val & 0x1FF,
-            0xA => sio.write_control(val as u16),
+            0xA => Self::write_control(system, val as u16),
             0xE => sio.baud_timer_reload_value = val as u16,
             _ => unimplemented!("serial write {offs:02x} <- {val:08x}"),
         }
     }
 
-    fn write_control(&mut self, val: u16) {
+    fn write_control(system: &mut System, val: u16) {
+        let sio = &mut system.sio;
         // Unused bits
-        self.control.0 = val & !0xC000;
+        sio.control.0 = val & !0xC000;
 
-        if self.control.acknowlegde() {
-            self.status.set_dsr_input_on(false);
+        // Resets STAT.3 4 5 9
+        if sio.control.ack() {
+            sio.status.set_irq(false);
+            sio.control.set_ack(false);
         }
 
-        if self.control.reset() {
-            self.reset_registers();
+        if sio.control.reset() {
+            sio.reset_registers();
         }
 
-        if !self.control.dtr_output_on() {
-            self.gamepad.reset();
+        if !sio.control.dtr_output_on() {
+            sio.gamepad.reset();
+            sio.status.set_dsr_input_on(false);
         }
 
-        self.status.set_dsr_input_on(self.control.dtr_output_on());
+        if sio.control.tx_enabled() {
+            Self::try_send_data(system);
+        }
     }
 
-    fn send_data(system: &mut System, val: u8) {
-        println!("SEND {:02x}", val);
-        system
-            .scheduler
-            .schedule(Event::Serial(SerialSend::new(0x01, val)), 1500, None);
+    fn try_send_data(system: &mut System) {
+        // Can't transfer right now
+        if !system.sio.control.tx_enabled() {
+            return;
+        }
+
+        // Transfer if there's something in TX
+        if let Some(val) = system.sio.transfer.take() {
+            let (received, ack) = match system.sio.control.port_select() {
+                true => (0xFF, false), // Disconnected port 2
+                false => (
+                    Gamepad::send_and_receive_byte(system, val),
+                    system.sio.gamepad.in_ack(),
+                ),
+            };
+
+            let sio = &mut system.sio;
+            sio.status.set_dsr_input_on(ack);
+
+            if sio.control.dsr_interrupt_enable() && sio.status.dsr_input_on() {
+                system.scheduler.schedule(Event::SerialSend, 1900, None);
+            }
+
+            system.sio.push_received_data(received);
+        }
     }
 
     fn pop_received_data(&mut self) -> u32 {
-        let data = self.received.pop_at(0).unwrap_or_default();
+        let data = self.received.pop_at(0).unwrap_or(0xFF);
 
         if self.received.is_empty() {
             self.status.set_rx_ready(false);
         }
 
-        println!("RECEIVED {:02x}", data);
         data.into()
     }
 
@@ -122,17 +146,20 @@ impl SerialInterface {
             return;
         }
 
-        self.received.pop_at(0);
-        self.received.push(data);
+        if self.received.is_full() {
+            *self.received.last_mut().unwrap() = data;
+        } else {
+            self.received.push(data);
+        }
+
         self.status.set_rx_ready(true);
         self.control.set_rx_enabled(false);
     }
 
-    pub fn process_serial_send(system: &mut System, send: SerialSend) {
-        match send.port {
-            DevicePort::Gamepad => Gamepad::send_and_receive_byte(system, send.data),
-            DevicePort::MemoryCard => todo!("Memory card not yet implemented"),
-        }
+    pub fn process_serial_send(system: &mut System) {
+        // Controller and Memory Card received byte interrupt
+        system.irqctl.stat().set_ctl_mem(true);
+        system.sio.status.set_irq(true);
     }
 }
 

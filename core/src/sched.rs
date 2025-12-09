@@ -7,38 +7,13 @@ pub struct TimerInterrupt {
 }
 
 #[derive(Clone, Copy, PartialEq)]
-pub enum DevicePort {
-    Gamepad,
-    MemoryCard,
-}
-
-#[derive(Clone, Copy, PartialEq)]
-pub struct SerialSend {
-    pub port: DevicePort,
-    pub data: u8,
-}
-
-impl SerialSend {
-    pub fn new(port: u8, data: u8) -> Self {
-        Self {
-            port: match port {
-                0x01 => DevicePort::Gamepad,
-                0x81 => DevicePort::MemoryCard,
-                _ => unimplemented!("Unknown device port {port:02x}"),
-            },
-            data,
-        }
-    }
-}
-
-#[derive(Clone, Copy, PartialEq)]
 pub enum Event {
     VBlankStart,
     VBlankEnd,
     HBlankStart,
     HBlankEnd,
     Timer(TimerInterrupt),
-    Serial(SerialSend),
+    SerialSend,
 }
 
 pub struct Task {

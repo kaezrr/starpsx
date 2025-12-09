@@ -17,10 +17,11 @@ use mem::bios::Bios;
 use mem::ram::Ram;
 use mem::scratch::Scratch;
 use sched::{Event, EventScheduler};
+use sio::SerialInterface;
 use std::error::Error;
 use timers::Timers;
 
-use crate::sio::{SerialInterface, gamepad::Gamepad};
+pub use sio::gamepad;
 
 pub const TARGET_FPS: u64 = 60;
 pub const LINE_DURATION: u64 = 2172;
@@ -142,7 +143,7 @@ impl System {
                 Event::HBlankStart => Timers::enter_hsync(self),
                 Event::HBlankEnd => Timers::exit_hsync(self),
                 Event::Timer(x) => Timers::process_interrupt(self, x),
-                Event::Serial(x) => SerialInterface::process_serial_send(self, x),
+                Event::SerialSend => SerialInterface::process_serial_send(self),
             }
         }
     }
@@ -221,7 +222,7 @@ impl System {
         }
     }
 
-    pub fn gamepad(&mut self) -> &mut Gamepad {
+    pub fn gamepad(&mut self) -> &mut gamepad::Gamepad {
         &mut self.sio.gamepad
     }
 }

@@ -7,6 +7,8 @@ use crate::System;
 use cop0::Cop0;
 use utils::{Exception, Instruction};
 
+// pub static mut LOG: bool = true;
+
 pub struct Cpu {
     /// 32-bit general purpose registers, R0 is always zero
     pub regs: [u32; 32],
@@ -66,10 +68,6 @@ impl Cpu {
             None => (system.cpu.pc.wrapping_add(4), false),
         };
 
-        // if unsafe { START_LOG } {
-        //     println!("{:08x}", system.cpu.pc);
-        // }
-
         if Cpu::pending_interrupts(system) {
             system
                 .cpu
@@ -86,11 +84,8 @@ impl Cpu {
         }
 
         // if unsafe { LOG } {
-        //     let disasm = decode_instruction(instr.0, self.pc);
-        //     println!(
-        //         "{:08x}: {:08x} {} {:08x} {:08x}",
-        //         self.pc, instr.0, disasm, self.regs[0], self.regs[27]
-        //     );
+        //     let disasm = disasm::decode_instruction(instr.0, cpu.pc);
+        //     println!("{:08x}:  {}", cpu.pc, disasm);
         // }
 
         if let Err(exception) = Cpu::execute_opcode(system, instr) {

@@ -9,29 +9,27 @@ enum GamepadState {
     IdHigh,
     SwitchLow,
     SwitchHigh,
-    AnalogInput0,
-    AnalogInput1,
-    AnalogInput2,
-    AnalogInput3,
 }
 
 impl GamepadState {
-    fn next(self) -> Self {
+    fn next(self, data: u8) -> Self {
         let idx = self as usize;
-        GAMEPAD_STATES[(idx + 1) % GAMEPAD_STATES.len()]
+        let (next_state, valid_byte) = GAMEPAD_STATES[(idx + 1) % GAMEPAD_STATES.len()];
+
+        if data != valid_byte {
+            panic!("Invalid gamepad communication sequence");
+        }
+
+        next_state
     }
 }
 
-const GAMEPAD_STATES: [GamepadState; 9] = [
-    GamepadState::Init,
-    GamepadState::IdLow,
-    GamepadState::IdHigh,
-    GamepadState::SwitchLow,
-    GamepadState::SwitchHigh,
-    GamepadState::AnalogInput0,
-    GamepadState::AnalogInput1,
-    GamepadState::AnalogInput2,
-    GamepadState::AnalogInput3,
+const GAMEPAD_STATES: [(GamepadState, u8); 5] = [
+    (GamepadState::Init, 0x00),
+    (GamepadState::IdLow, 0x01),
+    (GamepadState::IdHigh, 0x42),
+    (GamepadState::SwitchLow, 0x00),
+    (GamepadState::SwitchHigh, 0x00),
 ];
 
 #[repr(C)]
@@ -41,9 +39,9 @@ pub enum Button {
     R3,
     Start,
     Up,
+    Right,
     Down,
     Left,
-    Right,
     L2,
     R2,
     L1,
@@ -58,18 +56,12 @@ pub enum Button {
 pub struct Gamepad {
     state: GamepadState,
     digital_switches: [bool; 16],
+    in_ack: bool,
 }
 
 impl Gamepad {
-    pub fn send_and_receive_byte(system: &mut System, data: u8) {
+    pub fn send_and_receive_byte(system: &mut System, data: u8) -> u8 {
         let gamepad = &mut system.sio.gamepad;
-
-        // Check for valid communication sequence
-        match gamepad.state {
-            GamepadState::Init if data != 0x01 => panic!("Wrong controller init command"),
-            GamepadState::IdLow if data != b'B' => panic!("Wrong controller read id low command"),
-            _ => (),
-        }
 
         let received = match gamepad.state {
             GamepadState::Init => 0xFF,
@@ -79,24 +71,14 @@ impl Gamepad {
             GamepadState::IdHigh => 0x5A,
 
             // Gamepad switches state
-            GamepadState::SwitchLow => gamepad.switch_byte() as u8,
-            GamepadState::SwitchHigh => (gamepad.switch_byte() >> 8) as u8,
-
-            // Gamepad analog stick state
-            GamepadState::AnalogInput0 => todo!("Analog stick 0"),
-            GamepadState::AnalogInput1 => todo!("Analog stick 1"),
-            GamepadState::AnalogInput2 => todo!("Analog stick 2"),
-            GamepadState::AnalogInput3 => todo!("Analog stick 3"),
+            GamepadState::SwitchLow => gamepad.switch_halfbyte() as u8,
+            GamepadState::SwitchHigh => (gamepad.switch_halfbyte() >> 8) as u8,
         };
 
-        gamepad.state = gamepad.state.next();
-        system.sio.push_received_data(received);
+        gamepad.state = gamepad.state.next(data);
+        gamepad.in_ack = !matches!(gamepad.state, GamepadState::Init);
 
-        // Controller and Memory Card received byte interrupt
-        if system.sio.control.dsr_interrupt_enable() {
-            system.irqctl.stat().set_ctl_mem(true);
-            system.sio.status.set_irq(true);
-        }
+        received
     }
 
     pub fn reset(&mut self) {
@@ -107,7 +89,11 @@ impl Gamepad {
         self.digital_switches[button as usize] = pressed;
     }
 
-    fn switch_byte(&self) -> u16 {
+    pub fn in_ack(&self) -> bool {
+        self.in_ack
+    }
+
+    fn switch_halfbyte(&self) -> u16 {
         let mut v = 0u16;
         for i in 0..16 {
             v |= (!self.digital_switches[i] as u16) << i;

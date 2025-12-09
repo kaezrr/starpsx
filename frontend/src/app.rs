@@ -1,6 +1,6 @@
 use gilrs::{Event, Gilrs};
 use softbuffer::Surface;
-use starpsx_core::{Config, System, TARGET_FPS};
+use starpsx_core::{Config, System, TARGET_FPS, gamepad};
 use std::num::NonZeroU32;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
@@ -129,8 +129,51 @@ impl AppState {
     }
 
     fn process_input_events(&mut self) {
+        let psx_gamepad = self.system.gamepad();
+
         while let Some(Event { event, .. }) = self.gamepad.next_event() {
-            println!("Event {:?}", event);
+            match event {
+                gilrs::EventType::ButtonPressed(button, _) => {
+                    psx_gamepad.set_button_state(convert_button(button), true)
+                }
+
+                gilrs::EventType::ButtonReleased(button, _) => {
+                    psx_gamepad.set_button_state(convert_button(button), false)
+                }
+                _ => eprintln!("Gamepad Event {:?}", event),
+            }
         }
+    }
+}
+
+fn convert_button(gilrs_button: gilrs::Button) -> gamepad::Button {
+    match gilrs_button {
+        // Face buttons
+        gilrs::Button::South => gamepad::Button::Cross,
+        gilrs::Button::East => gamepad::Button::Circle,
+        gilrs::Button::North => gamepad::Button::Triangle,
+        gilrs::Button::West => gamepad::Button::Square,
+
+        // Shoulders / Triggers
+        gilrs::Button::LeftTrigger => gamepad::Button::L1,
+        gilrs::Button::LeftTrigger2 => gamepad::Button::L2,
+        gilrs::Button::RightTrigger => gamepad::Button::R1,
+        gilrs::Button::RightTrigger2 => gamepad::Button::R2,
+
+        // Menu
+        gilrs::Button::Select => gamepad::Button::Select,
+        gilrs::Button::Start => gamepad::Button::Start,
+
+        // Thumbsticks
+        gilrs::Button::LeftThumb => gamepad::Button::L3,
+        gilrs::Button::RightThumb => gamepad::Button::R3,
+
+        // D-Pad
+        gilrs::Button::DPadUp => gamepad::Button::Up,
+        gilrs::Button::DPadDown => gamepad::Button::Down,
+        gilrs::Button::DPadLeft => gamepad::Button::Left,
+        gilrs::Button::DPadRight => gamepad::Button::Right,
+
+        _ => unimplemented!("Unmapped gamepad button"),
     }
 }
