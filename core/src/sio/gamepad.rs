@@ -1,5 +1,3 @@
-use crate::System;
-
 #[repr(C)]
 #[derive(Debug, Default, Clone, Copy)]
 enum GamepadState {
@@ -60,10 +58,8 @@ pub struct Gamepad {
 }
 
 impl Gamepad {
-    pub fn send_and_receive_byte(system: &mut System, data: u8) -> u8 {
-        let gamepad = &mut system.sio.gamepad;
-
-        let received = match gamepad.state {
+    pub fn send_and_receive_byte(&mut self, data: u8) -> u8 {
+        let received = match self.state {
             GamepadState::Init => 0xFF,
 
             // Gamepad ID: 0x5A41 -> Digital Pad
@@ -71,12 +67,12 @@ impl Gamepad {
             GamepadState::IdHigh => 0x5A,
 
             // Gamepad switches state
-            GamepadState::SwitchLow => gamepad.switch_halfbyte() as u8,
-            GamepadState::SwitchHigh => (gamepad.switch_halfbyte() >> 8) as u8,
+            GamepadState::SwitchLow => self.switch_halfbyte() as u8,
+            GamepadState::SwitchHigh => (self.switch_halfbyte() >> 8) as u8,
         };
 
-        gamepad.state = gamepad.state.next(data);
-        gamepad.in_ack = !matches!(gamepad.state, GamepadState::Init);
+        self.state = self.state.next(data);
+        self.in_ack = !matches!(self.state, GamepadState::Init);
 
         received
     }

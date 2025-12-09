@@ -129,7 +129,7 @@ impl AppState {
     }
 
     fn process_input_events(&mut self) {
-        let psx_gamepad = self.system.gamepad();
+        let psx_gamepad = self.system.gamepad_mut();
 
         while let Some(Event { event, .. }) = self.gamepad.next_event() {
             match event {

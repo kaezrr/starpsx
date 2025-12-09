@@ -82,7 +82,9 @@ impl System {
             tty: String::new(),
             scheduler: EventScheduler::default(),
             cdrom: CdRom::default(),
-            sio: SerialInterface::default(),
+
+            // Only 1 gamepad for now
+            sio: SerialInterface::new([Some(gamepad::Gamepad::default()), None]),
         };
 
         if let Some(exe_path) = config.exe_path {
@@ -222,7 +224,7 @@ impl System {
         }
     }
 
-    pub fn gamepad(&mut self) -> &mut gamepad::Gamepad {
-        &mut self.sio.gamepad
+    pub fn gamepad_mut(&mut self) -> &mut gamepad::Gamepad {
+        self.sio.gamepad_port_0_mut()
     }
 }

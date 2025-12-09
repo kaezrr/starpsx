@@ -3,7 +3,10 @@ pub mod gamepad;
 
 use arrayvec::ArrayVec;
 
-use crate::{System, mem::ByteAddressable, sched::Event, sio::gamepad::Gamepad};
+use crate::{
+    System, mem::ByteAddressable, sched::Event, sio::device_manager::DeviceManager,
+    sio::gamepad::Gamepad,
+};
 
 pub const PADDR_START: u32 = 0x1F801040;
 pub const PADDR_END: u32 = 0x1F80105F;
@@ -33,7 +36,6 @@ bitfield::bitfield! {
     port_select, _: 13;
 }
 
-#[derive(Default)]
 pub struct SerialInterface {
     transfer: Option<u8>,
     received: ArrayVec<u8, 8>,
@@ -44,11 +46,24 @@ pub struct SerialInterface {
     mode: u32,
     baud_timer_reload_value: u16,
 
-    // Only gamepad 1 is used, gamepad 0 is a dummy gamepad
-    pub gamepad: Gamepad,
+    device_manager: DeviceManager,
 }
 
 impl SerialInterface {
+    pub fn new(gamepads: [Option<Gamepad>; 2]) -> Self {
+        Self {
+            transfer: None,
+            received: ArrayVec::default(),
+            status: Status::default(),
+            control: Control::default(),
+
+            mode: 0,
+            baud_timer_reload_value: 0,
+
+            device_manager: DeviceManager::new(gamepads),
+        }
+    }
+
     fn read(&mut self, offs: u32) -> u32 {
         match offs {
             0x0 => self.pop_received_data(),
@@ -90,7 +105,7 @@ impl SerialInterface {
         }
 
         if !sio.control.dtr_output_on() {
-            sio.gamepad.reset();
+            sio.device_manager.reset();
             sio.status.set_dsr_input_on(false);
         }
 
@@ -107,17 +122,12 @@ impl SerialInterface {
 
         // Transfer if there's something in TX
         if let Some(val) = system.sio.transfer.take() {
-            let (received, ack) = match system.sio.control.port_select() {
-                true => (0xFF, false), // Disconnected port 2
-                false => (
-                    Gamepad::send_and_receive_byte(system, val),
-                    system.sio.gamepad.in_ack(),
-                ),
-            };
+            let (received, ack) = DeviceManager::send_and_receive_byte(system, val);
 
             let sio = &mut system.sio;
             sio.status.set_dsr_input_on(ack);
 
+            // 1900 cycles is a bit weird, something wrong with the scheduler
             if sio.control.dsr_interrupt_enable() && sio.status.dsr_input_on() {
                 system.scheduler.schedule(Event::SerialSend, 1900, None);
             }
@@ -137,7 +147,15 @@ impl SerialInterface {
     }
 
     fn reset_registers(&mut self) {
-        *self = Self::default();
+        self.transfer = None;
+        self.received = ArrayVec::default();
+        self.status = Status::default();
+        self.control = Control::default();
+
+        self.mode = 0;
+        self.baud_timer_reload_value = 0;
+
+        self.device_manager.reset();
     }
 
     pub fn push_received_data(&mut self, data: u8) {
@@ -160,6 +178,10 @@ impl SerialInterface {
         // Controller and Memory Card received byte interrupt
         system.irqctl.stat().set_ctl_mem(true);
         system.sio.status.set_irq(true);
+    }
+
+    pub fn gamepad_port_0_mut(&mut self) -> &mut Gamepad {
+        self.device_manager.gamepad_port_0_mut()
     }
 }
 
