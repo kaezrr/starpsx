@@ -31,17 +31,18 @@ The project is split into three crates:
 
 ## Component Status
 
-| Component | Status      | Notes                                |
-| --------- | ----------- | ------------------------------------ |
-| CPU       | Done        | Passes most test roms                |
-| GPU       | Done        | Might have some bugs                 |
-| DMA       | Partial     | Only GPU port implemented            |
-| Timers    | Done        | Roughly works but it might have bugs |
-| CDROM     | Partial     | Just enough to get to the shell      |
-| Gamepad   | Partial     | Start working on the serial ports    |
-| SPU       | Not started |                                      |
-| GTE       | Not started |                                      |
-| MDEC      | Not started |                                      |
+| Component   | Status      | Notes                                                         |
+| ----------- | ----------- | ------------------------------------------------------------- |
+| CPU         | Done        | Passes most test roms                                         |
+| GPU         | Done        | Might have some bugs                                          |
+| DMA         | Partial     | Only GPU port implemented                                     |
+| Timers      | Done        | Roughly works but it might have bugs                          |
+| CDROM       | Partial     | Just enough to get to the shell                               |
+| Gamepad     | Mostly Done | Port 1 digital pad works, other port and analog mode are left |
+| Memory card | Not started |                                                               |
+| SPU         | Not started |                                                               |
+| GTE         | Not started |                                                               |
+| MDEC        | Not started |                                                               |
 
 ## Current Status
 

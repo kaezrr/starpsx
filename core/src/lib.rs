@@ -132,21 +132,26 @@ impl System {
 
     pub fn step_frame(&mut self) {
         loop {
-            let cycles = self.scheduler.cycles_till_next_event();
-
-            for _ in (0..cycles).step_by(2) {
-                Cpu::run_instruction(self);
-                self.check_for_tty_output();
+            if let Some(event) = self.scheduler.get_next_event() {
+                match event {
+                    Event::VBlankStart => self.enter_vsync(),
+                    Event::VBlankEnd => {
+                        self.exit_vsync();
+                        return; // end of frame
+                    }
+                    Event::HBlankStart => Timers::enter_hsync(self),
+                    Event::HBlankEnd => Timers::exit_hsync(self),
+                    Event::Timer(x) => Timers::process_interrupt(self, x),
+                    Event::SerialSend => SerialInterface::process_serial_send(self),
+                }
+                continue;
             }
 
-            match self.scheduler.pop_next_event() {
-                Event::VBlankStart => self.enter_vsync(),
-                Event::VBlankEnd => return self.exit_vsync(), // Returns because it indicates end of frame
-                Event::HBlankStart => Timers::enter_hsync(self),
-                Event::HBlankEnd => Timers::exit_hsync(self),
-                Event::Timer(x) => Timers::process_interrupt(self, x),
-                Event::SerialSend => SerialInterface::process_serial_send(self),
-            }
+            // Fixed 2 CPI right now
+            Cpu::run_instruction(self);
+            self.scheduler.advance(2);
+
+            self.check_for_tty_output();
         }
     }
 

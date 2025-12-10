@@ -33,23 +33,23 @@ impl EventScheduler {
         self.sysclk
     }
 
-    pub fn pop_next_event(&mut self) -> Event {
+    pub fn advance(&mut self, used_cycles: u64) {
+        self.sysclk += used_cycles;
+    }
+
+    pub fn get_next_event(&mut self) -> Option<Event> {
+        if self.sysclk < self.tasks.first()?.cycle {
+            return None;
+        }
+
         let task = self.tasks.remove(0);
-        self.sysclk = task.cycle;
 
         if let Some(cycles) = task.repeat {
+            // Reschedule repeating event
             self.schedule(task.event, cycles, Some(cycles));
         }
 
-        task.event
-    }
-
-    pub fn cycles_till_next_event(&self) -> u64 {
-        self.tasks
-            .first()
-            .unwrap()
-            .cycle
-            .saturating_sub(self.sysclk)
+        Some(task.event)
     }
 
     pub fn schedule(&mut self, event: Event, cycles_length: u64, repeat: Option<u64>) {

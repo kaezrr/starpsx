@@ -127,9 +127,9 @@ impl SerialInterface {
             let sio = &mut system.sio;
             sio.status.set_dsr_input_on(ack);
 
-            // 1900 cycles is a bit weird, something wrong with the scheduler
+            // 1088 cycles is the fixed baudrate delay for all games
             if sio.control.dsr_interrupt_enable() && sio.status.dsr_input_on() {
-                system.scheduler.schedule(Event::SerialSend, 1900, None);
+                system.scheduler.schedule(Event::SerialSend, 1088, None);
             }
 
             system.sio.push_received_data(received);
