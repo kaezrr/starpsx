@@ -20,6 +20,7 @@ use sched::{Event, EventScheduler};
 use sio::SerialInterface;
 use std::error::Error;
 use timers::Timers;
+use tracing::info;
 
 pub use sio::gamepad;
 
@@ -221,10 +222,11 @@ impl System {
         let pc = self.cpu.pc & 0x1FFFFFFF;
         if (pc == 0xA0 && self.cpu.regs[9] == 0x3C) || (pc == 0xB0 && self.cpu.regs[9] == 0x3D) {
             let ch = self.cpu.regs[4] as u8 as char;
-            self.tty.push(ch);
             if ch == '\n' || ch == '\r' {
-                print!("{}", self.tty);
+                info!("[TTY]" = %self.tty);
                 self.tty = String::new();
+            } else {
+                self.tty.push(ch);
             }
         }
     }

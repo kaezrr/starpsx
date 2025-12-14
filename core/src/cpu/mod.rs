@@ -83,10 +83,14 @@ impl Cpu {
             _ => (),
         }
 
-        // if unsafe { LOG } {
-        //     let disasm = disasm::decode_instruction(instr.0, cpu.pc);
-        //     println!("{:08x}:  {}", cpu.pc, disasm);
-        // }
+        if tracing::enabled!(target: "cpu", tracing::Level::TRACE) {
+            let disasm = disasm::decode_instruction(instr.0, cpu.pc);
+            tracing::trace!(
+                target: "cpu",
+                pc = format_args!("{:#08x}", cpu.pc),
+                %disasm
+            );
+        }
 
         if let Err(exception) = Cpu::execute_opcode(system, instr) {
             system.cpu.handle_exception(exception, in_delay_slot);

@@ -1,3 +1,5 @@
+use tracing::trace;
+
 use crate::cpu::utils::Exception;
 use crate::{System, cdrom, sio};
 use crate::{dma, gpu, irq, timers};
@@ -146,8 +148,8 @@ pub mod scratch {
 }
 
 macro_rules! stubbed {
-    ($region:expr) => {{
-        eprintln!($region);
+    ($region:expr, $at:expr) => {{
+        trace!(region = $region, addr = %format_args!("{:#08x}", $at), "stubbed read");
         T::from_u32(0)
     }};
 }
@@ -189,15 +191,15 @@ impl System {
 
             sio::PADDR_START..=sio::PADDR_END => sio::read(self, addr),
 
-            0x1F801000..=0x1F801023 => stubbed!("Unhandled read to memctl"),
+            0x1F801000..=0x1F801023 => stubbed!("memctl", addr),
 
             0x1F801060..=0x1F801063 => unimplemented!("read to ramsize"),
 
-            0x1F801C00..=0x1F801E7F => stubbed!("Unhandled read to the SPU"),
+            0x1F801C00..=0x1F801E7F => stubbed!("SPU", addr),
 
             0xFFFE0130..=0xFFFE0133 => unimplemented!("read to cachectl"),
 
-            0x1F000000..=0x1F0000FF => stubbed!("Unhandled read to the expansion1"),
+            0x1F000000..=0x1F0000FF => stubbed!("expansion1", addr),
 
             0x1F802000..=0x1F802041 => unimplemented!("read to expansion2"),
 
@@ -230,18 +232,24 @@ impl System {
 
             sio::PADDR_START..=sio::PADDR_END => sio::write(self, addr, data),
 
-            0x1F801000..=0x1F801023 => eprintln!("Unhandled write to memctl"),
-
-            0x1F801060..=0x1F801063 => eprintln!("Unhandled write to ramsize"),
-
-            0x1F801C00..=0x1F801E7F => eprintln!("Unhandled write to the SPU"),
-
-            0xFFFE0130..=0xFFFE0133 => eprintln!("Unhandled write to cachectl"),
-
-            0x1F000000..=0x1F0000FF => eprintln!("Unhandled write to the expansion1"),
-
-            0x1F802000..=0x1F802041 => eprintln!("Unhandled write to expansion2"),
-
+            0x1F801000..=0x1F801023 => {
+                trace!(region = "memctl", addr = %format_args!("{:#08x}", addr), "stubbed write")
+            }
+            0x1F801060..=0x1F801063 => {
+                trace!(region = "ramsize", addr = %format_args!("{:#08x}", addr), "stubbed write")
+            }
+            0x1F801C00..=0x1F801E7F => {
+                trace!(region = "SPU", addr = %format_args!("{:#08x}", addr), "stubbed write")
+            }
+            0xFFFE0130..=0xFFFE0133 => {
+                trace!(region = "cachectl", addr = %format_args!("{:#08x}", addr), "stubbed write")
+            }
+            0x1F000000..=0x1F0000FF => {
+                trace!(region = "expansion1", addr = %format_args!("{:#08x}", addr), "stubbed write")
+            }
+            0x1F802000..=0x1F802041 => {
+                trace!(region = "expansion2", addr = %format_args!("{:#08x}", addr), "stubbed write")
+            }
             _ => unimplemented!("write at {addr:#08X}"),
         };
 

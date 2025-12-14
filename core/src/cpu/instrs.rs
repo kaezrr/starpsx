@@ -1,3 +1,5 @@
+use tracing::trace;
+
 use super::*;
 
 impl Cpu {
@@ -58,7 +60,7 @@ impl Cpu {
     /// Load word
     pub fn lw(system: &mut System, instr: Instruction) -> Result<(), Exception> {
         if system.cpu.cop0.sr & 0x10000 != 0 {
-            eprintln!("ignoring load while cache is isolated");
+            trace!("ignoring load while cache is isolated");
             return Ok(());
         }
 
@@ -76,7 +78,7 @@ impl Cpu {
     /// Store byte
     pub fn sb(system: &mut System, instr: Instruction) -> Result<(), Exception> {
         if system.cpu.cop0.sr & 0x10000 != 0 {
-            eprintln!("ignoring store while cache is isolated");
+            trace!("ignoring store while cache is isolated");
             return Ok(());
         }
         let rt = instr.rt();
@@ -92,7 +94,7 @@ impl Cpu {
     /// Store half word
     pub fn sh(system: &mut System, instr: Instruction) -> Result<(), Exception> {
         if system.cpu.cop0.sr & 0x10000 != 0 {
-            eprintln!("ignoring store while cache is isolated");
+            trace!("ignoring store while cache is isolated");
             return Ok(());
         }
         let rt = instr.rt();
@@ -109,7 +111,7 @@ impl Cpu {
     /// Store word
     pub fn sw(system: &mut System, instr: Instruction) -> Result<(), Exception> {
         if system.cpu.cop0.sr & 0x10000 != 0 {
-            eprintln!("ignoring store while cache is isolated");
+            trace!("ignoring store while cache is isolated");
             return Ok(());
         }
 

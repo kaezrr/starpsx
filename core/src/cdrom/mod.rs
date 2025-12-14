@@ -1,5 +1,6 @@
 mod commands;
 use arrayvec::ArrayVec;
+use tracing::debug;
 
 use crate::{System, cdrom::commands::Response, mem::ByteAddressable};
 
@@ -147,9 +148,11 @@ pub fn read<T: ByteAddressable>(system: &mut System, addr: u32) -> T {
         (x, y) => unimplemented!("cdrom read bank {x} reg {y}"),
     };
 
-    eprintln!(
-        "CDROM READ bank {} reg {offs} -> {val:02x}",
-        cdrom.address.bank()
+    debug!(
+        bank = cdrom.address.bank(),
+        reg = offs,
+        val = format_args!("{:02x}", val),
+        "cdrom read"
     );
 
     T::from_u32(u32::from(val))
@@ -160,9 +163,11 @@ pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, data: T) {
     let cdrom = &mut system.cdrom;
     let val = data.to_u8();
 
-    eprintln!(
-        "CDROM WRITE bank {} reg {offs} <- {data:02x}",
-        cdrom.address.bank()
+    debug!(
+        bank = cdrom.address.bank(),
+        reg = offs,
+        data = format_args!("{:02x}", data),
+        "cdrom write"
     );
 
     match (cdrom.address.bank(), offs) {

@@ -4,6 +4,7 @@ use starpsx_core::{Config, System, TARGET_FPS, gamepad};
 use std::num::NonZeroU32;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
+use tracing::{error, trace, warn};
 use winit::{application::ApplicationHandler, event::WindowEvent};
 use winit::{dpi::LogicalSize, window::Window};
 
@@ -39,7 +40,7 @@ impl ApplicationHandler for App {
             let system = match System::build(config) {
                 Ok(psx) => psx,
                 Err(err) => {
-                    eprintln!("Error building emulator: {err}");
+                    error!(%err, "could not initialize emulator");
                     std::process::exit(1);
                 }
             };
@@ -64,7 +65,7 @@ impl ApplicationHandler for App {
         }
 
         let Some(state) = self.state.as_mut() else {
-            eprintln!("RedrawRequested fired before Resumed or after Suspended");
+            warn!("RedrawRequested fired before Resumed or after Suspended");
             return;
         };
 
@@ -79,8 +80,7 @@ impl ApplicationHandler for App {
                 state.window.request_redraw();
             }
             WindowEvent::CloseRequested => event_loop.exit(),
-            _ => (),
-            // event => eprintln!("Ignoring window event: {event:?}"),
+            event => trace!(?event, "ignoring window event"),
         }
 
         // Thread sleeping locks the framerate here
@@ -93,7 +93,7 @@ impl ApplicationHandler for App {
         if let Some(remaining) = FRAME_TIME.checked_sub(elapsed) {
             std::thread::sleep(remaining);
         } else {
-            eprintln!("Frame took too long to render");
+            warn!("frame took too long to render");
         }
     }
 }
@@ -140,7 +140,7 @@ impl AppState {
                 gilrs::EventType::ButtonReleased(button, _) => {
                     psx_gamepad.set_button_state(convert_button(button), false)
                 }
-                _ => eprintln!("Gamepad Event {:?}", event),
+                _ => trace!(?event, "gamepad event ignored"),
             }
         }
     }

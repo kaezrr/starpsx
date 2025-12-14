@@ -6,3 +6,4 @@ edition = "2024"
 [dependencies]
 bitfield = "0.19.1"
 bytemuck = { version = "1.23.2", features = ["derive"] }
+tracing = "0.1.43"
