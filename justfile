@@ -1,0 +1,17 @@
+bios := "./stuff/SCPH1001.BIN"
+
+run *args:
+    RUST_LOG=starpsx=info,starpsx_core=debug \
+    cargo run -- {{bios}} {{args}}
+
+run-trace *args:
+    RUST_LOG=starpsx=info,starpsx_core=trace \
+    cargo run -- {{bios}} {{args}}
+
+run-release *args:
+    RUST_LOG=starpsx=info,starpsx_core=info \
+    cargo run --release -- {{bios}} {{args}}
+
+run-disasm *args:
+    RUST_LOG=starpsx=info,starpsx_core=debug,cpu=trace \
+    cargo run --release -- {{bios}} {{args}}
