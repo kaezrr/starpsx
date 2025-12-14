@@ -2,7 +2,6 @@
 members = [ "core", "frontend", "renderer" ]
 resolver = "3"
 
-# Useful for compiling quickly and running with debug checks.
 [profile.dev]
 opt-level = 2
 strip = false
@@ -14,9 +13,6 @@ incremental = true
 codegen-units = 256
 rpath = false
 
-# The profile for the distributed executable.
-# This takes a lot longer to compile and link and should be done sparsely when testing,
-# but this is the profile for the actual executable that will be distributed.
 [profile.release]
 opt-level = 3
 strip = true
@@ -27,11 +23,8 @@ lto = "fat"
 incremental = false
 codegen-units = 1
 rpath = false
-# We rely on the OS to clean up after us.
-# Aborting will result in a smaller application size. 
 panic = "abort"
 
-# The profile used by benchmarking
 [profile.benchmarking]
 inherits = "release"
 debug = true
