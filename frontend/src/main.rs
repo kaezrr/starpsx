@@ -19,11 +19,13 @@ fn main() -> Result<(), EventLoopError> {
 
     let file_log = tracing_subscriber::fmt::layer()
         .with_writer(file_writer)
+        .with_target(false)
         .with_ansi(false)
         .without_time();
 
     let stdout_log = tracing_subscriber::fmt::layer()
         .with_writer(stdout_writer)
+        .with_target(false)
         .without_time()
         .with_filter(LevelFilter::INFO);
 
