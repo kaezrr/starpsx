@@ -85,11 +85,7 @@ impl Cpu {
 
         if tracing::enabled!(target: "cpu", tracing::Level::TRACE) {
             let disasm = disasm::decode_instruction(instr.0, cpu.pc);
-            tracing::trace!(
-                target: "cpu",
-                pc = format_args!("{:#08x}", cpu.pc),
-                %disasm
-            );
+            tracing::trace!(%disasm, "pc={:#08x}", cpu.pc);
         }
 
         if let Err(exception) = Cpu::execute_opcode(system, instr) {

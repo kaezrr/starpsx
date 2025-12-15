@@ -151,8 +151,8 @@ pub fn read<T: ByteAddressable>(system: &mut System, addr: u32) -> T {
     debug!(
         bank = cdrom.address.bank(),
         reg = offs,
-        val = format_args!("{:02x}", val),
-        "cdrom read"
+        "cdrom read data={:#02x}",
+        val
     );
 
     T::from_u32(u32::from(val))
@@ -166,8 +166,8 @@ pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, data: T) {
     debug!(
         bank = cdrom.address.bank(),
         reg = offs,
-        data = format_args!("{:02x}", data),
-        "cdrom write"
+        "cdrom write data={:#02x}",
+        data
     );
 
     match (cdrom.address.bank(), offs) {

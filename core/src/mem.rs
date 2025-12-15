@@ -149,7 +149,7 @@ pub mod scratch {
 
 macro_rules! stubbed {
     ($region:expr, $at:expr) => {{
-        trace!(region = $region, addr = %format_args!("{:#08x}", $at), "stubbed read");
+        trace!(target:"mem", region = $region, "stubbed read addr={:#08x}", $at);
         T::from_u32(0)
     }};
 }
@@ -233,22 +233,22 @@ impl System {
             sio::PADDR_START..=sio::PADDR_END => sio::write(self, addr, data),
 
             0x1F801000..=0x1F801023 => {
-                trace!(region = "memctl", addr = %format_args!("{:#08x}", addr), "stubbed write")
+                trace!(target: "mem", region = "memctl", "stubbed write addr={:#08x}", addr)
             }
             0x1F801060..=0x1F801063 => {
-                trace!(region = "ramsize", addr = %format_args!("{:#08x}", addr), "stubbed write")
+                trace!(target: "mem", region = "ramsize", "stubbed write addr={:#08x}", addr)
             }
             0x1F801C00..=0x1F801E7F => {
-                trace!(region = "SPU", addr = %format_args!("{:#08x}", addr), "stubbed write")
+                trace!(target: "mem", region = "spu", "stubbed write addr={:#08x}", addr)
             }
             0xFFFE0130..=0xFFFE0133 => {
-                trace!(region = "cachectl", addr = %format_args!("{:#08x}", addr), "stubbed write")
+                trace!(target: "mem", region = "cachectl", "stubbed write addr={:#08x}", addr)
             }
             0x1F000000..=0x1F0000FF => {
-                trace!(region = "expansion1", addr = %format_args!("{:#08x}", addr), "stubbed write")
+                trace!(target: "mem", region = "expansion1", "stubbed write addr={:#08x}", addr)
             }
             0x1F802000..=0x1F802041 => {
-                trace!(region = "expansion2", addr = %format_args!("{:#08x}", addr), "stubbed write")
+                trace!(target: "mem", region = "expansion2", "stubbed write addr={:#08x}", addr)
             }
             _ => unimplemented!("write at {addr:#08X}"),
         };
