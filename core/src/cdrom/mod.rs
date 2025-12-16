@@ -46,28 +46,32 @@ bitfield::bitfield! {
     irq_bfwrdy, _ : 4;
 }
 
+bitfield::bitfield! {
+    #[derive(Default)]
+    struct Status(u8);
+    shell_open, set_shell_open: 4;
+}
+
 pub struct CdRom {
     address: Address,
     hintsts: Hintsts,
     hintmsk: Hintmsk,
+    status: Status,
     parameters: ArrayVec<u8, 16>,
-    results: ArrayVec<u8, 16>,
+    results: Vec<u8>,
 }
 
 impl Default for CdRom {
     fn default() -> Self {
-        // Parameters empty and ready to write
-        let address = Address(0x18);
-        let hintsts = Hintsts::default();
-        let hintmsk = Hintmsk::default();
-        let parameters = ArrayVec::default();
-        let results = ArrayVec::default();
         Self {
-            address,
-            hintsts,
-            hintmsk,
-            parameters,
-            results,
+            // Parameters empty and ready to write
+            address: Address(0x18),
+            hintsts: Hintsts::default(),
+            hintmsk: Hintmsk::default(),
+            parameters: ArrayVec::default(),
+            results: Vec::new(),
+            // Motor on, shell open
+            status: Status(0x12),
         }
     }
 }

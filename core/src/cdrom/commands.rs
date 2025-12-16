@@ -3,32 +3,22 @@ use tracing::debug;
 use super::*;
 
 pub enum Response {
-    INT3(ArrayVec<u8, 4>),
+    INT3(Vec<u8>),
 }
 
 impl CdRom {
     pub fn test(&mut self, cmd: u8) -> Response {
-        let mut result = ArrayVec::default();
         match cmd {
-            // CDROM Version
             0x20 => {
-                result.push(0x95);
-                result.push(0x05);
-                result.push(0x16);
-                result.push(0xC1);
-                debug!(subcmd = "get cdrom version", ?result, "cdrom test command");
-                Response::INT3(result)
+                debug!(subcmd = "get version", "cdrom test command");
+                Response::INT3(vec![0x95, 0x05, 0x16, 0xC1])
             }
             _ => unimplemented!("cdrom command Test {cmd:02x}"),
         }
     }
 
     pub fn nop(&mut self) -> Response {
-        let mut result = ArrayVec::default();
-        // Motor on, shell open
-        result.push(0x12);
-        debug!(?result, "cdrom nop command");
-
-        Response::INT3(result)
+        debug!(status=?self.status.0, "cdrom nop command");
+        Response::INT3(vec![self.status.0])
     }
 }
