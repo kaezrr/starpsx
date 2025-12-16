@@ -1,8 +1,8 @@
 mod commands;
 use arrayvec::ArrayVec;
-use tracing::debug;
+use tracing::{debug, trace};
 
-use crate::{System, cdrom::commands::Response, mem::ByteAddressable};
+use crate::{System, cdrom::commands::Response, mem::ByteAddressable, sched::Event};
 
 pub const PADDR_START: u32 = 0x1F801800;
 pub const PADDR_END: u32 = 0x1F801803;
@@ -56,6 +56,7 @@ pub struct CdRom {
 
 impl Default for CdRom {
     fn default() -> Self {
+        // Parameters empty and ready to write
         let address = Address(0x18);
         let hintsts = Hintsts::default();
         let hintmsk = Hintmsk::default();
@@ -74,19 +75,44 @@ impl Default for CdRom {
 impl CdRom {
     // Only bit 0-1 are writable
     fn write_addr(&mut self, val: u8) {
+        trace!(
+            bank = self.address.bank(),
+            "cdrom write address={:#02x}", val
+        );
         self.address.0 = (self.address.0 & !3) | (val & 3);
     }
 
     fn read_addr(&self) -> u8 {
+        trace!(
+            bank = self.address.bank(),
+            "cdrom read address={:#02x}", self.address.0
+        );
         self.address.0
     }
 
+    // Clear the corresponding set bit of HINTSTS
     fn write_hclrctl(&mut self, val: u8) {
+        trace!(
+            bank = self.address.bank(),
+            "cdrom write hclrctl={:#02x}", val
+        );
         self.hintsts.0 &= !(val & 0x1F)
     }
 
     fn write_hintmsk(&mut self, val: u8) {
+        trace!(
+            bank = self.address.bank(),
+            "cdrom write hintmsk={:#02x}", val
+        );
         self.hintmsk.0 = val;
+    }
+
+    fn read_hintsts(&self) -> u8 {
+        trace!(
+            bank = self.address.bank(),
+            "cdrom read hintsts={:#02x}", self.hintsts.0
+        );
+        self.hintsts.0 | 0xE0 // Bits 5-7 are always 1 on read
     }
 
     fn push_parameter(&mut self, val: u8) {
@@ -101,40 +127,48 @@ impl CdRom {
         }
     }
 
-    fn read_hintsts(&self) -> u8 {
-        self.hintsts.0
-    }
-
     fn pop_result(&mut self) -> u8 {
         let val = self.results.remove(0);
         if self.results.is_empty() {
             self.address.set_result_read_ready(false);
         }
+        debug!(val, "cdrom result pop");
         val
     }
-}
 
-fn exec_command(system: &mut System, cmd: u8) {
-    let cdrom = &mut system.cdrom;
-    let response = match cmd {
-        0x01 => cdrom.nop(),
-        0x19 => cdrom.test(cdrom.parameters[0]),
-        _ => unimplemented!("cdrom command {cmd:02x}"),
-    };
-
-    match response {
-        Response::INT3(array_vec) => {
-            cdrom.results.clear();
-            cdrom.results.extend(array_vec);
-            cdrom.hintsts.set_interrupt(3);
+    pub fn process_irq(system: &mut System) {
+        let cdrom = &mut system.cdrom;
+        if cdrom.hintsts.0 & cdrom.hintmsk.0 != 0 {
+            system.irqctl.stat().set_cdrom(true);
         }
     }
 
-    cdrom.parameters.clear();
-    cdrom.address.set_param_empty(true);
-    cdrom.address.set_param_write_ready(true);
-    cdrom.address.set_result_read_ready(true);
-    system.irqctl.stat().set_cdrom(true);
+    fn exec_command(system: &mut System, cmd: u8) {
+        let cdrom = &mut system.cdrom;
+        let response = match cmd {
+            0x01 => cdrom.nop(),
+            0x19 => cdrom.test(cdrom.parameters[0]),
+            _ => unimplemented!("cdrom command {cmd:02x}"),
+        };
+
+        match response {
+            Response::INT3(array_vec) => {
+                cdrom.results.clear();
+                cdrom.results.extend(array_vec);
+                cdrom.hintsts.set_interrupt(3);
+            }
+        }
+
+        cdrom.parameters.clear();
+        cdrom.address.set_param_empty(true);
+        cdrom.address.set_param_write_ready(true);
+        cdrom.address.set_result_read_ready(true);
+
+        // Magic delay amount to make cdrom commands work
+        system
+            .scheduler
+            .schedule(Event::CdromResultIrq, 50401, None);
+    }
 }
 
 pub fn read<T: ByteAddressable>(system: &mut System, addr: u32) -> T {
@@ -148,13 +182,6 @@ pub fn read<T: ByteAddressable>(system: &mut System, addr: u32) -> T {
         (x, y) => unimplemented!("cdrom read bank {x} reg {y}"),
     };
 
-    debug!(
-        bank = cdrom.address.bank(),
-        reg = offs,
-        "cdrom read data={:#02x}",
-        val
-    );
-
     T::from_u32(u32::from(val))
 }
 
@@ -163,16 +190,9 @@ pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, data: T) {
     let cdrom = &mut system.cdrom;
     let val = data.to_u8();
 
-    debug!(
-        bank = cdrom.address.bank(),
-        reg = offs,
-        "cdrom write data={:#02x}",
-        data
-    );
-
     match (cdrom.address.bank(), offs) {
         (_, 0) => cdrom.write_addr(val),
-        (0, 1) => exec_command(system, val),
+        (0, 1) => CdRom::exec_command(system, val),
         (0, 2) => cdrom.push_parameter(val),
         (1, 3) => cdrom.write_hclrctl(val),
         (1, 2) => cdrom.write_hintmsk(val),

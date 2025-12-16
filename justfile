@@ -1,7 +1,7 @@
 bios := "./stuff/SCPH1001.BIN"
 
-run *args:
-    RUST_LOG=starpsx=error,starpsx_core=debug,mem=debug \
+run level *args:
+    RUST_LOG=starpsx=error,starpsx_core={{level}} \
     cargo run -- {{bios}} {{args}}
 
 run-trace *args:

@@ -13,6 +13,7 @@ pub enum Event {
     HBlankStart,
     HBlankEnd,
     Timer(TimerInterrupt),
+    CdromResultIrq,
     SerialSend,
 }
 

@@ -144,6 +144,7 @@ impl System {
                     Event::HBlankEnd => Timers::exit_hsync(self),
                     Event::Timer(x) => Timers::process_interrupt(self, x),
                     Event::SerialSend => SerialInterface::process_serial_send(self),
+                    Event::CdromResultIrq => CdRom::process_irq(self),
                 }
                 continue;
             }
