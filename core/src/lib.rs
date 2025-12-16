@@ -18,34 +18,51 @@ use mem::ram::Ram;
 use mem::scratch::Scratch;
 use sched::{Event, EventScheduler};
 use sio::SerialInterface;
-use std::error::Error;
+use std::{
+    error::Error,
+    path::{Path, PathBuf},
+};
 use timers::Timers;
 use tracing::info;
 
 pub use sio::gamepad;
 
+use crate::cdrom::CdImage;
+
 pub const TARGET_FPS: u64 = 60;
 pub const LINE_DURATION: u64 = 2172;
 pub const HBLANK_DURATION: u64 = 390;
 
+enum RunnablePath {
+    Game(PathBuf),
+    Executable(PathBuf),
+}
+
 pub struct Config {
-    bios_path: String,
-    exe_path: Option<String>,
+    bios_path: PathBuf,
+    runnable_path: Option<RunnablePath>,
 }
 
 impl Config {
     pub fn build() -> Result<Config, Box<dyn Error>> {
         let args: Vec<String> = std::env::args().collect();
 
-        let bios_path = match args.get(1) {
-            Some(x) => x.clone(),
-            None => return Err("missing bios path".into()),
-        };
-        let exe_path = args.get(2).cloned();
+        let bios_path = args.get(1).ok_or("missing bios path")?;
+        let runnable_path = args
+            .get(2)
+            .map(|x| {
+                let path = PathBuf::from(x);
+                match path.extension().and_then(|e| e.to_str()) {
+                    Some("exe") => Ok(RunnablePath::Executable(path)),
+                    Some("bin") => Ok(RunnablePath::Game(path)),
+                    _ => Err(format!("unsupported file format: {}", path.display())),
+                }
+            })
+            .transpose()?;
 
         Ok(Config {
-            bios_path,
-            exe_path,
+            bios_path: PathBuf::from(bios_path),
+            runnable_path,
         })
     }
 }
@@ -75,7 +92,7 @@ impl System {
             cpu: Cpu::default(),
             gpu: Gpu::default(),
             ram: Ram::default(),
-            bios: Bios::build(&config.bios_path)?,
+            bios: Bios::from_path(&config.bios_path)?,
             scratch: Scratch::default(),
             dma: DMAController::default(),
             timers: Timers::default(),
@@ -88,8 +105,17 @@ impl System {
             sio: SerialInterface::new([Some(gamepad::Gamepad::default()), None]),
         };
 
-        if let Some(exe_path) = config.exe_path {
-            psx.sideload_exe(&exe_path)?;
+        // Load game or exe
+        if let Some(path) = &config.runnable_path {
+            // Do not open the shell after bios start
+            psx.cdrom.status.set_shell_open(false);
+            match path {
+                RunnablePath::Game(path_buf) => {
+                    let image = CdImage::from_path(path_buf)?;
+                    psx.cdrom.insert_disc(image)
+                }
+                RunnablePath::Executable(path_buf) => psx.sideload_exe(path_buf)?,
+            }
         }
 
         // Schedule some initial events
@@ -157,8 +183,8 @@ impl System {
         }
     }
 
-    pub fn sideload_exe(&mut self, filepath: &String) -> Result<(), Box<dyn Error>> {
-        let exe = std::fs::read(filepath)?;
+    pub fn sideload_exe(&mut self, path: &Path) -> Result<(), Box<dyn Error>> {
+        let exe = std::fs::read(path)?;
         while self.cpu.pc != 0x80030000 {
             Cpu::run_instruction(self);
             self.check_for_tty_output();

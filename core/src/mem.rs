@@ -63,6 +63,8 @@ int_impl!(u16);
 int_impl!(u32);
 
 pub mod bios {
+    use std::path::Path;
+
     use super::*;
     pub const PADDR_START: u32 = 0x1FC00000;
     pub const PADDR_END: u32 = 0x1FC7FFFF;
@@ -72,8 +74,8 @@ pub mod bios {
     }
 
     impl Bios {
-        pub fn build(bios_path: &String) -> Result<Self, Box<dyn Error>> {
-            let bytes = std::fs::read(bios_path)?;
+        pub fn from_path(path: &Path) -> Result<Self, Box<dyn Error>> {
+            let bytes = std::fs::read(path)?;
 
             Ok(Bios {
                 bytes: bytes.try_into().unwrap(),

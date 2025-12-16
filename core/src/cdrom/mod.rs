@@ -1,8 +1,12 @@
+mod cd_image;
 mod commands;
+
 use arrayvec::ArrayVec;
-use tracing::{debug, trace};
+use tracing::trace;
 
 use crate::{System, cdrom::commands::Response, mem::ByteAddressable, sched::Event};
+
+pub use cd_image::CdImage;
 
 pub const PADDR_START: u32 = 0x1F801800;
 pub const PADDR_END: u32 = 0x1F801803;
@@ -48,17 +52,20 @@ bitfield::bitfield! {
 
 bitfield::bitfield! {
     #[derive(Default)]
-    struct Status(u8);
-    shell_open, set_shell_open: 4;
+    pub struct Status(u8);
+    pub shell_open, set_shell_open: 4;
 }
 
 pub struct CdRom {
     address: Address,
     hintsts: Hintsts,
     hintmsk: Hintmsk,
-    status: Status,
     parameters: ArrayVec<u8, 16>,
     results: Vec<u8>,
+
+    disc: Option<CdImage>,
+
+    pub status: Status,
 }
 
 impl Default for CdRom {
@@ -70,6 +77,7 @@ impl Default for CdRom {
             hintmsk: Hintmsk::default(),
             parameters: ArrayVec::default(),
             results: Vec::new(),
+            disc: None,
             // Motor on, shell open
             status: Status(0x12),
         }
@@ -136,7 +144,6 @@ impl CdRom {
         if self.results.is_empty() {
             self.address.set_result_read_ready(false);
         }
-        debug!(val, "cdrom result pop");
         val
     }
 
@@ -172,6 +179,14 @@ impl CdRom {
         system
             .scheduler
             .schedule(Event::CdromResultIrq, 50401, None);
+    }
+
+    pub fn insert_disc(&mut self, image: CdImage) {
+        self.disc = Some(image);
+
+        // Reset cdrom state
+        self.parameters.clear();
+        self.results.clear();
     }
 }
 
