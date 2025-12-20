@@ -4,9 +4,10 @@ mod commands;
 use arrayvec::ArrayVec;
 use tracing::trace;
 
-use crate::{System, cdrom::commands::Response, mem::ByteAddressable, sched::Event};
+use crate::{System, mem::ByteAddressable, sched::Event};
 
 pub use cd_image::CdImage;
+pub use commands::ResponseType;
 
 pub const PADDR_START: u32 = 0x1F801800;
 pub const PADDR_END: u32 = 0x1F801803;
@@ -147,26 +148,36 @@ impl CdRom {
         val
     }
 
-    pub fn process_irq(system: &mut System) {
-        let cdrom = &mut system.cdrom;
-        if cdrom.hintsts.0 & cdrom.hintmsk.0 != 0 {
-            system.irqctl.stat().set_cdrom(true);
-        }
-    }
-
     fn exec_command(system: &mut System, cmd: u8) {
         let cdrom = &mut system.cdrom;
-        let response = match cmd {
+        let responses = match cmd {
             0x01 => cdrom.nop(),
-            0x19 => cdrom.test(cdrom.parameters[0]),
+            0x19 => cdrom.test(),
+            0x1A => cdrom.get_id(),
+            0x02 => cdrom.set_loc(),
             _ => unimplemented!("cdrom command {cmd:02x}"),
         };
 
+        responses.get().into_iter().for_each(|(res_type, delay)| {
+            system
+                .scheduler
+                .schedule(Event::CdromResultIrq(res_type), delay, None)
+        });
+    }
+
+    pub fn handle_response(system: &mut System, response: ResponseType) {
+        let cdrom = &mut system.cdrom;
+
         match response {
-            Response::INT3(array_vec) => {
+            ResponseType::INT3(array_vec) => {
                 cdrom.results.clear();
                 cdrom.results.extend(array_vec);
                 cdrom.hintsts.set_interrupt(3);
+            }
+            ResponseType::INT2(array_vec) => {
+                cdrom.results.clear();
+                cdrom.results.extend(array_vec);
+                cdrom.hintsts.set_interrupt(2);
             }
         }
 
@@ -175,10 +186,9 @@ impl CdRom {
         cdrom.address.set_param_write_ready(true);
         cdrom.address.set_result_read_ready(true);
 
-        // Magic delay amount to make cdrom commands work
-        system
-            .scheduler
-            .schedule(Event::CdromResultIrq, 50401, None);
+        if cdrom.hintsts.0 & cdrom.hintmsk.0 != 0 {
+            system.irqctl.stat().set_cdrom(true);
+        }
     }
 
     pub fn insert_disc(&mut self, image: CdImage) {

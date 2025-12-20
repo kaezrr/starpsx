@@ -1,4 +1,5 @@
 mod cdrom;
+mod consts;
 mod cpu;
 mod dma;
 mod gpu;
@@ -8,7 +9,9 @@ mod sched;
 mod sio;
 mod timers;
 
+use cdrom::CdImage;
 use cdrom::CdRom;
+use consts::{HBLANK_DURATION, LINE_DURATION};
 use cpu::Cpu;
 use dma::DMAController;
 use gpu::Gpu;
@@ -25,13 +28,8 @@ use std::{
 use timers::Timers;
 use tracing::info;
 
+pub use consts::TARGET_FPS;
 pub use sio::gamepad;
-
-use crate::cdrom::CdImage;
-
-pub const TARGET_FPS: u64 = 60;
-pub const LINE_DURATION: u64 = 2172;
-pub const HBLANK_DURATION: u64 = 390;
 
 enum RunnablePath {
     Game(PathBuf),
@@ -170,7 +168,7 @@ impl System {
                     Event::HBlankEnd => Timers::exit_hsync(self),
                     Event::Timer(x) => Timers::process_interrupt(self, x),
                     Event::SerialSend => SerialInterface::process_serial_send(self),
-                    Event::CdromResultIrq => CdRom::process_irq(self),
+                    Event::CdromResultIrq(x) => CdRom::handle_response(self, x),
                 }
                 continue;
             }

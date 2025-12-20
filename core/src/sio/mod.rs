@@ -4,8 +4,10 @@ pub mod gamepad;
 use arrayvec::ArrayVec;
 
 use crate::{
-    System, mem::ByteAddressable, sched::Event, sio::device_manager::DeviceManager,
-    sio::gamepad::Gamepad,
+    System, consts,
+    mem::ByteAddressable,
+    sched::Event,
+    sio::{device_manager::DeviceManager, gamepad::Gamepad},
 };
 
 pub const PADDR_START: u32 = 0x1F801040;
@@ -129,7 +131,9 @@ impl SerialInterface {
 
             // 1088 cycles is the fixed baudrate delay for all games
             if sio.control.dsr_interrupt_enable() && sio.status.dsr_input_on() {
-                system.scheduler.schedule(Event::SerialSend, 1088, None);
+                system
+                    .scheduler
+                    .schedule(Event::SerialSend, consts::BAUDRATE_TRANSFER_DELAY, None);
             }
 
             system.sio.push_received_data(received);

@@ -1,3 +1,4 @@
+use crate::cdrom::ResponseType;
 use arrayvec::ArrayVec;
 
 #[derive(Clone, Copy, PartialEq)]
@@ -6,14 +7,14 @@ pub struct TimerInterrupt {
     pub toggle: bool,
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(PartialEq, Clone)]
 pub enum Event {
     VBlankStart,
     VBlankEnd,
     HBlankStart,
     HBlankEnd,
     Timer(TimerInterrupt),
-    CdromResultIrq,
+    CdromResultIrq(ResponseType),
     SerialSend,
 }
 
@@ -47,7 +48,7 @@ impl EventScheduler {
 
         if let Some(cycles) = task.repeat {
             // Reschedule repeating event
-            self.schedule(task.event, cycles, Some(cycles));
+            self.schedule(task.event.clone(), cycles, Some(cycles));
         }
 
         Some(task.event)
