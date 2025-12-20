@@ -1,6 +1,8 @@
 mod cd_image;
 mod commands;
 
+use std::ops::Div;
+
 use arrayvec::ArrayVec;
 use tracing::trace;
 
@@ -54,7 +56,30 @@ bitfield::bitfield! {
 bitfield::bitfield! {
     #[derive(Default)]
     pub struct Status(u8);
-    pub shell_open, set_shell_open: 4;
+    pub _, set_shell_open: 4;
+    pub _, set_seeking: 6;
+}
+
+enum Speed {
+    Normal,
+    Double,
+}
+
+impl Speed {
+    fn transform<T>(&self, value: T) -> T
+    where
+        T: Div<u64, Output = T>,
+    {
+        match self {
+            Speed::Normal => value,
+            Speed::Double => value / 2,
+        }
+    }
+}
+
+enum SectorSize {
+    DataOnly,
+    WholeSectorExceptSyncBytes,
 }
 
 pub struct CdRom {
@@ -63,6 +88,9 @@ pub struct CdRom {
     hintmsk: Hintmsk,
     parameters: ArrayVec<u8, 16>,
     results: Vec<u8>,
+
+    speed: Speed,
+    sector_size: SectorSize,
 
     disc: Option<CdImage>,
 
@@ -81,6 +109,8 @@ impl Default for CdRom {
             disc: None,
             // Motor on, shell open
             status: Status(0x12),
+            speed: Speed::Normal,
+            sector_size: SectorSize::DataOnly,
         }
     }
 }
@@ -155,6 +185,8 @@ impl CdRom {
             0x19 => cdrom.test(),
             0x1A => cdrom.get_id(),
             0x02 => cdrom.set_loc(),
+            0x15 => cdrom.seekl(),
+            0x0E => cdrom.setmode(),
             _ => unimplemented!("cdrom command {cmd:02x}"),
         };
 
@@ -168,15 +200,19 @@ impl CdRom {
     pub fn handle_response(system: &mut System, response: ResponseType) {
         let cdrom = &mut system.cdrom;
 
+        cdrom.results.clear();
         match response {
-            ResponseType::INT3(array_vec) => {
-                cdrom.results.clear();
-                cdrom.results.extend(array_vec);
+            ResponseType::INT3(response) => {
+                cdrom.results.extend(response);
                 cdrom.hintsts.set_interrupt(3);
             }
-            ResponseType::INT2(array_vec) => {
-                cdrom.results.clear();
-                cdrom.results.extend(array_vec);
+            ResponseType::INT2(response) => {
+                cdrom.results.extend(response);
+                cdrom.hintsts.set_interrupt(2);
+            }
+            ResponseType::INT2Seek => {
+                cdrom.status.set_seeking(false);
+                cdrom.results.extend(vec![cdrom.status.0]);
                 cdrom.hintsts.set_interrupt(2);
             }
         }
