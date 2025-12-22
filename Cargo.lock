@@ -1352,7 +1352,6 @@ dependencies = [
  "gilrs",
  "softbuffer",
  "starpsx-core",
- "starpsx-renderer",
  "tracing",
  "tracing-appender",
  "tracing-subscriber",

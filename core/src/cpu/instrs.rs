@@ -756,17 +756,19 @@ impl Cpu {
     }
 
     // Stubbed GTE for shell stuff
-    pub fn cop2(_system: &mut System, _instr: Instruction) -> Result<(), Exception> {
-        // todo!("GTE instruction {:x}", instr.0);
+    pub fn cop2(_system: &mut System, instr: Instruction) -> Result<(), Exception> {
+        debug!(target: "cpu", "stubbed GTE instruction instr={:#08x}", instr.0);
         Ok(())
     }
 
     pub fn lwc2(_system: &mut System, instr: Instruction) -> Result<(), Exception> {
-        todo!("GTE load word {:x}", instr.0);
+        debug!(target: "cpu", "stubbed GTE load word={:#08x}", instr.0);
+        Ok(())
     }
 
     pub fn swc2(_system: &mut System, instr: Instruction) -> Result<(), Exception> {
-        todo!("GTE store word {:x}", instr.0);
+        debug!(target: "cpu", "stubbed GTE store word={:#08x}", instr.0);
+        Ok(())
     }
 
     pub fn cop1() -> Result<(), Exception> {

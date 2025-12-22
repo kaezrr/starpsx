@@ -114,6 +114,8 @@ impl System {
                 }
                 RunnablePath::Executable(path_buf) => psx.sideload_exe(path_buf)?,
             }
+        } else {
+            psx.cdrom.status.set_shell_open(true);
         }
 
         // Schedule some initial events
@@ -144,10 +146,6 @@ impl System {
     pub fn frame_buffer(&self) -> &[u32] {
         let (width, height) = self.gpu.get_resolution();
         &self.gpu.renderer.frame_buffer()[..(width * height)]
-    }
-
-    pub fn frame_buffer_vram(&self) -> &[u32] {
-        self.gpu.renderer.frame_buffer()
     }
 
     pub fn get_resolution(&self) -> (u32, u32) {

@@ -31,18 +31,18 @@ The project is split into three crates:
 
 ## Component Status
 
-| Component   | Status      | Notes                                                         |
-| ----------- | ----------- | ------------------------------------------------------------- |
-| CPU         | Done        | Passes most test roms                                         |
-| GPU         | Done        | Might have some bugs                                          |
-| DMA         | Partial     | Only GPU port implemented                                     |
-| Timers      | Done        | Roughly works but it might have bugs                          |
-| CDROM       | Partial     | Just enough to get to the shell                               |
-| Gamepad     | Mostly Done | Port 1 digital pad works, other port and analog mode are left |
-| Memory card | Not started |                                                               |
-| SPU         | Not started |                                                               |
-| GTE         | Not started |                                                               |
-| MDEC        | Not started |                                                               |
+| Component   | Status      | Notes                                           |
+| ----------- | ----------- | ----------------------------------------------- |
+| CPU         | Done        | Passes most test roms                           |
+| GPU         | Done        | Might have some bugs                            |
+| DMA         | Partial     | Only GPU port implemented                       |
+| Timers      | Done        | Roughly works but it might have bugs            |
+| CDROM       | Partial     | Can barely boot games                           |
+| Gamepad     | Mostly Done | Port 1 digital pad works, analog mode remaining |
+| Memory card | Not started |                                                 |
+| SPU         | Not started |                                                 |
+| GTE         | Not started |                                                 |
+| MDEC        | Not started |                                                 |
 
 ## Current Status
 
@@ -59,12 +59,12 @@ cargo build --release
 ## Running Instructions
 
 ```sh
-starpsx <path/to/bios> <path/to/exe>(optional)
+starpsx [path/to/bios] [path/to/runnable](optional)
 
 ```
 
-- `<path/to/bios>` should point to a valid PlayStation BIOS image.
-- `<path/to/exe>` is optional and can be used to sideload an EXE file.
+- `[path/to/bios]` should point to a valid PlayStation BIOS image.
+- `[path/to/runnable]` is optional and can be used to either boot a game(bin files only) or sideload an EXE file.
 
 ## Dependencies
 

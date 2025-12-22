@@ -66,11 +66,16 @@ impl Renderer {
     }
 
     pub fn copy_display_to_fb(&mut self) {
-        let sx = self.ctx.display_vram_start.x as usize;
-        let sy = self.ctx.display_vram_start.y as usize;
-
-        let width = self.ctx.resolution.x as usize;
-        let height = self.ctx.resolution.y as usize;
+        let (sx, sy, width, height) = if cfg!(feature = "full-vram") {
+            (0, 0, VRAM_WIDTH, VRAM_HEIGHT)
+        } else {
+            (
+                self.ctx.display_vram_start.x as usize,
+                self.ctx.display_vram_start.y as usize,
+                self.ctx.resolution.x as usize,
+                self.ctx.resolution.y as usize,
+            )
+        };
 
         match self.ctx.display_depth {
             utils::DisplayDepth::D15 => {
@@ -99,20 +104,6 @@ impl Renderer {
                     }
                     vram_x = 0;
                 }
-            }
-        }
-    }
-
-    pub fn copy_vram_to_fb(&mut self) {
-        let sx = 0;
-        let sy = 0;
-        let width = 1024;
-        let height = 512;
-
-        for y in 0..height {
-            for x in 0..width {
-                let pixel = self.vram_read(sx + x, sy + y);
-                self.pixel_buffer[width * y + x] = Color::new_5bit(pixel);
             }
         }
     }

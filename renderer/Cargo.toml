@@ -7,3 +7,6 @@ edition = "2024"
 bitfield = "0.19.1"
 bytemuck = { version = "1.23.2", features = ["derive"] }
 tracing = "0.1.43"
+
+[features]
+full-vram=[]

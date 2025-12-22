@@ -1,12 +1,12 @@
 mod cd_image;
 mod commands;
 
-use std::ops::Div;
+use std::{collections::VecDeque, ops::Div};
 
 use arrayvec::ArrayVec;
 use tracing::trace;
 
-use crate::{System, mem::ByteAddressable, sched::Event};
+use crate::{System, consts::AVG_RATE_INT1, mem::ByteAddressable, sched::Event};
 
 pub use cd_image::CdImage;
 pub use commands::ResponseType;
@@ -18,12 +18,10 @@ bitfield::bitfield! {
     #[derive(Default)]
     struct Address(u8);
     bank, _: 1, 0;
-    adpcm_busy, _ : 2;
-    param_empty, set_param_empty : 3;
-    param_write_ready, set_param_write_ready : 4;
-    result_read_ready, set_result_read_ready : 5;
-    data_request, _ : 6;
-    busy, _ : 7;
+    _, set_param_empty : 3;
+    _, set_param_write_ready : 4;
+    _, set_result_read_ready : 5;
+    _, set_data_request: 6;
 }
 
 bitfield::bitfield! {
@@ -57,9 +55,12 @@ bitfield::bitfield! {
     #[derive(Default)]
     pub struct Status(u8);
     pub _, set_shell_open: 4;
-    pub _, set_seeking: 6;
+    _, set_seeking: 6;
+    _, set_reading: 5;
+    _, set_motor_on: 1;
 }
 
+#[derive(Clone, Copy, Debug)]
 enum Speed {
     Normal,
     Double,
@@ -77,7 +78,8 @@ impl Speed {
     }
 }
 
-enum SectorSize {
+#[derive(Clone, Copy, Debug)]
+pub enum SectorSize {
     DataOnly,
     WholeSectorExceptSyncBytes,
 }
@@ -91,6 +93,7 @@ pub struct CdRom {
 
     speed: Speed,
     sector_size: SectorSize,
+    sector_buffer: VecDeque<u8>,
 
     disc: Option<CdImage>,
 
@@ -107,8 +110,9 @@ impl Default for CdRom {
             parameters: ArrayVec::default(),
             results: Vec::new(),
             disc: None,
+            sector_buffer: VecDeque::new(),
             // Motor on, shell open
-            status: Status(0x12),
+            status: Status(0),
             speed: Speed::Normal,
             sector_size: SectorSize::DataOnly,
         }
@@ -118,44 +122,57 @@ impl Default for CdRom {
 impl CdRom {
     // Only bit 0-1 are writable
     fn write_addr(&mut self, val: u8) {
-        trace!(
-            bank = self.address.bank(),
-            "cdrom write address={:#02x}", val
-        );
+        trace!("cdrom write address={:#02x}", val);
         self.address.0 = (self.address.0 & !3) | (val & 3);
     }
 
     fn read_addr(&self) -> u8 {
-        trace!(
-            bank = self.address.bank(),
-            "cdrom read address={:#02x}", self.address.0
-        );
+        trace!("cdrom read address={:#02x}", self.address.0);
         self.address.0
+    }
+
+    fn read_rddata(&mut self) -> u8 {
+        self.pop_from_sector_buffer()
     }
 
     // Clear the corresponding set bit of HINTSTS
     fn write_hclrctl(&mut self, val: u8) {
-        trace!(
-            bank = self.address.bank(),
-            "cdrom write hclrctl={:#02x}", val
-        );
+        trace!("cdrom write hclrctl={:#02x}", val);
         self.hintsts.0 &= !(val & 0x1F)
     }
 
+    fn read_hintsts(&self) -> u8 {
+        trace!("cdrom read hintsts={:#02x}", self.hintsts.0);
+        self.hintsts.0 | 0xE0 // Bits 5-7 are always 1 on read
+    }
+
     fn write_hintmsk(&mut self, val: u8) {
-        trace!(
-            bank = self.address.bank(),
-            "cdrom write hintmsk={:#02x}", val
-        );
+        trace!("cdrom write hintmsk={:#02x}", val);
         self.hintmsk.0 = val;
     }
 
-    fn read_hintsts(&self) -> u8 {
-        trace!(
-            bank = self.address.bank(),
-            "cdrom read hintsts={:#02x}", self.hintsts.0
-        );
-        self.hintsts.0 | 0xE0 // Bits 5-7 are always 1 on read
+    fn read_hintmsk(&self) -> u8 {
+        trace!("cdrom read hintmsk={:#02x}", self.hintmsk.0);
+        self.hintmsk.0 | 0xE0 // Bits 5-7 are always 1 on read
+    }
+
+    fn write_hchpctl(&mut self, data: u8) {
+        trace!("cdrom write hchpctl={:#02x}", data);
+    }
+
+    fn push_to_sector_buffer(&mut self, data: Vec<u8>) {
+        self.sector_buffer = VecDeque::from(data);
+        self.address.set_data_request(true);
+    }
+
+    fn pop_from_sector_buffer(&mut self) -> u8 {
+        let data = self.sector_buffer.pop_front().unwrap();
+
+        if self.sector_buffer.is_empty() {
+            self.address.set_data_request(false);
+        }
+
+        data
     }
 
     fn push_parameter(&mut self, val: u8) {
@@ -182,18 +199,30 @@ impl CdRom {
         let cdrom = &mut system.cdrom;
         let responses = match cmd {
             0x01 => cdrom.nop(),
+            0x0A => cdrom.init(),
             0x19 => cdrom.test(),
             0x1A => cdrom.get_id(),
             0x02 => cdrom.set_loc(),
             0x15 => cdrom.seekl(),
             0x0E => cdrom.setmode(),
+            0x06 => cdrom.readn(),
+            0x09 => {
+                system
+                    .scheduler
+                    .unschedule(&Event::CdromResultIrq(ResponseType::INT1Stat));
+                cdrom.pause()
+            }
             _ => unimplemented!("cdrom command {cmd:02x}"),
         };
 
         responses.get().into_iter().for_each(|(res_type, delay)| {
+            let repeat = match res_type {
+                ResponseType::INT1Stat => Some(cdrom.speed.transform(AVG_RATE_INT1)),
+                _ => None,
+            };
             system
                 .scheduler
-                .schedule(Event::CdromResultIrq(res_type), delay, None)
+                .schedule(Event::CdromResultIrq(res_type), delay, repeat)
         });
     }
 
@@ -214,6 +243,18 @@ impl CdRom {
                 cdrom.status.set_seeking(false);
                 cdrom.results.extend(vec![cdrom.status.0]);
                 cdrom.hintsts.set_interrupt(2);
+            }
+            ResponseType::INT1Stat => {
+                trace!("pushing data to sector buffer");
+                let sector_data = cdrom
+                    .disc
+                    .as_mut()
+                    .unwrap()
+                    .read_sector_and_advance(cdrom.sector_size);
+
+                cdrom.push_to_sector_buffer(sector_data);
+                cdrom.results.extend(vec![cdrom.status.0]);
+                cdrom.hintsts.set_interrupt(1);
             }
         }
 
@@ -240,14 +281,40 @@ pub fn read<T: ByteAddressable>(system: &mut System, addr: u32) -> T {
     let offs = addr - PADDR_START;
     let cdrom = &mut system.cdrom;
 
+    // RDDATA register special case
+    if cdrom.address.bank() == 0 && offs == 2 {
+        let word = match T::LEN {
+            1 => {
+                let b1 = cdrom.read_rddata();
+                u32::from_le_bytes([b1, 0, 0, 0])
+            }
+            2 => {
+                let b1 = cdrom.read_rddata();
+                let b2 = cdrom.read_rddata();
+                u32::from_le_bytes([b1, b2, 0, 0])
+            }
+            4 => {
+                let b1 = cdrom.read_rddata();
+                let b2 = cdrom.read_rddata();
+                let b3 = cdrom.read_rddata();
+                let b4 = cdrom.read_rddata();
+                u32::from_le_bytes([b1, b2, b3, b4])
+            }
+            _ => unreachable!(),
+        };
+
+        return T::from_u32(word);
+    }
+
     let val: u8 = match (cdrom.address.bank(), offs) {
         (_, 0) => cdrom.read_addr(),
+        (0, 3) => cdrom.read_hintmsk(),
         (1, 1) => cdrom.pop_result(),
         (1, 3) => cdrom.read_hintsts(),
         (x, y) => unimplemented!("cdrom read bank {x} reg {y}"),
     };
 
-    T::from_u32(u32::from(val))
+    T::from_u32(val.into())
 }
 
 pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, data: T) {
@@ -259,6 +326,7 @@ pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, data: T) {
         (_, 0) => cdrom.write_addr(val),
         (0, 1) => CdRom::exec_command(system, val),
         (0, 2) => cdrom.push_parameter(val),
+        (0, 3) => cdrom.write_hchpctl(val),
         (1, 3) => cdrom.write_hclrctl(val),
         (1, 2) => cdrom.write_hintmsk(val),
         (x, y) => unimplemented!("cdrom write bank {x} reg {y} <- {data:08x}"),

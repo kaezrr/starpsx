@@ -8,10 +8,12 @@ use tracing::{error, trace, warn};
 use winit::{application::ApplicationHandler, event::WindowEvent};
 use winit::{dpi::LogicalSize, window::Window};
 
-const APP_WINDOW_WIDTH: u32 = 960;
-const APP_WINDOW_HEIGHT: u32 = 720;
+const WINDOW_SIZE: LogicalSize<u32> = if cfg!(feature = "full-vram") {
+    LogicalSize::new(1600, 800)
+} else {
+    LogicalSize::new(960, 720)
+};
 
-const WINDOW_SIZE: LogicalSize<u32> = LogicalSize::new(APP_WINDOW_WIDTH, APP_WINDOW_HEIGHT);
 const FRAME_TIME: Duration = Duration::from_nanos(1_000_000_000 / TARGET_FPS);
 
 pub struct AppState {
@@ -110,21 +112,6 @@ impl AppState {
 
         let mut buffer = self.surface.buffer_mut().unwrap();
         buffer.copy_from_slice(self.system.frame_buffer());
-        buffer.present().unwrap();
-    }
-
-    #[allow(dead_code)]
-    fn draw_vram_to_screen(&mut self) {
-        let (width, height) = (1024, 512);
-        self.surface
-            .resize(
-                NonZeroU32::new(width).unwrap(),
-                NonZeroU32::new(height).unwrap(),
-            )
-            .unwrap();
-
-        let mut buffer = self.surface.buffer_mut().unwrap();
-        buffer.copy_from_slice(self.system.frame_buffer_vram());
         buffer.present().unwrap();
     }
 

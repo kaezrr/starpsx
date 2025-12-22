@@ -54,8 +54,12 @@ impl EventScheduler {
         Some(task.event)
     }
 
+    pub fn unschedule(&mut self, event: &Event) {
+        self.tasks.retain(|e| e.event != *event);
+    }
+
     pub fn schedule(&mut self, event: Event, cycles_length: u64, repeat: Option<u64>) {
-        self.tasks.retain(|e| e.event != event);
+        self.unschedule(&event);
 
         let cycle = self.sysclk + cycles_length;
 
