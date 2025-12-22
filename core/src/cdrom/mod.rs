@@ -93,7 +93,7 @@ pub struct CdRom {
 
     speed: Speed,
     sector_size: SectorSize,
-    sector_buffer: VecDeque<u8>,
+    sector_buffer: VecDeque<u32>,
 
     disc: Option<CdImage>,
 
@@ -131,7 +131,7 @@ impl CdRom {
         self.address.0
     }
 
-    fn read_rddata(&mut self) -> u8 {
+    fn read_rddata_word(&mut self) -> u32 {
         self.pop_from_sector_buffer()
     }
 
@@ -160,12 +160,12 @@ impl CdRom {
         trace!("cdrom write hchpctl={:#02x}", data);
     }
 
-    fn push_to_sector_buffer(&mut self, data: Vec<u8>) {
-        self.sector_buffer = VecDeque::from(data);
+    fn replace_sector_buffer(&mut self, new_buffer: VecDeque<u32>) {
+        self.sector_buffer = new_buffer;
         self.address.set_data_request(true);
     }
 
-    fn pop_from_sector_buffer(&mut self) -> u8 {
+    fn pop_from_sector_buffer(&mut self) -> u32 {
         let data = self.sector_buffer.pop_front().unwrap();
 
         if self.sector_buffer.is_empty() {
@@ -245,14 +245,13 @@ impl CdRom {
                 cdrom.hintsts.set_interrupt(2);
             }
             ResponseType::INT1Stat => {
-                trace!("pushing data to sector buffer");
                 let sector_data = cdrom
                     .disc
                     .as_mut()
                     .unwrap()
                     .read_sector_and_advance(cdrom.sector_size);
 
-                cdrom.push_to_sector_buffer(sector_data);
+                cdrom.replace_sector_buffer(sector_data);
                 cdrom.results.extend(vec![cdrom.status.0]);
                 cdrom.hintsts.set_interrupt(1);
             }
@@ -281,40 +280,21 @@ pub fn read<T: ByteAddressable>(system: &mut System, addr: u32) -> T {
     let offs = addr - PADDR_START;
     let cdrom = &mut system.cdrom;
 
-    // RDDATA register special case
+    // RDDATA reads happen mostly through DMA, ensure bus width is a word
     if cdrom.address.bank() == 0 && offs == 2 {
-        let word = match T::LEN {
-            1 => {
-                let b1 = cdrom.read_rddata();
-                u32::from_le_bytes([b1, 0, 0, 0])
-            }
-            2 => {
-                let b1 = cdrom.read_rddata();
-                let b2 = cdrom.read_rddata();
-                u32::from_le_bytes([b1, b2, 0, 0])
-            }
-            4 => {
-                let b1 = cdrom.read_rddata();
-                let b2 = cdrom.read_rddata();
-                let b3 = cdrom.read_rddata();
-                let b4 = cdrom.read_rddata();
-                u32::from_le_bytes([b1, b2, b3, b4])
-            }
-            _ => unreachable!(),
-        };
-
-        return T::from_u32(word);
+        debug_assert_eq!(T::LEN, 4);
     }
 
-    let val: u8 = match (cdrom.address.bank(), offs) {
-        (_, 0) => cdrom.read_addr(),
-        (0, 3) => cdrom.read_hintmsk(),
-        (1, 1) => cdrom.pop_result(),
-        (1, 3) => cdrom.read_hintsts(),
+    let val: u32 = match (cdrom.address.bank(), offs) {
+        (_, 0) => cdrom.read_addr().into(),
+        (0, 2) => cdrom.read_rddata_word(),
+        (0, 3) => cdrom.read_hintmsk().into(),
+        (1, 1) => cdrom.pop_result().into(),
+        (1, 3) => cdrom.read_hintsts().into(),
         (x, y) => unimplemented!("cdrom read bank {x} reg {y}"),
     };
 
-    T::from_u32(val.into())
+    T::from_u32(val)
 }
 
 pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, data: T) {
@@ -329,6 +309,13 @@ pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, data: T) {
         (0, 3) => cdrom.write_hchpctl(val),
         (1, 3) => cdrom.write_hclrctl(val),
         (1, 2) => cdrom.write_hintmsk(val),
+
+        (2, 2) => trace!(reg = "atv0", "cdrom ignored write to audio reg"),
+        (2, 3) => trace!(reg = "atv1", "cdrom ignored write to audio reg"),
+        (3, 1) => trace!(reg = "atv2", "cdrom ignored write to audio reg"),
+        (3, 2) => trace!(reg = "atv3", "cdrom ignored write to audio reg"),
+        (3, 3) => trace!(reg = "adpctl", "cdrom ignored write to audio reg"),
+
         (x, y) => unimplemented!("cdrom write bank {x} reg {y} <- {data:08x}"),
     }
 }

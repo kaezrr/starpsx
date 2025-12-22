@@ -6,6 +6,7 @@ use std::array::from_fn;
 use crate::cdrom;
 use crate::{System, mem::ByteAddressable};
 use channel::Channel;
+use tracing::trace;
 use utils::{Direction, Port, Step, Sync};
 
 bitfield::bitfield! {
@@ -126,6 +127,7 @@ impl DMAController {
                     let src_word = system.ram.read::<u32>(cur_addr);
                     match port {
                         Port::Gpu => system.gpu.gp0(src_word),
+                        Port::Spu => trace!("ignoring dma from ram to spu"),
                         _ => todo!("DMA destination {port:?}"),
                     }
                 }

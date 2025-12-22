@@ -8,6 +8,7 @@ starpsx-renderer = { path = "../renderer" }
 arrayvec = "0.7.6"
 bitfield = "0.19.1"
 tracing = "0.1.43"
+bytemuck = "1.24.0"
 
 [features]
 full-vram=["starpsx-renderer/full-vram"]

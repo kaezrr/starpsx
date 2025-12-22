@@ -1,8 +1,12 @@
 bios := "./stuff/SCPH1001.BIN"
 
-run level *args:
+run-vram level *args:
     RUST_LOG=starpsx=error,starpsx_core={{level}} \
     cargo run --features full-vram -- {{bios}} {{args}}
+
+run level *args:
+    RUST_LOG=starpsx=error,starpsx_core={{level}} \
+    cargo run -- {{bios}} {{args}}
 
 run-trace *args:
     RUST_LOG=starpsx=info,starpsx_core=trace,mem=trace \
