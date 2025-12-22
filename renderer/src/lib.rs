@@ -131,12 +131,14 @@ impl Renderer {
     // BEWARE OF OFF BY ONE ERRORS!!!
     pub fn draw_rectangle_mono<const SEMI_TRANS: bool>(
         &mut self,
-        r: Vec2,
+        mut r: Vec2,
         side_x: i32,
         side_y: i32,
         color: Color,
         textured: Option<(Clut, bool, Vec2)>,
     ) {
+        r += self.ctx.drawing_area_offset;
+
         let min_x = r.x;
         let min_y = r.y;
         let max_x = r.x + side_x - 1;
@@ -188,7 +190,10 @@ impl Renderer {
         }
     }
 
-    pub fn draw_line(&mut self, l: [Vec2; 2], options: DrawOptions<2>) {
+    pub fn draw_line(&mut self, mut l: [Vec2; 2], options: DrawOptions<2>) {
+        l.iter_mut()
+            .for_each(|v| *v += self.ctx.drawing_area_offset);
+
         let (x0, x1) = (l[0].x, l[1].x);
         let (y0, y1) = (l[0].y, l[1].y);
 
@@ -262,6 +267,9 @@ impl Renderer {
     }
 
     pub fn draw_triangle(&mut self, mut t: [Vec2; 3], mut options: DrawOptions<3>) {
+        t.iter_mut()
+            .for_each(|v| *v += self.ctx.drawing_area_offset);
+
         if needs_vertex_reordering(&t) {
             t.swap(0, 1);
             options.swap_first_two_vertex();

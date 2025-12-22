@@ -268,6 +268,9 @@ impl Gpu {
         let (texture, uv1) = parse_page_uv(params[4].0, clut);
         let uv2 = parse_uv(params[6].0);
 
+        // for some goddamn reason this also updates the global texture
+        self.renderer.ctx.rect_texture = texture;
+
         self.renderer.draw_triangle(
             [v0, v1, v2],
             DrawOptions {
