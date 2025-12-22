@@ -27,7 +27,7 @@ pub struct Task {
 #[derive(Default)]
 pub struct EventScheduler {
     sysclk: u64,
-    tasks: ArrayVec<Task, 6>,
+    tasks: ArrayVec<Task, 32>,
 }
 
 impl EventScheduler {

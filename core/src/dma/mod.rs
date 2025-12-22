@@ -6,16 +6,49 @@ use std::array::from_fn;
 use crate::cdrom;
 use crate::{System, mem::ByteAddressable};
 use channel::Channel;
-use tracing::trace;
+use tracing::{debug, trace};
 use utils::{Direction, Port, Step, Sync};
 
 bitfield::bitfield! {
     #[derive(Copy, Clone)]
-    pub struct Interrupt(u32);
-    bus_er, _ : 15;
-    irq_en, _ : 23;
-    channel_irq_en, _: 30, 24;
-    channel_irq_fl, set_channel_irq_fl: 22, 16;
+    struct Interrupt(u32);
+    bus_error, _ : 15;
+    channel_irq_en, _ : 23;
+    channel_irq_flag, set_channel_irq_flag: 30, 24;
+    channel_irq_mask, _: 22, 16;
+    master_irq, set_master_irq : 31;
+}
+
+// Ignoring 0-6 channel irq setting, all irqs happen on completion for now
+impl Interrupt {
+    fn master_flag(&self) -> bool {
+        let channel_match = (self.channel_irq_flag() & self.channel_irq_mask()) > 0;
+        self.bus_error() || (self.channel_irq_en() && channel_match)
+    }
+
+    pub fn update_irq(&mut self) -> bool {
+        let new_master_flag = self.master_flag();
+        let old_master_flag = self.master_irq();
+
+        self.set_master_irq(new_master_flag);
+
+        !old_master_flag && new_master_flag
+    }
+
+    pub fn should_irq_on_channel_complete(&mut self, port: Port) -> bool {
+        if self.mask_enabled(port) {
+            self.set_channel_irq_flag_bit(port);
+        }
+        self.update_irq()
+    }
+
+    fn set_channel_irq_flag_bit(&mut self, port: Port) {
+        self.0 |= 1 << ((port as u32) + 24);
+    }
+
+    fn mask_enabled(&mut self, port: Port) -> bool {
+        self.0 & (1 << ((port as u32) + 16)) != 0
+    }
 }
 
 pub struct DMAController {
@@ -38,62 +71,38 @@ pub const PADDR_START: u32 = 0x1F801080;
 pub const PADDR_END: u32 = 0x1F8010FF;
 
 impl DMAController {
-    pub fn get_mut_channel(&mut self, x: u32) -> &mut Channel {
+    fn get_mut_channel(&mut self, x: u32) -> &mut Channel {
         &mut self.channels[Port::from(x) as usize]
     }
 
-    pub fn get_channel(&self, x: u32) -> &Channel {
+    fn get_channel(&self, x: u32) -> &Channel {
         &self.channels[Port::from(x) as usize]
     }
 
-    pub fn read_reg(&self, addr: u32) -> u32 {
-        let offs = addr - PADDR_START;
-        let major = (offs >> 4) & 0x7;
-        let minor = (offs) & 0xF;
-
-        match (major, minor) {
-            (0..=6, 0) => self.get_channel(major).base,
-            (0..=6, 4) => self.get_channel(major).block_ctl.0,
-            (0..=6, 8) => self.get_channel(major).ctl.0,
-            (7, 0) => self.control,
-            (7, 4) => self.interrupt.0,
-            _ => unimplemented!("DMA read {offs:x}"),
-        }
-    }
-
-    pub fn write_reg(&mut self, addr: u32, data: u32) -> Option<Port> {
-        let offs = addr - PADDR_START;
-        let major = (offs >> 4) & 0x7;
-        let minor = (offs) & 0xF;
-
-        // DICR Bug
-        match (major, minor) {
-            (0..=6, 0) => self.get_mut_channel(major).base = data & 0xFFFFFF,
-            (0..=6, 4) => self.get_mut_channel(major).block_ctl.0 = data,
-            (0..=6, 8) => self.get_mut_channel(major).ctl.0 = data,
-            (7, 0) => self.control = data,
-            (7, 4) => {
-                let mut data = Interrupt(data);
-                data.set_channel_irq_fl(!data.channel_irq_fl());
-                self.interrupt.0 = data.0;
-            }
-            _ => unimplemented!("DMA read {offs:x}"),
-        }
-
-        match major {
-            0..=6 => {
-                let port = Port::from(major);
-                self.channels[port as usize].active().then_some(port)
-            }
-            _ => None,
-        }
-    }
-
-    pub fn do_dma(system: &mut System, port: Port) {
+    fn do_dma(system: &mut System, port: Port) {
         match system.dma.channels[port as usize].ctl.sync() {
             Sync::LinkedList => DMAController::do_dma_linked_list(system, port),
             _ => DMAController::do_dma_block(system, port),
         }
+
+        if system.dma.interrupt.should_irq_on_channel_complete(port) {
+            system.irqctl.stat().set_dma(true);
+        }
+    }
+
+    fn write_dicr<T: ByteAddressable>(&mut self, data: T) {
+        debug_assert_eq!(T::LEN, 4); // word aligned dicr write
+        debug!("dma write to dicr={:08x}", data.to_u32());
+
+        // bit 31 read only, bits 24 - 30 get reset on sets.
+        let mut new_irq = Interrupt(data.to_u32() & !(1 << 31));
+        let old_irq = self.interrupt;
+
+        let old_flags = old_irq.channel_irq_flag();
+        let new_flags = new_irq.channel_irq_flag();
+
+        new_irq.set_channel_irq_flag(old_flags & !(new_flags));
+        self.interrupt = new_irq;
     }
 
     fn do_dma_block(system: &mut System, port: Port) {
@@ -127,7 +136,7 @@ impl DMAController {
                     let src_word = system.ram.read::<u32>(cur_addr);
                     match port {
                         Port::Gpu => system.gpu.gp0(src_word),
-                        Port::Spu => trace!("ignoring dma from ram to spu"),
+                        Port::Spu => trace!("dma ignoring transfer from ram to spu"),
                         _ => todo!("DMA destination {port:?}"),
                     }
                 }
@@ -167,12 +176,44 @@ impl DMAController {
     }
 }
 
-pub fn read<T: ByteAddressable>(system: &mut System, offs: u32) -> T {
-    T::from_u32(system.dma.read_reg(offs))
+pub fn read<T: ByteAddressable>(system: &mut System, addr: u32) -> T {
+    let offs = addr - PADDR_START;
+    let major = (offs >> 4) & 0x7;
+    let minor = (offs) & 0xF;
+    let dma = &mut system.dma;
+
+    let data = match (major, minor) {
+        (0..=6, 0) => dma.get_channel(major).base,
+        (0..=6, 4) => dma.get_channel(major).block_ctl.0,
+        (0..=6, 8) => dma.get_channel(major).ctl.0,
+        (7, 0) => dma.control,
+        (7, 4) => dma.interrupt.0,
+        _ => unimplemented!("DMA read {offs:x}"),
+    };
+
+    T::from_u32(data)
 }
 
-pub fn write<T: ByteAddressable>(system: &mut System, offs: u32, data: T) {
-    if let Some(port) = system.dma.write_reg(offs, data.to_u32()) {
-        DMAController::do_dma(system, port);
+pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, data: T) {
+    let offs = addr - PADDR_START;
+    let major = (offs >> 4) & 0x7;
+    let minor = (offs) & 0xF;
+    let dma = &mut system.dma;
+
+    // DICR Bug
+    match (major, minor) {
+        (0..=6, 0) => dma.get_mut_channel(major).base = data.to_u32() & 0xFFFFFF,
+        (0..=6, 4) => dma.get_mut_channel(major).block_ctl.0 = data.to_u32(),
+        (0..=6, 8) => dma.get_mut_channel(major).ctl.0 = data.to_u32(),
+        (7, 0) => dma.control = data.to_u32(),
+        (7, 4) => dma.write_dicr(data),
+        _ => unimplemented!("DMA read {offs:x}"),
+    }
+
+    if let 0..=6 = major {
+        let port = Port::from(major);
+        if dma.channels[port as usize].active() {
+            DMAController::do_dma(system, port);
+        }
     }
 }
