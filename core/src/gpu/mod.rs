@@ -135,6 +135,27 @@ const QUAD: bool = true;
 const TRI: bool = false;
 
 impl Gpu {
+    pub fn draw_area_top_left(&self) -> u32 {
+        let d = self.renderer.ctx.drawing_area_top_left;
+        let (x, y) = (d.x as u32, d.y as u32);
+
+        ((y & 0x1FF) << 10) | (x & 0x3FF)
+    }
+
+    pub fn draw_area_bottom_right(&self) -> u32 {
+        let d = self.renderer.ctx.drawing_area_bottom_right;
+        let (x, y) = (d.x as u32, d.y as u32);
+
+        ((y & 0x1FF) << 10) | (x & 0x3FF)
+    }
+
+    pub fn draw_offset(&self) -> u32 {
+        let d = self.renderer.ctx.drawing_area_offset;
+        let (x, y) = (d.x as u32, d.y as u32);
+
+        ((y & 0x3FF) << 11) | (x & 0x7FF)
+    }
+
     pub fn write_reg(&mut self, addr: u32, data: u32) {
         let offs = addr - PADDR_START;
         match offs {

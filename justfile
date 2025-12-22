@@ -10,7 +10,7 @@ run-trace *args:
 
 run-release *args:
     RUST_LOG=starpsx=info,starpsx_core=info \
-    cargo run --release -- {{bios}} {{args}}
+    cargo run --release --features full-vram -- {{bios}} {{args}}
 
 run-disasm *args:
     RUST_LOG=starpsx=info,starpsx_core=trace,cpu=trace \
