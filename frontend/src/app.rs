@@ -76,11 +76,10 @@ impl ApplicationHandler for App {
         state.process_input_events();
         state.system.step_frame();
 
+        state.draw_to_screen();
+        state.window.request_redraw();
+
         match event {
-            WindowEvent::RedrawRequested => {
-                state.draw_to_screen();
-                state.window.request_redraw();
-            }
             WindowEvent::CloseRequested => event_loop.exit(),
             event => trace!(?event, "ignoring window event"),
         }
