@@ -2,32 +2,11 @@
 members = [ "core", "frontend", "renderer" ]
 resolver = "3"
 
-# Useful for compiling quickly and running with debug checks.
 [profile.dev]
-opt-level = 2
-strip = false
-debug = true
-debug-assertions = true
-overflow-checks = true
-lto = false
-incremental = true
-codegen-units = 256
-rpath = false
+opt-level = 1
 
-# The profile for the distributed executable.
-# This takes a lot longer to compile and link and should be done sparsely when testing,
-# but this is the profile for the actual executable that will be distributed.
-[profile.release]
+[profile.dev.package."*"]
 opt-level = 3
-strip = true
-debug = false
-debug-assertions = false
-overflow-checks = false
-lto = "fat"
-incremental = false
-codegen-units = 1
-rpath = false
-panic = "abort"
 
 [profile.benchmarking]
 inherits = "release"
