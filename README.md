@@ -3,14 +3,46 @@
 StarPSX is a free and open-source PlayStation 1 emulator written in Rust.  
 This project is highly work in progress and not suitable for playing games yet.
 
-## Installation
+## Screenshots
 
-You can download the [latest release](https://github.com/kaezrr/starpsx/releases/latest) from Github.  
-StarPSX is also available on the AUR, for Arch-based distros:
+<div align="center" class="grid" markdown>
+  <img src="/showcase/mk2-logo.png" width="45%"/>
+  <img src="/showcase/mk2-fight.png" width="45%"/>
+</div>
+
+## Installation & Usage
+
+### Installation
+
+**GitHub:** Download the latest binaries from the [official releases](https://github.com/kaezrr/starpsx/releases/latest).
+
+**Arch Linux (AUR):**
 
 ```sh
 paru -S starpsx-bin
+
 ```
+
+### Building from Source
+
+StarPSX aims to remain self-contained and depends only on the Rust toolchain.
+
+```sh
+cargo build --release
+
+```
+
+### Execution
+
+The emulator is currently CLI-based (with plans for a GUI later). Use the following command structure:
+
+```sh
+starpsx [path/to/bios] [path/to/runnable](optional)
+
+```
+
+- **BIOS**: Path to a valid PlayStation BIOS image.
+- **Runnable**: Optional path to a game (.bin) or a sideloaded .EXE file.
 
 ## Project Structure
 
@@ -31,50 +63,22 @@ The project is split into three crates:
 
 ## Component Status
 
-| Component   | Status      | Notes                                           |
-| ----------- | ----------- | ----------------------------------------------- |
-| CPU         | Done        | Passes most test roms                           |
-| GPU         | Done        | Might have some bugs                            |
-| DMA         | Partial     | Only GPU port implemented                       |
-| Timers      | Done        | Roughly works but it might have bugs            |
-| CDROM       | Partial     | Can barely boot games                           |
-| Gamepad     | Mostly Done | Port 1 digital pad works, analog mode remaining |
-| Memory card | Not started |                                                 |
-| SPU         | Not started |                                                 |
-| GTE         | Not started |                                                 |
-| MDEC        | Not started |                                                 |
+| Component   | Status      | Notes                                         |
+| ----------- | ----------- | --------------------------------------------- |
+| CPU         | Done        | passes most test roms                         |
+| GPU         | Done        | works well with some bugs                     |
+| DMA         | Partial     | only burst and linkedlist dma supported       |
+| Timers      | Done        | roughly works but it might have bugs          |
+| CDROM       | Partial     | boots a few games                             |
+| Gamepad     | Mostly Done | port 1 digital pad works, analog mode pending |
+| Memory card | Not started |                                               |
+| SPU         | Not started |                                               |
+| GTE         | Not started |                                               |
+| MDEC        | Not started |                                               |
 
-## Current Status
+## A Lot Of Thanks To
 
-StarPSX is in the very early stages of development.  
-At the moment, it can boot the BIOS and run some basic test roms.
-
-## Build Instructions
-
-```sh
-cargo build --release
-
-```
-
-## Running Instructions
-
-```sh
-starpsx [path/to/bios] [path/to/runnable](optional)
-
-```
-
-- `[path/to/bios]` should point to a valid PlayStation BIOS image.
-- `[path/to/runnable]` is optional and can be used to either boot a game(bin files only) or sideload an EXE file.
-
-## Dependencies
-
-StarPSX depends only on the Rust toolchain.
-The project aims to avoid external dependencies and remain self-contained.
-
-## Special Thanks
-
-- psx-spx for their wonderful PlayStation documentation
-- jsgroth's PSX blogs for detailed write-ups on PSX emulators.
-- DuckStation for comparing correct behaviors
-- The folks over at the EmuDev Discord for always being helpful
-- PeterLemon and Amidog for their invaluable test ROMs
+- psx-spx for their playstation documentation
+- jsgroth's psx blogs for detailed write-ups on psx emulators.
+- duckstation for comparing correct behaviors
+- The folks over at the emudev discord
