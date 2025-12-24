@@ -1,8 +1,6 @@
 pub mod utils;
 pub mod vec2;
 
-use tracing::debug;
-
 use crate::{
     utils::{
         Clut, Color, ColorOptions, DrawContext, DrawOptions, interpolate_color, interpolate_uv,
@@ -153,8 +151,7 @@ impl Renderer {
         let max_x = std::cmp::min(max_x, self.ctx.drawing_area_bottom_right.x);
         let max_y = std::cmp::min(max_y, self.ctx.drawing_area_bottom_right.y);
 
-        if let Some((clut, _, start_uv)) = textured {
-            debug!(?start_uv, texture = ?self.ctx.rect_texture, "drawing textured rectangle");
+        if let Some((clut, _, _)) = textured {
             self.ctx.rect_texture.set_clut(clut);
         }
 
@@ -163,7 +160,7 @@ impl Renderer {
                 let mut color = color;
 
                 if let Some((_, blended, start_uv)) = textured {
-                    let uv = start_uv + Vec2::new(x - min_x, y - min_y);
+                    let uv = start_uv + Vec2::new(x, y) - r;
                     let texel = self.ctx.rect_texture.get_texel(self, uv);
                     // Fully black texels are ignored
                     if texel == 0 {

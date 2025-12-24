@@ -5,7 +5,6 @@ mod utils;
 use arrayvec::ArrayVec;
 use starpsx_renderer::{Renderer, utils::DisplayDepth};
 
-use tracing::info;
 pub use utils::{
     CommandArguments, CommandFn, DmaDirection, Field, GP0State, HorizontalRes, PolyLineArguments,
     TextureDepth, VMode, VerticalRes, VramCopyFields,
