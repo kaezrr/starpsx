@@ -1,6 +1,8 @@
 pub mod utils;
 pub mod vec2;
 
+use tracing::debug;
+
 use crate::{
     utils::{
         Clut, Color, ColorOptions, DrawContext, DrawOptions, interpolate_color, interpolate_uv,
@@ -40,7 +42,7 @@ impl Renderer {
         }
 
         let index = VRAM_WIDTH * y + x;
-        self.vram[index] = data;
+        self.vram[index] = data | (self.ctx.force_set_masked_bit as u16) << 15;
     }
 
     // Should be affected by mask bit, fix in the future
@@ -81,7 +83,9 @@ impl Renderer {
             utils::DisplayDepth::D15 => {
                 for y in 0..height {
                     for x in 0..width {
-                        let pixel = self.vram_read(sx + x, sy + y);
+                        // let pixel = self.vram_read(sx + x, sy + y);
+                        let index = VRAM_WIDTH * (sy + y) + (sx + x);
+                        let pixel = self.vram[index];
                         self.pixel_buffer[width * y + x] = Color::new_5bit(pixel);
                     }
                 }
@@ -149,7 +153,8 @@ impl Renderer {
         let max_x = std::cmp::min(max_x, self.ctx.drawing_area_bottom_right.x);
         let max_y = std::cmp::min(max_y, self.ctx.drawing_area_bottom_right.y);
 
-        if let Some((clut, _, _)) = textured {
+        if let Some((clut, _, start_uv)) = textured {
+            debug!(?start_uv, texture = ?self.ctx.rect_texture, "drawing textured rectangle");
             self.ctx.rect_texture.set_clut(clut);
         }
 

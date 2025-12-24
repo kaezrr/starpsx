@@ -5,6 +5,7 @@ mod utils;
 use arrayvec::ArrayVec;
 use starpsx_renderer::{Renderer, utils::DisplayDepth};
 
+use tracing::info;
 pub use utils::{
     CommandArguments, CommandFn, DmaDirection, Field, GP0State, HorizontalRes, PolyLineArguments,
     TextureDepth, VMode, VerticalRes, VramCopyFields,
@@ -264,7 +265,7 @@ impl Gpu {
         let lo: u32 = self.renderer.vram_read(vram_col, vram_row).into();
         let hi: u32 = self.renderer.vram_read(vram_col + 1, vram_row).into();
 
-        let data = lo | (hi << 16);
+        self.gpu_read = lo | (hi << 16);
 
         fields.current_col += 2;
         if fields.current_col >= fields.width {
@@ -275,7 +276,6 @@ impl Gpu {
                 return GP0State::AwaitCommand;
             }
         }
-        self.gpu_read = data;
         GP0State::CopyFromVram(fields)
     }
 
