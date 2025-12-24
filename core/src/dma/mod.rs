@@ -6,7 +6,7 @@ use std::array::from_fn;
 use crate::cdrom;
 use crate::{System, mem::ByteAddressable};
 use channel::Channel;
-use tracing::{debug, trace};
+use tracing::trace;
 use utils::{Direction, Port, Step, Sync};
 
 bitfield::bitfield! {
@@ -92,7 +92,7 @@ impl DMAController {
 
     fn write_dicr<T: ByteAddressable>(&mut self, data: T) {
         debug_assert_eq!(T::LEN, 4); // word aligned dicr write
-        debug!("dma write to dicr={:08x}", data.to_u32());
+        trace!("dma write to dicr={:08x}", data.to_u32());
 
         // bit 31 read only, bits 24 - 30 get reset on sets.
         let mut new_irq = Interrupt(data.to_u32() & !(1 << 31));
