@@ -195,7 +195,7 @@ impl System {
 
             0x1F801000..=0x1F801023 => stubbed!("memctl", addr),
 
-            0x1F801060..=0x1F801063 => unimplemented!("read to ramsize"),
+            0x1F801060..=0x1F801063 => T::from_u32(0xB88), // 2MB Ram Size
 
             0x1F801C00..=0x1F801E7F => stubbed!("SPU", addr),
 

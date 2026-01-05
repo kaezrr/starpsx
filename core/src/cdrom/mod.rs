@@ -204,6 +204,7 @@ impl CdRom {
             0x1A => cdrom.get_id(),
             0x02 => cdrom.set_loc(),
             0x15 => cdrom.seekl(),
+            0x0C => cdrom.demute(),
             0x0E => cdrom.setmode(),
             0x06 => cdrom.readn(),
             0x09 => {

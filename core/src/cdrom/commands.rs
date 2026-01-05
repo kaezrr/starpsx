@@ -196,6 +196,15 @@ impl CdRom {
 
         responses
     }
+
+    pub fn demute(&mut self) -> CommandResponse {
+        trace!("cdrom demute");
+
+        let mut responses = CommandResponse::default();
+        responses.push(ResponseType::INT3(vec![self.status.0]), AVG_1ST_RESP_INIT);
+
+        responses
+    }
 }
 
 fn bcd_to_u8(bcd_val: u8) -> Option<u8> {
