@@ -31,7 +31,7 @@ impl DeviceManager {
         let (byte, next_state) = match sio.device_manager.current_state {
             State::None => match data {
                 0x01 => sio.device_manager.process_gamepad_communication(port, data),
-                0x81 => todo!("memory cards not implemented yet"),
+                0x81 => (0xFF, State::None), // memory card not connected
                 _ => unimplemented!("Unknown peripheral address"),
             },
             State::GamepadComm => sio.device_manager.process_gamepad_communication(port, data),

@@ -7,8 +7,6 @@ use crate::System;
 use cop0::Cop0;
 use utils::{Exception, Instruction};
 
-// pub static mut LOG: bool = true;
-
 pub struct Cpu {
     /// 32-bit general purpose registers, R0 is always zero
     pub regs: [u32; 32],
