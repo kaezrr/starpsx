@@ -7,6 +7,7 @@ mod irq;
 mod mem;
 mod sched;
 mod sio;
+mod spu;
 mod timers;
 
 use cdrom::CdImage;
@@ -30,6 +31,8 @@ use tracing::info;
 
 pub use consts::TARGET_FPS;
 pub use sio::gamepad;
+
+use crate::spu::Spu;
 
 enum RunnablePath {
     Game(PathBuf),
@@ -68,6 +71,7 @@ impl Config {
 pub struct System {
     cpu: Cpu,
     gpu: Gpu,
+    spu: Spu,
 
     ram: Ram,
     bios: Bios,
@@ -89,16 +93,20 @@ impl System {
         let mut psx = System {
             cpu: Cpu::default(),
             gpu: Gpu::default(),
+            spu: Spu::default(),
+
             ram: Ram::default(),
             bios: Bios::from_path(&config.bios_path)?,
             scratch: Scratch::default(),
+
             dma: DMAController::default(),
             timers: Timers::default(),
             irqctl: InterruptController::default(),
+
             tty: String::new(),
             scheduler: EventScheduler::default(),
-            cdrom: CdRom::default(),
 
+            cdrom: CdRom::default(),
             // Only 1 gamepad for now
             sio: SerialInterface::new([Some(gamepad::Gamepad::default()), None]),
         };

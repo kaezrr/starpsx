@@ -1,7 +1,7 @@
 use tracing::trace;
 
 use crate::cpu::utils::Exception;
-use crate::{System, cdrom, sio};
+use crate::{System, cdrom, sio, spu};
 use crate::{dma, gpu, irq, timers};
 use std::error::Error;
 use std::fmt::{Display, LowerHex};
@@ -193,11 +193,11 @@ impl System {
 
             sio::PADDR_START..=sio::PADDR_END => sio::read(self, addr),
 
+            spu::PADDR_START..=spu::PADDR_END => spu::read(self, addr),
+
             0x1F801000..=0x1F801023 => stubbed!("memctl", addr),
 
             0x1F801060..=0x1F801063 => T::from_u32(0xB88), // 2MB Ram Size
-
-            0x1F801C00..=0x1F801E7F => stubbed!("SPU", addr),
 
             0xFFFE0130..=0xFFFE0133 => unimplemented!("read to cachectl"),
 
@@ -234,14 +234,13 @@ impl System {
 
             sio::PADDR_START..=sio::PADDR_END => sio::write(self, addr, data),
 
+            spu::PADDR_START..=spu::PADDR_END => spu::write(self, addr, data),
+
             0x1F801000..=0x1F801023 => {
                 trace!(target: "mem", region = "memctl", "stubbed write addr={:#08x}", addr)
             }
             0x1F801060..=0x1F801063 => {
                 trace!(target: "mem", region = "ramsize", "stubbed write addr={:#08x}", addr)
-            }
-            0x1F801C00..=0x1F801E7F => {
-                trace!(target: "mem", region = "spu", "stubbed write addr={:#08x}", addr)
             }
             0xFFFE0130..=0xFFFE0133 => {
                 trace!(target: "mem", region = "cachectl", "stubbed write addr={:#08x}", addr)
