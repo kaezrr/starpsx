@@ -1,19 +1,25 @@
 mod app;
 
-use std::{fs::File, io};
 use tracing::{error, level_filters::LevelFilter};
 use tracing_subscriber::{EnvFilter, Layer, layer::SubscriberExt, util::SubscriberInitExt};
 use winit::error::EventLoopError;
 
-fn clear_log_file(path: &str) -> Result<(), io::Error> {
-    File::create(path)?;
+// Logs to a fixed path for now
+fn initialize_logging() -> Result<(), String> {
+    std::fs::create_dir_all("./logs")
+        .map_err(|e| format!("Failed to create logs directory: {e}"))?;
+    std::fs::File::create("./logs/psx.log")
+        .map_err(|e| format!("Failed to initialize log file: {e}"))?;
     Ok(())
 }
 
 fn main() -> Result<(), EventLoopError> {
-    clear_log_file("./logs/psx.log").expect("Could not clear log file");
-    let file_appender = tracing_appender::rolling::never("./logs", "psx.log");
+    if let Err(msg) = initialize_logging() {
+        eprintln!("Error: {msg}");
+        std::process::exit(1);
+    }
 
+    let file_appender = tracing_appender::rolling::never("./logs", "psx.log");
     let (file_writer, _file_guard) = tracing_appender::non_blocking(file_appender);
     let (stdout_writer, _stdout_guard) = tracing_appender::non_blocking(std::io::stdout());
 

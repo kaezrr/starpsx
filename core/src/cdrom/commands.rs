@@ -2,7 +2,7 @@ use crate::consts::{
     AVG_1ST_RESP_GENERIC, AVG_1ST_RESP_INIT, AVG_2ND_RESP_GET_ID, AVG_2ND_RESP_PAUSE,
     AVG_2ND_RESP_SEEKL, AVG_RATE_INT1, CDROM_VERSION, GET_ID_RESPONSE,
 };
-use tracing::trace;
+use tracing::debug;
 
 use super::*;
 
@@ -35,7 +35,7 @@ impl CdRom {
         let mut responses = CommandResponse::default();
         match cmd {
             0x20 => {
-                trace!(subcmd = "get version", "cdrom test command");
+                debug!(subcmd = "get version", "cdrom test command");
 
                 responses.push(
                     ResponseType::INT3(CDROM_VERSION.into()),
@@ -48,7 +48,7 @@ impl CdRom {
     }
 
     pub fn nop(&mut self) -> CommandResponse {
-        trace!(status=?self.status.0, "cdrom nop command");
+        debug!(status=?self.status.0, "cdrom nop command");
 
         let mut responses = CommandResponse::default();
         responses.push(
@@ -59,7 +59,7 @@ impl CdRom {
     }
 
     pub fn get_id(&mut self) -> CommandResponse {
-        trace!("cdrom get id");
+        debug!("cdrom get id");
 
         let mut responses = CommandResponse::default();
         responses.push(
@@ -75,7 +75,7 @@ impl CdRom {
     }
 
     pub fn set_loc(&mut self) -> CommandResponse {
-        trace!(?self.parameters, "cdrom set loc");
+        debug!(?self.parameters, "cdrom set loc");
 
         let mins = bcd_to_u8(self.parameters[0]).unwrap();
         let secs = bcd_to_u8(self.parameters[1]).unwrap();
@@ -95,7 +95,7 @@ impl CdRom {
     }
 
     pub fn seekl(&mut self) -> CommandResponse {
-        trace!("cdrom seekl");
+        debug!("cdrom seekl");
 
         self.status.set_seeking(true);
 
@@ -113,7 +113,7 @@ impl CdRom {
     }
 
     pub fn setmode(&mut self) -> CommandResponse {
-        trace!(?self.parameters, "cdrom set mode");
+        debug!(?self.parameters, "cdrom set mode");
 
         let mode = self.parameters[0];
 
@@ -139,7 +139,7 @@ impl CdRom {
     }
 
     pub fn readn(&mut self) -> CommandResponse {
-        trace!("cdrom readn");
+        debug!("cdrom readn");
 
         self.status.set_reading(true);
 
@@ -156,26 +156,25 @@ impl CdRom {
     }
 
     pub fn pause(&mut self) -> CommandResponse {
-        trace!("cdrom pause");
+        debug!("cdrom pause");
 
         let mut responses = CommandResponse::default();
         responses.push(
             ResponseType::INT3(vec![self.status.0]),
-            self.speed.transform(AVG_1ST_RESP_GENERIC),
+            AVG_1ST_RESP_GENERIC,
         );
 
         self.status.set_reading(false);
         responses.push(
             ResponseType::INT2(vec![self.status.0]),
-            self.speed
-                .transform(AVG_1ST_RESP_GENERIC + AVG_2ND_RESP_PAUSE),
+            AVG_1ST_RESP_GENERIC + AVG_2ND_RESP_PAUSE,
         );
 
         responses
     }
 
     pub fn init(&mut self) -> CommandResponse {
-        trace!("cdrom init");
+        debug!("cdrom init");
 
         self.speed = Speed::Normal;
         self.sector_size = SectorSize::WholeSectorExceptSyncBytes;
@@ -198,7 +197,7 @@ impl CdRom {
     }
 
     pub fn demute(&mut self) -> CommandResponse {
-        trace!("cdrom demute");
+        debug!("cdrom demute");
 
         let mut responses = CommandResponse::default();
         responses.push(ResponseType::INT3(vec![self.status.0]), AVG_1ST_RESP_INIT);

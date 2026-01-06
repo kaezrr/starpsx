@@ -80,6 +80,7 @@ impl DMAController {
     }
 
     fn do_dma(system: &mut System, port: Port) {
+        tracing::trace!(?port, "dma transfer");
         match system.dma.channels[port as usize].ctl.sync() {
             Sync::LinkedList => DMAController::do_dma_linked_list(system, port),
             _ => DMAController::do_dma_block(system, port),

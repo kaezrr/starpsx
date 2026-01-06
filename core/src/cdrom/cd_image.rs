@@ -1,4 +1,4 @@
-use tracing::trace;
+use tracing::debug;
 
 use super::SectorSize;
 use crate::consts::SECTOR_SIZE;
@@ -27,7 +27,7 @@ impl CdImage {
     }
 
     pub fn read_sector_and_advance(&mut self, sect_size: SectorSize) -> VecDeque<u32> {
-        trace!(
+        debug!(
             LBA = self.read_head / SECTOR_SIZE - 150,
             read_head = %read_head_to_disk_str(self.read_head),
             ?sect_size,

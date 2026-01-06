@@ -22,6 +22,7 @@ bitfield::bitfield! {
     _, set_param_write_ready : 4;
     _, set_result_read_ready : 5;
     _, set_data_request: 6;
+    _, set_busy_sts: 7;
 }
 
 bitfield::bitfield! {
@@ -197,6 +198,9 @@ impl CdRom {
 
     fn exec_command(system: &mut System, cmd: u8) {
         let cdrom = &mut system.cdrom;
+
+        cdrom.address.set_busy_sts(true);
+
         let responses = match cmd {
             0x01 => cdrom.nop(),
             0x0A => cdrom.init(),
@@ -215,6 +219,10 @@ impl CdRom {
             }
             _ => unimplemented!("cdrom command {cmd:02x}"),
         };
+
+        cdrom.parameters.clear();
+        cdrom.address.set_param_empty(true);
+        cdrom.address.set_param_write_ready(true);
 
         responses.get().into_iter().for_each(|(res_type, delay)| {
             let repeat = match res_type {
@@ -235,6 +243,7 @@ impl CdRom {
             ResponseType::INT3(response) => {
                 cdrom.results.extend(response);
                 cdrom.hintsts.set_interrupt(3);
+                cdrom.address.set_busy_sts(false);
             }
             ResponseType::INT2(response) => {
                 cdrom.results.extend(response);
@@ -258,9 +267,6 @@ impl CdRom {
             }
         }
 
-        cdrom.parameters.clear();
-        cdrom.address.set_param_empty(true);
-        cdrom.address.set_param_write_ready(true);
         cdrom.address.set_result_read_ready(true);
 
         if cdrom.hintsts.0 & cdrom.hintmsk.0 != 0 {
