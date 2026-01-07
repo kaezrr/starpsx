@@ -38,7 +38,12 @@ bitfield::bitfield! {
     port_select, _: 13;
 }
 
-pub struct SerialInterface {
+trait SerialInterface {
+    fn read(&mut self, offs: u32) -> u32;
+    fn write(system: &mut System, offs: u32, val: u32);
+}
+
+pub struct Sio0 {
     transfer: Option<u8>,
     received: ArrayVec<u8, 8>,
     status: Status,
@@ -51,7 +56,44 @@ pub struct SerialInterface {
     device_manager: DeviceManager,
 }
 
-impl SerialInterface {
+pub struct Sio1;
+
+impl SerialInterface for Sio1 {
+    fn read(&mut self, _offs: u32) -> u32 {
+        0xFF
+    }
+
+    fn write(_system: &mut System, _offs: u32, _val: u32) {}
+}
+
+impl SerialInterface for Sio0 {
+    fn read(&mut self, offs: u32) -> u32 {
+        match offs {
+            0x0 => self.pop_received_data(),
+            0x4 => self.status.0,
+            0x8 => self.mode,
+            0xA => self.control.0.into(),
+            0xE => self.baud_timer_reload_value.into(),
+            _ => unimplemented!("serial read {offs:02x}"),
+        }
+    }
+
+    fn write(system: &mut System, offs: u32, val: u32) {
+        let sio = &mut system.sio0;
+        match offs {
+            0x0 => {
+                sio.transfer = Some(val as u8);
+                Self::try_send_data(system);
+            }
+            0x8 => sio.mode = val & 0x1FF,
+            0xA => Self::write_control(system, val as u16),
+            0xE => sio.baud_timer_reload_value = val as u16,
+            _ => unimplemented!("serial write {offs:02x} <- {val:08x}"),
+        }
+    }
+}
+
+impl Sio0 {
     pub fn new(gamepads: [Option<Gamepad>; 2]) -> Self {
         Self {
             transfer: None,
@@ -66,33 +108,8 @@ impl SerialInterface {
         }
     }
 
-    fn read(&mut self, offs: u32) -> u32 {
-        match offs {
-            0x0 => self.pop_received_data(),
-            0x4 => self.status.0,
-            0x8 => self.mode,
-            0xA => self.control.0.into(),
-            0xE => self.baud_timer_reload_value.into(),
-            _ => unimplemented!("serial read {offs:02x}"),
-        }
-    }
-
-    fn write(system: &mut System, offs: u32, val: u32) {
-        let sio = &mut system.sio;
-        match offs {
-            0x0 => {
-                sio.transfer = Some(val as u8);
-                Self::try_send_data(system);
-            }
-            0x8 => sio.mode = val & 0x1FF,
-            0xA => Self::write_control(system, val as u16),
-            0xE => sio.baud_timer_reload_value = val as u16,
-            _ => unimplemented!("serial write {offs:02x} <- {val:08x}"),
-        }
-    }
-
     fn write_control(system: &mut System, val: u16) {
-        let sio = &mut system.sio;
+        let sio = &mut system.sio0;
         // Unused bits
         sio.control.0 = val & !0xC000;
 
@@ -118,15 +135,15 @@ impl SerialInterface {
 
     fn try_send_data(system: &mut System) {
         // Can't transfer right now
-        if !system.sio.control.tx_enabled() {
+        if !system.sio0.control.tx_enabled() {
             return;
         }
 
         // Transfer if there's something in TX
-        if let Some(val) = system.sio.transfer.take() {
+        if let Some(val) = system.sio0.transfer.take() {
             let (received, ack) = DeviceManager::send_and_receive_byte(system, val);
 
-            let sio = &mut system.sio;
+            let sio = &mut system.sio0;
             sio.status.set_dsr_input_on(ack);
 
             // 1088 cycles is the fixed baudrate delay for all games
@@ -136,7 +153,7 @@ impl SerialInterface {
                     .schedule(Event::SerialSend, consts::BAUDRATE_TRANSFER_DELAY, None);
             }
 
-            system.sio.push_received_data(received);
+            system.sio0.push_received_data(received);
         }
     }
 
@@ -181,7 +198,7 @@ impl SerialInterface {
     pub fn process_serial_send(system: &mut System) {
         // Controller and Memory Card received byte interrupt
         system.irqctl.stat().set_ctl_mem(true);
-        system.sio.status.set_irq(true);
+        system.sio0.status.set_irq(true);
     }
 
     pub fn gamepad_port_0_mut(&mut self) -> &mut Gamepad {
@@ -192,9 +209,9 @@ impl SerialInterface {
 pub fn read<T: ByteAddressable>(system: &mut System, addr: u32) -> T {
     let offs = addr - PADDR_START;
 
-    let data = match offs & 0x10 {
-        0 => system.sio.read(offs % 0x10),
-        1 => unimplemented!("SIO1 read"),
+    let data = match (offs & 0x10) >> 4 {
+        0 => system.sio0.read(offs % 0x10),
+        1 => system.sio1.read(offs % 0x10),
         _ => unreachable!(),
     };
 
@@ -204,9 +221,9 @@ pub fn read<T: ByteAddressable>(system: &mut System, addr: u32) -> T {
 pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, val: T) {
     let offs = addr - PADDR_START;
 
-    match offs & 0x10 {
-        0 => SerialInterface::write(system, offs % 0x10, val.to_u32()),
-        1 => unimplemented!("SIO1 write {val:08x}"),
+    match (offs & 0x10) >> 4 {
+        0 => Sio0::write(system, offs % 0x10, val.to_u32()),
+        1 => Sio1::write(system, offs % 0x10, val.to_u32()),
         _ => unreachable!(),
     }
 }

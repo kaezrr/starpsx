@@ -21,7 +21,7 @@ use mem::bios::Bios;
 use mem::ram::Ram;
 use mem::scratch::Scratch;
 use sched::{Event, EventScheduler};
-use sio::SerialInterface;
+use sio::Sio0;
 use std::{
     error::Error,
     path::{Path, PathBuf},
@@ -32,6 +32,7 @@ use tracing::info;
 pub use consts::TARGET_FPS;
 pub use sio::gamepad;
 
+use crate::sio::Sio1;
 use crate::spu::Spu;
 
 enum RunnablePath {
@@ -82,7 +83,9 @@ pub struct System {
     irqctl: InterruptController,
 
     cdrom: CdRom,
-    sio: SerialInterface,
+
+    sio0: Sio0,
+    sio1: Sio1,
 
     tty: String,
     scheduler: EventScheduler,
@@ -108,7 +111,8 @@ impl System {
 
             cdrom: CdRom::default(),
             // Only 1 gamepad for now
-            sio: SerialInterface::new([Some(gamepad::Gamepad::default()), None]),
+            sio0: Sio0::new([Some(gamepad::Gamepad::default()), None]),
+            sio1: Sio1 {}, // Does nothing
         };
 
         // Load game or exe
@@ -173,7 +177,7 @@ impl System {
                     Event::HBlankStart => Timers::enter_hsync(self),
                     Event::HBlankEnd => Timers::exit_hsync(self),
                     Event::Timer(x) => Timers::process_interrupt(self, x),
-                    Event::SerialSend => SerialInterface::process_serial_send(self),
+                    Event::SerialSend => Sio0::process_serial_send(self),
                     Event::CdromResultIrq(x) => CdRom::handle_response(self, x),
                 }
                 continue;
@@ -263,6 +267,6 @@ impl System {
     }
 
     pub fn gamepad_mut(&mut self) -> &mut gamepad::Gamepad {
-        self.sio.gamepad_port_0_mut()
+        self.sio0.gamepad_port_0_mut()
     }
 }

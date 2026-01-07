@@ -25,7 +25,7 @@ impl DeviceManager {
     }
 
     pub fn send_and_receive_byte(system: &mut System, data: u8) -> (u8, bool) {
-        let sio = &mut system.sio;
+        let sio = &mut system.sio0;
         let port = sio.control.port_select() as usize;
 
         let (byte, next_state) = match sio.device_manager.current_state {
