@@ -59,6 +59,7 @@ bitfield::bitfield! {
     _, set_seeking: 6;
     _, set_reading: 5;
     _, set_motor_on: 1;
+    _, set_error: 0;
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -210,6 +211,7 @@ impl CdRom {
 
         let responses = match cmd {
             0x01 => cdrom.nop(),
+            0x03 => cdrom.play(),
             0x08 => cdrom.stop(),
             0x0A => cdrom.init(),
             0x0D => cdrom.set_filter(),
@@ -270,6 +272,11 @@ impl CdRom {
                 cdrom.replace_sector_buffer(sector_data);
                 cdrom.results.extend(vec![cdrom.status.0]);
                 cdrom.hintsts.set_interrupt(1);
+            }
+            ResponseType::INT5([status, error_code]) => {
+                cdrom.results.push(status);
+                cdrom.results.push(error_code);
+                cdrom.hintsts.set_interrupt(5);
             }
         }
 

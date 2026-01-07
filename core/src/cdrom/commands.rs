@@ -2,7 +2,7 @@ use crate::consts::{
     AVG_1ST_RESP_GENERIC, AVG_1ST_RESP_INIT, AVG_2ND_RESP_GET_ID, AVG_2ND_RESP_PAUSE,
     AVG_2ND_RESP_SEEKL, AVG_RATE_INT1, CDROM_VERSION, GET_ID_RESPONSE,
 };
-use tracing::debug;
+use tracing::{debug, error};
 
 use super::*;
 
@@ -10,6 +10,7 @@ use super::*;
 pub enum ResponseType {
     INT3(Vec<u8>),
     INT2(Vec<u8>),
+    INT5([u8; 2]),
     INT2Seek,
     INT1Stat,
 }
@@ -74,23 +75,39 @@ impl CdRom {
         responses
     }
 
+    // TODO: better error handling with result
     pub fn set_loc(&mut self) -> CommandResponse {
         debug!(?self.parameters, "cdrom set loc");
 
-        let mins = bcd_to_u8(self.parameters[0]).unwrap();
-        let secs = bcd_to_u8(self.parameters[1]).unwrap();
-        let sect = bcd_to_u8(self.parameters[2]).unwrap();
-
-        self.disc
-            .as_mut()
-            .expect("set loc while no disk inserted")
-            .seek_location(mins, secs, sect);
+        let mins_res = bcd_to_u8(self.parameters[0]);
+        let secs_res = bcd_to_u8(self.parameters[1]);
+        let sect_res = bcd_to_u8(self.parameters[2]);
 
         let mut responses = CommandResponse::default();
-        responses.push(
-            ResponseType::INT3(vec![self.status.0]),
-            self.speed.transform(AVG_1ST_RESP_GENERIC),
-        );
+        if let (Some(mins), Some(secs), Some(sect)) = (mins_res, secs_res, sect_res) {
+            self.disc
+                .as_mut()
+                .expect("set loc while no disk inserted")
+                .seek_location(mins, secs, sect);
+
+            responses.push(
+                ResponseType::INT3(vec![self.status.0]),
+                AVG_1ST_RESP_GENERIC,
+            );
+        } else {
+            error!(
+                "invalid/out of range seek to {:2X}:{:2X}:{:2X}",
+                self.parameters[0], self.parameters[1], self.parameters[2]
+            );
+
+            self.status.set_error(true);
+            responses.push(
+                ResponseType::INT5([self.status.0, 0x10]),
+                AVG_1ST_RESP_GENERIC,
+            );
+            self.status.set_error(false);
+        }
+
         responses
     }
 
@@ -199,6 +216,15 @@ impl CdRom {
     // stubbed audio command
     pub fn set_filter(&mut self) -> CommandResponse {
         debug!("cdrom set filter");
+
+        let mut responses = CommandResponse::default();
+        responses.push(ResponseType::INT3(vec![self.status.0]), AVG_1ST_RESP_INIT);
+
+        responses
+    }
+
+    pub fn play(&mut self) -> CommandResponse {
+        debug!("cdrom play");
 
         let mut responses = CommandResponse::default();
         responses.push(ResponseType::INT3(vec![self.status.0]), AVG_1ST_RESP_INIT);
