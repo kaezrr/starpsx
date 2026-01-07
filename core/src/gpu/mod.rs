@@ -89,7 +89,7 @@ bitfield::bitfield! {
     preserve_masked_pixels, _: 1;
 
     // GP1 Display VRAM Start
-    u16, display_vram_x, _ : 9, 1; // LSB of horizontal component is ignored?
+    u16, display_vram_x, _ : 9, 0;
     u16, display_vram_y, _ : 18, 10;
 
     // GP1 Display Horizontal and Vertical Ranges

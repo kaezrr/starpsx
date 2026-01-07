@@ -81,9 +81,7 @@ impl Renderer {
             utils::DisplayDepth::D15 => {
                 for y in 0..height {
                     for x in 0..width {
-                        // let pixel = self.vram_read(sx + x, sy + y);
-                        let index = VRAM_WIDTH * (sy + y) + (sx + x);
-                        let pixel = self.vram[index];
+                        let pixel = self.vram_read(sx + x, sy + y);
                         self.pixel_buffer[width * y + x] = Color::new_5bit(pixel);
                     }
                 }

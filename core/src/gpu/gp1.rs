@@ -33,7 +33,7 @@ impl Gpu {
 
     pub fn gp1_display_vram_start(&mut self, command: Command) {
         self.renderer.ctx.display_vram_start = {
-            let x = command.display_vram_x();
+            let x = command.display_vram_x() & !1; // LSB is ignored? not sure
             let y = command.display_vram_y();
             Vec2::new(x as i32, y as i32)
         };
