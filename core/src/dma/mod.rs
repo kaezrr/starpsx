@@ -6,7 +6,7 @@ use std::array::from_fn;
 use crate::cdrom;
 use crate::{System, mem::ByteAddressable};
 use channel::Channel;
-use tracing::{debug, trace};
+use tracing::trace;
 use utils::{Direction, Port, Step, Sync};
 
 bitfield::bitfield! {
@@ -26,7 +26,7 @@ impl Interrupt {
         self.bus_error() || (self.channel_irq_en() && channel_match)
     }
 
-    pub fn update_irq(&mut self) -> bool {
+    fn update_irq(&mut self) -> bool {
         let new_master_flag = self.master_flag();
         let old_master_flag = self.master_irq();
 
@@ -35,7 +35,7 @@ impl Interrupt {
         !old_master_flag && new_master_flag
     }
 
-    pub fn should_irq_on_channel_complete(&mut self, port: Port) -> bool {
+    fn should_irq_on_channel_complete(&mut self, port: Port) -> bool {
         if self.mask_enabled(port) {
             self.set_channel_irq_flag_bit(port);
         }
@@ -86,14 +86,13 @@ impl DMAController {
         }
 
         if system.dma.interrupt.should_irq_on_channel_complete(port) {
-            debug!(?port, "dma interrupt");
             system.irqctl.stat().set_dma(true);
         }
     }
 
     fn write_dicr<T: ByteAddressable>(&mut self, data: T) {
         debug_assert_eq!(T::LEN, 4); // word aligned dicr write
-        debug!("dma write to dicr={:08x}", data.to_u32());
+        trace!("dma write to dicr={:08x}", data.to_u32());
 
         // bit 31 read only, bits 24 - 30 get reset on sets.
         let mut new_irq = Interrupt(data.to_u32() & !(1 << 31));
@@ -119,7 +118,7 @@ impl DMAController {
 
         let mut addr = base;
 
-        debug!(?port, addr, "dma block transfer");
+        trace!(?port, addr, "dma block transfer");
 
         for s in (0..size).rev() {
             let cur_addr = addr & 0x1FFFFC;
@@ -159,7 +158,7 @@ impl DMAController {
 
         let mut addr = channel.base & 0x1FFFFC;
 
-        debug!(?port, addr, "dma linked list transfer");
+        trace!(?port, addr, "dma linked list transfer");
 
         loop {
             let header = system.ram.read::<u32>(addr);

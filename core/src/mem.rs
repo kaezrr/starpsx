@@ -152,7 +152,7 @@ pub mod scratch {
 macro_rules! stubbed {
     ($region:expr, $at:expr) => {{
         trace!(target:"mem", region = $region, "stubbed read addr={:#08x}", $at);
-        T::from_u32(0)
+        T::from_u32(0xFF)
     }};
 }
 

@@ -148,10 +148,10 @@ impl Timers {
         let (cycles_til_irq, cycles_til_irq_reset) = match timer.mode.irq_target() {
             // No IRQ
             0 => return,
-            // Only FFFF IRQ
-            1 => (cycles_til_ffff, cycles_til_ffff_reset),
             // Only target IRQ
-            2 => (cycles_til_target, cycles_til_target_reset),
+            1 => (cycles_til_target, cycles_til_target_reset),
+            // Only 0xFFFF IRQ
+            2 => (cycles_til_ffff, cycles_til_ffff_reset),
             // Both FFFF and Target IRQ
             3 => {
                 // (schedule whichever happens first) Not the accurate behavior, change in future
@@ -305,7 +305,7 @@ bitfield::bitfield! {
     irq_repeat, _: 6;
     irq_toggle, _: 7;
     clock_src, _: 9, 8;
-     irq_disabled, set_irq_disabled: 10;
+    irq_disabled, set_irq_disabled: 10;
     reached_target, set_reached_target: 11;
     reached_ffff, set_reached_ffff: 12;
 }
