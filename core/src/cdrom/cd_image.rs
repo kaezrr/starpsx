@@ -28,7 +28,7 @@ impl CdImage {
 
     pub fn read_sector_and_advance(&mut self, sect_size: SectorSize) -> VecDeque<u32> {
         debug!(
-            LBA = self.read_head / SECTOR_SIZE - 150,
+            LBA = self.read_head / SECTOR_SIZE,
             read_head = %read_head_to_disk_str(self.read_head),
             ?sect_size,
             "reading sector"

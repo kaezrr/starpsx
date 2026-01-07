@@ -6,7 +6,7 @@ use std::array::from_fn;
 use crate::cdrom;
 use crate::{System, mem::ByteAddressable};
 use channel::Channel;
-use tracing::trace;
+use tracing::{debug, trace};
 use utils::{Direction, Port, Step, Sync};
 
 bitfield::bitfield! {
@@ -80,20 +80,20 @@ impl DMAController {
     }
 
     fn do_dma(system: &mut System, port: Port) {
-        tracing::trace!(?port, "dma transfer");
         match system.dma.channels[port as usize].ctl.sync() {
             Sync::LinkedList => DMAController::do_dma_linked_list(system, port),
             _ => DMAController::do_dma_block(system, port),
         }
 
         if system.dma.interrupt.should_irq_on_channel_complete(port) {
+            debug!(?port, "dma interrupt");
             system.irqctl.stat().set_dma(true);
         }
     }
 
     fn write_dicr<T: ByteAddressable>(&mut self, data: T) {
         debug_assert_eq!(T::LEN, 4); // word aligned dicr write
-        trace!("dma write to dicr={:08x}", data.to_u32());
+        debug!("dma write to dicr={:08x}", data.to_u32());
 
         // bit 31 read only, bits 24 - 30 get reset on sets.
         let mut new_irq = Interrupt(data.to_u32() & !(1 << 31));
@@ -118,6 +118,9 @@ impl DMAController {
         };
 
         let mut addr = base;
+
+        debug!(?port, addr, "dma block transfer");
+
         for s in (0..size).rev() {
             let cur_addr = addr & 0x1FFFFC;
             match dir {
@@ -149,14 +152,15 @@ impl DMAController {
 
     fn do_dma_linked_list(system: &mut System, port: Port) {
         let channel = &mut system.dma.channels[port as usize];
-        if channel.ctl.dir() == Direction::ToRam {
-            unimplemented!("Invalid DMA direction for linked list mode.");
-        }
-        if port != Port::Gpu {
-            unimplemented!("Attempted linked list DMA on port {}", port as usize);
-        }
+
+        // only supports ram to gpu linked list dma
+        assert_eq!(channel.ctl.dir(), Direction::FromRam);
+        assert_eq!(port, Port::Gpu);
 
         let mut addr = channel.base & 0x1FFFFC;
+
+        debug!(?port, addr, "dma linked list transfer");
+
         loop {
             let header = system.ram.read::<u32>(addr);
             let size = header >> 24;
@@ -201,14 +205,14 @@ pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, data: T) {
     let minor = (offs) & 0xF;
     let dma = &mut system.dma;
 
-    // DICR Bug
+    // TODO: dicr bug is not fixed but panics
     match (major, minor) {
         (0..=6, 0) => dma.get_mut_channel(major).base = data.to_u32() & 0xFFFFFF,
         (0..=6, 4) => dma.get_mut_channel(major).block_ctl.0 = data.to_u32(),
         (0..=6, 8) => dma.get_mut_channel(major).ctl.0 = data.to_u32(),
         (7, 0) => dma.control = data.to_u32(),
         (7, 4) => dma.write_dicr(data),
-        _ => unimplemented!("DMA read {offs:x}"),
+        _ => unimplemented!("DMA write {offs:x} = {data:x}"),
     }
 
     if let 0..=6 = major {

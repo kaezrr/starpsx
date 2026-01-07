@@ -223,7 +223,8 @@ impl CdRom {
             0x15 => cdrom.seekl(),
             0x0C => cdrom.demute(),
             0x0E => cdrom.setmode(),
-            0x06 | 0x1B => cdrom.readn(),
+            0x06 => cdrom.readn(),
+            0x1B => cdrom.reads(),
             0x09 => cdrom.pause(),
             _ => unimplemented!("cdrom command {cmd:02x}"),
         };
