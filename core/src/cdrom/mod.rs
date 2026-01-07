@@ -201,22 +201,28 @@ impl CdRom {
 
         cdrom.address.set_busy_sts(true);
 
+        // Certain commands stop read responses
+        if let 0x08..=0x09 = cmd {
+            system
+                .scheduler
+                .unschedule(&Event::CdromResultIrq(ResponseType::INT1Stat));
+        }
+
         let responses = match cmd {
             0x01 => cdrom.nop(),
+            0x08 => cdrom.stop(),
             0x0A => cdrom.init(),
+            0x0D => cdrom.set_filter(),
             0x19 => cdrom.test(),
             0x1A => cdrom.get_id(),
             0x02 => cdrom.set_loc(),
+            0x13 => cdrom.get_tn(),
+            0x14 => cdrom.get_td(),
             0x15 => cdrom.seekl(),
             0x0C => cdrom.demute(),
             0x0E => cdrom.setmode(),
-            0x06 => cdrom.readn(),
-            0x09 => {
-                system
-                    .scheduler
-                    .unschedule(&Event::CdromResultIrq(ResponseType::INT1Stat));
-                cdrom.pause()
-            }
+            0x06 | 0x1B => cdrom.readn(),
+            0x09 => cdrom.pause(),
             _ => unimplemented!("cdrom command {cmd:02x}"),
         };
 

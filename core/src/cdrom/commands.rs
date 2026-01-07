@@ -196,11 +196,73 @@ impl CdRom {
         responses
     }
 
+    // stubbed audio command
+    pub fn set_filter(&mut self) -> CommandResponse {
+        debug!("cdrom set filter");
+
+        let mut responses = CommandResponse::default();
+        responses.push(ResponseType::INT3(vec![self.status.0]), AVG_1ST_RESP_INIT);
+
+        responses
+    }
+
+    // stubbed audio command
     pub fn demute(&mut self) -> CommandResponse {
         debug!("cdrom demute");
 
         let mut responses = CommandResponse::default();
         responses.push(ResponseType::INT3(vec![self.status.0]), AVG_1ST_RESP_INIT);
+
+        responses
+    }
+
+    // stub values, need to load cue sheet
+    pub fn get_tn(&mut self) -> CommandResponse {
+        debug!("cdrom get tn");
+
+        let mut responses = CommandResponse::default();
+        responses.push(
+            ResponseType::INT3(vec![self.status.0, 1, 1]),
+            AVG_1ST_RESP_INIT,
+        );
+
+        responses
+    }
+
+    // stub values, need to load cue sheet
+    pub fn get_td(&mut self) -> CommandResponse {
+        debug!("cdrom get tn");
+
+        let mut responses = CommandResponse::default();
+        responses.push(
+            ResponseType::INT3(vec![self.status.0, 1, 1]),
+            AVG_1ST_RESP_INIT,
+        );
+
+        responses
+    }
+
+    pub fn stop(&mut self) -> CommandResponse {
+        debug!("cdrom stop");
+
+        let mut responses = CommandResponse::default();
+
+        self.status.set_reading(false);
+        responses.push(ResponseType::INT3(vec![self.status.0]), AVG_1ST_RESP_INIT);
+
+        if let Some(cd) = self.disc.as_mut() {
+            cd.seek_location(0, 2, 0)
+        }
+
+        self.status.set_motor_on(false);
+
+        responses.push(
+            ResponseType::INT2(vec![self.status.0]),
+            match self.speed {
+                Speed::Normal => 0x0d38aca,
+                Speed::Double => 0x18a6076,
+            },
+        );
 
         responses
     }
