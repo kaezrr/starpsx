@@ -4,7 +4,7 @@ use starpsx_core::{Config, System, TARGET_FPS, gamepad};
 use std::num::NonZeroU32;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
-use tracing::{error, trace, warn};
+use tracing::{error, info, trace, warn};
 use winit::{application::ApplicationHandler, event::WindowEvent};
 use winit::{dpi::LogicalSize, window::Window};
 
@@ -119,6 +119,11 @@ impl AppState {
 
         while let Some(Event { event, .. }) = self.gamepad.next_event() {
             match event {
+                gilrs::EventType::ButtonPressed(gilrs::Button::Mode, _) => {}
+                gilrs::EventType::ButtonReleased(gilrs::Button::Mode, _) => {
+                    psx_gamepad.toggle_analog_mode()
+                }
+
                 gilrs::EventType::ButtonPressed(button, _) => {
                     psx_gamepad.set_button_state(convert_button(button), true)
                 }
@@ -126,10 +131,46 @@ impl AppState {
                 gilrs::EventType::ButtonReleased(button, _) => {
                     psx_gamepad.set_button_state(convert_button(button), false)
                 }
+
+                gilrs::EventType::Connected => {
+                    info!("gamepad connected")
+                }
+
+                gilrs::EventType::Disconnected => {
+                    info!("gamepad disconnected")
+                }
+
+                gilrs::EventType::AxisChanged(axis, value, _) => {
+                    let (converted_axis, new_value) = convert_axis(axis, value);
+                    psx_gamepad.set_stick_axis(converted_axis, new_value);
+                }
+
                 _ => trace!(?event, "gamepad event ignored"),
             }
         }
     }
+}
+
+fn convert_axis(axis: gilrs::Axis, value: f32) -> (gamepad::StickAxis, u8) {
+    // Y axis is flipped between gilrs and console
+    let v = match axis {
+        gilrs::Axis::LeftStickY | gilrs::Axis::RightStickY => -value,
+        _ => value,
+    };
+
+    let byte = ((v + 1.0) * 127.5).round().clamp(0.0, 255.0) as u8;
+
+    let mapped = match axis {
+        gilrs::Axis::RightStickX => gamepad::StickAxis::RightX,
+        gilrs::Axis::RightStickY => gamepad::StickAxis::RightY,
+
+        gilrs::Axis::LeftStickX => gamepad::StickAxis::LeftX,
+        gilrs::Axis::LeftStickY => gamepad::StickAxis::LeftY,
+
+        _ => unimplemented!("unmapped gamepad axis"),
+    };
+
+    (mapped, byte)
 }
 
 fn convert_button(gilrs_button: gilrs::Button) -> gamepad::Button {
@@ -160,6 +201,6 @@ fn convert_button(gilrs_button: gilrs::Button) -> gamepad::Button {
         gilrs::Button::DPadLeft => gamepad::Button::Left,
         gilrs::Button::DPadRight => gamepad::Button::Right,
 
-        _ => unimplemented!("Unmapped gamepad button"),
+        _ => unimplemented!("unmapped gamepad button"),
     }
 }
