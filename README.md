@@ -63,18 +63,18 @@ The project is split into three crates:
 
 ## Component Status
 
-| Component   | Status      | Notes                                         |
-| ----------- | ----------- | --------------------------------------------- |
-| CPU         | Done        | passes most test roms                         |
-| GPU         | Done        | works well with some bugs                     |
-| DMA         | Partial     | only burst and linkedlist dma supported       |
-| Timers      | Done        | roughly works but it might have bugs          |
-| CDROM       | Partial     | boots a few games                             |
-| Gamepad     | Mostly Done | port 1 digital pad works, analog mode pending |
-| Memory card | Not started |                                               |
-| SPU         | Not started |                                               |
-| GTE         | Not started |                                               |
-| MDEC        | Not started |                                               |
+| Component   | Status      | Notes                                   |
+| ----------- | ----------- | --------------------------------------- |
+| CPU         | Done        | passes most test roms                   |
+| GPU         | Done        | works well with some bugs               |
+| DMA         | Partial     | only burst and linkedlist dma supported |
+| Timers      | Done        | roughly works but it might have bugs    |
+| CDROM       | Partial     | boots a few games                       |
+| Gamepad     | Mostly Done | full analog pad support                 |
+| Memory card | Not started |                                         |
+| SPU         | Not started |                                         |
+| GTE         | Not started |                                         |
+| MDEC        | Not started |                                         |
 
 ## A Lot Of Thanks To
 
