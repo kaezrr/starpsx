@@ -112,24 +112,25 @@ enum GamepadMode {
 }
 
 impl GamepadMode {
-    const GAMEPAD_DIGITAL_STATES: [(GamepadState, u8); 5] = [
-        (GamepadState::Init, 0x00),
-        (GamepadState::IdLow, 0x01),
-        (GamepadState::IdHigh, 0x42),
-        (GamepadState::SwitchLow, 0x00),
-        (GamepadState::SwitchHigh, 0x00),
+    // valid next gamepad comm sequences alongside an optional check byte
+    const GAMEPAD_DIGITAL_STATES: [(GamepadState, Option<u8>); 5] = [
+        (GamepadState::Init, None),
+        (GamepadState::IdLow, Some(0x01)),
+        (GamepadState::IdHigh, Some(0x42)),
+        (GamepadState::SwitchLow, Some(0x00)),
+        (GamepadState::SwitchHigh, None),
     ];
 
-    const GAMEPAD_ANALOG_STATES: [(GamepadState, u8); 9] = [
-        (GamepadState::Init, 0x00),
-        (GamepadState::IdLow, 0x01),
-        (GamepadState::IdHigh, 0x42),
-        (GamepadState::SwitchLow, 0x00),
-        (GamepadState::SwitchHigh, 0x00),
-        (GamepadState::AnalogInput0, 0x00),
-        (GamepadState::AnalogInput1, 0x00),
-        (GamepadState::AnalogInput2, 0x00),
-        (GamepadState::AnalogInput3, 0x00),
+    const GAMEPAD_ANALOG_STATES: [(GamepadState, Option<u8>); 9] = [
+        (GamepadState::Init, Some(0x00)),
+        (GamepadState::IdLow, Some(0x01)),
+        (GamepadState::IdHigh, Some(0x42)),
+        (GamepadState::SwitchLow, Some(0x00)),
+        (GamepadState::SwitchHigh, None),
+        (GamepadState::AnalogInput0, None),
+        (GamepadState::AnalogInput1, Some(0x00)),
+        (GamepadState::AnalogInput2, Some(0x00)),
+        (GamepadState::AnalogInput3, Some(0x00)),
     ];
 
     fn id(&self) -> [u8; 2] {
@@ -146,7 +147,7 @@ impl GamepadMode {
         };
     }
 
-    fn states_table(&self) -> &'static [(GamepadState, u8)] {
+    fn states_table(&self) -> &'static [(GamepadState, Option<u8>)] {
         match self {
             GamepadMode::Digital => &GamepadMode::GAMEPAD_DIGITAL_STATES,
             GamepadMode::Analog => &GamepadMode::GAMEPAD_ANALOG_STATES,
@@ -157,9 +158,15 @@ impl GamepadMode {
         let idx = current_state as usize;
         let states_table = self.states_table();
 
-        let (next_state, valid_next_byte) = states_table[(idx + 1) % states_table.len()];
+        let (next_state, check_byte) = states_table[(idx + 1) % states_table.len()];
 
-        (received_byte == valid_next_byte).then_some(next_state)
+        // TAP byte should be zero, multiplayer mode not supported
+        if matches!(next_state, GamepadState::SwitchLow) {
+            assert_eq!(received_byte, check_byte.unwrap())
+        }
+
+        let next_state_is_valid = check_byte.is_none_or(|b| b == received_byte);
+        next_state_is_valid.then_some(next_state)
     }
 }
 
