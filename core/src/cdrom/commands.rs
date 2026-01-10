@@ -36,7 +36,7 @@ impl CdRom {
         let mut responses = CommandResponse::default();
         match cmd {
             0x20 => {
-                debug!(subcmd = "get version", "cdrom test command");
+                debug!(target: "cdrom", subcmd = "get version", "cdrom test command");
 
                 responses.push(
                     ResponseType::INT3(CDROM_VERSION.into()),
@@ -49,7 +49,7 @@ impl CdRom {
     }
 
     pub fn nop(&mut self) -> CommandResponse {
-        debug!(status=?self.status.0, "cdrom nop command");
+        debug!(target: "cdrom", status=?self.status.0, "cdrom nop command");
 
         let mut responses = CommandResponse::default();
         responses.push(
@@ -60,7 +60,7 @@ impl CdRom {
     }
 
     pub fn get_id(&mut self) -> CommandResponse {
-        debug!("cdrom get id");
+        debug!(target: "cdrom", "cdrom get id");
 
         let mut responses = CommandResponse::default();
         responses.push(
@@ -76,7 +76,7 @@ impl CdRom {
 
     // TODO: better error handling with result
     pub fn set_loc(&mut self) -> CommandResponse {
-        debug!(?self.parameters, "cdrom set loc");
+        debug!(target: "cdrom", params=?self.parameters, "cdrom set loc");
 
         let mins_res = bcd_to_u8(self.parameters[0]);
         let secs_res = bcd_to_u8(self.parameters[1]);
@@ -111,7 +111,7 @@ impl CdRom {
     }
 
     pub fn seekl(&mut self) -> CommandResponse {
-        debug!("cdrom seekl");
+        debug!(target: "cdrom", "cdrom seekl");
 
         self.status.set_seeking(true);
 
@@ -128,7 +128,7 @@ impl CdRom {
     }
 
     pub fn setmode(&mut self) -> CommandResponse {
-        debug!(?self.parameters, "cdrom set mode");
+        debug!(target: "cdrom", params=?self.parameters, "cdrom set mode");
 
         let mode = self.parameters[0];
 
@@ -154,13 +154,13 @@ impl CdRom {
     }
 
     pub fn reads(&mut self) -> CommandResponse {
-        debug!("cdrom reads");
+        debug!(target: "cdrom", "cdrom reads");
 
         self.readn()
     }
 
     pub fn readn(&mut self) -> CommandResponse {
-        debug!("cdrom readn");
+        debug!(target: "cdrom", "cdrom readn");
 
         self.status.set_reading(true);
 
@@ -178,7 +178,7 @@ impl CdRom {
     }
 
     pub fn pause(&mut self) -> CommandResponse {
-        debug!("cdrom pause");
+        debug!(target: "cdrom", "cdrom pause");
 
         let mut responses = CommandResponse::default();
         responses.push(
@@ -197,7 +197,7 @@ impl CdRom {
     }
 
     pub fn init(&mut self) -> CommandResponse {
-        debug!("cdrom init");
+        debug!(target: "cdrom", "cdrom init");
 
         self.speed = Speed::Normal;
         self.sector_size = SectorSize::WholeSectorExceptSyncBytes;
@@ -217,7 +217,7 @@ impl CdRom {
 
     // stubbed audio command
     pub fn set_filter(&mut self) -> CommandResponse {
-        debug!("cdrom set filter");
+        debug!(target: "cdrom", "cdrom set filter");
 
         let mut responses = CommandResponse::default();
         responses.push(ResponseType::INT3(vec![self.status.0]), AVG_1ST_RESP_INIT);
@@ -226,7 +226,7 @@ impl CdRom {
     }
 
     pub fn play(&mut self) -> CommandResponse {
-        debug!("cdrom play");
+        debug!(target: "cdrom", "cdrom play");
 
         let mut responses = CommandResponse::default();
         responses.push(ResponseType::INT3(vec![self.status.0]), AVG_1ST_RESP_INIT);
@@ -236,7 +236,7 @@ impl CdRom {
 
     // stubbed audio command
     pub fn demute(&mut self) -> CommandResponse {
-        debug!("cdrom demute");
+        debug!(target: "cdrom", "cdrom demute");
 
         let mut responses = CommandResponse::default();
         responses.push(ResponseType::INT3(vec![self.status.0]), AVG_1ST_RESP_INIT);
@@ -246,7 +246,7 @@ impl CdRom {
 
     // stub values, need to load cue sheet
     pub fn get_tn(&mut self) -> CommandResponse {
-        debug!("cdrom get tn");
+        debug!(target: "cdrom", "cdrom get tn");
 
         let mut responses = CommandResponse::default();
         responses.push(
@@ -259,7 +259,7 @@ impl CdRom {
 
     // stub values, need to load cue sheet
     pub fn get_td(&mut self) -> CommandResponse {
-        debug!("cdrom get tn");
+        debug!(target: "cdrom", "cdrom get tn");
 
         let mut responses = CommandResponse::default();
         responses.push(
@@ -271,7 +271,7 @@ impl CdRom {
     }
 
     pub fn stop(&mut self) -> CommandResponse {
-        debug!("cdrom stop");
+        debug!(target: "cdrom", "cdrom stop");
 
         let mut responses = CommandResponse::default();
 

@@ -169,11 +169,11 @@ impl System {
         loop {
             if let Some(event) = self.scheduler.get_next_event() {
                 match event {
-                    Event::VBlankStart => self.enter_vsync(),
-                    Event::VBlankEnd => {
-                        self.exit_vsync();
-                        return; // end of frame
+                    Event::VBlankStart => {
+                        self.enter_vsync();
+                        return; // End of frame
                     }
+                    Event::VBlankEnd => Timers::exit_vsync(self),
                     Event::HBlankStart => Timers::enter_hsync(self),
                     Event::HBlankEnd => Timers::exit_hsync(self),
                     Event::Timer(x) => Timers::process_interrupt(self, x),
@@ -246,10 +246,6 @@ impl System {
     fn enter_vsync(&mut self) {
         Timers::enter_vsync(self);
         self.irqctl.stat().set_vblank(true);
-    }
-
-    fn exit_vsync(&mut self) {
-        Timers::exit_vsync(self);
         self.gpu.renderer.copy_display_to_fb();
     }
 

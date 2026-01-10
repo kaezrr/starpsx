@@ -38,8 +38,6 @@ impl Gamepad {
             GamepadState::AnalogInput3 => self.joystick_axes[StickAxis::LeftY as usize],
         };
 
-        tracing::debug!(current_state=?self.state, mode=?self.mode, "gamepad got={data:02x} send={received:02x}");
-
         if let Some(state) = self.mode.next(self.state, data) {
             self.state = state;
             self.in_ack = !matches!(self.state, GamepadState::Init);
@@ -52,7 +50,6 @@ impl Gamepad {
     }
 
     pub fn reset(&mut self) {
-        tracing::debug!("gamepad reset");
         self.state = GamepadState::Init;
         self.in_ack = false;
     }

@@ -124,12 +124,12 @@ impl Default for CdRom {
 impl CdRom {
     // Only bit 0-1 are writable
     fn write_addr(&mut self, val: u8) {
-        trace!("cdrom write address={:#02x}", val);
+        trace!(target:"cdrom", "cdrom write address={:#02x}", val);
         self.address.0 = (self.address.0 & !3) | (val & 3);
     }
 
     fn read_addr(&self) -> u8 {
-        trace!("cdrom read address={:#02x}", self.address.0);
+        trace!(target:"cdrom", "cdrom read address={:#02x}", self.address.0);
         self.address.0
     }
 
@@ -139,27 +139,27 @@ impl CdRom {
 
     // Clear the corresponding set bit of HINTSTS
     fn write_hclrctl(&mut self, val: u8) {
-        trace!("cdrom write hclrctl={:#02x}", val);
+        trace!(target:"cdrom", "cdrom write hclrctl={:#02x}", val);
         self.hintsts.0 &= !(val & 0x1F)
     }
 
     fn read_hintsts(&self) -> u8 {
-        trace!("cdrom read hintsts={:#02x}", self.hintsts.0);
+        trace!(target:"cdrom", "cdrom read hintsts={:#02x}", self.hintsts.0);
         self.hintsts.0 | 0xE0 // Bits 5-7 are always 1 on read
     }
 
     fn write_hintmsk(&mut self, val: u8) {
-        trace!("cdrom write hintmsk={:#02x}", val);
+        trace!(target:"cdrom", "cdrom write hintmsk={:#02x}", val);
         self.hintmsk.0 = val;
     }
 
     fn read_hintmsk(&self) -> u8 {
-        trace!("cdrom read hintmsk={:#02x}", self.hintmsk.0);
+        trace!(target:"cdrom", "cdrom read hintmsk={:#02x}", self.hintmsk.0);
         self.hintmsk.0 | 0xE0 // Bits 5-7 are always 1 on read
     }
 
     fn write_hchpctl(&mut self, data: u8) {
-        trace!("cdrom write hchpctl={:#02x}", data);
+        trace!(target:"cdrom", "cdrom write hchpctl={:#02x}", data);
     }
 
     fn replace_sector_buffer(&mut self, new_buffer: VecDeque<u32>) {
@@ -331,11 +331,11 @@ pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, data: T) {
         (1, 3) => cdrom.write_hclrctl(val),
         (1, 2) => cdrom.write_hintmsk(val),
 
-        (2, 2) => trace!(reg = "atv0", "cdrom ignored write to audio reg"),
-        (2, 3) => trace!(reg = "atv1", "cdrom ignored write to audio reg"),
-        (3, 1) => trace!(reg = "atv2", "cdrom ignored write to audio reg"),
-        (3, 2) => trace!(reg = "atv3", "cdrom ignored write to audio reg"),
-        (3, 3) => trace!(reg = "adpctl", "cdrom ignored write to audio reg"),
+        (2, 2) => trace!(target:"cdrom", reg = "atv0", "cdrom ignored write to audio reg"),
+        (2, 3) => trace!(target:"cdrom", reg = "atv1", "cdrom ignored write to audio reg"),
+        (3, 1) => trace!(target:"cdrom", reg = "atv2", "cdrom ignored write to audio reg"),
+        (3, 2) => trace!(target:"cdrom", reg = "atv3", "cdrom ignored write to audio reg"),
+        (3, 3) => trace!(target:"cdrom", reg = "adpctl", "cdrom ignored write to audio reg"),
 
         (x, y) => unimplemented!("cdrom write bank {x} reg {y} <- {data:08x}"),
     }

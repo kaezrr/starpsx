@@ -70,7 +70,7 @@ The project is split into three crates:
 | DMA         | Partial     | only burst and linkedlist dma supported |
 | Timers      | Done        | roughly works but it might have bugs    |
 | CDROM       | Partial     | boots a few games                       |
-| Gamepad     | Mostly Done | full analog pad support                 |
+| Gamepad     | Done        | full analog pad support                 |
 | Memory card | Not started |                                         |
 | SPU         | Not started |                                         |
 | GTE         | Not started |                                         |
