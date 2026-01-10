@@ -1,19 +1,20 @@
 mod app;
+mod egui_tools;
 
-use tracing::{error, level_filters::LevelFilter};
+use tracing::level_filters::LevelFilter;
 use tracing_subscriber::{EnvFilter, Layer, layer::SubscriberExt, util::SubscriberInitExt};
-use winit::error::EventLoopError;
+use winit::event_loop::{ControlFlow, EventLoop};
 
 // Logs to a fixed path for now
 fn initialize_logging() -> Result<(), String> {
     std::fs::create_dir_all("./logs")
-        .map_err(|e| format!("Failed to create logs directory: {e}"))?;
+        .map_err(|e| format!("failed to create logs directory: {e}"))?;
     std::fs::File::create("./logs/psx.log")
-        .map_err(|e| format!("Failed to initialize log file: {e}"))?;
+        .map_err(|e| format!("failed to initialize log file: {e}"))?;
     Ok(())
 }
 
-fn main() -> Result<(), EventLoopError> {
+fn main() {
     if let Err(msg) = initialize_logging() {
         eprintln!("Error: {msg}");
         std::process::exit(1);
@@ -41,14 +42,23 @@ fn main() -> Result<(), EventLoopError> {
         .with(EnvFilter::from_default_env())
         .init();
 
-    let event_loop = winit::event_loop::EventLoop::new()?;
-    let config = starpsx_core::Config::build().unwrap_or_else(|err| {
-        error!(%err, "failed to parse command-line arguments");
-        std::process::exit(1);
-    });
+    // let config = starpsx_core::Config::build().unwrap_or_else(|err| {
+    //     error!(%err, "failed to parse command-line arguments");
+    //     std::process::exit(1);
+    // });
+    //
+    // let system = starpsx_core::System::build(config).unwrap_or_else(|err| {
+    //     error!(%err, "error while starting emulator");
+    //     std::process::exit(1);
+    // });
 
-    event_loop.run_app(&mut app::App {
-        state: None,
-        config: Some(config),
-    })
+    pollster::block_on(run())
+}
+
+async fn run() {
+    let event_loop = EventLoop::new().unwrap();
+    event_loop.set_control_flow(ControlFlow::Poll);
+
+    let mut app = app::App::new();
+    event_loop.run_app(&mut app).expect("Failed to run app");
 }

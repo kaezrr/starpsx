@@ -5,12 +5,15 @@ edition = "2024"
 
 [dependencies]
 starpsx-core = { path = "../core" }
-softbuffer = "0.4.6"
-winit = "0.30.12"
 gilrs = "0.11.0"
 tracing = "0.1.43"
 tracing-appender = "0.2.4"
 tracing-subscriber = { version ="0.3.22", features = ["registry", "env-filter"] }
+egui-winit = "0.33.3"
+egui-wgpu = { version="0.33.3", features=["winit", "wayland", "x11"] }
+pollster = "0.4.0"
+winit = "0.30.12"
+egui = "0.33.3"
 
 [features]
 full-vram=["starpsx-core/full-vram"]
