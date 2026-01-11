@@ -1,7 +1,8 @@
 mod app;
 mod egui_tools;
+mod gamepad;
 
-use tracing::level_filters::LevelFilter;
+use tracing::{error, level_filters::LevelFilter};
 use tracing_subscriber::{EnvFilter, Layer, layer::SubscriberExt, util::SubscriberInitExt};
 use winit::event_loop::{ControlFlow, EventLoop};
 
@@ -42,23 +43,23 @@ fn main() {
         .with(EnvFilter::from_default_env())
         .init();
 
-    // let config = starpsx_core::Config::build().unwrap_or_else(|err| {
-    //     error!(%err, "failed to parse command-line arguments");
-    //     std::process::exit(1);
-    // });
-    //
-    // let system = starpsx_core::System::build(config).unwrap_or_else(|err| {
-    //     error!(%err, "error while starting emulator");
-    //     std::process::exit(1);
-    // });
+    let config = starpsx_core::Config::build().unwrap_or_else(|err| {
+        error!(%err, "failed to parse command-line arguments");
+        std::process::exit(1);
+    });
 
-    pollster::block_on(run())
+    let system = starpsx_core::System::build(config).unwrap_or_else(|err| {
+        error!(%err, "error while starting emulator");
+        std::process::exit(1);
+    });
+
+    pollster::block_on(run(system))
 }
 
-async fn run() {
+async fn run(system: starpsx_core::System) {
     let event_loop = EventLoop::new().unwrap();
     event_loop.set_control_flow(ControlFlow::Poll);
 
-    let mut app = app::App::new();
+    let mut app = app::App::new(system);
     event_loop.run_app(&mut app).expect("Failed to run app");
 }

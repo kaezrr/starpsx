@@ -1,13 +1,17 @@
 use crate::egui_tools::EguiRenderer;
+use crate::gamepad::{convert_axis, convert_button};
 use egui_wgpu::wgpu::SurfaceError;
 use egui_wgpu::{RendererOptions, ScreenDescriptor, wgpu};
 use std::sync::Arc;
-use tracing::{error, trace, warn};
+use std::time::Duration;
+use tracing::{error, info, trace, warn};
 use winit::application::ApplicationHandler;
 use winit::dpi::PhysicalSize;
 use winit::event::WindowEvent;
 use winit::event_loop::ActiveEventLoop;
 use winit::window::{Window, WindowId};
+
+const FRAME_TIME: Duration = Duration::from_nanos(1_000_000_000 / starpsx_core::TARGET_FPS);
 
 // holds all the rendering stuff
 pub struct AppState {
@@ -146,6 +150,7 @@ impl AppState {
         );
 
         surface_texture.present();
+        self.window.request_redraw();
     }
 }
 
@@ -153,18 +158,20 @@ impl AppState {
 pub struct App {
     instance: wgpu::Instance,
     state: Option<AppState>,
-    label: String, // Random stuff
-    value: f32,    // Random stuff
+    system: starpsx_core::System,
+    gamepad: gilrs::Gilrs,
 }
 
 impl App {
-    pub fn new() -> Self {
+    pub fn new(system: starpsx_core::System) -> Self {
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor::default());
+        let gamepad = gilrs::Gilrs::new().expect("Could not initialize gilrs");
+
         Self {
-            value: 0.0,
-            label: String::new(),
             instance,
             state: None,
+            system,
+            gamepad,
         }
     }
 
@@ -191,6 +198,42 @@ impl App {
 
         self.state = Some(state);
     }
+
+    fn process_gamepad_events(&mut self) {
+        let psx_gamepad = self.system.gamepad_mut();
+
+        while let Some(gilrs::Event { event, .. }) = self.gamepad.next_event() {
+            match event {
+                gilrs::EventType::ButtonPressed(gilrs::Button::Mode, _) => {}
+                gilrs::EventType::ButtonReleased(gilrs::Button::Mode, _) => {
+                    psx_gamepad.toggle_analog_mode()
+                }
+
+                gilrs::EventType::ButtonPressed(button, _) => {
+                    psx_gamepad.set_button_state(convert_button(button), true)
+                }
+
+                gilrs::EventType::ButtonReleased(button, _) => {
+                    psx_gamepad.set_button_state(convert_button(button), false)
+                }
+
+                gilrs::EventType::Connected => {
+                    info!("gamepad connected")
+                }
+
+                gilrs::EventType::Disconnected => {
+                    info!("gamepad disconnected")
+                }
+
+                gilrs::EventType::AxisChanged(axis, value, _) => {
+                    let (converted_axis, new_value) = convert_axis(axis, value);
+                    psx_gamepad.set_stick_axis(converted_axis, new_value);
+                }
+
+                _ => trace!(?event, "gamepad event ignored"),
+            }
+        }
+    }
 }
 
 impl ApplicationHandler for App {
@@ -203,6 +246,8 @@ impl ApplicationHandler for App {
 
     // main emulator loop
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _: WindowId, event: WindowEvent) {
+        let frame_start = std::time::Instant::now();
+
         let mut borrowed_state = self.state.take();
 
         let Some(ref mut state) = borrowed_state else {
@@ -211,6 +256,7 @@ impl ApplicationHandler for App {
         };
 
         state.egui_renderer.handle_input(&state.window, &event);
+        self.process_gamepad_events();
 
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
@@ -219,10 +265,21 @@ impl ApplicationHandler for App {
             event => trace!(?event, "ignoring window event"),
         }
 
-        state.window.request_redraw();
+        // self.system.step_frame();
+
+        // Thread sleeping locks the framerate here
+        let elapsed = frame_start.elapsed();
+        let actual_fps = 1.0 / elapsed.as_secs_f64();
+        info!("StarPSX - {actual_fps:.2} FPS");
 
         // put the borrowed state back
         self.state = borrowed_state;
+
+        if let Some(remaining) = FRAME_TIME.checked_sub(elapsed) {
+            std::thread::sleep(remaining);
+        } else {
+            warn!("frame took too long to render");
+        }
     }
 }
 
@@ -253,13 +310,7 @@ impl App {
 
             ui.horizontal(|ui| {
                 ui.label("Write something: ");
-                ui.text_edit_singleline(&mut self.label);
             });
-
-            ui.add(egui::Slider::new(&mut self.value, 0.0..=10.0).text("value"));
-            if ui.button("Increment").clicked() {
-                self.value += 1.0;
-            }
 
             ui.separator();
 
