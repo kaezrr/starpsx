@@ -29,7 +29,6 @@ use std::{
 };
 use timers::Timers;
 use tracing::info;
-use tracing::warn;
 
 pub use sio::gamepad;
 
@@ -244,11 +243,6 @@ impl System {
         self.irqctl.stat().set_vblank(true);
 
         let fb = self.gpu.renderer.produce_frame_buffer();
-        if fb.resolution.0 == 0 || fb.resolution.1 == 0 {
-            warn!("produced frame buffer with no resolution");
-            return;
-        }
-
         self.produced_frame_buffer = Some(fb);
     }
 

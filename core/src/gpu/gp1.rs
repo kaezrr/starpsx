@@ -18,8 +18,8 @@ impl Gpu {
         self.gpu_stat.set_display_depth(command.display_depth());
         self.gpu_stat.set_interlaced(command.interlaced());
 
-        let (x, y) = self.get_resolution();
-        self.renderer.ctx.resolution = Vec2::new(x as i32, y as i32);
+        self.renderer.ctx.resolution_x = self.gpu_stat.hres();
+        self.renderer.ctx.resolution_y = self.gpu_stat.vres();
         self.renderer.ctx.display_depth = command.display_depth();
 
         if command.flip_screen() {

@@ -72,10 +72,13 @@ impl Renderer {
             (
                 self.ctx.display_vram_start.x as usize,
                 self.ctx.display_vram_start.y as usize,
-                self.ctx.resolution.x as usize,
-                self.ctx.resolution.y as usize,
+                self.ctx.resolution_x.into(),
+                self.ctx.resolution_y.into(),
             )
         };
+
+        assert_ne!(width, 0);
+        assert_ne!(height, 0);
 
         let mut pixel_buffer: Vec<Color> = Vec::with_capacity(width * height);
 

@@ -3,11 +3,11 @@ mod gp1;
 mod utils;
 
 use arrayvec::ArrayVec;
-use starpsx_renderer::{Renderer, utils::DisplayDepth};
+use starpsx_renderer::{Renderer, utils::DisplayDepth, utils::HorizontalRes, utils::VerticalRes};
 
 pub use utils::{
-    CommandArguments, CommandFn, DmaDirection, Field, GP0State, HorizontalRes, PolyLineArguments,
-    TextureDepth, VMode, VerticalRes, VramCopyFields,
+    CommandArguments, CommandFn, DmaDirection, Field, GP0State, PolyLineArguments, TextureDepth,
+    VMode, VramCopyFields,
 };
 
 use crate::{System, gpu::utils::PolyLineFn, mem::ByteAddressable};
@@ -376,23 +376,6 @@ impl Gpu {
             }
         };
         self.process_polyline_argument(data, PolyLineArguments::new(cmd, color))
-    }
-
-    pub fn get_resolution(&self) -> (usize, usize) {
-        let width = match self.gpu_stat.hres() {
-            HorizontalRes::X256 => 256,
-            HorizontalRes::X320 => 320,
-            HorizontalRes::X512 => 512,
-            HorizontalRes::X368 => 368,
-            HorizontalRes::X640 => 640,
-        };
-
-        let height = match self.gpu_stat.vres() {
-            VerticalRes::Y240 => 240,
-            VerticalRes::Y480 => 480,
-        };
-
-        (width, height)
     }
 
     pub fn get_dot_clock_divider(&self) -> u32 {

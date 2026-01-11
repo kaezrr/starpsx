@@ -58,52 +58,6 @@ impl From<Field> for u8 {
     }
 }
 
-/// Video output horizontal resolution
-pub enum HorizontalRes {
-    X256,
-    X320,
-    X368,
-    X512,
-    X640,
-}
-
-impl From<u8> for HorizontalRes {
-    fn from(v: u8) -> Self {
-        match v {
-            0 => Self::X256,
-            1 => Self::X320,
-            2 => Self::X512,
-            3 => Self::X640,
-            4..=7 => Self::X368,
-            _ => unreachable!(),
-        }
-    }
-}
-
-/// Video output vertical resolution
-pub enum VerticalRes {
-    Y240,
-    Y480,
-}
-
-impl From<u8> for VerticalRes {
-    fn from(v: u8) -> Self {
-        match v {
-            0 => Self::Y240,
-            1 => Self::Y480,
-            _ => unreachable!(),
-        }
-    }
-}
-
-impl From<VerticalRes> for u8 {
-    fn from(v: VerticalRes) -> Self {
-        match v {
-            VerticalRes::Y240 => 0,
-            VerticalRes::Y480 => 1,
-        }
-    }
-}
 /// Video modes
 pub enum VMode {
     Ntsc,
