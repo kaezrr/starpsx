@@ -1,4 +1,4 @@
-pub fn show_ui(ctx: &egui::Context, system: &starpsx_core::System) {
+pub fn show_ui(ctx: &egui::Context, _system: &starpsx_core::System) {
     egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
         // The top panel is often a good place for a menu bar:
 

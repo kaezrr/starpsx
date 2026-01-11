@@ -4,15 +4,12 @@ use crate::gamepad::{convert_axis, convert_button};
 use egui_wgpu::wgpu::SurfaceError;
 use egui_wgpu::{RendererOptions, ScreenDescriptor, wgpu};
 use std::sync::Arc;
-use std::time::Duration;
 use tracing::{error, info, trace, warn};
 use winit::application::ApplicationHandler;
 use winit::dpi::PhysicalSize;
 use winit::event::WindowEvent;
 use winit::event_loop::ActiveEventLoop;
 use winit::window::{Window, WindowId};
-
-const FRAME_TIME: Duration = Duration::from_nanos(1_000_000_000 / starpsx_core::TARGET_FPS);
 
 // Holds all the rendering stuff
 pub struct AppState {
@@ -56,7 +53,7 @@ impl AppState {
             .expect("Failed to create device");
 
         let swapchain_capabilities = surface.get_capabilities(&adapter);
-        let selected_format = wgpu::TextureFormat::Bgra8UnormSrgb;
+        let selected_format = wgpu::TextureFormat::Bgra8Unorm;
         let swapchain_format = swapchain_capabilities
             .formats
             .iter()
@@ -247,8 +244,6 @@ impl ApplicationHandler for App {
 
     // This is the main emulator loop as redraw is continuosly requested
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _: WindowId, event: WindowEvent) {
-        let frame_start = std::time::Instant::now();
-
         let mut borrowed_state = self.state.take();
 
         let Some(ref mut state) = borrowed_state else {
@@ -268,18 +263,7 @@ impl ApplicationHandler for App {
 
         // self.system.step_frame();
 
-        // Thread sleeping locks the framerate here
-        let elapsed = frame_start.elapsed();
-        let actual_fps = 1.0 / elapsed.as_secs_f64();
-        info!("StarPSX - {actual_fps:.2} FPS");
-
         // put the borrowed state back
         self.state = borrowed_state;
-
-        if let Some(remaining) = FRAME_TIME.checked_sub(elapsed) {
-            std::thread::sleep(remaining);
-        } else {
-            warn!("frame took too long to render");
-        }
     }
 }

@@ -65,9 +65,8 @@ impl EguiRenderer {
         window_surface_view: &TextureView,
         screen_descriptor: ScreenDescriptor,
     ) {
-        if !self.frame_started {
-            tracing::error!("begin_frame must be called before end_frame_and_draw can be called!");
-        }
+        // Frame must have started before this function can be called
+        assert!(self.frame_started);
 
         self.ppp(screen_descriptor.pixels_per_point);
 
