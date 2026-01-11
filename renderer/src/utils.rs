@@ -3,9 +3,9 @@ use crate::{Renderer, vec2::Vec2};
 #[repr(C)]
 #[derive(Debug, Default, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Color {
-    pub b: u8,
-    pub g: u8,
     pub r: u8,
+    pub g: u8,
+    pub b: u8,
     mask: u8,
 }
 

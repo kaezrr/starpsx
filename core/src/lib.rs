@@ -155,9 +155,10 @@ impl System {
         Ok(psx)
     }
 
-    pub fn frame_buffer(&self) -> &[u32] {
+    // Returns u
+    pub fn frame_buffer(&self) -> &[u8] {
         let (width, height) = self.gpu.get_resolution();
-        &self.gpu.renderer.frame_buffer()[..(width * height)]
+        &self.gpu.renderer.frame_buffer()[..(width * height * 4)]
     }
 
     pub fn get_resolution(&self) -> (u32, u32) {

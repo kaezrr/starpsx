@@ -61,7 +61,7 @@ impl Renderer {
         }
     }
 
-    pub fn frame_buffer(&self) -> &[u32] {
+    pub fn frame_buffer(&self) -> &[u8] {
         bytemuck::cast_slice(self.pixel_buffer.as_ref())
     }
 
