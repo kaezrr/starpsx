@@ -1,23 +1,12 @@
 mod app;
-mod egui_tools;
-mod egui_ui;
-mod gamepad;
+mod utils;
 
+use eframe::egui;
 use tracing::{error, level_filters::LevelFilter};
 use tracing_subscriber::{EnvFilter, Layer, layer::SubscriberExt, util::SubscriberInitExt};
-use winit::event_loop::{ControlFlow, EventLoop};
 
-// Logs to a fixed path for now
-fn initialize_logging() -> Result<(), String> {
-    std::fs::create_dir_all("./logs")
-        .map_err(|e| format!("failed to create logs directory: {e}"))?;
-    std::fs::File::create("./logs/psx.log")
-        .map_err(|e| format!("failed to initialize log file: {e}"))?;
-    Ok(())
-}
-
-fn main() {
-    if let Err(msg) = initialize_logging() {
+fn main() -> eframe::Result {
+    if let Err(msg) = utils::initialize_logging() {
         eprintln!("Error: {msg}");
         std::process::exit(1);
     }
@@ -54,13 +43,14 @@ fn main() {
         std::process::exit(1);
     });
 
-    pollster::block_on(run(system))
-}
+    let options = eframe::NativeOptions {
+        viewport: egui::ViewportBuilder::default().with_inner_size([960.0, 640.0]),
+        ..Default::default()
+    };
 
-async fn run(system: starpsx_core::System) {
-    let event_loop = EventLoop::new().unwrap();
-    event_loop.set_control_flow(ControlFlow::Poll);
-
-    let mut app = app::App::new(system);
-    event_loop.run_app(&mut app).expect("Failed to run app");
+    eframe::run_native(
+        "StarPSX",
+        options,
+        Box::new(|cc| Ok(Box::new(app::Application::new(cc)))),
+    )
 }

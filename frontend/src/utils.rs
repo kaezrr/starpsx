@@ -1,5 +1,14 @@
 use starpsx_core::gamepad;
 
+// Logs to a fixed path for now
+pub fn initialize_logging() -> Result<(), String> {
+    std::fs::create_dir_all("./logs")
+        .map_err(|e| format!("failed to create logs directory: {e}"))?;
+    std::fs::File::create("./logs/psx.log")
+        .map_err(|e| format!("failed to initialize log file: {e}"))?;
+    Ok(())
+}
+
 pub fn convert_axis(axis: gilrs::Axis, value: f32) -> (gamepad::StickAxis, u8) {
     // Y axis is flipped between gilrs and console
     let v = match axis {
