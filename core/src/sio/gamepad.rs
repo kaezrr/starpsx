@@ -32,10 +32,10 @@ impl Gamepad {
             GamepadState::SwitchLow => self.switch_halfbyte() as u8,
             GamepadState::SwitchHigh => (self.switch_halfbyte() >> 8) as u8,
 
-            GamepadState::AnalogInput0 => self.joystick_axes[StickAxis::RightX as usize],
-            GamepadState::AnalogInput1 => self.joystick_axes[StickAxis::RightY as usize],
-            GamepadState::AnalogInput2 => self.joystick_axes[StickAxis::LeftX as usize],
-            GamepadState::AnalogInput3 => self.joystick_axes[StickAxis::LeftY as usize],
+            GamepadState::AnalogInput0 => self.joystick_axes[Axis::RightX as usize],
+            GamepadState::AnalogInput1 => self.joystick_axes[Axis::RightY as usize],
+            GamepadState::AnalogInput2 => self.joystick_axes[Axis::LeftX as usize],
+            GamepadState::AnalogInput3 => self.joystick_axes[Axis::LeftY as usize],
         };
 
         if let Some(state) = self.mode.next(self.state, data) {
@@ -64,7 +64,7 @@ impl Gamepad {
         self.digital_switches[button as usize] = pressed;
     }
 
-    pub fn set_stick_axis(&mut self, axis: StickAxis, new_value: u8) {
+    pub fn set_stick_axis(&mut self, axis: Axis, new_value: u8) {
         self.joystick_axes[axis as usize] = new_value;
     }
 
@@ -168,6 +168,7 @@ impl GamepadMode {
 }
 
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub enum Button {
     Select,
     L3,
@@ -188,7 +189,8 @@ pub enum Button {
 }
 
 #[repr(C)]
-pub enum StickAxis {
+#[derive(Copy, Clone)]
+pub enum Axis {
     RightX,
     RightY,
     LeftX,

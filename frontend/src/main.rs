@@ -1,5 +1,5 @@
 mod app;
-mod utils;
+mod util;
 
 use std::{sync::mpsc::SyncSender, time::Duration};
 
@@ -21,7 +21,7 @@ fn main() -> eframe::Result {
         std::process::exit(1);
     });
 
-    let (sender, receiver) = std::sync::mpsc::sync_channel::<FrameBuffer>(1);
+    let (frame_tx, frame_rx) = std::sync::mpsc::sync_channel::<FrameBuffer>(1);
 
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
@@ -36,15 +36,15 @@ fn main() -> eframe::Result {
         // This must only be called once!
         Box::new(move |cc| {
             let ctx = cc.egui_ctx.clone();
-            std::thread::spawn(move || run_core(ctx, sender, system));
-            Ok(Box::new(app::Application::new(cc, receiver)))
+            std::thread::spawn(move || run_core(ctx, frame_tx, system));
+            Ok(Box::new(app::Application::new(cc, frame_rx)))
         }),
     )
 }
 
 fn run_core(
     repaint_notifier: egui::Context,
-    frame_sender: SyncSender<FrameBuffer>,
+    frame_tx: SyncSender<FrameBuffer>,
     mut system: starpsx_core::System,
 ) {
     loop {
@@ -54,7 +54,7 @@ fn run_core(
             continue;
         };
 
-        if frame_sender.try_send(frame_buffer).is_ok() {
+        if frame_tx.try_send(frame_buffer).is_ok() {
             repaint_notifier.request_repaint();
         }
 
