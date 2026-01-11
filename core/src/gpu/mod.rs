@@ -379,24 +379,20 @@ impl Gpu {
     }
 
     pub fn get_resolution(&self) -> (usize, usize) {
-        if cfg!(feature = "full-vram") {
-            (1024, 512)
-        } else {
-            let width = match self.gpu_stat.hres() {
-                HorizontalRes::X256 => 256,
-                HorizontalRes::X320 => 320,
-                HorizontalRes::X512 => 512,
-                HorizontalRes::X368 => 368,
-                HorizontalRes::X640 => 640,
-            };
+        let width = match self.gpu_stat.hres() {
+            HorizontalRes::X256 => 256,
+            HorizontalRes::X320 => 320,
+            HorizontalRes::X512 => 512,
+            HorizontalRes::X368 => 368,
+            HorizontalRes::X640 => 640,
+        };
 
-            let height = match self.gpu_stat.vres() {
-                VerticalRes::Y240 => 240,
-                VerticalRes::Y480 => 480,
-            };
+        let height = match self.gpu_stat.vres() {
+            VerticalRes::Y240 => 240,
+            VerticalRes::Y480 => 480,
+        };
 
-            (width, height)
-        }
+        (width, height)
     }
 
     pub fn get_dot_clock_divider(&self) -> u32 {

@@ -1,8 +1,11 @@
 mod app;
 mod utils;
 
+use std::{sync::mpsc::SyncSender, time::Duration};
+
 use eframe::egui;
-use tracing::error;
+use starpsx_renderer::FrameBuffer;
+use tracing::{error, warn};
 use tracing_subscriber::fmt;
 
 fn main() -> eframe::Result {
@@ -18,6 +21,8 @@ fn main() -> eframe::Result {
         std::process::exit(1);
     });
 
+    let (sender, receiver) = std::sync::mpsc::sync_channel::<FrameBuffer>(1);
+
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([960.0, 640.0])
@@ -28,6 +33,31 @@ fn main() -> eframe::Result {
     eframe::run_native(
         "StarPSX",
         options,
-        Box::new(move |cc| Ok(Box::new(app::Application::new(cc, system)))),
+        // This must only be called once!
+        Box::new(move |cc| {
+            let ctx = cc.egui_ctx.clone();
+            std::thread::spawn(move || run_core(ctx, sender, system));
+            Ok(Box::new(app::Application::new(cc, receiver)))
+        }),
     )
+}
+
+fn run_core(
+    repaint_notifier: egui::Context,
+    frame_sender: SyncSender<FrameBuffer>,
+    mut system: starpsx_core::System,
+) {
+    loop {
+        system.step_frame();
+        let Some(frame_buffer) = system.produced_frame_buffer.take() else {
+            warn!("core did not produce a frame buffer");
+            continue;
+        };
+
+        if frame_sender.try_send(frame_buffer).is_ok() {
+            repaint_notifier.request_repaint();
+        }
+
+        std::thread::sleep(Duration::from_millis(16));
+    }
 }

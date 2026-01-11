@@ -13,9 +13,14 @@ const VRAM_HEIGHT: usize = 512;
 const VRAM_SIZE: usize = VRAM_WIDTH * VRAM_HEIGHT;
 
 pub struct Renderer {
-    pub pixel_buffer: Box<[Color; VRAM_SIZE]>,
     pub ctx: DrawContext,
     vram: Box<[u16; VRAM_SIZE]>,
+}
+
+pub struct FrameBuffer {
+    pub rgba_bytes: Vec<u8>,
+    /// Resolution in pixels
+    pub resolution: (usize, usize),
 }
 
 impl Default for Renderer {
@@ -23,7 +28,6 @@ impl Default for Renderer {
         Self {
             ctx: DrawContext::default(),
             vram: vec![0; VRAM_SIZE].try_into().unwrap(),
-            pixel_buffer: vec![Color::default(); VRAM_SIZE].try_into().unwrap(),
         }
     }
 }
@@ -61,11 +65,7 @@ impl Renderer {
         }
     }
 
-    pub fn frame_buffer(&self) -> &[u8] {
-        bytemuck::cast_slice(self.pixel_buffer.as_ref())
-    }
-
-    pub fn copy_display_to_fb(&mut self) {
+    pub fn produce_frame_buffer(&mut self) -> FrameBuffer {
         let (sx, sy, width, height) = if cfg!(feature = "full-vram") {
             (0, 0, VRAM_WIDTH, VRAM_HEIGHT)
         } else {
@@ -77,19 +77,21 @@ impl Renderer {
             )
         };
 
+        let mut pixel_buffer: Vec<Color> = Vec::with_capacity(width * height);
+
         match self.ctx.display_depth {
             utils::DisplayDepth::D15 => {
                 for y in 0..height {
                     for x in 0..width {
                         let pixel = self.vram_read(sx + x, sy + y);
-                        self.pixel_buffer[width * y + x] = Color::new_5bit(pixel);
+                        pixel_buffer.push(Color::new_5bit(pixel));
                     }
                 }
             }
             utils::DisplayDepth::D24 => {
                 let mut vram_x = 0;
                 for y in 0..height {
-                    for x in (0..width).step_by(2) {
+                    for _ in (0..width).step_by(2) {
                         let w0 = self.vram_read(sx + vram_x, sy + y) as u32;
                         let w1 = self.vram_read(sx + vram_x + 1, sy + y) as u32;
                         let w2 = self.vram_read(sx + vram_x + 2, sy + y) as u32;
@@ -97,14 +99,19 @@ impl Renderer {
                         let pixel0 = w0 | (w1 & 0xFF) << 16;
                         let pixel1 = (w2 << 8) | w1 >> 8;
 
-                        self.pixel_buffer[width * y + x] = Color::new_8bit(pixel0);
-                        self.pixel_buffer[width * y + x + 1] = Color::new_8bit(pixel1);
+                        pixel_buffer.push(Color::new_8bit(pixel0));
+                        pixel_buffer.push(Color::new_8bit(pixel1));
 
                         vram_x += 3; // 3 words per 2 pixels
                     }
                     vram_x = 0;
                 }
             }
+        };
+
+        FrameBuffer {
+            rgba_bytes: bytemuck::cast_vec(pixel_buffer),
+            resolution: (width, height),
         }
     }
 

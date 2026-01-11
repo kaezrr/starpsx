@@ -22,14 +22,15 @@ use mem::ram::Ram;
 use mem::scratch::Scratch;
 use sched::{Event, EventScheduler};
 use sio::Sio0;
+use starpsx_renderer::FrameBuffer;
 use std::{
     error::Error,
     path::{Path, PathBuf},
 };
 use timers::Timers;
 use tracing::info;
+use tracing::warn;
 
-pub use consts::TARGET_FPS;
 pub use sio::gamepad;
 
 use crate::sio::Sio1;
@@ -89,6 +90,9 @@ pub struct System {
 
     tty: String,
     scheduler: EventScheduler,
+
+    // RGBA frame buffer
+    pub produced_frame_buffer: Option<FrameBuffer>,
 }
 
 impl System {
@@ -113,6 +117,8 @@ impl System {
             // Only 1 gamepad for now
             sio0: Sio0::new([Some(gamepad::Gamepad::default()), None]),
             sio1: Sio1 {}, // Does nothing
+
+            produced_frame_buffer: None,
         };
 
         // Load game or exe
@@ -153,17 +159,6 @@ impl System {
             .schedule(Event::HBlankEnd, LINE_DURATION, Some(LINE_DURATION));
 
         Ok(psx)
-    }
-
-    // Returns u
-    pub fn frame_buffer(&self) -> &[u8] {
-        let (width, height) = self.gpu.get_resolution();
-        &self.gpu.renderer.frame_buffer()[..(width * height * 4)]
-    }
-
-    pub fn get_resolution(&self) -> (u32, u32) {
-        let (width, height) = self.gpu.get_resolution();
-        (width as u32, height as u32)
     }
 
     pub fn step_frame(&mut self) {
@@ -247,7 +242,14 @@ impl System {
     fn enter_vsync(&mut self) {
         Timers::enter_vsync(self);
         self.irqctl.stat().set_vblank(true);
-        self.gpu.renderer.copy_display_to_fb();
+
+        let fb = self.gpu.renderer.produce_frame_buffer();
+        if fb.resolution.0 == 0 || fb.resolution.1 == 0 {
+            warn!("produced frame buffer with no resolution");
+            return;
+        }
+
+        self.produced_frame_buffer = Some(fb);
     }
 
     fn check_for_tty_output(&mut self) {

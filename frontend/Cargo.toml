@@ -7,6 +7,7 @@ edition = "2024"
 eframe = { version = "0.33.3", features = ["wgpu"] }
 gilrs = "0.11.0"
 starpsx-core = { path = "../core" }
+starpsx-renderer = { path = "../renderer" }
 tracing = "0.1.43"
 tracing-appender = "0.2.4"
 tracing-subscriber = { version = "0.3.22", features = ["env-filter", "registry"] }

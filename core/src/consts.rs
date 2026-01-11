@@ -1,4 +1,3 @@
-pub const TARGET_FPS: u64 = 60;
 pub const LINE_DURATION: u64 = 2172;
 pub const HBLANK_DURATION: u64 = 390;
 
