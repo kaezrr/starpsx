@@ -1,5 +1,6 @@
 mod app;
 mod egui_tools;
+mod egui_ui;
 mod gamepad;
 
 use tracing::{error, level_filters::LevelFilter};

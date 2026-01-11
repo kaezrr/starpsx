@@ -1,4 +1,5 @@
 use crate::egui_tools::EguiRenderer;
+use crate::egui_ui::show_ui;
 use crate::gamepad::{convert_axis, convert_button};
 use egui_wgpu::wgpu::SurfaceError;
 use egui_wgpu::{RendererOptions, ScreenDescriptor, wgpu};
@@ -13,7 +14,7 @@ use winit::window::{Window, WindowId};
 
 const FRAME_TIME: Duration = Duration::from_nanos(1_000_000_000 / starpsx_core::TARGET_FPS);
 
-// holds all the rendering stuff
+// Holds all the rendering stuff
 pub struct AppState {
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
@@ -154,7 +155,7 @@ impl AppState {
     }
 }
 
-// main application that holds the emulator and rendering state
+// Main application that holds the emulator and rendering state
 pub struct App {
     instance: wgpu::Instance,
     state: Option<AppState>,
@@ -244,7 +245,7 @@ impl ApplicationHandler for App {
         pollster::block_on(self.set_window(window));
     }
 
-    // main emulator loop
+    // This is the main emulator loop as redraw is continuosly requested
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _: WindowId, event: WindowEvent) {
         let frame_start = std::time::Instant::now();
 
@@ -260,7 +261,7 @@ impl ApplicationHandler for App {
 
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
-            WindowEvent::RedrawRequested => state.handle_redraw(|ctx| self.show_ui(ctx)),
+            WindowEvent::RedrawRequested => state.handle_redraw(|ctx| show_ui(ctx, &self.system)),
             WindowEvent::Resized(new_size) => state.handle_resized(new_size.width, new_size.height),
             event => trace!(?event, "ignoring window event"),
         }
@@ -280,48 +281,5 @@ impl ApplicationHandler for App {
         } else {
             warn!("frame took too long to render");
         }
-    }
-}
-
-impl App {
-    fn show_ui(&mut self, ctx: &egui::Context) {
-        egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
-            // The top panel is often a good place for a menu bar:
-
-            egui::MenuBar::new().ui(ui, |ui| {
-                // NOTE: no File->Quit on web pages!
-                let is_web = cfg!(target_arch = "wasm32");
-                if !is_web {
-                    ui.menu_button("File", |ui| {
-                        if ui.button("Quit").clicked() {
-                            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-                        }
-                    });
-                    ui.add_space(16.0);
-                }
-
-                egui::widgets::global_theme_preference_buttons(ui);
-            });
-        });
-
-        egui::CentralPanel::default().show(ctx, |ui| {
-            // The central panel the region left after adding TopPanel's and SidePanel's
-            ui.heading("eframe template");
-
-            ui.horizontal(|ui| {
-                ui.label("Write something: ");
-            });
-
-            ui.separator();
-
-            ui.add(egui::github_link_file!(
-                "https://github.com/emilk/eframe_template/blob/main/",
-                "Source code."
-            ));
-
-            ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
-                egui::warn_if_debug_build(ui);
-            });
-        });
     }
 }
