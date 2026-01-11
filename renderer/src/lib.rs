@@ -1,12 +1,9 @@
 pub mod utils;
 pub mod vec2;
 
-use crate::{
-    utils::{
-        Clut, Color, ColorOptions, DrawContext, DrawOptions, interpolate_color, interpolate_uv,
-    },
-    vec2::{Vec2, compute_barycentric_coords, needs_vertex_reordering, point_in_triangle},
-};
+use crate::utils::{Clut, Color, ColorOptions, DrawContext};
+use crate::utils::{DrawOptions, interpolate_color, interpolate_uv};
+use crate::vec2::{Vec2, compute_barycentric_coords, needs_vertex_reordering, point_in_triangle};
 
 const VRAM_WIDTH: usize = 1024;
 const VRAM_HEIGHT: usize = 512;
@@ -21,6 +18,16 @@ pub struct FrameBuffer {
     pub rgba_bytes: Vec<u8>,
     /// Resolution in pixels
     pub resolution: (usize, usize),
+}
+
+impl FrameBuffer {
+    /// A fully black 100x100 framebuffer
+    fn black() -> Self {
+        Self {
+            rgba_bytes: vec![0; 100 * 100],
+            resolution: (100, 100),
+        }
+    }
 }
 
 impl Default for Renderer {
@@ -66,6 +73,10 @@ impl Renderer {
     }
 
     pub fn produce_frame_buffer(&mut self) -> FrameBuffer {
+        if self.ctx.display_disabled {
+            return FrameBuffer::black();
+        }
+
         let (sx, sy, width, height) = if cfg!(feature = "full-vram") {
             (0, 0, VRAM_WIDTH, VRAM_HEIGHT)
         } else {

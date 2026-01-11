@@ -139,6 +139,8 @@ pub struct DrawContext {
     pub force_set_masked_bit: bool,
 
     pub display_depth: DisplayDepth,
+
+    pub display_disabled: bool,
 }
 
 impl DrawContext {

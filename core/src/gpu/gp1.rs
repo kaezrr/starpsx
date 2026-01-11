@@ -57,6 +57,7 @@ impl Gpu {
 
     pub fn gp1_display_enable(&mut self, command: Command) {
         self.gpu_stat.set_display_disabled(command.display_off());
+        self.renderer.ctx.display_disabled = command.display_off();
     }
 
     pub fn gp1_reset_command_buffer(&mut self) {
