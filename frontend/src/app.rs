@@ -105,7 +105,7 @@ impl Application {
                 gilrs::EventType::Connected => info!("gamepad connected"),
                 gilrs::EventType::Disconnected => info!("gamepad disconnected"),
 
-                _ => trace!("gamepad event ignored: {event:?}"),
+                _ => trace!(?event, "gamepad event ignored"),
             }
         }
         changed

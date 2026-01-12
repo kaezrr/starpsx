@@ -2,7 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod app;
-mod util;
+mod input;
 
 use std::error::Error;
 use std::sync::mpsc::{Receiver, SyncSender};
@@ -13,10 +13,10 @@ use eframe::egui;
 use tracing::{error, info, warn};
 use tracing_subscriber::{EnvFilter, fmt};
 
+use input::GamepadState;
 use starpsx_renderer::FrameBuffer;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
-use util::GamepadState;
 
 fn main() -> eframe::Result {
     clear_previous_logs("logs", "psx.log");
@@ -98,13 +98,11 @@ fn run_core(
             gamepad.set_stick_axis(input_state.left_stick, input_state.right_stick);
         }
 
-        if let Some(samples) = system.tick() {
-            for sample in samples {
-                audio_tx.send(sample).unwrap_or_else(|err| {
-                    error!(%err, "could not send sample to audio thread, exiting...");
-                    std::process::exit(1);
-                });
-            }
+        for sample in system.tick() {
+            audio_tx.send(sample).unwrap_or_else(|err| {
+                error!(%err, "could not send sample to audio thread, exiting...");
+                std::process::exit(1);
+            });
         }
 
         let frame_sent = system

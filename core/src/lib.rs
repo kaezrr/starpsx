@@ -161,7 +161,7 @@ impl System {
     }
 
     // Returns a left and right audio sample
-    pub fn tick(&mut self) -> Option<[i16; 2]> {
+    pub fn tick(&mut self) -> [i16; 2] {
         for _ in (0..768).step_by(2) {
             if let Some(event) = self.scheduler.get_next_event() {
                 match event {
@@ -182,7 +182,7 @@ impl System {
 
             self.check_for_tty_output();
         }
-        Some([0, 0])
+        [0, 0]
     }
 
     pub fn sideload_exe(&mut self, path: &Path) -> Result<(), Box<dyn Error>> {
