@@ -37,7 +37,7 @@ jobs:
 
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
-        run: sudo apt-get update -y && sudo apt-get install -y libudev-dev
+        run: sudo apt-get update -y && sudo apt-get install -y libudev-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev libssl-dev libasound2-dev
 
       - name: Set Rust toolchain
         uses: dtolnay/rust-toolchain@stable
