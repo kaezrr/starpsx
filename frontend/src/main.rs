@@ -7,7 +7,7 @@ use std::{
 };
 
 use eframe::egui;
-use tracing::{error, info, trace, warn};
+use tracing::{error, warn};
 use tracing_subscriber::fmt;
 
 use starpsx_renderer::FrameBuffer;

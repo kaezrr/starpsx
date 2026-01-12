@@ -88,8 +88,7 @@ impl Renderer {
             )
         };
 
-        assert_ne!(width, 0);
-        assert_ne!(height, 0);
+        debug_assert!(width != 0 && height != 0, "framebuffer has zero resolution");
 
         let mut pixel_buffer: Vec<Color> = Vec::with_capacity(width * height);
 
