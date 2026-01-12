@@ -92,7 +92,7 @@ impl DMAController {
 
     fn write_dicr<T: ByteAddressable>(&mut self, data: T) {
         debug_assert_eq!(T::LEN, 4); // word aligned dicr write
-        trace!("dma write to dicr={:08x}", data.to_u32());
+        trace!(target:"dma", "dma write to dicr={:08x}", data.to_u32());
 
         // bit 31 read only, bits 24 - 30 get reset on sets.
         let mut new_irq = Interrupt(data.to_u32() & !(1 << 31));
@@ -118,7 +118,7 @@ impl DMAController {
 
         let mut addr = base;
 
-        trace!(?port, addr, "dma block transfer");
+        trace!(target:"dma", ?port, addr, "dma block transfer");
 
         for s in (0..size).rev() {
             let cur_addr = addr & 0x1FFFFC;
@@ -139,7 +139,7 @@ impl DMAController {
                     let src_word = system.ram.read::<u32>(cur_addr);
                     match port {
                         Port::Gpu => system.gpu.gp0(src_word),
-                        Port::Spu => trace!("dma ignoring transfer from ram to spu"),
+                        Port::Spu => trace!(target:"dma", "dma ignoring transfer from ram to spu"),
                         _ => todo!("DMA destination {port:?}"),
                     }
                 }
@@ -158,7 +158,7 @@ impl DMAController {
 
         let mut addr = channel.base & 0x1FFFFC;
 
-        trace!(?port, addr, "dma linked list transfer");
+        trace!(target: "dma", ?port, addr, "dma linked list transfer");
 
         loop {
             let header = system.ram.read::<u32>(addr);

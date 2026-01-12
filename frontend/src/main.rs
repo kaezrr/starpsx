@@ -1,3 +1,4 @@
+// Make the emulator not produce a terminal in windows on release mode
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod app;
@@ -9,15 +10,39 @@ use std::sync::mpsc::{Receiver, SyncSender};
 use cpal::traits::{DeviceTrait, HostTrait};
 use cpal::{Device, Sample, Stream, StreamConfig};
 use eframe::egui;
-use tracing::{error, info};
-use tracing_subscriber::fmt;
+use tracing::{error, info, warn};
+use tracing_subscriber::{EnvFilter, fmt};
 
 use starpsx_renderer::FrameBuffer;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
 use util::GamepadState;
 
 fn main() -> eframe::Result {
-    fmt().without_time().init();
+    clear_previous_logs("logs", "psx.log");
 
+    std::panic::set_hook(Box::new(|err| {
+        error!(%err, "panic");
+    }));
+
+    // Start logging to stdout and log file
+    let file_appender = tracing_appender::rolling::never("logs", "psx.log");
+    let (file_writer, _guard) = tracing_appender::non_blocking(file_appender);
+
+    let file_layer = fmt::layer()
+        .with_writer(file_writer)
+        .without_time()
+        .with_ansi(false);
+
+    let stdout_layer = fmt::layer().without_time();
+
+    tracing_subscriber::registry()
+        .with(file_layer)
+        .with(stdout_layer)
+        .with(EnvFilter::from_default_env())
+        .init();
+
+    // Message channels for thread communication
     let (frame_tx, frame_rx) = std::sync::mpsc::sync_channel::<FrameBuffer>(1);
     let (input_tx, input_rx) = std::sync::mpsc::sync_channel::<GamepadState>(1);
     let (audio_tx, audio_rx) = std::sync::mpsc::sync_channel::<i16>(100);
@@ -139,7 +164,12 @@ fn build_stream<T: Sample + cpal::FromSample<i16> + cpal::SizedSample>(
                 *sample = sample_rx.recv().unwrap().to_sample();
             }
         },
-        move |err| error!(%err, "audio stream error"),
+        move |err| warn!(%err, "audio stream error"),
         None,
     )
+}
+
+fn clear_previous_logs(dir: &str, filename: &str) {
+    let path = std::path::Path::new(dir).join(filename);
+    let _ = std::fs::remove_file(path); // ignore errors
 }

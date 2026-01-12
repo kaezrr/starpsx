@@ -1,16 +1,12 @@
 bios := "./stuff/SCPH1001.BIN"
 
-run-vram level *args:
-    RUST_LOG=starpsx=error,starpsx_core={{level}},starpsx_renderer={{level}} \
-    cargo run --features full-vram -- {{bios}} "{{args}}"
-
 run level *args:
-    RUST_LOG=starpsx=error,starpsx_core={{level}},starpsx_renderer={{level}} \
+    RUST_LOG=starpsx={{level}},starpsx_core={{level}} \
     cargo run -- {{bios}} "{{args}}"
 
-run-vram-release level *args:
-    RUST_LOG=starpsx=error,starpsx_core={{level}},starpsx_renderer={{level}} \
-    cargo run --release --features full-vram -- {{bios}} "{{args}}"
+run-bios level *args:
+    RUST_LOG=starpsx={{level}},starpsx_core={{level}} \
+    cargo run --release -- {{bios}}
 
 run-release *args:
     RUST_LOG=starpsx=info,starpsx_core=info \
