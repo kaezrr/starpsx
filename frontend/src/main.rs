@@ -9,7 +9,7 @@ use std::sync::mpsc::{Receiver, SyncSender};
 use cpal::traits::{DeviceTrait, HostTrait};
 use cpal::{Device, Sample, Stream, StreamConfig};
 use eframe::egui;
-use tracing::error;
+use tracing::{error, info};
 use tracing_subscriber::fmt;
 
 use starpsx_renderer::FrameBuffer;
@@ -20,7 +20,7 @@ fn main() -> eframe::Result {
 
     let (frame_tx, frame_rx) = std::sync::mpsc::sync_channel::<FrameBuffer>(1);
     let (input_tx, input_rx) = std::sync::mpsc::sync_channel::<GamepadState>(1);
-    let (audio_tx, audio_rx) = std::sync::mpsc::sync_channel::<i16>(10);
+    let (audio_tx, audio_rx) = std::sync::mpsc::sync_channel::<i16>(100);
 
     let config = starpsx_core::Config::build().unwrap_or_else(|err| {
         error!(%err, "Failed to parse command-line arguments");
@@ -73,11 +73,13 @@ fn run_core(
             gamepad.set_stick_axis(input_state.left_stick, input_state.right_stick);
         }
 
-        if let Some(sample) = system.tick() {
-            audio_tx.send(sample).unwrap_or_else(|err| {
-                error!(%err, "could not send sample to audio thread, exiting...");
-                std::process::exit(1);
-            })
+        if let Some(samples) = system.tick() {
+            for sample in samples {
+                audio_tx.send(sample).unwrap_or_else(|err| {
+                    error!(%err, "could not send sample to audio thread, exiting...");
+                    std::process::exit(1);
+                });
+            }
         }
 
         let frame_sent = system
@@ -103,16 +105,19 @@ fn build_audio(audio_rx: Receiver<i16>) -> Result<Stream, Box<dyn Error>> {
 
     let supported_config = supported_config_range
         .find(|c| {
-            matches!(
-                c.sample_format(),
-                cpal::SampleFormat::I16 | cpal::SampleFormat::F32
-            )
+            c.channels() == 2 // Stereo
+                && matches!(
+                    c.sample_format(),
+                    cpal::SampleFormat::I16 | cpal::SampleFormat::F32
+                )
         })
         .ok_or("no suitable audio config found")?
         .with_sample_rate(44100); // 44.1KHz
 
     let sample_format = supported_config.sample_format();
     let config = supported_config.into();
+
+    info!(?config, "using audio configuration");
 
     match sample_format {
         cpal::SampleFormat::I16 => build_stream::<i16>(&audio_device, &config, audio_rx),
