@@ -2,7 +2,7 @@ pub struct Gamepad {
     state: GamepadState,
     mode: GamepadMode,
 
-    digital_switches: [bool; 16],
+    digital_switches: u16,
     joystick_axes: [u8; 4],
     in_ack: bool,
 }
@@ -12,7 +12,7 @@ impl Default for Gamepad {
         Self {
             state: Default::default(),
             mode: Default::default(),
-            digital_switches: Default::default(),
+            digital_switches: 0xFFFF,
             joystick_axes: [0x80; 4],
             in_ack: Default::default(),
         }
@@ -29,8 +29,8 @@ impl Gamepad {
             GamepadState::IdHigh => self.mode.id()[1],
 
             // Gamepad switches state
-            GamepadState::SwitchLow => self.switch_halfbyte() as u8,
-            GamepadState::SwitchHigh => (self.switch_halfbyte() >> 8) as u8,
+            GamepadState::SwitchLow => self.digital_switches as u8,
+            GamepadState::SwitchHigh => (self.digital_switches >> 8) as u8,
 
             GamepadState::AnalogInput0 => self.joystick_axes[Axis::RightX as usize],
             GamepadState::AnalogInput1 => self.joystick_axes[Axis::RightY as usize],
@@ -54,35 +54,24 @@ impl Gamepad {
         self.in_ack = false;
     }
 
-    pub fn set_button_state(&mut self, button: Button, pressed: bool) {
-        // these buttons only work in analog mode
-        match button {
-            Button::R3 | Button::L3 if matches!(self.mode, GamepadMode::Digital) => return,
-            _ => (),
-        }
-
-        self.digital_switches[button as usize] = pressed;
+    pub fn set_stick_axis(&mut self, left: (u8, u8), right: (u8, u8)) {
+        self.joystick_axes = [right.0, right.1, left.0, left.1];
     }
 
-    pub fn set_stick_axis(&mut self, axis: Axis, new_value: u8) {
-        self.joystick_axes[axis as usize] = new_value;
+    pub fn set_buttons(&mut self, new_value: u16) {
+        self.digital_switches = new_value;
+    }
+
+    pub fn set_analog_mode(&mut self, in_analog: bool) {
+        if self.mode.get() == in_analog {
+            return;
+        }
+        self.mode.set(in_analog);
+        self.reset();
     }
 
     pub fn in_ack(&self) -> bool {
         self.in_ack
-    }
-
-    pub fn toggle_analog_mode(&mut self) {
-        self.mode.toggle();
-        self.reset();
-    }
-
-    fn switch_halfbyte(&self) -> u16 {
-        let mut v = 0u16;
-        for i in 0..16 {
-            v |= (!self.digital_switches[i] as u16) << i;
-        }
-        v
     }
 }
 
@@ -137,11 +126,18 @@ impl GamepadMode {
         }
     }
 
-    fn toggle(&mut self) {
-        *self = match self {
-            GamepadMode::Digital => GamepadMode::Analog,
-            GamepadMode::Analog => GamepadMode::Digital,
+    fn set(&mut self, in_analog: bool) {
+        *self = match in_analog {
+            false => GamepadMode::Digital,
+            true => GamepadMode::Analog,
         };
+    }
+
+    fn get(&self) -> bool {
+        match self {
+            GamepadMode::Digital => false,
+            GamepadMode::Analog => true,
+        }
     }
 
     fn states_table(&self) -> &'static [(GamepadState, Option<u8>)] {

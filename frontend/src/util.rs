@@ -1,11 +1,12 @@
 use std::collections::HashMap;
 
+use eframe::egui::Key as EKey;
 use gilrs::Axis as GAxis;
 use gilrs::Button as GButton;
 use starpsx_core::gamepad::{self, Axis, Button};
 use tracing::error;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct GamepadState {
     pub buttons: u16,
     pub left_stick: (u8, u8),
@@ -16,7 +17,7 @@ pub struct GamepadState {
 impl Default for GamepadState {
     fn default() -> Self {
         Self {
-            buttons: 0xFF,
+            buttons: 0xFFFF,
             left_stick: (0x80, 0x80),
             right_stick: (0x80, 0x80),
             analog_mode: false,
@@ -25,7 +26,9 @@ impl Default for GamepadState {
 }
 
 impl GamepadState {
-    pub fn handle_action(&mut self, action: &Action, value: ActionValue) {
+    pub fn handle_action(&mut self, action: &Action, value: ActionValue) -> bool {
+        let before = self.clone();
+
         match (action, value) {
             (Action::StickAxis(axis), ActionValue::Analog(v)) => {
                 self.update_axis(axis, v);
@@ -35,8 +38,10 @@ impl GamepadState {
                 self.update_button(button, pressed);
             }
             // Might have issues with latching
-            (Action::AnalogModeButton, ActionValue::Digital(false)) => {
-                self.analog_mode = !self.analog_mode;
+            (Action::AnalogModeButton, ActionValue::Digital(pressed)) => {
+                if !pressed {
+                    self.analog_mode = !self.analog_mode;
+                }
             }
 
             (Action::DigitalAxisPositive(axis), ActionValue::Digital(true)) => {
@@ -57,6 +62,8 @@ impl GamepadState {
 
             (_, _) => error!("invalid action and value pair"),
         };
+
+        *self != before
     }
 
     fn update_axis(&mut self, axis: &Axis, value: f32) {
