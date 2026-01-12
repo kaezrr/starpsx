@@ -160,14 +160,12 @@ impl System {
         Ok(psx)
     }
 
-    pub fn step_frame(&mut self) {
-        loop {
+    // Returns an audio sample
+    pub fn tick(&mut self) -> Option<i16> {
+        for _ in (0..768).step_by(2) {
             if let Some(event) = self.scheduler.get_next_event() {
                 match event {
-                    Event::VBlankStart => {
-                        self.enter_vsync();
-                        return; // End of frame
-                    }
+                    Event::VBlankStart => self.enter_vsync(),
                     Event::VBlankEnd => Timers::exit_vsync(self),
                     Event::HBlankStart => Timers::enter_hsync(self),
                     Event::HBlankEnd => Timers::exit_hsync(self),
@@ -184,6 +182,7 @@ impl System {
 
             self.check_for_tty_output();
         }
+        Some(0)
     }
 
     pub fn sideload_exe(&mut self, path: &Path) -> Result<(), Box<dyn Error>> {

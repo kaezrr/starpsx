@@ -1,6 +1,6 @@
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 use std::sync::mpsc::{Receiver, SyncSender, TryRecvError};
 
+use cpal::traits::StreamTrait;
 use eframe::egui::{self, Color32, ColorImage};
 use eframe::egui::{TextureOptions, ViewportCommand, load::SizedTexture};
 use starpsx_renderer::FrameBuffer;
@@ -15,6 +15,7 @@ pub struct Application {
     input_state: util::GamepadState,
     texture: egui::TextureHandle,
     keybindings: util::Bindings,
+    _audio_stream: cpal::Stream,
 }
 
 impl Application {
@@ -22,13 +23,18 @@ impl Application {
         cc: &eframe::CreationContext<'_>,
         frame_rx: Receiver<FrameBuffer>,
         input_tx: SyncSender<GamepadState>,
+        _audio_stream: cpal::Stream,
     ) -> Self {
+        // Start playing the audio
+        _audio_stream.play().expect("could not start playing audio");
+
         Self {
             gamepad: gilrs::Gilrs::new().expect("could not initalize gilrs"),
             frame_rx,
             input_tx,
             input_state: util::GamepadState::default(),
             keybindings: util::get_default_keybinds(),
+            _audio_stream,
             texture: cc.egui_ctx.load_texture(
                 "frame buffer",
                 ColorImage::filled([100, 100], Color32::BLACK),

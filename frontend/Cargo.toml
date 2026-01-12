@@ -4,6 +4,7 @@ version = "0.2.0"
 edition = "2024"
 
 [dependencies]
+cpal = "0.17.1"
 eframe = { version = "0.33.3", features = ["wgpu"] }
 gilrs = "0.11.0"
 starpsx-core = { path = "../core" }

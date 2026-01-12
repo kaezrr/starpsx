@@ -24,7 +24,7 @@ impl FrameBuffer {
     /// A fully black 100x100 framebuffer
     fn black() -> Self {
         Self {
-            rgba_bytes: vec![0; 100 * 100],
+            rgba_bytes: vec![0; 100 * 100 * 4],
             resolution: (100, 100),
         }
     }
