@@ -55,7 +55,7 @@ fn run_core(
     mut system: starpsx_core::System,
 ) {
     loop {
-        if let Ok(input_state) = input_rx.try_recv() {
+        while let Ok(input_state) = input_rx.try_recv() {
             let gamepad = system.gamepad_mut();
             gamepad.set_buttons(input_state.buttons);
             gamepad.set_analog_mode(input_state.analog_mode);
