@@ -6,6 +6,8 @@ mod audio;
 mod emulator;
 mod input;
 
+use std::sync::Arc;
+
 use eframe::egui;
 use starpsx_renderer::FrameBuffer;
 use tracing::error;
@@ -16,6 +18,8 @@ use tracing_subscriber::{EnvFilter, fmt};
 
 use input::GamepadState;
 
+use crate::emulator::CoreMetrics;
+
 fn main() -> eframe::Result {
     // Making sure the log guard doesn't fall out of scope
     let _log_guard = init_logging("logs", "psx.log");
@@ -23,7 +27,7 @@ fn main() -> eframe::Result {
     // Message channels for thread communication
     let (frame_tx, frame_rx) = std::sync::mpsc::sync_channel::<FrameBuffer>(1);
     let (input_tx, input_rx) = std::sync::mpsc::sync_channel::<GamepadState>(1);
-    let (audio_tx, audio_rx) = std::sync::mpsc::sync_channel::<i16>(1470);
+    let (audio_tx, audio_rx) = std::sync::mpsc::sync_channel::<[i16; 2]>(735);
 
     let config = starpsx_core::Config::build().unwrap_or_else(|err| {
         error!(%err, "Failed to parse command-line arguments");
@@ -48,6 +52,8 @@ fn main() -> eframe::Result {
         options,
         // This must only be called once!
         Box::new(move |cc| {
+            let shared_metrics = Arc::new(CoreMetrics::default());
+
             // Build emulator from the provided configuration
             let emulator = emulator::Emulator::build(
                 config,
@@ -55,6 +61,7 @@ fn main() -> eframe::Result {
                 frame_tx,
                 input_rx,
                 audio_tx,
+                shared_metrics.clone(),
             )
             .unwrap_or_else(|err| {
                 error!(%err, "Error while starting emulator");
@@ -66,7 +73,11 @@ fn main() -> eframe::Result {
 
             // Start the ui thread
             Ok(Box::new(app::Application::new(
-                cc, frame_rx, input_tx, stream,
+                cc,
+                frame_rx,
+                input_tx,
+                stream,
+                shared_metrics,
             )))
         }),
     )

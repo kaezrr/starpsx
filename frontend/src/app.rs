@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use std::sync::mpsc::{Receiver, SyncSender, TryRecvError};
 
 use cpal::traits::StreamTrait;
@@ -6,6 +7,7 @@ use eframe::egui::{TextureOptions, ViewportCommand, load::SizedTexture};
 use starpsx_renderer::FrameBuffer;
 use tracing::{info, trace};
 
+use crate::emulator::CoreMetrics;
 use crate::input::{self, ActionValue, GamepadState, PhysicalInput};
 
 pub struct Application {
@@ -21,7 +23,9 @@ pub struct Application {
     audio_stream: cpal::Stream,
     is_paused: bool,
 
+    // metrics
     last_resolution: Option<(usize, usize)>,
+    shared_metrics: Arc<CoreMetrics>,
 }
 
 impl Application {
@@ -30,6 +34,7 @@ impl Application {
         frame_rx: Receiver<FrameBuffer>,
         input_tx: SyncSender<GamepadState>,
         audio_stream: cpal::Stream,
+        shared_metrics: Arc<CoreMetrics>,
     ) -> Self {
         // Start playing the audio
         audio_stream.play().unwrap();
@@ -53,6 +58,7 @@ impl Application {
 
             // Performance metrics
             last_resolution: None,
+            shared_metrics,
         }
     }
 
@@ -123,6 +129,17 @@ impl Application {
         }
         changed
     }
+
+    fn present_frame_buffer(&mut self, fb: FrameBuffer) {
+        let image = egui::ColorImage::from_rgba_premultiplied(
+            [fb.resolution.0, fb.resolution.1],
+            &fb.rgba_bytes,
+        );
+
+        self.texture.set(image, TextureOptions::NEAREST);
+        // If its a 1x1 resolution frame buffer then the emulator display is disabled
+        self.last_resolution = (fb.resolution.0 * fb.resolution.1 > 1).then_some(fb.resolution);
+    }
 }
 
 impl eframe::App for Application {
@@ -140,25 +157,13 @@ impl eframe::App for Application {
 
         // Get framebuffers from emulator thread
         match self.frame_rx.try_recv() {
-            Ok(FrameBuffer {
-                rgba_bytes,
-                resolution,
-            }) => {
-                let image = egui::ColorImage::from_rgba_premultiplied(
-                    [resolution.0, resolution.1],
-                    &rgba_bytes,
-                );
-
-                self.texture.set(image, TextureOptions::NEAREST);
-                // If its a 1x1 resolution frame buffer then the emulator display is disabled
-                self.last_resolution = (resolution.0 * resolution.1 > 1).then_some(resolution);
-            }
-            Err(TryRecvError::Empty) => {} // Do nothing
+            Ok(fb) => self.present_frame_buffer(fb),
+            Err(TryRecvError::Empty) => (), // Do nothing
             Err(TryRecvError::Disconnected) => {
                 info!("emulator thread exited, closing UI");
-                ctx.send_viewport_cmd(ViewportCommand::Close);
+                return ctx.send_viewport_cmd(ViewportCommand::Close);
             }
-        }
+        };
 
         // Draw UI
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
@@ -204,9 +209,10 @@ impl eframe::App for Application {
 
         egui::TopBottomPanel::bottom("bottom_panel").show(ctx, |ui| {
             ui.horizontal(|ui| {
-                ui.label(format!("FPS: {:.0}", 60));
+                let (fps, core_ms) = self.shared_metrics.load();
+                ui.label(format!("FPS: {}", fps));
                 ui.separator();
-                ui.label(format!("Core FPS: {:.2} ms", 12));
+                ui.label(format!("Core: {:.2} ms", core_ms));
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     if let Some(render_state) = frame.wgpu_render_state() {

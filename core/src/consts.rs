@@ -1,4 +1,4 @@
-pub const LINE_DURATION: u64 = 2172;
+pub const LINE_DURATION: u64 = 2143;
 pub const HBLANK_DURATION: u64 = 390;
 
 pub const BAUDRATE_TRANSFER_DELAY: u64 = 1088;
