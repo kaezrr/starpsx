@@ -232,8 +232,17 @@ impl eframe::App for Application {
         egui::CentralPanel::default()
             .frame(egui::Frame::NONE)
             .show(ctx, |ui| {
-                let size = ui.available_size();
-                ui.image(SizedTexture::new(&self.texture, size));
+                // No resolution means show a 4:3 black screen
+                let resolution = self.last_resolution.unwrap_or((4, 3));
+                ui.centered_and_justified(|ui| {
+                    ui.add(
+                        egui::Image::from_texture(SizedTexture::new(
+                            &self.texture,
+                            egui::vec2(resolution.0 as f32, resolution.1 as f32),
+                        ))
+                        .shrink_to_fit(),
+                    );
+                });
             });
     }
 }
