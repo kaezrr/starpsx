@@ -1,14 +1,13 @@
 use std::sync::Arc;
 use std::sync::mpsc::{Receiver, SyncSender, TryRecvError};
 
-use cpal::traits::StreamTrait;
 use eframe::egui::{self, Color32, ColorImage};
 use eframe::egui::{TextureOptions, ViewportCommand, load::SizedTexture};
 use starpsx_renderer::FrameBuffer;
 use tracing::{info, trace};
 
-use crate::emulator::CoreMetrics;
-use crate::input::{self, ActionValue, GamepadState, PhysicalInput};
+use crate::emulator::{CoreMetrics, UiCommand};
+use crate::input::{self, ActionValue, PhysicalInput};
 
 pub struct Application {
     gamepad: gilrs::Gilrs,
@@ -16,11 +15,10 @@ pub struct Application {
     keybindings: input::Bindings,
 
     frame_rx: Receiver<FrameBuffer>,
-    input_tx: SyncSender<GamepadState>,
+    input_tx: SyncSender<UiCommand>,
 
     texture: egui::TextureHandle,
 
-    audio_stream: cpal::Stream,
     is_paused: bool,
 
     // metrics
@@ -32,13 +30,9 @@ impl Application {
     pub fn new(
         cc: &eframe::CreationContext<'_>,
         frame_rx: Receiver<FrameBuffer>,
-        input_tx: SyncSender<GamepadState>,
-        audio_stream: cpal::Stream,
+        input_tx: SyncSender<UiCommand>,
         shared_metrics: Arc<CoreMetrics>,
     ) -> Self {
-        // Start playing the audio
-        audio_stream.play().unwrap();
-
         Self {
             gamepad: gilrs::Gilrs::new().expect("could not initalize gilrs"),
             input_state: input::GamepadState::default(),
@@ -53,7 +47,6 @@ impl Application {
                 egui::TextureOptions::NEAREST,
             ),
 
-            audio_stream,
             is_paused: false,
 
             // Performance metrics
@@ -151,7 +144,9 @@ impl eframe::App for Application {
             input_dirty |= self.process_keyboard_events(ctx);
 
             if input_dirty {
-                let _ = self.input_tx.try_send(self.input_state.clone());
+                let _ = self
+                    .input_tx
+                    .try_send(UiCommand::NewInputState(self.input_state.clone()));
             }
         }
 
@@ -178,20 +173,36 @@ impl eframe::App for Application {
 
                     let label = if self.is_paused { "Resume" } else { "Pause" };
                     if ui.button(label).clicked() {
+                        self.input_tx // Blocking send, must succeed
+                            .send(UiCommand::SetPaused(!self.is_paused))
+                            .unwrap();
                         self.is_paused = !self.is_paused;
-                        match self.is_paused {
-                            true => self.audio_stream.pause().unwrap(),
-                            false => self.audio_stream.play().unwrap(),
-                        }
                     }
-                    if ui.button("Quit").clicked() {
+
+                    if ui.button("Restart").clicked() {
+                        self.input_tx.send(UiCommand::Restart).unwrap();
+                    }
+
+                    if ui.button("Exit").clicked() {
                         ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                     }
                 });
 
-                ui.add_enabled(false, egui::Button::new("Settings"));
+                ui.menu_button("Settings", |ui| {
+                    ui.add_enabled(false, egui::Button::new("BIOS Settings"));
 
-                ui.add_enabled(false, egui::Button::new("Debug"));
+                    ui.add_enabled(false, egui::Button::new("Games Directory"));
+
+                    ui.add_enabled(false, egui::Button::new("Keybinds"));
+
+                    ui.add_enabled(false, egui::Button::new("Switch Renderer"));
+                });
+
+                ui.menu_button("Debug", |ui| {
+                    ui.add_enabled(false, egui::Button::new("Open Debugger View"));
+
+                    ui.add_enabled(false, egui::Button::new("Show VRAM"));
+                });
 
                 use egui::special_emojis::GITHUB;
                 ui.menu_button("Help", |ui| {
@@ -199,8 +210,9 @@ impl eframe::App for Application {
                         format!("{GITHUB} Source Code"),
                         "https://github.com/kaezrr/starpsx",
                     );
+
                     ui.hyperlink_to(
-                        "Report an issue",
+                        "Report An Issue",
                         "https://github.com/kaezrr/starpsx/issues/new",
                     )
                 });

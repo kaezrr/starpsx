@@ -95,7 +95,7 @@ pub struct System {
 }
 
 impl System {
-    pub fn build(config: Config) -> Result<Self, Box<dyn Error>> {
+    pub fn build(config: &Config) -> Result<Self, Box<dyn Error>> {
         let mut psx = System {
             cpu: Cpu::default(),
             gpu: Gpu::default(),

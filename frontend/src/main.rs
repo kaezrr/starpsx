@@ -16,9 +16,7 @@ use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{EnvFilter, fmt};
 
-use input::GamepadState;
-
-use crate::emulator::CoreMetrics;
+use crate::emulator::{CoreMetrics, UiCommand};
 
 fn main() -> eframe::Result {
     // Making sure the log guard doesn't fall out of scope
@@ -26,16 +24,10 @@ fn main() -> eframe::Result {
 
     // Message channels for thread communication
     let (frame_tx, frame_rx) = std::sync::mpsc::sync_channel::<FrameBuffer>(1);
-    let (input_tx, input_rx) = std::sync::mpsc::sync_channel::<GamepadState>(1);
-    let (audio_tx, audio_rx) = std::sync::mpsc::sync_channel::<[i16; 2]>(735);
+    let (input_tx, input_rx) = std::sync::mpsc::sync_channel::<UiCommand>(1);
 
     let config = starpsx_core::Config::build().unwrap_or_else(|err| {
         error!(%err, "Failed to parse command-line arguments");
-        std::process::exit(1);
-    });
-
-    let stream = audio::build(audio_rx).unwrap_or_else(|err| {
-        error!(?err, "error while building audio stream");
         std::process::exit(1);
     });
 
@@ -61,7 +53,6 @@ fn main() -> eframe::Result {
                 cc.egui_ctx.clone(),
                 frame_tx,
                 input_rx,
-                audio_tx,
                 shared_metrics.clone(),
             )
             .unwrap_or_else(|err| {
@@ -77,7 +68,6 @@ fn main() -> eframe::Result {
                 cc,
                 frame_rx,
                 input_tx,
-                stream,
                 shared_metrics,
             )))
         }),

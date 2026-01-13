@@ -4,21 +4,34 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::mpsc::{Receiver, SyncSender};
 use std::time::{Duration, Instant};
 
+use cpal::traits::StreamTrait;
 use eframe::egui;
 use starpsx_renderer::FrameBuffer;
 use tracing::error;
 
+use crate::audio;
 use crate::input::GamepadState;
+
+pub enum UiCommand {
+    NewInputState(GamepadState),
+    SetPaused(bool),
+    Restart,
+}
 
 pub struct Emulator {
     ui_ctx: egui::Context,
 
     frame_tx: SyncSender<FrameBuffer>,
-    input_rx: Receiver<GamepadState>,
+    input_rx: Receiver<UiCommand>,
     audio_tx: SyncSender<[i16; 2]>,
 
     system: starpsx_core::System,
     shared_metrics: Arc<CoreMetrics>,
+
+    is_paused: bool,
+
+    audio_stream: cpal::Stream,
+    config: starpsx_core::Config,
 
     // Local metrics
     fps_counter: u32,
@@ -31,11 +44,14 @@ impl Emulator {
         config: starpsx_core::Config,
         ui_ctx: egui::Context,
         frame_tx: SyncSender<FrameBuffer>,
-        input_rx: Receiver<GamepadState>,
-        audio_tx: SyncSender<[i16; 2]>,
+        input_rx: Receiver<UiCommand>,
         shared_metrics: Arc<CoreMetrics>,
     ) -> Result<Self, Box<dyn Error>> {
-        let system = starpsx_core::System::build(config)?;
+        let (audio_tx, audio_rx) = std::sync::mpsc::sync_channel::<[i16; 2]>(735);
+
+        let audio_stream = audio::build(audio_rx)?;
+
+        let system = starpsx_core::System::build(&config)?;
 
         Ok(Self {
             ui_ctx,
@@ -46,6 +62,11 @@ impl Emulator {
 
             system,
             shared_metrics,
+
+            is_paused: false,
+
+            audio_stream,
+            config,
 
             fps_counter: 0,
             fps_timer: Instant::now(),
@@ -73,14 +94,41 @@ impl Emulator {
         }
     }
 
+    fn update_core_gamepad(&mut self, new_state: GamepadState) {
+        let gamepad = self.system.gamepad_mut();
+        gamepad.set_buttons(new_state.buttons);
+        gamepad.set_analog_mode(new_state.analog_mode);
+        gamepad.set_stick_axis(new_state.left_stick, new_state.right_stick);
+    }
+
     fn main_loop(&mut self) -> ! {
         loop {
-            // Read input events from ui thread
-            while let Ok(input_state) = self.input_rx.try_recv() {
-                let gamepad = self.system.gamepad_mut();
-                gamepad.set_buttons(input_state.buttons);
-                gamepad.set_analog_mode(input_state.analog_mode);
-                gamepad.set_stick_axis(input_state.left_stick, input_state.right_stick);
+            // Read events from ui thread
+            while let Ok(ui_command) = self.input_rx.try_recv() {
+                match ui_command {
+                    UiCommand::NewInputState(gamepad_state) => {
+                        self.update_core_gamepad(gamepad_state)
+                    }
+                    UiCommand::SetPaused(is_paused) => {
+                        self.is_paused = is_paused;
+                        match self.is_paused {
+                            true => self.audio_stream.pause().unwrap(),
+                            false => self.audio_stream.play().unwrap(),
+                        }
+                    }
+                    UiCommand::Restart => {
+                        self.system =
+                            starpsx_core::System::build(&self.config).unwrap_or_else(|err| {
+                                error!(%err, "could not restart emulator");
+                                std::process::exit(1);
+                            });
+                    }
+                }
+            }
+
+            if self.is_paused {
+                std::thread::sleep(Duration::from_millis(16));
+                continue;
             }
 
             let now = Instant::now();
