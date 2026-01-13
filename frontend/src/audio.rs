@@ -5,7 +5,7 @@ use cpal::traits::{DeviceTrait, HostTrait};
 use cpal::{Device, Sample, Stream, StreamConfig};
 use tracing::{info, warn};
 
-pub fn build_audio(audio_rx: Receiver<i16>) -> Result<Stream, Box<dyn Error>> {
+pub fn build(audio_rx: Receiver<i16>) -> Result<Stream, Box<dyn Error>> {
     let audio_device = cpal::default_host()
         .default_output_device()
         .ok_or("no audio output device available")?;

@@ -17,7 +17,7 @@ use tracing_subscriber::{EnvFilter, fmt};
 use input::GamepadState;
 
 fn main() -> eframe::Result {
-    // Make sure the log guard has static lifetime
+    // Making sure the log guard doesn't fall out of scope
     let _log_guard = init_logging("logs", "psx.log");
 
     // Message channels for thread communication
@@ -30,7 +30,7 @@ fn main() -> eframe::Result {
         std::process::exit(1);
     });
 
-    let stream = audio::build_audio(audio_rx).unwrap_or_else(|err| {
+    let stream = audio::build(audio_rx).unwrap_or_else(|err| {
         error!(?err, "error while building audio stream");
         std::process::exit(1);
     });
