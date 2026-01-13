@@ -21,8 +21,6 @@ pub struct Application {
     audio_stream: cpal::Stream,
     is_paused: bool,
 
-    fps: f64,
-    last_frame_time: std::time::Instant,
     last_resolution: Option<(usize, usize)>,
 }
 
@@ -54,8 +52,6 @@ impl Application {
             is_paused: false,
 
             // Performance metrics
-            fps: 0.0,
-            last_frame_time: std::time::Instant::now(),
             last_resolution: None,
         }
     }
@@ -148,19 +144,14 @@ impl eframe::App for Application {
                 rgba_bytes,
                 resolution,
             }) => {
-                let now = std::time::Instant::now();
-                let dt = now.duration_since(self.last_frame_time).as_secs_f64();
-                self.last_frame_time = now;
-                self.fps = 1.0 / dt;
-
-                self.last_resolution = (resolution.0 * resolution.1 > 1).then_some(resolution);
-
                 let image = egui::ColorImage::from_rgba_premultiplied(
                     [resolution.0, resolution.1],
                     &rgba_bytes,
                 );
 
                 self.texture.set(image, TextureOptions::NEAREST);
+                // If its a 1x1 resolution frame buffer then the emulator display is disabled
+                self.last_resolution = (resolution.0 * resolution.1 > 1).then_some(resolution);
             }
             Err(TryRecvError::Empty) => {} // Do nothing
             Err(TryRecvError::Disconnected) => {
@@ -213,9 +204,9 @@ impl eframe::App for Application {
 
         egui::TopBottomPanel::bottom("bottom_panel").show(ctx, |ui| {
             ui.horizontal(|ui| {
-                ui.label(format!("FPS: {:.0}", self.fps));
+                ui.label(format!("FPS: {:.0}", 60));
                 ui.separator();
-                ui.label(format!("Core: {:.2} ms", 12));
+                ui.label(format!("Core FPS: {:.2} ms", 12));
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     if let Some(render_state) = frame.wgpu_render_state() {

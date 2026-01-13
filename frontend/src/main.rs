@@ -23,7 +23,7 @@ fn main() -> eframe::Result {
     // Message channels for thread communication
     let (frame_tx, frame_rx) = std::sync::mpsc::sync_channel::<FrameBuffer>(1);
     let (input_tx, input_rx) = std::sync::mpsc::sync_channel::<GamepadState>(1);
-    let (audio_tx, audio_rx) = std::sync::mpsc::sync_channel::<i16>(100);
+    let (audio_tx, audio_rx) = std::sync::mpsc::sync_channel::<i16>(1470);
 
     let config = starpsx_core::Config::build().unwrap_or_else(|err| {
         error!(%err, "Failed to parse command-line arguments");

@@ -9,9 +9,11 @@ use crate::input::GamepadState;
 
 pub struct Emulator {
     ui_ctx: egui::Context,
+
     frame_tx: SyncSender<FrameBuffer>,
     input_rx: Receiver<GamepadState>,
     audio_tx: SyncSender<i16>,
+
     system: starpsx_core::System,
 }
 
@@ -40,6 +42,7 @@ impl Emulator {
 
     fn main_loop(&mut self) -> ! {
         loop {
+            // Read input events from ui thread
             while let Ok(input_state) = self.input_rx.try_recv() {
                 let gamepad = self.system.gamepad_mut();
                 gamepad.set_buttons(input_state.buttons);
@@ -47,6 +50,8 @@ impl Emulator {
                 gamepad.set_stick_axis(input_state.left_stick, input_state.right_stick);
             }
 
+            // Push samples to audio callback to a blocking channel
+            // This is how the emulator is synced with audio
             for sample in self.system.tick() {
                 self.audio_tx.send(sample).unwrap_or_else(|err| {
                     error!(%err, "could not send sample to audio thread, exiting...");
@@ -54,16 +59,12 @@ impl Emulator {
                 });
             }
 
-            let frame_sent = self
-                .system
-                .produced_frame_buffer
-                .take()
-                .map(|buf| self.frame_tx.try_send(buf).is_ok())
-                .unwrap_or(false);
+            let frame_opt = self.system.produced_frame_buffer.take();
 
-            if frame_sent {
+            if let Some(frame_buffer) = frame_opt {
+                self.frame_tx.send(frame_buffer).unwrap();
                 self.ui_ctx.request_repaint();
-            };
+            }
         }
     }
 }

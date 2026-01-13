@@ -3,7 +3,7 @@ use std::sync::mpsc::Receiver;
 
 use cpal::traits::{DeviceTrait, HostTrait};
 use cpal::{Device, Sample, Stream, StreamConfig};
-use tracing::{info, warn};
+use tracing::{error, info, warn};
 
 pub fn build(audio_rx: Receiver<i16>) -> Result<Stream, Box<dyn Error>> {
     let audio_device = cpal::default_host()
@@ -26,7 +26,7 @@ pub fn build(audio_rx: Receiver<i16>) -> Result<Stream, Box<dyn Error>> {
         .with_sample_rate(44100); // 44.1KHz
 
     let sample_format = supported_config.sample_format();
-    let config = supported_config.into();
+    let config = supported_config.config();
 
     info!(?config, "using audio configuration");
 
@@ -47,7 +47,12 @@ fn build_stream<T: Sample + cpal::FromSample<i16> + cpal::SizedSample>(
         config,
         move |data: &mut [T], _: &cpal::OutputCallbackInfo| {
             for sample in data.iter_mut() {
-                *sample = sample_rx.recv().unwrap().to_sample();
+                let received = sample_rx.recv().unwrap_or_else(|err| {
+                    error!(%err,"audio channel error, exiting...");
+                    std::process::exit(1);
+                });
+
+                *sample = received.to_sample();
             }
         },
         move |err| warn!(%err, "audio stream error"),
