@@ -24,6 +24,8 @@ pub struct Application {
     // metrics
     last_resolution: Option<(usize, usize)>,
     shared_metrics: Arc<CoreMetrics>,
+
+    info_modal_open: bool,
 }
 
 impl Application {
@@ -52,6 +54,8 @@ impl Application {
             // Performance metrics
             last_resolution: None,
             shared_metrics,
+
+            info_modal_open: false,
         }
     }
 
@@ -161,100 +165,155 @@ impl eframe::App for Application {
         };
 
         // Draw UI
-        egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
-            egui::MenuBar::new().ui(ui, |ui| {
-                egui::widgets::global_theme_preference_switch(ui);
-                ui.separator();
+        show_top_menu(self, ctx);
+        show_info_modal(&mut self.info_modal_open, ctx);
+        show_performance_panel(self, ctx, frame);
+        show_central_panel(self, ctx);
+    }
+}
 
-                ui.menu_button("System", |ui| {
-                    ui.add_enabled(false, egui::Button::new("Start File"));
-
-                    ui.add_enabled(false, egui::Button::new("Start Bios"));
-
-                    let label = if self.is_paused { "Resume" } else { "Pause" };
-                    if ui.button(label).clicked() {
-                        self.input_tx // Blocking send, must succeed
-                            .send(UiCommand::SetPaused(!self.is_paused))
-                            .unwrap();
-                        self.is_paused = !self.is_paused;
-                    }
-
-                    if ui.button("Restart").clicked() {
-                        self.input_tx.send(UiCommand::Restart).unwrap();
-                    }
-
-                    if ui.button("Exit").clicked() {
-                        ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-                    }
-                });
-
-                ui.menu_button("Settings", |ui| {
-                    ui.add_enabled(false, egui::Button::new("BIOS Settings"));
-
-                    ui.add_enabled(false, egui::Button::new("Games Directory"));
-
-                    ui.add_enabled(false, egui::Button::new("Keybinds"));
-
-                    ui.add_enabled(false, egui::Button::new("Switch Renderer"));
-                });
-
-                ui.menu_button("Debug", |ui| {
-                    ui.add_enabled(false, egui::Button::new("Open Debugger View"));
-
-                    ui.add_enabled(false, egui::Button::new("Show VRAM"));
-                });
-
-                use egui::special_emojis::GITHUB;
-                ui.menu_button("Help", |ui| {
-                    ui.hyperlink_to(
-                        format!("{GITHUB} Source Code"),
-                        "https://github.com/kaezrr/starpsx",
-                    );
-
-                    ui.hyperlink_to(
-                        "Report An Issue",
-                        "https://github.com/kaezrr/starpsx/issues/new",
-                    )
-                });
+fn show_central_panel(app: &Application, ctx: &egui::Context) {
+    egui::CentralPanel::default()
+        .frame(egui::Frame::NONE)
+        .show(ctx, |ui| {
+            // No resolution means show a 4:3 black screen
+            let resolution = app.last_resolution.unwrap_or((4, 3));
+            ui.centered_and_justified(|ui| {
+                ui.add(
+                    egui::Image::from_texture(SizedTexture::new(
+                        &app.texture,
+                        egui::vec2(resolution.0 as f32, resolution.1 as f32),
+                    ))
+                    .shrink_to_fit(),
+                );
             });
         });
+}
 
-        egui::TopBottomPanel::bottom("bottom_panel").show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                let (fps, core_ms) = self.shared_metrics.load();
-                ui.label(format!("FPS: {}", fps));
+fn show_top_menu(app: &mut Application, ctx: &egui::Context) {
+    egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
+        egui::MenuBar::new().ui(ui, |ui| {
+            egui::widgets::global_theme_preference_switch(ui);
+            ui.separator();
+
+            ui.menu_button("System", |ui| {
+                ui.add_enabled(false, egui::Button::new("Start File"));
+
+                ui.add_enabled(false, egui::Button::new("Start Bios"));
+
+                let label = if app.is_paused { "Resume" } else { "Pause" };
+                if ui.button(label).clicked() {
+                    app.input_tx // Blocking send, must succeed
+                        .send(UiCommand::SetPaused(!app.is_paused))
+                        .unwrap();
+                    app.is_paused = !app.is_paused;
+                }
+
+                if ui.button("Restart").clicked() {
+                    app.input_tx.send(UiCommand::Restart).unwrap();
+                }
+
+                if ui.button("Exit").clicked() {
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                }
+            });
+
+            ui.menu_button("Settings", |ui| {
+                ui.add_enabled(false, egui::Button::new("BIOS Settings"));
+
+                ui.add_enabled(false, egui::Button::new("Games Directory"));
+
+                ui.add_enabled(false, egui::Button::new("Keybinds"));
+
+                ui.add_enabled(false, egui::Button::new("Switch Renderer"));
+            });
+
+            ui.menu_button("Debug", |ui| {
+                ui.add_enabled(false, egui::Button::new("Open Debugger View"));
+
+                ui.add_enabled(false, egui::Button::new("Show VRAM"));
+            });
+
+            ui.menu_button("Help", |ui| {
+                ui.hyperlink_to("Source Code", "https://github.com/kaezrr/starpsx");
+                ui.hyperlink_to(
+                    "Report an Issue",
+                    "https://github.com/kaezrr/starpsx/issues/new",
+                );
+
                 ui.separator();
-                ui.label(format!("Core: {:.2} ms", core_ms));
+                if ui.button("About StarPSX").clicked() {
+                    app.info_modal_open = true;
+                }
+            });
+        });
+    });
+}
 
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if let Some(render_state) = frame.wgpu_render_state() {
-                        let info = &render_state.adapter.get_info();
-                        ui.label(format!("Software Renderer ({:?})", info.backend));
-                    }
+fn show_info_modal(show_modal: &mut bool, ctx: &egui::Context) {
+    if *show_modal {
+        let modal = egui::Modal::new(egui::Id::new("Info")).show(ctx, |ui| {
+            ui.vertical_centered(|ui| {
+                ui.heading("About StarPSX");
+            });
 
-                    ui.separator();
-                    ui.label(match self.last_resolution {
-                        Some((w, h)) => format!("{w}x{h}"),
-                        None => "No Image".into(),
-                    });
-                })
+            ui.separator();
+            ui.monospace(format!(
+                "Version: {}-{}\nPlatform: {} {}",
+                env!("CARGO_PKG_VERSION"),
+                option_env!("GIT_HASH").unwrap_or("unknown"),
+                std::env::consts::OS,
+                std::env::consts::ARCH,
+            ));
+
+            ui.separator();
+            ui.label("StarPSX is a free and open source Playstation 1 emulator.");
+            ui.label("It aims to be cross-platform and easy to use.");
+
+            ui.separator();
+            ui.monospace("Author: Anjishnu Banerjee <kaezr.dev@gmail.com>");
+
+            ui.separator();
+            ui.horizontal(|ui| {
+                ui.label("Source:");
+                ui.hyperlink_to("Github", "https://github.com/kaezrr/starpsx");
+                ui.label("License: GPLv3");
+            });
+
+            ui.add_space(10.0);
+            ui.vertical_centered(|ui| {
+                if ui.button("Close").clicked() {
+                    ui.close();
+                }
             })
         });
 
-        egui::CentralPanel::default()
-            .frame(egui::Frame::NONE)
-            .show(ctx, |ui| {
-                // No resolution means show a 4:3 black screen
-                let resolution = self.last_resolution.unwrap_or((4, 3));
-                ui.centered_and_justified(|ui| {
-                    ui.add(
-                        egui::Image::from_texture(SizedTexture::new(
-                            &self.texture,
-                            egui::vec2(resolution.0 as f32, resolution.1 as f32),
-                        ))
-                        .shrink_to_fit(),
-                    );
-                });
-            });
+        if modal.should_close() {
+            *show_modal = false;
+        }
     }
+}
+
+fn show_performance_panel(app: &Application, ctx: &egui::Context, frame: &eframe::Frame) {
+    egui::TopBottomPanel::bottom("bottom_panel").show(ctx, |ui| {
+        ui.horizontal(|ui| {
+            let (fps, core_ms) = app.shared_metrics.load();
+            ui.label(format!("FPS: {}", fps));
+            ui.separator();
+            ui.label(format!("Core: {:.2} ms", core_ms));
+
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if let Some(render_state) = frame.wgpu_render_state() {
+                    let info = &render_state.adapter.get_info();
+                    ui.label(format!("Software Renderer ({:?})", info.backend));
+                }
+
+                ui.separator();
+                ui.label(match app.last_resolution {
+                    Some((w, h)) => format!("{w}x{h}"),
+                    None => "No Image".into(),
+                });
+            })
+        })
+    });
 }
