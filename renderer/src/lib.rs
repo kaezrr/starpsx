@@ -21,11 +21,11 @@ pub struct FrameBuffer {
 }
 
 impl FrameBuffer {
-    /// A fully black 100x100 framebuffer
+    /// A fully black 1x1 framebuffer
     fn black() -> Self {
         Self {
-            rgba_bytes: vec![0; 100 * 100 * 4],
-            resolution: (100, 100),
+            rgba_bytes: vec![0, 0, 0, 255],
+            resolution: (1, 1),
         }
     }
 }
