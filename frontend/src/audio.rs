@@ -16,7 +16,12 @@ pub fn build(audio_rx: Receiver<[i16; 2]>) -> Result<Stream, Box<dyn Error>> {
 
     let supported_config = supported_config_range
         .find(|c| {
-            c.channels() == 2 // Stereo
+            let min = c.min_sample_rate();
+            let max = c.max_sample_rate();
+
+            min <= 44100
+                && 44100 <= max
+                && c.channels() == 2
                 && matches!(
                     c.sample_format(),
                     cpal::SampleFormat::I16 | cpal::SampleFormat::F32
