@@ -58,16 +58,18 @@ pub struct Application {
 struct MetricsSnapshot {
     fps: u32,
     core_ms: f32,
+    sample_rate: f32,
     resolution: Option<(usize, usize)>,
 }
 
 impl Application {
     fn get_metrics(&self) -> MetricsSnapshot {
         if let Some(ref emu) = self.app_state {
-            let (fps, core_ms) = emu.shared_metrics.load();
+            let (fps, core_ms, sample_rate) = emu.shared_metrics.load();
             MetricsSnapshot {
                 fps,
                 core_ms,
+                sample_rate: sample_rate as f32 / 1000.0,
                 resolution: emu.last_resolution,
             }
         } else {
@@ -544,6 +546,8 @@ fn show_performance_panel(app: &Application, ctx: &egui::Context, frame: &eframe
     egui::TopBottomPanel::bottom("bottom_panel").show(ctx, |ui| {
         let m = app.get_metrics();
         ui.horizontal(|ui| {
+            ui.label(format!("Audio: {:.1} KHz", m.sample_rate));
+            ui.separator();
             ui.label(format!("FPS: {}", m.fps));
             ui.separator();
             ui.label(format!("Core: {:.2} ms", m.core_ms));

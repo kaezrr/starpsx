@@ -3,9 +3,9 @@ use std::sync::mpsc::Receiver;
 
 use cpal::traits::{DeviceTrait, HostTrait};
 use cpal::{Device, Sample, Stream, StreamConfig};
-use tracing::{info, warn};
+use tracing::{error, info, warn};
 
-pub fn build(audio_rx: Receiver<[i16; 2]>) -> Result<Stream, Box<dyn Error>> {
+pub fn build(audio_rx: Receiver<[i16; 2]>) -> Result<(Stream, u32), Box<dyn Error>> {
     let audio_device = cpal::default_host()
         .default_output_device()
         .ok_or("no audio output device available")?;
@@ -14,33 +14,42 @@ pub fn build(audio_rx: Receiver<[i16; 2]>) -> Result<Stream, Box<dyn Error>> {
         .supported_output_configs()
         .map_err(|_| "error while querying audio configs")?;
 
+    let default_config = audio_device.default_output_config()?;
+
     let supported_config = supported_config_range
         .find(|c| {
             let min = c.min_sample_rate();
             let max = c.max_sample_rate();
-
-            min <= 44100
-                && 44100 <= max
-                && c.channels() == 2
-                && matches!(
-                    c.sample_format(),
-                    cpal::SampleFormat::I16 | cpal::SampleFormat::F32
-                )
+            // Need stereo audio configuration that runs at 44.1Khz
+            // as the emulator is synced to audio
+            min <= 44100 && 44100 <= max && c.channels() == 2
         })
-        .ok_or("no suitable audio config found")?
-        .with_sample_rate(44100); // 44.1KHz
+        .map(|c| c.with_sample_rate(44100))
+        .unwrap_or_else(|| {
+            error!("could not find 44.1Khz audio config, falling back to default");
+            error!("as a consequence, games will run faster than intended");
+            default_config
+        });
 
-    let sample_format = supported_config.sample_format();
     let config = supported_config.config();
 
     info!(?config, "using audio configuration");
 
-    match sample_format {
+    let stream = match supported_config.sample_format() {
         cpal::SampleFormat::I16 => build_stream::<i16>(&audio_device, &config, audio_rx),
         cpal::SampleFormat::F32 => build_stream::<f32>(&audio_device, &config, audio_rx),
+        cpal::SampleFormat::I8 => build_stream::<i8>(&audio_device, &config, audio_rx),
+        cpal::SampleFormat::I32 => build_stream::<i32>(&audio_device, &config, audio_rx),
+        cpal::SampleFormat::I64 => build_stream::<i64>(&audio_device, &config, audio_rx),
+        cpal::SampleFormat::U8 => build_stream::<u8>(&audio_device, &config, audio_rx),
+        cpal::SampleFormat::U16 => build_stream::<u16>(&audio_device, &config, audio_rx),
+        cpal::SampleFormat::U32 => build_stream::<u32>(&audio_device, &config, audio_rx),
+        cpal::SampleFormat::U64 => build_stream::<u64>(&audio_device, &config, audio_rx),
+        cpal::SampleFormat::F64 => build_stream::<f64>(&audio_device, &config, audio_rx),
         sample_format => unreachable!("unsupported sample format {sample_format}"),
-    }
-    .map_err(|err| err.into())
+    }?;
+
+    Ok((stream, config.sample_rate))
 }
 
 fn build_stream<T: Sample + cpal::FromSample<i16> + cpal::SizedSample>(

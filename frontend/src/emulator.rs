@@ -55,9 +55,11 @@ impl Emulator {
     ) -> Result<Self, Box<dyn Error>> {
         let (audio_tx, audio_rx) = std::sync::mpsc::sync_channel::<[i16; 2]>(735);
 
-        let audio_stream = audio::build(audio_rx)?;
+        let (audio_stream, sample_rate) = audio::build(audio_rx)?;
 
         let system = Emulator::build_core(bios_path, file_path)?;
+
+        shared_metrics.set_sampling_rate(sample_rate);
 
         Ok(Self {
             ui_ctx,
@@ -182,6 +184,7 @@ impl Emulator {
 pub struct CoreMetrics {
     fps: AtomicU32,
     core_time_ms: AtomicU32,
+    sampling_rate: AtomicU32,
 }
 
 impl CoreMetrics {
@@ -191,10 +194,15 @@ impl CoreMetrics {
             .store(core_time_ms.to_bits(), Ordering::Relaxed);
     }
 
-    pub fn load(&self) -> (u32, f32) {
+    fn set_sampling_rate(&self, sampling_rate: u32) {
+        self.sampling_rate.store(sampling_rate, Ordering::Relaxed);
+    }
+
+    pub fn load(&self) -> (u32, f32, u32) {
         let fps = self.fps.load(Ordering::Relaxed);
         let core_time_ms = f32::from_bits(self.core_time_ms.load(Ordering::Relaxed));
-        (fps, core_time_ms)
+        let sampling_rate = self.sampling_rate.load(Ordering::Relaxed);
+        (fps, core_time_ms, sampling_rate)
     }
 }
 
