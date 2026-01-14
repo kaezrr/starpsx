@@ -3,7 +3,7 @@ use std::sync::mpsc::Receiver;
 
 use cpal::traits::{DeviceTrait, HostTrait};
 use cpal::{Device, Sample, Stream, StreamConfig};
-use tracing::{error, info, warn};
+use tracing::{info, warn};
 
 pub fn build(audio_rx: Receiver<[i16; 2]>) -> Result<Stream, Box<dyn Error>> {
     let audio_device = cpal::default_host()
@@ -48,8 +48,8 @@ fn build_stream<T: Sample + cpal::FromSample<i16> + cpal::SizedSample>(
         move |data: &mut [T], _: &cpal::OutputCallbackInfo| {
             for frame in data.chunks_exact_mut(2) {
                 let received = sample_rx.recv().unwrap_or_else(|err| {
-                    error!(%err,"audio channel error, exiting...");
-                    std::process::exit(1);
+                    warn!(%err,"audio channel error");
+                    [0, 0]
                 });
 
                 frame[0] = received[0].to_sample();

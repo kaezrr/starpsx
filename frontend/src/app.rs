@@ -1,16 +1,24 @@
 use std::error::Error;
 use std::path::PathBuf;
+use std::pin::Pin;
 use std::sync::Arc;
 use std::sync::mpsc::{Receiver, SyncSender, TryRecvError};
 
 use eframe::egui::{self, Color32, ColorImage};
 use eframe::egui::{TextureOptions, ViewportCommand, load::SizedTexture};
+use futures::FutureExt;
+use rfd::{AsyncFileDialog, FileHandle};
 use starpsx_renderer::FrameBuffer;
 use tracing::{error, info, trace};
 
 use crate::config::{self, LaunchConfig, RunnablePath};
 use crate::emulator::{self, CoreMetrics, UiCommand};
 use crate::input::{self, ActionValue, PhysicalInput};
+
+enum PendingDialog {
+    SelectBios(Pin<Box<dyn Future<Output = Option<FileHandle>>>>),
+    SelectFile(Pin<Box<dyn Future<Output = Option<FileHandle>>>>),
+}
 
 // This holds all the state required after emulator init
 struct AppState {
@@ -36,8 +44,13 @@ pub struct Application {
     app_state: Option<AppState>,
     egui_ctx: egui::Context,
 
+    last_run: Option<RunnablePath>,
+
     // GUI states
     info_modal_open: bool,
+    bios_modal_open: bool,
+
+    pending_dialog: Option<PendingDialog>,
 }
 
 #[derive(Default)]
@@ -83,9 +96,11 @@ impl Application {
             frame_tx,
             input_rx,
             shared_metrics.clone(),
-            bios_path.clone(),
-            runnable_path,
+            bios_path,
+            &runnable_path,
         )?;
+
+        self.last_run = runnable_path;
 
         self.app_state = Some(AppState {
             frame_rx,
@@ -108,19 +123,33 @@ impl Application {
     }
 
     pub fn new(cc: &eframe::CreationContext<'_>, launch_config: LaunchConfig) -> Self {
-        Self {
+        let mut app = Self {
             egui_ctx: cc.egui_ctx.clone(),
 
             gamepad: gilrs::Gilrs::new().expect("could not initalize gilrs"),
             input_state: input::GamepadState::default(),
 
             app_state: None,
+            last_run: None,
 
             app_config: launch_config.app_config,
             config_path: launch_config.config_path,
 
             info_modal_open: false,
+            bios_modal_open: false,
+            pending_dialog: None,
+        };
+
+        if launch_config.auto_run {
+            match launch_config.runnable_path {
+                Some(file) => app.load_file(file).unwrap_or_else(|err| {
+                    error!(%err, "error loading file");
+                }),
+                None => app.start_bios(),
+            }
         }
+
+        app
     }
 
     fn process_keyboard_events(&mut self, ctx: &egui::Context) -> bool {
@@ -190,6 +219,80 @@ impl Application {
         }
         changed
     }
+
+    fn is_paused(&self) -> bool {
+        self.app_state
+            .as_ref()
+            .map(|a| a.is_paused)
+            .unwrap_or(false)
+    }
+
+    fn quit_game(&mut self) {
+        if let Some(state) = self.app_state.take() {
+            state.shutdown();
+        }
+    }
+
+    fn toggle_pause(&mut self) {
+        if let Some(ref mut state) = self.app_state {
+            state.toggle_pause();
+        }
+    }
+
+    fn restart(&mut self) {
+        if let Some(state) = self.app_state.take() {
+            state.shutdown();
+        }
+
+        let last_run = self.last_run.take();
+        let _ = self.start_emulator(last_run);
+    }
+
+    fn start_bios(&mut self) {
+        if let Some(state) = self.app_state.take() {
+            state.shutdown();
+        }
+
+        let _ = self.start_emulator(None);
+    }
+
+    fn load_file(&mut self, path: PathBuf) -> Result<(), Box<dyn Error>> {
+        if let Some(state) = self.app_state.take() {
+            state.shutdown();
+        }
+
+        let runnable = emulator::parse_runnable(path)?;
+        let _ = self.start_emulator(Some(runnable));
+        Ok(())
+    }
+
+    fn poll_dialog(&mut self) -> Result<(), Box<dyn Error>> {
+        let Some(dialog) = self.pending_dialog.as_mut() else {
+            return Ok(());
+        };
+
+        match dialog {
+            PendingDialog::SelectBios(fut) => {
+                if let Some(result) = fut.now_or_never() {
+                    if let Some(file) = result {
+                        self.app_config.bios_path = Some(file.path().to_path_buf());
+                        self.app_config.save_to_file(&self.config_path);
+                    }
+                    self.pending_dialog = None;
+                }
+            }
+            PendingDialog::SelectFile(fut) => {
+                if let Some(result) = fut.now_or_never() {
+                    if let Some(file) = result {
+                        self.load_file(file.path().to_path_buf())?;
+                    }
+                    self.pending_dialog = None;
+                }
+            }
+        }
+
+        Ok(())
+    }
 }
 
 impl AppState {
@@ -212,16 +315,21 @@ impl AppState {
         self.is_paused = !self.is_paused;
     }
 
-    fn restart(&self) {
-        self.input_tx.send(UiCommand::Restart).unwrap();
+    fn shutdown(&self) {
+        self.input_tx.send(UiCommand::Shutdown).unwrap();
     }
 }
 
 impl eframe::App for Application {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        if let Err(err) = self.poll_dialog() {
+            error!(%err, "error loading file");
+        }
+
         show_top_menu(self, ctx);
 
         show_info_modal(&mut self.info_modal_open, ctx);
+        show_bios_modal(self, ctx);
 
         show_performance_panel(self, ctx, frame);
 
@@ -254,6 +362,16 @@ impl eframe::App for Application {
             show_central_panel(&emu, ctx);
 
             self.app_state = Some(emu);
+        } else {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                ui.centered_and_justified(|ui| {
+                    ui.label(
+                        egui::RichText::new("Welcome to StarPSX")
+                            .size(32.0)
+                            .strong(),
+                    );
+                });
+            });
         }
     }
 }
@@ -283,19 +401,40 @@ fn show_top_menu(app: &mut Application, ctx: &egui::Context) {
             ui.separator();
 
             ui.menu_button("System", |ui| {
-                ui.add_enabled(false, egui::Button::new("Start File"));
+                // Only if a valid bios is set and emulator is not running
+                ui.add_enabled_ui(
+                    app.app_config.bios_path.is_some() && app.app_state.is_none(),
+                    |ui| {
+                        if ui.button("Start File").clicked() {
+                            app.pending_dialog = Some(PendingDialog::SelectFile(Box::pin(
+                                AsyncFileDialog::new()
+                                    .add_filter("Game", &["bin", "BIN", "cue", "exe"])
+                                    .set_title("Select File to Run")
+                                    .pick_file(),
+                            )));
+                        }
 
-                ui.add_enabled(false, egui::Button::new("Start Bios"));
+                        if ui.button("Start BIOS").clicked() {
+                            app.start_bios();
+                        }
+                    },
+                );
 
-                if let Some(ref mut emu) = app.app_state {
-                    let label = if emu.is_paused { "Resume" } else { "Pause" };
+                // Only if emulator is running
+                ui.add_enabled_ui(app.app_state.is_some(), |ui| {
+                    let label = if app.is_paused() { "Resume" } else { "Pause" };
                     if ui.button(label).clicked() {
-                        emu.toggle_pause();
+                        app.toggle_pause();
                     }
+
                     if ui.button("Restart").clicked() {
-                        emu.restart();
+                        app.restart();
                     }
-                }
+
+                    if ui.button("Stop").clicked() {
+                        app.quit_game();
+                    }
+                });
 
                 if ui.button("Exit").clicked() {
                     ctx.send_viewport_cmd(egui::ViewportCommand::Close);
@@ -303,7 +442,9 @@ fn show_top_menu(app: &mut Application, ctx: &egui::Context) {
             });
 
             ui.menu_button("Settings", |ui| {
-                ui.add_enabled(false, egui::Button::new("BIOS Settings"));
+                if ui.button("BIOS Settings").clicked() {
+                    app.bios_modal_open = true;
+                }
 
                 ui.add_enabled(false, egui::Button::new("Games Directory"));
 
@@ -401,4 +542,56 @@ fn show_performance_panel(app: &Application, ctx: &egui::Context, frame: &eframe
             })
         })
     });
+}
+
+fn show_bios_modal(app: &mut Application, ctx: &egui::Context) {
+    if !app.bios_modal_open {
+        return;
+    }
+
+    let modal = egui::Modal::new(egui::Id::new("Info")).show(ctx, |ui| {
+        ui.set_min_width(200.0);
+
+        ui.heading("Select BIOS");
+        ui.add_space(10.0);
+
+        ui.horizontal(|ui| {
+            ui.label("Current BIOS:");
+            match &app.app_config.bios_path {
+                Some(path) => {
+                    ui.monospace(path.display().to_string());
+                }
+                None => {
+                    ui.colored_label(ui.visuals().error_fg_color, "No BIOS selected");
+                }
+            }
+        });
+
+        ui.add_space(12.0);
+        ui.separator();
+        ui.add_space(12.0);
+
+        egui::containers::Sides::new().show(
+            ui,
+            |ui| {
+                if ui.button("Choose BIOS File…").clicked() {
+                    app.pending_dialog = Some(PendingDialog::SelectBios(Box::pin(
+                        AsyncFileDialog::new()
+                            .add_filter("PlayStation BIOS", &["bin", "BIN"])
+                            .set_title("Select PS1 BIOS Image")
+                            .pick_file(),
+                    )));
+                }
+            },
+            |ui| {
+                if ui.button("Close").clicked() {
+                    ui.close();
+                }
+            },
+        );
+    });
+
+    if modal.should_close() {
+        app.bios_modal_open = false;
+    }
 }

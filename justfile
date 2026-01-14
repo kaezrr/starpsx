@@ -1,14 +1,11 @@
-bios := "./stuff/SCPH1001.BIN"
+run level:
+    RUST_LOG=starpsx={{level}},starpsx-core={{level}} \
+    cargo run --
 
-run level *args:
-    RUST_LOG=starpsx={{level}},starpsx_core={{level}} \
-    cargo run -- {{bios}} "{{args}}"
+run-bios level:
+    RUST_LOG=starpsx={{level}},starpsx-core={{level}} \
+    cargo run -- --auto-run
 
-run-bios level *args:
-    RUST_LOG=starpsx={{level}},starpsx_core={{level}} \
-    cargo run --release -- {{bios}}
-
-run-release *args:
-    RUST_LOG=starpsx=info,starpsx_core=info \
-    cargo run --release -- {{bios}} "{{args}}"
-
+run-game level game:
+    RUST_LOG=starpsx={{level}},starpsx-core={{level}} \
+    cargo run -- --auto-run {{game}}

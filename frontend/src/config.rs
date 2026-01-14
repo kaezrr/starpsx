@@ -28,13 +28,13 @@ struct Args {
     auto_run: bool,
 
     /// File to start the emulator with
-    #[arg(short, long)]
+    #[arg(value_name = "FILE")]
     file: Option<PathBuf>,
 }
 
 pub struct LaunchConfig {
     pub app_config: AppConfig,
-    pub runnable_path: Option<RunnablePath>,
+    pub runnable_path: Option<PathBuf>,
     pub auto_run: bool,
     pub config_path: PathBuf,
 }
@@ -45,7 +45,7 @@ impl LaunchConfig {
         let app_config = AppConfig::load_from_file(&config_path);
 
         let args = Args::parse();
-        let runnable_path = args.file.map(parse_runnable).transpose()?;
+        let runnable_path = args.file;
 
         Ok(Self {
             app_config,
@@ -53,14 +53,6 @@ impl LaunchConfig {
             auto_run: args.auto_run,
             config_path,
         })
-    }
-}
-
-fn parse_runnable(path: PathBuf) -> Result<RunnablePath, Box<dyn Error>> {
-    match path.extension().and_then(|e| e.to_str()) {
-        Some("exe") => Ok(RunnablePath::Exe(path)),
-        Some("bin") => Ok(RunnablePath::Bin(path)),
-        _ => Err("unsupported file format".into()),
     }
 }
 
@@ -104,7 +96,7 @@ impl AppConfig {
         })
     }
 
-    fn save_to_file(&self, path: &Path) {
+    pub fn save_to_file(&self, path: &Path) {
         if let Ok(toml_str) = toml::to_string_pretty(self) {
             let _ = std::fs::write(path, toml_str);
         }

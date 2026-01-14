@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use eframe::egui::Key as EKey;
 use gilrs::Axis as GAxis;
 use gilrs::Button as GButton;
-use starpsx_core::gamepad::{self, Axis, Button};
+use starpsx_core::gamepad::{Axis, Button};
 use tracing::error;
 
 #[derive(Clone, Debug, PartialEq)]

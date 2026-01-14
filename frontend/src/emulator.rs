@@ -19,7 +19,7 @@ use crate::input::GamepadState;
 pub enum UiCommand {
     NewInputState(GamepadState),
     SetPaused(bool),
-    Restart,
+    Shutdown,
 }
 
 pub struct Emulator {
@@ -35,8 +35,6 @@ pub struct Emulator {
     is_paused: bool,
 
     audio_stream: cpal::Stream,
-    bios_path: PathBuf,
-    file_path: Option<RunnablePath>,
 
     // Local metrics
     fps_counter: u32,
@@ -52,14 +50,14 @@ impl Emulator {
         input_rx: Receiver<UiCommand>,
         shared_metrics: Arc<CoreMetrics>,
 
-        bios_path: PathBuf,
-        file_path: Option<RunnablePath>,
+        bios_path: &Path,
+        file_path: &Option<RunnablePath>,
     ) -> Result<Self, Box<dyn Error>> {
         let (audio_tx, audio_rx) = std::sync::mpsc::sync_channel::<[i16; 2]>(735);
 
         let audio_stream = audio::build(audio_rx)?;
 
-        let system = Emulator::build_core(&bios_path, &file_path)?;
+        let system = Emulator::build_core(bios_path, file_path)?;
 
         Ok(Self {
             ui_ctx,
@@ -74,9 +72,6 @@ impl Emulator {
             is_paused: false,
 
             audio_stream,
-
-            bios_path,
-            file_path,
 
             fps_counter: 0,
             fps_timer: Instant::now(),
@@ -131,11 +126,11 @@ impl Emulator {
         gamepad.set_stick_axis(new_state.left_stick, new_state.right_stick);
     }
 
-    fn main_loop(&mut self) -> ! {
-        loop {
+    fn main_loop(&mut self) {
+        'emulator: loop {
             // Read events from ui thread
-            while let Ok(ui_command) = self.input_rx.try_recv() {
-                match ui_command {
+            while let Ok(command) = self.input_rx.try_recv() {
+                match command {
                     UiCommand::NewInputState(gamepad_state) => {
                         self.update_core_gamepad(gamepad_state)
                     }
@@ -146,12 +141,10 @@ impl Emulator {
                             false => self.audio_stream.play().unwrap(),
                         }
                     }
-                    UiCommand::Restart => {
-                        self.system = Emulator::build_core(&self.bios_path, &self.file_path)
-                            .unwrap_or_else(|err| {
-                                error!(%err, "could not restart emulator");
-                                std::process::exit(1);
-                            });
+                    // Shutdown the thread
+                    UiCommand::Shutdown => {
+                        let _ = self.audio_stream.pause();
+                        break 'emulator;
                     }
                 }
             }
@@ -202,5 +195,13 @@ impl CoreMetrics {
         let fps = self.fps.load(Ordering::Relaxed);
         let core_time_ms = f32::from_bits(self.core_time_ms.load(Ordering::Relaxed));
         (fps, core_time_ms)
+    }
+}
+
+pub fn parse_runnable(path: PathBuf) -> Result<RunnablePath, Box<dyn Error>> {
+    match path.extension().and_then(|e| e.to_str()) {
+        Some("exe") => Ok(RunnablePath::Exe(path)),
+        Some("bin") => Ok(RunnablePath::Bin(path)),
+        _ => Err("unsupported file format".into()),
     }
 }
