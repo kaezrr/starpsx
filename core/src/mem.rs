@@ -63,7 +63,6 @@ int_impl!(u16);
 int_impl!(u32);
 
 pub mod bios {
-    use std::path::Path;
 
     use super::*;
     pub const PADDR_START: u32 = 0x1FC00000;
@@ -74,12 +73,9 @@ pub mod bios {
     }
 
     impl Bios {
-        pub fn from_path(path: &Path) -> Result<Self, Box<dyn Error>> {
-            let bytes = std::fs::read(path)?;
-
-            Ok(Bios {
-                bytes: bytes.try_into().unwrap(),
-            })
+        pub fn new(bytes: Vec<u8>) -> Result<Self, Box<dyn Error>> {
+            let box_bytes = bytes.try_into().map_err(|_| "invalid bios")?;
+            Ok(Bios { bytes: box_bytes })
         }
 
         pub fn read<T: ByteAddressable>(&self, addr: u32) -> T {

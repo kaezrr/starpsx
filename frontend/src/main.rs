@@ -3,34 +3,32 @@
 
 mod app;
 mod audio;
+mod config;
 mod emulator;
 mod input;
 
-use std::sync::Arc;
-
 use eframe::egui;
-use starpsx_renderer::FrameBuffer;
 use tracing::error;
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{EnvFilter, fmt};
 
-use crate::emulator::{CoreMetrics, UiCommand};
+use crate::config::LaunchConfig;
 
 fn main() -> eframe::Result {
     // Making sure the log guard doesn't fall out of scope
     let _log_guard = init_logging("logs", "psx.log");
 
-    // Message channels for thread communication
-    let (frame_tx, frame_rx) = std::sync::mpsc::sync_channel::<FrameBuffer>(1);
-    let (input_tx, input_rx) = std::sync::mpsc::sync_channel::<UiCommand>(1);
-
-    let config = starpsx_core::Config::build().unwrap_or_else(|err| {
-        error!(%err, "Failed to parse command-line arguments");
+    let launch_config = LaunchConfig::build().unwrap_or_else(|err| {
+        error!(%err, "error building launch config");
         std::process::exit(1);
     });
 
+    run_gui(launch_config)
+}
+
+fn run_gui(launch_config: LaunchConfig) -> eframe::Result {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([960.0, 768.0])
@@ -43,33 +41,9 @@ fn main() -> eframe::Result {
     eframe::run_native(
         "StarPSX",
         options,
-        // This must only be called once!
         Box::new(move |cc| {
-            let shared_metrics = Arc::new(CoreMetrics::default());
-
-            // Build emulator from the provided configuration
-            let emulator = emulator::Emulator::build(
-                config,
-                cc.egui_ctx.clone(),
-                frame_tx,
-                input_rx,
-                shared_metrics.clone(),
-            )
-            .unwrap_or_else(|err| {
-                error!(%err, "Error while starting emulator");
-                std::process::exit(1);
-            });
-
-            // Start the emulator thread
-            emulator.run();
-
             // Start the ui thread
-            Ok(Box::new(app::Application::new(
-                cc,
-                frame_rx,
-                input_tx,
-                shared_metrics,
-            )))
+            Ok(Box::new(app::Application::new(cc, launch_config)))
         }),
     )
 }

@@ -2,7 +2,7 @@ use tracing::debug;
 
 use super::SectorSize;
 use crate::consts::SECTOR_SIZE;
-use std::{collections::VecDeque, error::Error, path::Path};
+use std::collections::VecDeque;
 
 pub struct CdImage {
     data: Box<[u8]>,
@@ -10,15 +10,15 @@ pub struct CdImage {
 }
 
 impl CdImage {
-    pub fn from_path(path: &Path) -> Result<Self, Box<dyn Error>> {
+    pub fn from_bytes(bytes: Vec<u8>) -> Self {
         // Add 2 seconds of zero padding to disk image (missing in rips)
         let mut data = vec![0u8; 2 * 75 * SECTOR_SIZE];
-        data.append(&mut std::fs::read(path)?);
+        data.extend(bytes);
 
-        Ok(Self {
+        Self {
             data: data.into_boxed_slice(),
             read_head: 0,
-        })
+        }
     }
 
     pub fn seek_location(&mut self, mins: u8, secs: u8, sect: u8) {

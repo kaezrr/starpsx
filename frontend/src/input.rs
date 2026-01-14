@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use eframe::egui::Key as EKey;
 use gilrs::Axis as GAxis;
 use gilrs::Button as GButton;
 use starpsx_core::gamepad::{self, Axis, Button};
@@ -114,107 +115,5 @@ pub enum ActionValue {
 pub enum PhysicalInput {
     GilrsButton(GButton),
     GilrsAxis(GAxis),
-    Key(eframe::egui::Key),
-}
-
-pub fn get_default_keybinds() -> Bindings {
-    let mut keybindings = HashMap::new();
-    keybindings.insert(
-        PhysicalInput::GilrsButton(GButton::South),
-        Action::GamepadButton(gamepad::Button::Cross),
-    );
-    keybindings.insert(
-        PhysicalInput::GilrsButton(GButton::East),
-        Action::GamepadButton(gamepad::Button::Circle),
-    );
-    keybindings.insert(
-        PhysicalInput::GilrsButton(GButton::North),
-        Action::GamepadButton(gamepad::Button::Triangle),
-    );
-    keybindings.insert(
-        PhysicalInput::GilrsButton(GButton::West),
-        Action::GamepadButton(gamepad::Button::Square),
-    );
-
-    // Shoulders
-    keybindings.insert(
-        PhysicalInput::GilrsButton(GButton::LeftTrigger),
-        Action::GamepadButton(gamepad::Button::L1),
-    );
-    keybindings.insert(
-        PhysicalInput::GilrsButton(GButton::LeftTrigger2),
-        Action::GamepadButton(gamepad::Button::L2),
-    );
-    keybindings.insert(
-        PhysicalInput::GilrsButton(GButton::RightTrigger),
-        Action::GamepadButton(gamepad::Button::R1),
-    );
-    keybindings.insert(
-        PhysicalInput::GilrsButton(GButton::RightTrigger2),
-        Action::GamepadButton(gamepad::Button::R2),
-    );
-
-    // Menu
-    keybindings.insert(
-        PhysicalInput::GilrsButton(GButton::Select),
-        Action::GamepadButton(gamepad::Button::Select),
-    );
-    keybindings.insert(
-        PhysicalInput::GilrsButton(GButton::Start),
-        Action::GamepadButton(gamepad::Button::Start),
-    );
-
-    // Stick buttons
-    keybindings.insert(
-        PhysicalInput::GilrsButton(GButton::LeftThumb),
-        Action::GamepadButton(gamepad::Button::L3),
-    );
-    keybindings.insert(
-        PhysicalInput::GilrsButton(GButton::RightThumb),
-        Action::GamepadButton(gamepad::Button::R3),
-    );
-
-    // Dpad
-    keybindings.insert(
-        PhysicalInput::GilrsButton(GButton::DPadUp),
-        Action::GamepadButton(gamepad::Button::Up),
-    );
-    keybindings.insert(
-        PhysicalInput::GilrsButton(GButton::DPadRight),
-        Action::GamepadButton(gamepad::Button::Right),
-    );
-    keybindings.insert(
-        PhysicalInput::GilrsButton(GButton::DPadDown),
-        Action::GamepadButton(gamepad::Button::Down),
-    );
-    keybindings.insert(
-        PhysicalInput::GilrsButton(GButton::DPadLeft),
-        Action::GamepadButton(gamepad::Button::Left),
-    );
-
-    // Analog Sticks
-    keybindings.insert(
-        PhysicalInput::GilrsAxis(GAxis::LeftStickX),
-        Action::StickAxis(gamepad::Axis::LeftX),
-    );
-    keybindings.insert(
-        PhysicalInput::GilrsAxis(GAxis::LeftStickY),
-        Action::StickAxis(gamepad::Axis::LeftY),
-    );
-    keybindings.insert(
-        PhysicalInput::GilrsAxis(GAxis::RightStickX),
-        Action::StickAxis(gamepad::Axis::RightX),
-    );
-    keybindings.insert(
-        PhysicalInput::GilrsAxis(GAxis::RightStickY),
-        Action::StickAxis(gamepad::Axis::RightY),
-    );
-
-    // Analog mode toggle
-    keybindings.insert(
-        PhysicalInput::GilrsButton(GButton::Mode),
-        Action::AnalogModeButton,
-    );
-
-    keybindings
+    Key(EKey),
 }

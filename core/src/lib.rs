@@ -23,10 +23,7 @@ use mem::scratch::Scratch;
 use sched::{Event, EventScheduler};
 use sio::Sio0;
 use starpsx_renderer::FrameBuffer;
-use std::{
-    error::Error,
-    path::{Path, PathBuf},
-};
+use std::error::Error;
 use timers::Timers;
 use tracing::info;
 
@@ -35,38 +32,9 @@ pub use sio::gamepad;
 use crate::sio::Sio1;
 use crate::spu::Spu;
 
-enum RunnablePath {
-    Game(PathBuf),
-    Executable(PathBuf),
-}
-
-pub struct Config {
-    bios_path: PathBuf,
-    runnable_path: Option<RunnablePath>,
-}
-
-impl Config {
-    pub fn build() -> Result<Config, Box<dyn Error>> {
-        let args: Vec<String> = std::env::args().collect();
-
-        let bios_path = args.get(1).ok_or("missing bios path")?;
-        let runnable_path = args
-            .get(2)
-            .map(|x| {
-                let path = PathBuf::from(x);
-                match path.extension().and_then(|e| e.to_str()) {
-                    Some("exe") => Ok(RunnablePath::Executable(path)),
-                    Some("bin") => Ok(RunnablePath::Game(path)),
-                    _ => Err(format!("unsupported file format: {}", path.display())),
-                }
-            })
-            .transpose()?;
-
-        Ok(Config {
-            bios_path: PathBuf::from(bios_path),
-            runnable_path,
-        })
-    }
+pub enum RunType {
+    Game(Vec<u8>),
+    Executable(Vec<u8>),
 }
 
 pub struct System {
@@ -95,14 +63,14 @@ pub struct System {
 }
 
 impl System {
-    pub fn build(config: &Config) -> Result<Self, Box<dyn Error>> {
+    pub fn build(bios: Vec<u8>, runnable: Option<RunType>) -> Result<Self, Box<dyn Error>> {
         let mut psx = System {
             cpu: Cpu::default(),
             gpu: Gpu::default(),
             spu: Spu::default(),
 
             ram: Ram::default(),
-            bios: Bios::from_path(&config.bios_path)?,
+            bios: Bios::new(bios)?,
             scratch: Scratch::default(),
 
             dma: DMAController::default(),
@@ -121,15 +89,12 @@ impl System {
         };
 
         // Load game or exe
-        if let Some(path) = &config.runnable_path {
+        if let Some(run_type) = runnable {
             // Do not open the shell after bios start
             psx.cdrom.status.set_shell_open(false);
-            match path {
-                RunnablePath::Game(path_buf) => {
-                    let image = CdImage::from_path(path_buf)?;
-                    psx.cdrom.insert_disc(image)
-                }
-                RunnablePath::Executable(path_buf) => psx.sideload_exe(path_buf)?,
+            match run_type {
+                RunType::Game(bytes) => psx.cdrom.insert_disc(CdImage::from_bytes(bytes)),
+                RunType::Executable(bytes) => psx.sideload_exe(bytes),
             }
         } else {
             psx.cdrom.status.set_shell_open(true);
@@ -185,8 +150,7 @@ impl System {
         [0, 0]
     }
 
-    pub fn sideload_exe(&mut self, path: &Path) -> Result<(), Box<dyn Error>> {
-        let exe = std::fs::read(path)?;
+    pub fn sideload_exe(&mut self, exe: Vec<u8>) {
         while self.cpu.pc != 0x80030000 {
             Cpu::run_instruction(self);
             self.check_for_tty_output();
@@ -210,8 +174,6 @@ impl System {
         }
 
         self.cpu.pc = init_pc;
-
-        Ok(())
     }
 
     fn enter_vsync(&mut self) {

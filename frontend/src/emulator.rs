@@ -1,4 +1,6 @@
 use std::error::Error;
+use std::io;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::mpsc::{Receiver, SyncSender};
@@ -6,10 +8,12 @@ use std::time::{Duration, Instant};
 
 use cpal::traits::StreamTrait;
 use eframe::egui;
+use starpsx_core::RunType;
 use starpsx_renderer::FrameBuffer;
 use tracing::error;
 
 use crate::audio;
+use crate::config::RunnablePath;
 use crate::input::GamepadState;
 
 pub enum UiCommand {
@@ -31,7 +35,8 @@ pub struct Emulator {
     is_paused: bool,
 
     audio_stream: cpal::Stream,
-    config: starpsx_core::Config,
+    bios_path: PathBuf,
+    file_path: Option<RunnablePath>,
 
     // Local metrics
     fps_counter: u32,
@@ -41,17 +46,20 @@ pub struct Emulator {
 
 impl Emulator {
     pub fn build(
-        config: starpsx_core::Config,
         ui_ctx: egui::Context,
+
         frame_tx: SyncSender<FrameBuffer>,
         input_rx: Receiver<UiCommand>,
         shared_metrics: Arc<CoreMetrics>,
+
+        bios_path: PathBuf,
+        file_path: Option<RunnablePath>,
     ) -> Result<Self, Box<dyn Error>> {
         let (audio_tx, audio_rx) = std::sync::mpsc::sync_channel::<[i16; 2]>(735);
 
         let audio_stream = audio::build(audio_rx)?;
 
-        let system = starpsx_core::System::build(&config)?;
+        let system = Emulator::build_core(&bios_path, &file_path)?;
 
         Ok(Self {
             ui_ctx,
@@ -66,12 +74,34 @@ impl Emulator {
             is_paused: false,
 
             audio_stream,
-            config,
+
+            bios_path,
+            file_path,
 
             fps_counter: 0,
             fps_timer: Instant::now(),
             core_time_acc: Duration::ZERO,
         })
+    }
+
+    pub fn build_core(
+        bios_path: &Path,
+        file_path: &Option<RunnablePath>,
+    ) -> Result<starpsx_core::System, Box<dyn Error>> {
+        let bios = std::fs::read(bios_path)?;
+
+        let run_type = file_path
+            .as_ref()
+            .map(|run_type| -> Result<RunType, io::Error> {
+                let bytes = match run_type {
+                    RunnablePath::Exe(path) => RunType::Executable(std::fs::read(path)?),
+                    RunnablePath::Bin(path) => RunType::Game(std::fs::read(path)?),
+                };
+                Ok(bytes)
+            })
+            .transpose()?;
+
+        starpsx_core::System::build(bios, run_type)
     }
 
     pub fn run(mut self) {
@@ -117,8 +147,8 @@ impl Emulator {
                         }
                     }
                     UiCommand::Restart => {
-                        self.system =
-                            starpsx_core::System::build(&self.config).unwrap_or_else(|err| {
+                        self.system = Emulator::build_core(&self.bios_path, &self.file_path)
+                            .unwrap_or_else(|err| {
                                 error!(%err, "could not restart emulator");
                                 std::process::exit(1);
                             });

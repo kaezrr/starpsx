@@ -1,19 +1,19 @@
+use std::error::Error;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::mpsc::{Receiver, SyncSender, TryRecvError};
 
 use eframe::egui::{self, Color32, ColorImage};
 use eframe::egui::{TextureOptions, ViewportCommand, load::SizedTexture};
 use starpsx_renderer::FrameBuffer;
-use tracing::{info, trace};
+use tracing::{error, info, trace};
 
-use crate::emulator::{CoreMetrics, UiCommand};
+use crate::config::{self, LaunchConfig, RunnablePath};
+use crate::emulator::{self, CoreMetrics, UiCommand};
 use crate::input::{self, ActionValue, PhysicalInput};
 
-pub struct Application {
-    gamepad: gilrs::Gilrs,
-    input_state: input::GamepadState,
-    keybindings: input::Bindings,
-
+// This holds all the state required after emulator init
+struct AppState {
     frame_rx: Receiver<FrameBuffer>,
     input_tx: SyncSender<UiCommand>,
 
@@ -22,28 +22,76 @@ pub struct Application {
     is_paused: bool,
 
     // metrics
-    last_resolution: Option<(usize, usize)>,
     shared_metrics: Arc<CoreMetrics>,
+    last_resolution: Option<(usize, usize)>,
+}
 
+pub struct Application {
+    gamepad: gilrs::Gilrs,
+    input_state: input::GamepadState,
+
+    app_config: config::AppConfig,
+    config_path: PathBuf,
+
+    app_state: Option<AppState>,
+    egui_ctx: egui::Context,
+
+    // GUI states
     info_modal_open: bool,
 }
 
-impl Application {
-    pub fn new(
-        cc: &eframe::CreationContext<'_>,
-        frame_rx: Receiver<FrameBuffer>,
-        input_tx: SyncSender<UiCommand>,
-        shared_metrics: Arc<CoreMetrics>,
-    ) -> Self {
-        Self {
-            gamepad: gilrs::Gilrs::new().expect("could not initalize gilrs"),
-            input_state: input::GamepadState::default(),
-            keybindings: input::get_default_keybinds(),
+#[derive(Default)]
+struct MetricsSnapshot {
+    fps: u32,
+    core_ms: f32,
+    resolution: Option<(usize, usize)>,
+}
 
+impl Application {
+    fn get_metrics(&self) -> MetricsSnapshot {
+        if let Some(ref emu) = self.app_state {
+            let (fps, core_ms) = emu.shared_metrics.load();
+            MetricsSnapshot {
+                fps,
+                core_ms,
+                resolution: emu.last_resolution,
+            }
+        } else {
+            MetricsSnapshot::default()
+        }
+    }
+
+    fn start_emulator(
+        &mut self,
+        runnable_path: Option<RunnablePath>,
+    ) -> Result<(), Box<dyn Error>> {
+        let bios_path = self
+            .app_config
+            .bios_path
+            .as_ref()
+            .ok_or("bios path missing")?;
+
+        // Message channels for thread communication
+        let (frame_tx, frame_rx) = std::sync::mpsc::sync_channel::<FrameBuffer>(1);
+        let (input_tx, input_rx) = std::sync::mpsc::sync_channel::<UiCommand>(1);
+
+        let shared_metrics = Arc::new(CoreMetrics::default());
+
+        // Build emulator from the provided configuration
+        let emulator = emulator::Emulator::build(
+            self.egui_ctx.clone(),
+            frame_tx,
+            input_rx,
+            shared_metrics.clone(),
+            bios_path.clone(),
+            runnable_path,
+        )?;
+
+        self.app_state = Some(AppState {
             frame_rx,
             input_tx,
 
-            texture: cc.egui_ctx.load_texture(
+            texture: self.egui_ctx.load_texture(
                 "frame buffer",
                 ColorImage::filled([100, 100], Color32::BLACK),
                 egui::TextureOptions::NEAREST,
@@ -51,9 +99,25 @@ impl Application {
 
             is_paused: false,
 
-            // Performance metrics
-            last_resolution: None,
             shared_metrics,
+            last_resolution: None,
+        });
+
+        emulator.run();
+        Ok(())
+    }
+
+    pub fn new(cc: &eframe::CreationContext<'_>, launch_config: LaunchConfig) -> Self {
+        Self {
+            egui_ctx: cc.egui_ctx.clone(),
+
+            gamepad: gilrs::Gilrs::new().expect("could not initalize gilrs"),
+            input_state: input::GamepadState::default(),
+
+            app_state: None,
+
+            app_config: launch_config.app_config,
+            config_path: launch_config.config_path,
 
             info_modal_open: false,
         }
@@ -66,7 +130,7 @@ impl Application {
 
         let mut changed = false;
         ctx.input(|i| {
-            for (phys, action) in &self.keybindings {
+            for (phys, action) in &self.app_config.keybinds {
                 let PhysicalInput::Key(key) = phys else {
                     continue;
                 };
@@ -93,7 +157,7 @@ impl Application {
             match event {
                 gilrs::EventType::ButtonPressed(button, _) => {
                     let phys = PhysicalInput::GilrsButton(button);
-                    if let Some(action) = self.keybindings.get(&phys) {
+                    if let Some(action) = self.app_config.keybinds.get(&phys) {
                         changed |= self
                             .input_state
                             .handle_action(action, ActionValue::Digital(true));
@@ -102,7 +166,7 @@ impl Application {
 
                 gilrs::EventType::ButtonReleased(button, _) => {
                     let phys = PhysicalInput::GilrsButton(button);
-                    if let Some(action) = self.keybindings.get(&phys) {
+                    if let Some(action) = self.app_config.keybinds.get(&phys) {
                         changed |= self
                             .input_state
                             .handle_action(action, ActionValue::Digital(false));
@@ -111,7 +175,7 @@ impl Application {
 
                 gilrs::EventType::AxisChanged(axis, value, _) => {
                     let phys = PhysicalInput::GilrsAxis(axis);
-                    if let Some(action) = self.keybindings.get(&phys) {
+                    if let Some(action) = self.app_config.keybinds.get(&phys) {
                         changed |= self
                             .input_state
                             .handle_action(action, ActionValue::Analog(value));
@@ -126,7 +190,9 @@ impl Application {
         }
         changed
     }
+}
 
+impl AppState {
     fn present_frame_buffer(&mut self, fb: FrameBuffer) {
         let image = egui::ColorImage::from_rgba_premultiplied(
             [fb.resolution.0, fb.resolution.1],
@@ -134,45 +200,65 @@ impl Application {
         );
 
         self.texture.set(image, TextureOptions::NEAREST);
+
         // If its a 1x1 resolution frame buffer then the emulator display is disabled
         self.last_resolution = (fb.resolution.0 * fb.resolution.1 > 1).then_some(fb.resolution);
+    }
+
+    fn toggle_pause(&mut self) {
+        self.input_tx // Blocking send, must succeed
+            .send(UiCommand::SetPaused(!self.is_paused))
+            .unwrap();
+        self.is_paused = !self.is_paused;
+    }
+
+    fn restart(&self) {
+        self.input_tx.send(UiCommand::Restart).unwrap();
     }
 }
 
 impl eframe::App for Application {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
-        // Process all the input events
-        if !self.is_paused {
-            let mut input_dirty = false;
-            input_dirty |= self.process_gamepad_events();
-            input_dirty |= self.process_keyboard_events(ctx);
-
-            if input_dirty {
-                let _ = self
-                    .input_tx
-                    .try_send(UiCommand::NewInputState(self.input_state.clone()));
-            }
-        }
-
-        // Get framebuffers from emulator thread
-        match self.frame_rx.try_recv() {
-            Ok(fb) => self.present_frame_buffer(fb),
-            Err(TryRecvError::Empty) => (), // Do nothing
-            Err(TryRecvError::Disconnected) => {
-                info!("emulator thread exited, closing UI");
-                return ctx.send_viewport_cmd(ViewportCommand::Close);
-            }
-        };
-
-        // Draw UI
         show_top_menu(self, ctx);
+
         show_info_modal(&mut self.info_modal_open, ctx);
+
         show_performance_panel(self, ctx, frame);
-        show_central_panel(self, ctx);
+
+        if let Some(mut emu) = self.app_state.take() {
+            // Process all the input events
+            if !emu.is_paused {
+                let mut input_dirty = false;
+                input_dirty |= self.process_gamepad_events();
+                input_dirty |= self.process_keyboard_events(ctx);
+
+                if input_dirty {
+                    let _ = emu
+                        .input_tx
+                        .try_send(UiCommand::NewInputState(self.input_state.clone()));
+                }
+            }
+
+            // Get framebuffers from emulator thread
+            match emu.frame_rx.try_recv() {
+                Ok(fb) => {
+                    emu.present_frame_buffer(fb);
+                }
+                Err(TryRecvError::Disconnected) => {
+                    info!("emulator thread exited, closing UI");
+                    return ctx.send_viewport_cmd(ViewportCommand::Close);
+                }
+                Err(TryRecvError::Empty) => (), // Do nothing
+            };
+
+            show_central_panel(&emu, ctx);
+
+            self.app_state = Some(emu);
+        }
     }
 }
 
-fn show_central_panel(app: &Application, ctx: &egui::Context) {
+fn show_central_panel(app: &AppState, ctx: &egui::Context) {
     egui::CentralPanel::default()
         .frame(egui::Frame::NONE)
         .show(ctx, |ui| {
@@ -201,16 +287,14 @@ fn show_top_menu(app: &mut Application, ctx: &egui::Context) {
 
                 ui.add_enabled(false, egui::Button::new("Start Bios"));
 
-                let label = if app.is_paused { "Resume" } else { "Pause" };
-                if ui.button(label).clicked() {
-                    app.input_tx // Blocking send, must succeed
-                        .send(UiCommand::SetPaused(!app.is_paused))
-                        .unwrap();
-                    app.is_paused = !app.is_paused;
-                }
-
-                if ui.button("Restart").clicked() {
-                    app.input_tx.send(UiCommand::Restart).unwrap();
+                if let Some(ref mut emu) = app.app_state {
+                    let label = if emu.is_paused { "Resume" } else { "Pause" };
+                    if ui.button(label).clicked() {
+                        emu.toggle_pause();
+                    }
+                    if ui.button("Restart").clicked() {
+                        emu.restart();
+                    }
                 }
 
                 if ui.button("Exit").clicked() {
@@ -251,56 +335,57 @@ fn show_top_menu(app: &mut Application, ctx: &egui::Context) {
 }
 
 fn show_info_modal(show_modal: &mut bool, ctx: &egui::Context) {
-    if *show_modal {
-        let modal = egui::Modal::new(egui::Id::new("Info")).show(ctx, |ui| {
-            ui.vertical_centered(|ui| {
-                ui.heading("About StarPSX");
-            });
-
-            ui.separator();
-            ui.monospace(format!(
-                "Version: {}-{}\nPlatform: {} {}",
-                env!("CARGO_PKG_VERSION"),
-                option_env!("GIT_HASH").unwrap_or("unknown"),
-                std::env::consts::OS,
-                std::env::consts::ARCH,
-            ));
-
-            ui.separator();
-            ui.label("StarPSX is a free and open source Playstation 1 emulator.");
-            ui.label("It aims to be cross-platform and easy to use.");
-
-            ui.separator();
-            ui.monospace("Author: Anjishnu Banerjee <kaezr.dev@gmail.com>");
-
-            ui.separator();
-            ui.horizontal(|ui| {
-                ui.label("Source:");
-                ui.hyperlink_to("Github", "https://github.com/kaezrr/starpsx");
-                ui.label("License: GPLv3");
-            });
-
-            ui.add_space(10.0);
-            ui.vertical_centered(|ui| {
-                if ui.button("Close").clicked() {
-                    ui.close();
-                }
-            })
+    if !*show_modal {
+        return;
+    }
+    let modal = egui::Modal::new(egui::Id::new("Info")).show(ctx, |ui| {
+        ui.vertical_centered(|ui| {
+            ui.heading("About StarPSX");
         });
 
-        if modal.should_close() {
-            *show_modal = false;
-        }
+        ui.separator();
+        ui.monospace(format!(
+            "Version: {}-{}\nPlatform: {} {}",
+            env!("CARGO_PKG_VERSION"),
+            option_env!("GIT_HASH").unwrap_or("unknown"),
+            std::env::consts::OS,
+            std::env::consts::ARCH,
+        ));
+
+        ui.separator();
+        ui.label("StarPSX is a free and open source Playstation 1 emulator.");
+        ui.label("It aims to be cross-platform and easy to use.");
+
+        ui.separator();
+        ui.monospace("Author: Anjishnu Banerjee <kaezr.dev@gmail.com>");
+
+        ui.separator();
+        ui.horizontal(|ui| {
+            ui.label("Source:");
+            ui.hyperlink_to("Github", "https://github.com/kaezrr/starpsx");
+            ui.label("License: GPLv3");
+        });
+
+        ui.add_space(10.0);
+        ui.vertical_centered(|ui| {
+            if ui.button("Close").clicked() {
+                ui.close();
+            }
+        })
+    });
+
+    if modal.should_close() {
+        *show_modal = false;
     }
 }
 
 fn show_performance_panel(app: &Application, ctx: &egui::Context, frame: &eframe::Frame) {
     egui::TopBottomPanel::bottom("bottom_panel").show(ctx, |ui| {
+        let m = app.get_metrics();
         ui.horizontal(|ui| {
-            let (fps, core_ms) = app.shared_metrics.load();
-            ui.label(format!("FPS: {}", fps));
+            ui.label(format!("FPS: {}", m.fps));
             ui.separator();
-            ui.label(format!("Core: {:.2} ms", core_ms));
+            ui.label(format!("Core: {:.2} ms", m.core_ms));
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if let Some(render_state) = frame.wgpu_render_state() {
@@ -309,9 +394,9 @@ fn show_performance_panel(app: &Application, ctx: &egui::Context, frame: &eframe
                 }
 
                 ui.separator();
-                ui.label(match app.last_resolution {
+                ui.label(match m.resolution {
                     Some((w, h)) => format!("{w}x{h}"),
-                    None => "No Image".into(),
+                    None => "Display Off".into(),
                 });
             })
         })
