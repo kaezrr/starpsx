@@ -49,6 +49,7 @@ pub struct Application {
     // GUI states
     info_modal_open: bool,
     bios_modal_open: bool,
+    error_modal_open: Option<String>,
 
     pending_dialog: Option<PendingDialog>,
 }
@@ -137,15 +138,20 @@ impl Application {
 
             info_modal_open: false,
             bios_modal_open: false,
+
+            error_modal_open: None,
             pending_dialog: None,
         };
 
         if launch_config.auto_run {
-            match launch_config.runnable_path {
-                Some(file) => app.load_file(file).unwrap_or_else(|err| {
-                    error!(%err, "error loading file");
-                }),
+            let result = match launch_config.runnable_path {
+                Some(file) => app.load_file(file),
                 None => app.start_bios(),
+            };
+
+            if let Err(err) = result {
+                error!(%err, "could not auto start emulator");
+                app.error_modal_open = Some(format!("Could not auto start emulator: {err}"));
             }
         }
 
@@ -239,21 +245,23 @@ impl Application {
         }
     }
 
-    fn restart(&mut self) {
+    fn restart(&mut self) -> Result<(), Box<dyn Error>> {
         if let Some(state) = self.app_state.take() {
             state.shutdown();
         }
 
         let last_run = self.last_run.take();
-        let _ = self.start_emulator(last_run);
+        self.start_emulator(last_run)?;
+        Ok(())
     }
 
-    fn start_bios(&mut self) {
+    fn start_bios(&mut self) -> Result<(), Box<dyn Error>> {
         if let Some(state) = self.app_state.take() {
             state.shutdown();
         }
 
-        let _ = self.start_emulator(None);
+        self.start_emulator(None)?;
+        Ok(())
     }
 
     fn load_file(&mut self, path: PathBuf) -> Result<(), Box<dyn Error>> {
@@ -262,7 +270,7 @@ impl Application {
         }
 
         let runnable = emulator::parse_runnable(path)?;
-        let _ = self.start_emulator(Some(runnable));
+        self.start_emulator(Some(runnable))?;
         Ok(())
     }
 
@@ -274,19 +282,19 @@ impl Application {
         match dialog {
             PendingDialog::SelectBios(fut) => {
                 if let Some(result) = fut.now_or_never() {
+                    self.pending_dialog = None;
                     if let Some(file) = result {
                         self.app_config.bios_path = Some(file.path().to_path_buf());
                         self.app_config.save_to_file(&self.config_path);
                     }
-                    self.pending_dialog = None;
                 }
             }
             PendingDialog::SelectFile(fut) => {
                 if let Some(result) = fut.now_or_never() {
+                    self.pending_dialog = None;
                     if let Some(file) = result {
                         self.load_file(file.path().to_path_buf())?;
                     }
-                    self.pending_dialog = None;
                 }
             }
         }
@@ -324,11 +332,15 @@ impl eframe::App for Application {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         if let Err(err) = self.poll_dialog() {
             error!(%err, "error loading file");
+            self.error_modal_open = Some(format!("error loading file: {err}"));
         }
 
         show_top_menu(self, ctx);
 
+        show_error_modal(self, ctx);
+
         show_info_modal(&mut self.info_modal_open, ctx);
+
         show_bios_modal(self, ctx);
 
         show_performance_panel(self, ctx, frame);
@@ -364,12 +376,13 @@ impl eframe::App for Application {
             self.app_state = Some(emu);
         } else {
             egui::CentralPanel::default().show(ctx, |ui| {
-                ui.centered_and_justified(|ui| {
+                ui.vertical_centered(|ui| {
                     ui.label(
                         egui::RichText::new("Welcome to StarPSX")
                             .size(32.0)
                             .strong(),
                     );
+                    ui.label("Please select a BIOS before trying to start a file!")
                 });
             });
         }
@@ -415,7 +428,10 @@ fn show_top_menu(app: &mut Application, ctx: &egui::Context) {
                         }
 
                         if ui.button("Start BIOS").clicked() {
-                            app.start_bios();
+                            app.start_bios().unwrap_or_else(|err| {
+                                error!(%err, "could not start bios");
+                                app.error_modal_open = Some(format!("Could not start bios: {err}"));
+                            })
                         }
                     },
                 );
@@ -428,7 +444,11 @@ fn show_top_menu(app: &mut Application, ctx: &egui::Context) {
                     }
 
                     if ui.button("Restart").clicked() {
-                        app.restart();
+                        app.restart().unwrap_or_else(|err| {
+                            error!(%err, "could not restart emulator");
+                            app.error_modal_open =
+                                Some(format!("Could not restart emulator: {err}"));
+                        });
                     }
 
                     if ui.button("Stop").clicked() {
@@ -550,13 +570,13 @@ fn show_bios_modal(app: &mut Application, ctx: &egui::Context) {
     }
 
     let modal = egui::Modal::new(egui::Id::new("Info")).show(ctx, |ui| {
-        ui.set_min_width(200.0);
-
+        ui.set_width(400.0);
         ui.heading("Select BIOS");
         ui.add_space(10.0);
 
-        ui.horizontal(|ui| {
+        ui.horizontal_wrapped(|ui| {
             ui.label("Current BIOS:");
+
             match &app.app_config.bios_path {
                 Some(path) => {
                     ui.monospace(path.display().to_string());
@@ -593,5 +613,32 @@ fn show_bios_modal(app: &mut Application, ctx: &egui::Context) {
 
     if modal.should_close() {
         app.bios_modal_open = false;
+    }
+}
+
+fn show_error_modal(app: &mut Application, ctx: &egui::Context) {
+    let Some(ref err) = app.error_modal_open else {
+        return;
+    };
+
+    let modal = egui::Modal::new(egui::Id::new("Error Pop")).show(ctx, |ui| {
+        ui.heading("Error!");
+        ui.add_space(20.0);
+        ui.label(err);
+        ui.add_space(20.0);
+
+        egui::Sides::new().show(
+            ui,
+            |_ui| {},
+            |ui| {
+                if ui.button("Ok").clicked() {
+                    ui.close();
+                }
+            },
+        );
+    });
+
+    if modal.should_close() {
+        app.error_modal_open = None;
     }
 }
