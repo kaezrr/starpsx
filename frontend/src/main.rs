@@ -2,7 +2,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod app;
-mod audio;
 mod config;
 mod emulator;
 mod input;
@@ -69,10 +68,12 @@ fn init_logging(dir: &str, filename: &str) -> WorkerGuard {
 
     let stdout_layer = fmt::layer().without_time();
 
+    let filter = EnvFilter::try_from_default_env().unwrap_or(EnvFilter::new("info"));
+
     tracing_subscriber::registry()
         .with(file_layer)
         .with(stdout_layer)
-        .with(EnvFilter::from_default_env())
+        .with(filter)
         .init();
 
     file_guard

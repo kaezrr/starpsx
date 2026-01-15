@@ -125,12 +125,13 @@ impl System {
         Ok(psx)
     }
 
-    // Returns a left and right audio sample
-    pub fn tick(&mut self) -> [i16; 2] {
-        for _ in (0..768).step_by(2) {
+    // Run emulator for one frame and return the generated frame
+    pub fn run_frame(&mut self) -> FrameBuffer {
+        loop {
             if let Some(event) = self.scheduler.get_next_event() {
                 match event {
-                    Event::VBlankStart => self.enter_vsync(),
+                    // Frame completes just before entering vsync
+                    Event::VBlankStart => return self.enter_vsync(),
                     Event::VBlankEnd => Timers::exit_vsync(self),
                     Event::HBlankStart => Timers::enter_hsync(self),
                     Event::HBlankEnd => Timers::exit_hsync(self),
@@ -138,7 +139,6 @@ impl System {
                     Event::SerialSend => Sio0::process_serial_send(self),
                     Event::CdromResultIrq(x) => CdRom::handle_response(self, x),
                 }
-                continue;
             }
 
             // Fixed 2 CPI right now
@@ -147,7 +147,6 @@ impl System {
 
             self.check_for_tty_output();
         }
-        [0, 0]
     }
 
     pub fn sideload_exe(&mut self, exe: Vec<u8>) {
@@ -176,12 +175,10 @@ impl System {
         self.cpu.pc = init_pc;
     }
 
-    fn enter_vsync(&mut self) {
+    fn enter_vsync(&mut self) -> FrameBuffer {
         Timers::enter_vsync(self);
         self.irqctl.stat().set_vblank(true);
-
-        let fb = self.gpu.renderer.produce_frame_buffer();
-        self.produced_frame_buffer = Some(fb);
+        self.gpu.renderer.produce_frame_buffer()
     }
 
     fn check_for_tty_output(&mut self) {

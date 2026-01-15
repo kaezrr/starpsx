@@ -15,25 +15,6 @@ use crate::config::{self, LaunchConfig, RunnablePath};
 use crate::emulator::{self, CoreMetrics, UiCommand};
 use crate::input::{self, ActionValue, PhysicalInput};
 
-enum PendingDialog {
-    SelectBios(Pin<Box<dyn Future<Output = Option<FileHandle>>>>),
-    SelectFile(Pin<Box<dyn Future<Output = Option<FileHandle>>>>),
-}
-
-// This holds all the state required after emulator init
-struct AppState {
-    frame_rx: Receiver<FrameBuffer>,
-    input_tx: SyncSender<UiCommand>,
-
-    texture: egui::TextureHandle,
-
-    is_paused: bool,
-
-    // metrics
-    shared_metrics: Arc<CoreMetrics>,
-    last_resolution: Option<(usize, usize)>,
-}
-
 pub struct Application {
     gamepad: gilrs::Gilrs,
     input_state: input::GamepadState,
@@ -54,77 +35,68 @@ pub struct Application {
     pending_dialog: Option<PendingDialog>,
 }
 
-#[derive(Default)]
-struct MetricsSnapshot {
-    fps: u32,
-    core_ms: f32,
-    sample_rate: f32,
-    resolution: Option<(usize, usize)>,
+impl eframe::App for Application {
+    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        if let Err(err) = self.poll_dialog() {
+            error!(%err, "error loading file");
+            self.error_modal_open = Some(format!("error loading file: {err}"));
+        }
+
+        show_top_menu(self, ctx);
+
+        show_error_modal(self, ctx);
+
+        show_info_modal(&mut self.info_modal_open, ctx);
+
+        show_bios_modal(self, ctx);
+
+        show_performance_panel(self, ctx, frame);
+
+        if let Some(mut emu) = self.app_state.take() {
+            // Process all the input events
+            if !emu.is_paused {
+                let mut input_dirty = false;
+                input_dirty |= self.process_gamepad_events();
+                input_dirty |= self.process_keyboard_events(ctx);
+
+                if input_dirty {
+                    let _ = emu
+                        .input_tx
+                        .try_send(UiCommand::NewInputState(self.input_state.clone()));
+                }
+            }
+
+            // Get framebuffers from emulator thread
+            match emu.frame_rx.try_recv() {
+                Ok(fb) => {
+                    emu.present_frame_buffer(fb);
+                }
+                Err(TryRecvError::Disconnected) => {
+                    info!("emulator thread exited, closing UI");
+                    return ctx.send_viewport_cmd(ViewportCommand::Close);
+                }
+                Err(TryRecvError::Empty) => (), // Do nothing
+            };
+
+            show_central_panel(&emu, ctx);
+
+            self.app_state = Some(emu);
+        } else {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                ui.vertical_centered(|ui| {
+                    ui.label(
+                        egui::RichText::new("Welcome to StarPSX")
+                            .size(32.0)
+                            .strong(),
+                    );
+                    ui.label("Please select a valid PS1 BIOS image in the \"BIOS Settings\" before trying to start a file!")
+                });
+            });
+        }
+    }
 }
 
 impl Application {
-    fn get_metrics(&self) -> MetricsSnapshot {
-        if let Some(ref emu) = self.app_state {
-            let (fps, core_ms, sample_rate) = emu.shared_metrics.load();
-            MetricsSnapshot {
-                fps,
-                core_ms,
-                sample_rate: sample_rate as f32 / 1000.0,
-                resolution: emu.last_resolution,
-            }
-        } else {
-            MetricsSnapshot::default()
-        }
-    }
-
-    fn start_emulator(
-        &mut self,
-        runnable_path: Option<RunnablePath>,
-    ) -> Result<(), Box<dyn Error>> {
-        let bios_path = self
-            .app_config
-            .bios_path
-            .as_ref()
-            .ok_or("bios path missing")?;
-
-        // Message channels for thread communication
-        let (frame_tx, frame_rx) = std::sync::mpsc::sync_channel::<FrameBuffer>(1);
-        let (input_tx, input_rx) = std::sync::mpsc::sync_channel::<UiCommand>(1);
-
-        let shared_metrics = Arc::new(CoreMetrics::default());
-
-        // Build emulator from the provided configuration
-        let emulator = emulator::Emulator::build(
-            self.egui_ctx.clone(),
-            frame_tx,
-            input_rx,
-            shared_metrics.clone(),
-            bios_path,
-            &runnable_path,
-        )?;
-
-        self.last_run = runnable_path;
-
-        self.app_state = Some(AppState {
-            frame_rx,
-            input_tx,
-
-            texture: self.egui_ctx.load_texture(
-                "frame buffer",
-                ColorImage::filled([100, 100], Color32::BLACK),
-                egui::TextureOptions::NEAREST,
-            ),
-
-            is_paused: false,
-
-            shared_metrics,
-            last_resolution: None,
-        });
-
-        emulator.run();
-        Ok(())
-    }
-
     pub fn new(cc: &eframe::CreationContext<'_>, launch_config: LaunchConfig) -> Self {
         let mut app = Self {
             egui_ctx: cc.egui_ctx.clone(),
@@ -228,6 +200,20 @@ impl Application {
         changed
     }
 
+    fn get_metrics(&self) -> MetricsSnapshot {
+        if let Some(ref emu) = self.app_state {
+            let (frame_ms, core_ms) = emu.shared_metrics.load();
+            MetricsSnapshot {
+                fps: (1.0 / frame_ms).round() as u32,
+                core_fps: (1.0 / core_ms).round() as u32,
+                core_ms: core_ms * 1000.0,
+                resolution: emu.last_resolution,
+            }
+        } else {
+            MetricsSnapshot::default()
+        }
+    }
+
     fn is_paused(&self) -> bool {
         self.app_state
             .as_ref()
@@ -235,7 +221,55 @@ impl Application {
             .unwrap_or(false)
     }
 
-    fn quit_game(&mut self) {
+    fn start_emulator(
+        &mut self,
+        runnable_path: Option<RunnablePath>,
+    ) -> Result<(), Box<dyn Error>> {
+        let bios_path = self
+            .app_config
+            .bios_path
+            .as_ref()
+            .ok_or("bios path missing")?;
+
+        // Message channels for thread communication
+        let (frame_tx, frame_rx) = std::sync::mpsc::sync_channel::<FrameBuffer>(1);
+        let (input_tx, input_rx) = std::sync::mpsc::sync_channel::<UiCommand>(1);
+
+        let shared_metrics = Arc::new(CoreMetrics::default());
+
+        // Build emulator from the provided configuration
+        let emulator = emulator::Emulator::build(
+            self.egui_ctx.clone(),
+            frame_tx,
+            input_rx,
+            shared_metrics.clone(),
+            bios_path,
+            &runnable_path,
+        )?;
+
+        self.last_run = runnable_path;
+
+        self.app_state = Some(AppState {
+            frame_rx,
+            input_tx,
+
+            texture: self.egui_ctx.load_texture(
+                "frame buffer",
+                ColorImage::filled([100, 100], Color32::BLACK),
+                egui::TextureOptions::NEAREST,
+            ),
+
+            is_paused: false,
+
+            shared_metrics,
+            last_resolution: None,
+        });
+
+        emulator.run();
+        Ok(())
+    }
+
+    fn stop_emulator(&mut self) {
         if let Some(state) = self.app_state.take() {
             state.shutdown();
         }
@@ -247,7 +281,7 @@ impl Application {
         }
     }
 
-    fn restart(&mut self) -> Result<(), Box<dyn Error>> {
+    fn restart_emulator(&mut self) -> Result<(), Box<dyn Error>> {
         if let Some(state) = self.app_state.take() {
             state.shutdown();
         }
@@ -305,6 +339,20 @@ impl Application {
     }
 }
 
+// This holds all the state required after emulator init
+struct AppState {
+    frame_rx: Receiver<FrameBuffer>,
+    input_tx: SyncSender<UiCommand>,
+
+    texture: egui::TextureHandle,
+
+    is_paused: bool,
+
+    // metrics
+    shared_metrics: Arc<CoreMetrics>,
+    last_resolution: Option<(usize, usize)>,
+}
+
 impl AppState {
     fn present_frame_buffer(&mut self, fb: FrameBuffer) {
         let image = egui::ColorImage::from_rgba_premultiplied(
@@ -327,67 +375,6 @@ impl AppState {
 
     fn shutdown(&self) {
         self.input_tx.send(UiCommand::Shutdown).unwrap();
-    }
-}
-
-impl eframe::App for Application {
-    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
-        if let Err(err) = self.poll_dialog() {
-            error!(%err, "error loading file");
-            self.error_modal_open = Some(format!("error loading file: {err}"));
-        }
-
-        show_top_menu(self, ctx);
-
-        show_error_modal(self, ctx);
-
-        show_info_modal(&mut self.info_modal_open, ctx);
-
-        show_bios_modal(self, ctx);
-
-        show_performance_panel(self, ctx, frame);
-
-        if let Some(mut emu) = self.app_state.take() {
-            // Process all the input events
-            if !emu.is_paused {
-                let mut input_dirty = false;
-                input_dirty |= self.process_gamepad_events();
-                input_dirty |= self.process_keyboard_events(ctx);
-
-                if input_dirty {
-                    let _ = emu
-                        .input_tx
-                        .try_send(UiCommand::NewInputState(self.input_state.clone()));
-                }
-            }
-
-            // Get framebuffers from emulator thread
-            match emu.frame_rx.try_recv() {
-                Ok(fb) => {
-                    emu.present_frame_buffer(fb);
-                }
-                Err(TryRecvError::Disconnected) => {
-                    info!("emulator thread exited, closing UI");
-                    return ctx.send_viewport_cmd(ViewportCommand::Close);
-                }
-                Err(TryRecvError::Empty) => (), // Do nothing
-            };
-
-            show_central_panel(&emu, ctx);
-
-            self.app_state = Some(emu);
-        } else {
-            egui::CentralPanel::default().show(ctx, |ui| {
-                ui.vertical_centered(|ui| {
-                    ui.label(
-                        egui::RichText::new("Welcome to StarPSX")
-                            .size(32.0)
-                            .strong(),
-                    );
-                    ui.label("Please select a BIOS before trying to start a file!")
-                });
-            });
-        }
     }
 }
 
@@ -424,7 +411,7 @@ fn show_top_menu(app: &mut Application, ctx: &egui::Context) {
                             app.pending_dialog = Some(PendingDialog::SelectFile(Box::pin(
                                 AsyncFileDialog::new()
                                     .add_filter("Game", &["bin", "BIN", "cue", "exe"])
-                                    .set_title("Select File to Run")
+                                    .set_title("Select file to Run")
                                     .pick_file(),
                             )));
                         }
@@ -446,7 +433,7 @@ fn show_top_menu(app: &mut Application, ctx: &egui::Context) {
                     }
 
                     if ui.button("Restart").clicked() {
-                        app.restart().unwrap_or_else(|err| {
+                        app.restart_emulator().unwrap_or_else(|err| {
                             error!(%err, "could not restart emulator");
                             app.error_modal_open =
                                 Some(format!("Could not restart emulator: {err}"));
@@ -454,11 +441,12 @@ fn show_top_menu(app: &mut Application, ctx: &egui::Context) {
                     }
 
                     if ui.button("Stop").clicked() {
-                        app.quit_game();
+                        app.stop_emulator();
                     }
                 });
 
                 if ui.button("Exit").clicked() {
+                    app.stop_emulator();
                     ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                 }
             });
@@ -546,11 +534,9 @@ fn show_performance_panel(app: &Application, ctx: &egui::Context, frame: &eframe
     egui::TopBottomPanel::bottom("bottom_panel").show(ctx, |ui| {
         let m = app.get_metrics();
         ui.horizontal(|ui| {
-            ui.label(format!("Audio: {:.1} KHz", m.sample_rate));
-            ui.separator();
             ui.label(format!("FPS: {}", m.fps));
             ui.separator();
-            ui.label(format!("Core: {:.2} ms", m.core_ms));
+            ui.label(format!("Core: {:.2} ms ({} FPS)", m.core_ms, m.core_fps));
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if let Some(render_state) = frame.wgpu_render_state() {
@@ -575,19 +561,16 @@ fn show_bios_modal(app: &mut Application, ctx: &egui::Context) {
 
     let modal = egui::Modal::new(egui::Id::new("Info")).show(ctx, |ui| {
         ui.set_width(400.0);
-        ui.heading("Select BIOS");
+        ui.heading("Select BIOS image");
         ui.add_space(10.0);
 
-        ui.horizontal_wrapped(|ui| {
-            ui.label("Current BIOS:");
-
-            match &app.app_config.bios_path {
-                Some(path) => {
-                    ui.monospace(path.display().to_string());
-                }
-                None => {
-                    ui.colored_label(ui.visuals().error_fg_color, "No BIOS selected");
-                }
+        ui.label("Selected:");
+        ui.horizontal_wrapped(|ui| match &app.app_config.bios_path {
+            Some(path) => {
+                ui.monospace(path.display().to_string());
+            }
+            None => {
+                ui.colored_label(ui.visuals().error_fg_color, "No BIOS image selected");
             }
         });
 
@@ -602,7 +585,7 @@ fn show_bios_modal(app: &mut Application, ctx: &egui::Context) {
                     app.pending_dialog = Some(PendingDialog::SelectBios(Box::pin(
                         AsyncFileDialog::new()
                             .add_filter("PlayStation BIOS", &["bin", "BIN"])
-                            .set_title("Select PS1 BIOS Image")
+                            .set_title("Select PS1 BIOS image")
                             .pick_file(),
                     )));
                 }
@@ -645,4 +628,17 @@ fn show_error_modal(app: &mut Application, ctx: &egui::Context) {
     if modal.should_close() {
         app.error_modal_open = None;
     }
+}
+
+#[derive(Default)]
+struct MetricsSnapshot {
+    fps: u32,
+    core_fps: u32,
+    core_ms: f32,
+    resolution: Option<(usize, usize)>,
+}
+
+enum PendingDialog {
+    SelectBios(Pin<Box<dyn Future<Output = Option<FileHandle>>>>),
+    SelectFile(Pin<Box<dyn Future<Output = Option<FileHandle>>>>),
 }
