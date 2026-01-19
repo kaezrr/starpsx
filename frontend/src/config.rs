@@ -23,6 +23,10 @@ pub enum RunnablePath {
 #[derive(Parser, Debug)]
 #[command(version, about)]
 struct Args {
+    /// Display full VRAM
+    #[arg(short, long)]
+    show_vram: bool,
+
     /// Skip GUI and auto-start the emulator
     #[arg(short, long)]
     auto_run: bool,
@@ -41,11 +45,15 @@ pub struct LaunchConfig {
 
 impl LaunchConfig {
     pub fn build() -> Result<Self, Box<dyn Error>> {
-        let config_path = resolve_config_path();
-        let app_config = AppConfig::load_from_file(&config_path);
-
         let args = Args::parse();
         let runnable_path = args.file;
+
+        let config_path = resolve_config_path();
+        let mut app_config = AppConfig::load_from_file(&config_path);
+
+        if args.show_vram {
+            app_config.display_vram = true;
+        }
 
         Ok(Self {
             app_config,
@@ -68,6 +76,7 @@ fn resolve_config_path() -> PathBuf {
 #[serde(default)]
 pub struct AppConfig {
     pub bios_path: Option<PathBuf>,
+    pub display_vram: bool,
 
     #[serde(skip)]
     pub keybinds: input::Bindings,
@@ -206,6 +215,7 @@ impl Default for AppConfig {
         Self {
             bios_path: None,
             keybinds,
+            display_vram: false,
         }
     }
 }

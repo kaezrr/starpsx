@@ -119,7 +119,7 @@ impl Application {
 
         if launch_config.auto_run {
             let result = match launch_config.runnable_path {
-                Some(file) => app.load_file(file),
+                Some(file) => app.start_file(file),
                 None => app.start_bios(),
             };
 
@@ -221,6 +221,10 @@ impl Application {
             .unwrap_or(false)
     }
 
+    fn vram_display_on(&self) -> bool {
+        self.app_config.display_vram
+    }
+
     fn start_emulator(
         &mut self,
         runnable_path: Option<RunnablePath>,
@@ -245,6 +249,7 @@ impl Application {
             shared_metrics.clone(),
             bios_path,
             &runnable_path,
+            self.app_config.display_vram,
         )?;
 
         self.last_run = runnable_path;
@@ -300,7 +305,7 @@ impl Application {
         Ok(())
     }
 
-    fn load_file(&mut self, path: PathBuf) -> Result<(), Box<dyn Error>> {
+    fn start_file(&mut self, path: PathBuf) -> Result<(), Box<dyn Error>> {
         if let Some(state) = self.app_state.take() {
             state.shutdown();
         }
@@ -308,6 +313,14 @@ impl Application {
         let runnable = emulator::parse_runnable(path)?;
         self.start_emulator(Some(runnable))?;
         Ok(())
+    }
+
+    fn toggle_vram_display(&mut self) {
+        if let Some(ref mut state) = self.app_state {
+            state.set_vram_display(!self.app_config.display_vram);
+        }
+        self.app_config.display_vram = !self.app_config.display_vram;
+        self.app_config.save_to_file(&self.config_path);
     }
 
     fn poll_dialog(&mut self) -> Result<(), Box<dyn Error>> {
@@ -329,7 +342,7 @@ impl Application {
                 if let Some(result) = fut.now_or_never() {
                     self.pending_dialog = None;
                     if let Some(file) = result {
-                        self.load_file(file.path().to_path_buf())?;
+                        self.start_file(file.path().to_path_buf())?;
                     }
                 }
             }
@@ -366,15 +379,21 @@ impl AppState {
         self.last_resolution = (fb.resolution.0 * fb.resolution.1 > 1).then_some(fb.resolution);
     }
 
+    fn send_blocking_cmd(&mut self, cmd: UiCommand) {
+        self.input_tx.send(cmd).unwrap();
+    }
+
     fn toggle_pause(&mut self) {
-        self.input_tx // Blocking send, must succeed
-            .send(UiCommand::SetPaused(!self.is_paused))
-            .unwrap();
+        self.send_blocking_cmd(UiCommand::SetPaused(!self.is_paused));
         self.is_paused = !self.is_paused;
     }
 
-    fn shutdown(&self) {
-        self.input_tx.send(UiCommand::Shutdown).unwrap();
+    fn set_vram_display(&mut self, is_enabled: bool) {
+        self.send_blocking_cmd(UiCommand::SetVramDisplay(is_enabled));
+    }
+
+    fn shutdown(mut self) {
+        self.send_blocking_cmd(UiCommand::Shutdown);
     }
 }
 
@@ -466,7 +485,15 @@ fn show_top_menu(app: &mut Application, ctx: &egui::Context) {
             ui.menu_button("Debug", |ui| {
                 ui.add_enabled(false, egui::Button::new("Open Debugger View"));
 
-                ui.add_enabled(false, egui::Button::new("Show VRAM"));
+                let label = if app.vram_display_on() {
+                    "Hide VRAM"
+                } else {
+                    "Show VRAM"
+                };
+
+                if ui.button(label).clicked() {
+                    app.toggle_vram_display();
+                }
             });
 
             ui.menu_button("Help", |ui| {

@@ -17,6 +17,7 @@ use crate::input::GamepadState;
 pub enum UiCommand {
     NewInputState(GamepadState),
     SetPaused(bool),
+    SetVramDisplay(bool),
     Shutdown,
 }
 
@@ -30,6 +31,7 @@ pub struct Emulator {
     shared_metrics: Arc<CoreMetrics>,
 
     is_paused: bool,
+    show_vram: bool,
 }
 
 impl Emulator {
@@ -42,6 +44,8 @@ impl Emulator {
 
         bios_path: &Path,
         file_path: &Option<RunnablePath>,
+
+        show_vram: bool,
     ) -> Result<Self, Box<dyn Error>> {
         Ok(Self {
             ui_ctx,
@@ -53,6 +57,7 @@ impl Emulator {
             shared_metrics,
 
             is_paused: false,
+            show_vram,
         })
     }
 
@@ -101,6 +106,9 @@ impl Emulator {
                     UiCommand::SetPaused(is_paused) => {
                         self.is_paused = is_paused;
                     }
+                    UiCommand::SetVramDisplay(show_vram) => {
+                        self.show_vram = show_vram;
+                    }
                     // Shutdown the thread
                     UiCommand::Shutdown => {
                         break 'emulator;
@@ -114,7 +122,12 @@ impl Emulator {
             }
 
             let now = Instant::now();
-            let frame_buffer = self.system.run_frame();
+            let frame_buffer = if self.show_vram {
+                self.system.run_frame::<true>()
+            } else {
+                self.system.run_frame::<false>()
+            };
+
             let core_time = now.elapsed();
 
             // Non blocking send

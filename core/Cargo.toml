@@ -9,6 +9,3 @@ bitfield = "0.19.1"
 bytemuck = "1.24.0"
 starpsx-renderer = { path = "../renderer" }
 tracing = "0.1.43"
-
-[features]
-full-vram = ["starpsx-renderer/full-vram"]

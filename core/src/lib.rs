@@ -126,12 +126,12 @@ impl System {
     }
 
     // Run emulator for one frame and return the generated frame
-    pub fn run_frame(&mut self) -> FrameBuffer {
+    pub fn run_frame<const SHOW_VRAM: bool>(&mut self) -> FrameBuffer {
         loop {
             if let Some(event) = self.scheduler.get_next_event() {
                 match event {
                     // Frame completes just before entering vsync
-                    Event::VBlankStart => return self.enter_vsync(),
+                    Event::VBlankStart => return self.enter_vsync::<SHOW_VRAM>(),
                     Event::VBlankEnd => Timers::exit_vsync(self),
                     Event::HBlankStart => Timers::enter_hsync(self),
                     Event::HBlankEnd => Timers::exit_hsync(self),
@@ -175,10 +175,10 @@ impl System {
         self.cpu.pc = init_pc;
     }
 
-    fn enter_vsync(&mut self) -> FrameBuffer {
+    fn enter_vsync<const SHOW_VRAM: bool>(&mut self) -> FrameBuffer {
         Timers::enter_vsync(self);
         self.irqctl.stat().set_vblank(true);
-        self.gpu.renderer.produce_frame_buffer()
+        self.gpu.renderer.produce_frame_buffer::<SHOW_VRAM>()
     }
 
     fn check_for_tty_output(&mut self) {
