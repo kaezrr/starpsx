@@ -1,9 +1,9 @@
-use std::collections::HashMap;
 use std::error::Error;
 use std::path::Path;
 use std::path::PathBuf;
 
 use clap::Parser;
+use eframe::egui::Key as EKey;
 use gilrs::Axis as GAxis;
 use gilrs::Button as GButton;
 use serde::{Deserialize, Serialize};
@@ -49,7 +49,9 @@ impl LaunchConfig {
         let runnable_path = args.file;
 
         let config_path = resolve_config_path();
-        let mut app_config = AppConfig::load_from_file(&config_path);
+        let mut app_config = AppConfig::load_from_file(&config_path)
+            .with_default_controller()
+            .with_default_keyboard();
 
         if args.show_vram {
             app_config.display_vram = true;
@@ -72,7 +74,7 @@ fn resolve_config_path() -> PathBuf {
         .join("config.toml")
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Default)]
 #[serde(default)]
 pub struct AppConfig {
     pub bios_path: Option<PathBuf>,
@@ -110,112 +112,209 @@ impl AppConfig {
             let _ = std::fs::write(path, toml_str);
         }
     }
-}
 
-impl Default for AppConfig {
-    fn default() -> Self {
-        let mut keybinds = HashMap::new();
-        keybinds.insert(
+    fn with_default_controller(mut self) -> Self {
+        self.keybinds.insert(
             PhysicalInput::GilrsButton(GButton::South),
             Action::GamepadButton(gamepad::Button::Cross),
         );
-        keybinds.insert(
+        self.keybinds.insert(
             PhysicalInput::GilrsButton(GButton::East),
             Action::GamepadButton(gamepad::Button::Circle),
         );
-        keybinds.insert(
+        self.keybinds.insert(
             PhysicalInput::GilrsButton(GButton::North),
             Action::GamepadButton(gamepad::Button::Triangle),
         );
-        keybinds.insert(
+        self.keybinds.insert(
             PhysicalInput::GilrsButton(GButton::West),
             Action::GamepadButton(gamepad::Button::Square),
         );
 
-        // Shoulders
-        keybinds.insert(
+        self.keybinds.insert(
             PhysicalInput::GilrsButton(GButton::LeftTrigger),
             Action::GamepadButton(gamepad::Button::L1),
         );
-        keybinds.insert(
+        self.keybinds.insert(
             PhysicalInput::GilrsButton(GButton::LeftTrigger2),
             Action::GamepadButton(gamepad::Button::L2),
         );
-        keybinds.insert(
+        self.keybinds.insert(
             PhysicalInput::GilrsButton(GButton::RightTrigger),
             Action::GamepadButton(gamepad::Button::R1),
         );
-        keybinds.insert(
+        self.keybinds.insert(
             PhysicalInput::GilrsButton(GButton::RightTrigger2),
             Action::GamepadButton(gamepad::Button::R2),
         );
 
-        // Menu
-        keybinds.insert(
+        self.keybinds.insert(
             PhysicalInput::GilrsButton(GButton::Select),
             Action::GamepadButton(gamepad::Button::Select),
         );
-        keybinds.insert(
+        self.keybinds.insert(
             PhysicalInput::GilrsButton(GButton::Start),
             Action::GamepadButton(gamepad::Button::Start),
         );
 
-        // Stick buttons
-        keybinds.insert(
+        self.keybinds.insert(
             PhysicalInput::GilrsButton(GButton::LeftThumb),
             Action::GamepadButton(gamepad::Button::L3),
         );
-        keybinds.insert(
+        self.keybinds.insert(
             PhysicalInput::GilrsButton(GButton::RightThumb),
             Action::GamepadButton(gamepad::Button::R3),
         );
 
-        // Dpad
-        keybinds.insert(
+        self.keybinds.insert(
             PhysicalInput::GilrsButton(GButton::DPadUp),
             Action::GamepadButton(gamepad::Button::Up),
         );
-        keybinds.insert(
+        self.keybinds.insert(
             PhysicalInput::GilrsButton(GButton::DPadRight),
             Action::GamepadButton(gamepad::Button::Right),
         );
-        keybinds.insert(
+        self.keybinds.insert(
             PhysicalInput::GilrsButton(GButton::DPadDown),
             Action::GamepadButton(gamepad::Button::Down),
         );
-        keybinds.insert(
+        self.keybinds.insert(
             PhysicalInput::GilrsButton(GButton::DPadLeft),
             Action::GamepadButton(gamepad::Button::Left),
         );
 
-        // Analog Sticks
-        keybinds.insert(
+        self.keybinds.insert(
             PhysicalInput::GilrsAxis(GAxis::LeftStickX),
             Action::StickAxis(gamepad::Axis::LeftX),
         );
-        keybinds.insert(
+        self.keybinds.insert(
             PhysicalInput::GilrsAxis(GAxis::LeftStickY),
             Action::StickAxis(gamepad::Axis::LeftY),
         );
-        keybinds.insert(
+        self.keybinds.insert(
             PhysicalInput::GilrsAxis(GAxis::RightStickX),
             Action::StickAxis(gamepad::Axis::RightX),
         );
-        keybinds.insert(
+        self.keybinds.insert(
             PhysicalInput::GilrsAxis(GAxis::RightStickY),
             Action::StickAxis(gamepad::Axis::RightY),
         );
 
-        // Analog mode toggle
-        keybinds.insert(
+        self.keybinds.insert(
             PhysicalInput::GilrsButton(GButton::Mode),
             Action::AnalogModeButton,
         );
 
-        Self {
-            bios_path: None,
-            keybinds,
-            display_vram: false,
-        }
+        self
+    }
+
+    fn with_default_keyboard(mut self) -> Self {
+        self.keybinds.insert(
+            PhysicalInput::Key(EKey::K),
+            Action::GamepadButton(gamepad::Button::Cross),
+        );
+        self.keybinds.insert(
+            PhysicalInput::Key(EKey::J),
+            Action::GamepadButton(gamepad::Button::Circle),
+        );
+        self.keybinds.insert(
+            PhysicalInput::Key(EKey::I),
+            Action::GamepadButton(gamepad::Button::Triangle),
+        );
+        self.keybinds.insert(
+            PhysicalInput::Key(EKey::L),
+            Action::GamepadButton(gamepad::Button::Square),
+        );
+
+        self.keybinds.insert(
+            PhysicalInput::Key(EKey::Q),
+            Action::GamepadButton(gamepad::Button::L1),
+        );
+        self.keybinds.insert(
+            PhysicalInput::Key(EKey::Num1),
+            Action::GamepadButton(gamepad::Button::L2),
+        );
+        self.keybinds.insert(
+            PhysicalInput::Key(EKey::E),
+            Action::GamepadButton(gamepad::Button::R1),
+        );
+        self.keybinds.insert(
+            PhysicalInput::Key(EKey::Num3),
+            Action::GamepadButton(gamepad::Button::R2),
+        );
+
+        self.keybinds.insert(
+            PhysicalInput::Key(EKey::Backspace),
+            Action::GamepadButton(gamepad::Button::Select),
+        );
+        self.keybinds.insert(
+            PhysicalInput::Key(EKey::Enter),
+            Action::GamepadButton(gamepad::Button::Start),
+        );
+
+        self.keybinds.insert(
+            PhysicalInput::Key(EKey::Num2),
+            Action::GamepadButton(gamepad::Button::L3),
+        );
+        self.keybinds.insert(
+            PhysicalInput::Key(EKey::Num4),
+            Action::GamepadButton(gamepad::Button::R3),
+        );
+
+        self.keybinds.insert(
+            PhysicalInput::Key(EKey::ArrowUp),
+            Action::GamepadButton(gamepad::Button::Up),
+        );
+        self.keybinds.insert(
+            PhysicalInput::Key(EKey::ArrowRight),
+            Action::GamepadButton(gamepad::Button::Right),
+        );
+        self.keybinds.insert(
+            PhysicalInput::Key(EKey::ArrowDown),
+            Action::GamepadButton(gamepad::Button::Down),
+        );
+        self.keybinds.insert(
+            PhysicalInput::Key(EKey::ArrowLeft),
+            Action::GamepadButton(gamepad::Button::Left),
+        );
+
+        self.keybinds.insert(
+            PhysicalInput::Key(EKey::A),
+            Action::DigitalAxisNegative(gamepad::Axis::LeftX),
+        );
+        self.keybinds.insert(
+            PhysicalInput::Key(EKey::D),
+            Action::DigitalAxisPositive(gamepad::Axis::LeftX),
+        );
+        self.keybinds.insert(
+            PhysicalInput::Key(EKey::W),
+            Action::DigitalAxisPositive(gamepad::Axis::LeftY),
+        );
+        self.keybinds.insert(
+            PhysicalInput::Key(EKey::S),
+            Action::DigitalAxisNegative(gamepad::Axis::LeftY),
+        );
+
+        self.keybinds.insert(
+            PhysicalInput::Key(EKey::F),
+            Action::DigitalAxisNegative(gamepad::Axis::RightX),
+        );
+        self.keybinds.insert(
+            PhysicalInput::Key(EKey::H),
+            Action::DigitalAxisPositive(gamepad::Axis::RightX),
+        );
+        self.keybinds.insert(
+            PhysicalInput::Key(EKey::T),
+            Action::DigitalAxisPositive(gamepad::Axis::RightY),
+        );
+        self.keybinds.insert(
+            PhysicalInput::Key(EKey::G),
+            Action::DigitalAxisNegative(gamepad::Axis::RightY),
+        );
+
+        self.keybinds
+            .insert(PhysicalInput::Key(EKey::M), Action::AnalogModeButton);
+
+        self
     }
 }

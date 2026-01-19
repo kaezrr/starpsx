@@ -67,6 +67,26 @@ impl GamepadState {
     }
 
     fn update_axis(&mut self, axis: &Axis, value: f32) {
+        // Left stick maps to dpad in digital mode
+        if !self.analog_mode {
+            const DIGITAL_THRESHOLD: f32 = 0.6;
+            match axis {
+                Axis::LeftX => {
+                    self.update_button(&Button::Left, value < -DIGITAL_THRESHOLD);
+                    self.update_button(&Button::Right, value > DIGITAL_THRESHOLD);
+                }
+
+                Axis::LeftY => {
+                    self.update_button(&Button::Up, value > DIGITAL_THRESHOLD);
+                    self.update_button(&Button::Down, value < -DIGITAL_THRESHOLD);
+                }
+
+                _ => {}
+            }
+
+            return;
+        }
+
         // Y axis is flipped between gilrs and console
         let v = match axis {
             Axis::LeftY | Axis::RightY => -value,
