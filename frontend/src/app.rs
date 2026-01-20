@@ -15,6 +15,7 @@ use starpsx_renderer::FrameBuffer;
 use tracing::{error, info, trace};
 
 use crate::config::{self, LaunchConfig, RunnablePath};
+use crate::debugger;
 use crate::emulator::{self, CoreMetrics, UiCommand};
 use crate::input::{self, ActionValue, PhysicalInput};
 
@@ -33,7 +34,7 @@ pub struct Application {
     // GUI states
     toasts: egui_notify::Toasts,
 
-    show_keybinds: bool,
+    keybinds_table_open: bool,
     info_modal_open: bool,
     bios_modal_open: bool,
 
@@ -47,7 +48,7 @@ impl eframe::App for Application {
             self.toasts.error(format!("error loading file: {err}"));
         }
 
-        show_keybinds(&mut self.show_keybinds, ctx);
+        show_keybinds(&mut self.keybinds_table_open, ctx);
 
         show_top_menu(self, ctx);
 
@@ -97,7 +98,7 @@ impl eframe::App for Application {
                 Err(TryRecvError::Empty) => (), // Do nothing
             };
 
-            show_central_panel(&emu, ctx);
+            show_main_ui(&emu, self.app_config.debugger_view, ctx);
 
             self.app_state = Some(emu);
         } else {
@@ -133,7 +134,7 @@ impl Application {
 
             toasts: Toasts::default().with_margin(vec2(5.0, 40.0)),
 
-            show_keybinds: false,
+            keybinds_table_open: false,
             info_modal_open: false,
             bios_modal_open: false,
 
@@ -361,6 +362,11 @@ impl Application {
         self.app_config.save_to_file(&self.config_path);
     }
 
+    fn toggle_debugger_view(&mut self) {
+        self.app_config.debugger_view = !self.app_config.debugger_view;
+        self.app_config.save_to_file(&self.config_path);
+    }
+
     fn poll_dialog(&mut self) -> Result<(), Box<dyn Error>> {
         let Some(dialog) = self.pending_dialog.as_mut() else {
             return Ok(());
@@ -433,6 +439,13 @@ impl AppState {
     fn shutdown(mut self) {
         self.send_blocking_cmd(UiCommand::Shutdown);
     }
+}
+
+fn show_main_ui(app: &AppState, debugger_open: bool, ctx: &egui::Context) {
+    if debugger_open {
+        debugger::show_debug_ui(ctx);
+    }
+    show_central_panel(app, ctx);
 }
 
 fn show_central_panel(app: &AppState, ctx: &egui::Context) {
@@ -514,12 +527,20 @@ fn show_top_menu(app: &mut Application, ctx: &egui::Context) {
                 }
 
                 if ui.button("Keybinds").clicked() {
-                    app.show_keybinds = true;
+                    app.keybinds_table_open = true;
                 }
             });
 
             ui.menu_button("Debug", |ui| {
-                ui.add_enabled(false, egui::Button::new("Open Debugger View"));
+                let label = if app.app_config.debugger_view {
+                    "Close Debugger View"
+                } else {
+                    "Open Debugger View"
+                };
+
+                if ui.button(label).clicked() {
+                    app.toggle_debugger_view();
+                }
 
                 let label = if app.vram_display_on() {
                     "Hide VRAM"

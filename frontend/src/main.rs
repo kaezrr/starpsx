@@ -3,6 +3,7 @@
 
 mod app;
 mod config;
+mod debugger;
 mod emulator;
 mod input;
 
@@ -30,8 +31,8 @@ fn main() -> eframe::Result {
 fn run_gui(launch_config: LaunchConfig) -> eframe::Result {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size([960.0, 768.0])
-            .with_min_inner_size([640.0, 528.0]),
+            .with_inner_size([960.0, 720.0])
+            .with_min_inner_size([640.0, 480.0]),
         renderer: eframe::Renderer::Wgpu,
         vsync: true,
         ..Default::default()

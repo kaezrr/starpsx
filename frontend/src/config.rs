@@ -31,6 +31,10 @@ struct Args {
     #[arg(short, long)]
     auto_run: bool,
 
+    /// Show debugger_view on startup
+    #[arg(short, long)]
+    debugger_view: bool,
+
     /// File to start the emulator with
     #[arg(value_name = "FILE")]
     file: Option<PathBuf>,
@@ -57,6 +61,10 @@ impl LaunchConfig {
             app_config.display_vram = true;
         }
 
+        if args.debugger_view {
+            app_config.debugger_view = true;
+        }
+
         Ok(Self {
             app_config,
             runnable_path,
@@ -79,6 +87,7 @@ fn resolve_config_path() -> PathBuf {
 pub struct AppConfig {
     pub bios_path: Option<PathBuf>,
     pub display_vram: bool,
+    pub debugger_view: bool,
 
     #[serde(skip)]
     pub keybinds: input::Bindings,
