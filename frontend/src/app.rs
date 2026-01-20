@@ -3,9 +3,11 @@ use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::sync::mpsc::{Receiver, SyncSender, TryRecvError};
+use std::time::Duration;
 
 use eframe::egui::{self, Color32, ColorImage};
 use eframe::egui::{TextureOptions, ViewportCommand, load::SizedTexture};
+use egui_notify::Toasts;
 use futures::FutureExt;
 use rfd::{AsyncFileDialog, FileHandle};
 use starpsx_renderer::FrameBuffer;
@@ -28,9 +30,10 @@ pub struct Application {
     last_run: Option<RunnablePath>,
 
     // GUI states
+    toasts: egui_notify::Toasts,
+
     info_modal_open: bool,
     bios_modal_open: bool,
-    error_modal_open: Option<String>,
 
     pending_dialog: Option<PendingDialog>,
 }
@@ -39,12 +42,10 @@ impl eframe::App for Application {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         if let Err(err) = self.poll_dialog() {
             error!(%err, "error loading file");
-            self.error_modal_open = Some(format!("error loading file: {err}"));
+            self.toasts.error(format!("error loading file: {err}"));
         }
 
         show_top_menu(self, ctx);
-
-        show_error_modal(self, ctx);
 
         show_info_modal(&mut self.info_modal_open, ctx);
 
@@ -56,8 +57,22 @@ impl eframe::App for Application {
             // Process all the input events
             if !emu.is_paused {
                 let mut input_dirty = false;
+                let was_analog = self.input_state.analog_mode;
+
                 input_dirty |= self.process_gamepad_events();
                 input_dirty |= self.process_keyboard_events(ctx);
+
+                let is_analog = self.input_state.analog_mode;
+
+                if was_analog != is_analog {
+                    let msg = if is_analog {
+                        "Controller switched to analog mode"
+                    } else {
+                        "Controller switched to digital mode"
+                    };
+
+                    self.toasts.info(msg).duration(Duration::from_secs(2));
+                }
 
                 if input_dirty {
                     let _ = emu
@@ -93,6 +108,8 @@ impl eframe::App for Application {
                 });
             });
         }
+
+        self.toasts.show(ctx);
     }
 }
 
@@ -110,10 +127,11 @@ impl Application {
             app_config: launch_config.app_config,
             config_path: launch_config.config_path,
 
+            toasts: Toasts::default(),
+
             info_modal_open: false,
             bios_modal_open: false,
 
-            error_modal_open: None,
             pending_dialog: None,
         };
 
@@ -125,7 +143,8 @@ impl Application {
 
             if let Err(err) = result {
                 error!(%err, "could not auto start emulator");
-                app.error_modal_open = Some(format!("Could not auto start emulator: {err}"));
+                app.toasts
+                    .error(format!("Could not auto start emulator: {err}"));
             }
         }
 
@@ -191,8 +210,15 @@ impl Application {
                     }
                 }
 
-                gilrs::EventType::Connected => info!("gamepad connected"),
-                gilrs::EventType::Disconnected => info!("gamepad disconnected"),
+                gilrs::EventType::Connected => {
+                    info!("gamepad connected");
+                    self.toasts.info("Gamepad Connected!");
+                }
+
+                gilrs::EventType::Disconnected => {
+                    info!("gamepad disconnected");
+                    self.toasts.info("Gamepad Disconnected!");
+                }
 
                 _ => trace!(?event, "gamepad event ignored"),
             }
@@ -283,6 +309,11 @@ impl Application {
     fn toggle_pause(&mut self) {
         if let Some(ref mut state) = self.app_state {
             state.toggle_pause();
+            if state.is_paused {
+                self.toasts.warning("Paused").duration(None).closable(false);
+            } else {
+                self.toasts.dismiss_all_toasts();
+            }
         }
     }
 
@@ -438,7 +469,7 @@ fn show_top_menu(app: &mut Application, ctx: &egui::Context) {
                         if ui.button("Start BIOS").clicked() {
                             app.start_bios().unwrap_or_else(|err| {
                                 error!(%err, "could not start bios");
-                                app.error_modal_open = Some(format!("Could not start bios: {err}"));
+                                app.toasts.error(format!("Could not start bios: {err}"));
                             })
                         }
                     },
@@ -454,8 +485,8 @@ fn show_top_menu(app: &mut Application, ctx: &egui::Context) {
                     if ui.button("Restart").clicked() {
                         app.restart_emulator().unwrap_or_else(|err| {
                             error!(%err, "could not restart emulator");
-                            app.error_modal_open =
-                                Some(format!("Could not restart emulator: {err}"));
+                            app.toasts
+                                .error(format!("Could not restart emulator: {err}"));
                         });
                     }
 
@@ -627,33 +658,6 @@ fn show_bios_modal(app: &mut Application, ctx: &egui::Context) {
 
     if modal.should_close() {
         app.bios_modal_open = false;
-    }
-}
-
-fn show_error_modal(app: &mut Application, ctx: &egui::Context) {
-    let Some(ref err) = app.error_modal_open else {
-        return;
-    };
-
-    let modal = egui::Modal::new(egui::Id::new("Error Pop")).show(ctx, |ui| {
-        ui.heading("Error!");
-        ui.add_space(20.0);
-        ui.label(err);
-        ui.add_space(20.0);
-
-        egui::Sides::new().show(
-            ui,
-            |_ui| {},
-            |ui| {
-                if ui.button("Ok").clicked() {
-                    ui.close();
-                }
-            },
-        );
-    });
-
-    if modal.should_close() {
-        app.error_modal_open = None;
     }
 }
 

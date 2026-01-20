@@ -214,7 +214,7 @@ impl AppConfig {
             Action::GamepadButton(gamepad::Button::Cross),
         );
         self.keybinds.insert(
-            PhysicalInput::Key(EKey::J),
+            PhysicalInput::Key(EKey::L),
             Action::GamepadButton(gamepad::Button::Circle),
         );
         self.keybinds.insert(
@@ -222,7 +222,7 @@ impl AppConfig {
             Action::GamepadButton(gamepad::Button::Triangle),
         );
         self.keybinds.insert(
-            PhysicalInput::Key(EKey::L),
+            PhysicalInput::Key(EKey::J),
             Action::GamepadButton(gamepad::Button::Square),
         );
 
