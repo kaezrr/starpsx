@@ -15,7 +15,7 @@ use starpsx_renderer::FrameBuffer;
 use tracing::{error, info, trace};
 
 use crate::config::{self, LaunchConfig, RunnablePath};
-use crate::debugger;
+use crate::debugger::Debugger;
 use crate::emulator::{self, CoreMetrics, UiCommand};
 use crate::input::{self, ActionValue, PhysicalInput};
 
@@ -30,6 +30,7 @@ pub struct Application {
     egui_ctx: egui::Context,
 
     last_run: Option<RunnablePath>,
+    debugger: Debugger,
 
     // GUI states
     toasts: egui_notify::Toasts,
@@ -98,8 +99,11 @@ impl eframe::App for Application {
                 Err(TryRecvError::Empty) => (), // Do nothing
             };
 
-            show_main_ui(&emu, self.app_config.debugger_view, ctx);
+            if self.app_config.debugger_view {
+                self.debugger.show_ui(ctx);
+            }
 
+            show_central_panel(&emu, ctx);
             self.app_state = Some(emu);
         } else {
             egui::CentralPanel::default().show(ctx, |ui| {
@@ -131,6 +135,8 @@ impl Application {
 
             app_config: launch_config.app_config,
             config_path: launch_config.config_path,
+
+            debugger: Debugger::default(),
 
             toasts: Toasts::default().with_margin(vec2(5.0, 40.0)),
 
@@ -439,13 +445,6 @@ impl AppState {
     fn shutdown(mut self) {
         self.send_blocking_cmd(UiCommand::Shutdown);
     }
-}
-
-fn show_main_ui(app: &AppState, debugger_open: bool, ctx: &egui::Context) {
-    if debugger_open {
-        debugger::show_debug_ui(ctx);
-    }
-    show_central_panel(app, ctx);
 }
 
 fn show_central_panel(app: &AppState, ctx: &egui::Context) {
