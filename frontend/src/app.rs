@@ -309,6 +309,7 @@ impl Application {
         if let Some(state) = self.app_state.take() {
             state.shutdown();
         }
+        self.toasts.dismiss_all_toasts();
     }
 
     fn toggle_pause(&mut self) {
@@ -329,6 +330,7 @@ impl Application {
 
         let last_run = self.last_run.take();
         self.start_emulator(last_run)?;
+        self.toasts.dismiss_all_toasts();
         Ok(())
     }
 
