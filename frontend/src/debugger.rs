@@ -19,9 +19,11 @@ pub fn show_debug_ui(ctx: &egui::Context) {
         });
 
     egui::TopBottomPanel::bottom("debug_bottom").show(ctx, |ui| {
-        ui.horizontal(|ui| {
+        ui.horizontal_centered(|ui| {
             breakpoints_ui(ui);
+
             ui.separator();
+
             components_state_view(ui);
         })
     });
@@ -38,6 +40,8 @@ fn components_state_view(ui: &mut egui::Ui) {
             ui.selectable_value(&mut curr_view, StateView::Sio0, "SIO0");
             ui.selectable_value(&mut curr_view, StateView::Cdrom, "CDROM");
         });
+
+        ui.separator();
 
         match curr_view {
             StateView::Cpu => cpu_register_view(ui),
@@ -96,6 +100,8 @@ fn disassembly_view(ui: &mut egui::Ui) {
             if ui.button("Pause").clicked() {}
             if ui.button("Step").clicked() {}
         });
+
+        ui.separator();
 
         egui_extras::TableBuilder::new(ui)
             .id_salt("disasm")
@@ -156,6 +162,8 @@ fn breakpoints_ui(ui: &mut egui::Ui) {
 
             if ui.button("Add").clicked() {}
         });
+
+        ui.separator();
 
         egui_extras::TableBuilder::new(ui)
             .id_salt("breakpoints")
