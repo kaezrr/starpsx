@@ -7,6 +7,7 @@ edition = "2024"
 clap = { version = "4.5.54", features = ["derive"] }
 eframe = { version = "0.33.3", features = ["wgpu"] }
 egui-notify = "0.21.0"
+egui_extras = "0.33.3"
 futures = "0.3.31"
 gilrs = "0.11.0"
 rfd = "0.17.2"

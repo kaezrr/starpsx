@@ -5,8 +5,9 @@ use std::sync::Arc;
 use std::sync::mpsc::{Receiver, SyncSender, TryRecvError};
 use std::time::Duration;
 
-use eframe::egui::{self, Color32, ColorImage};
+use eframe::egui::{self, Color32, ColorImage, vec2};
 use eframe::egui::{TextureOptions, ViewportCommand, load::SizedTexture};
+use egui_extras::Column;
 use egui_notify::Toasts;
 use futures::FutureExt;
 use rfd::{AsyncFileDialog, FileHandle};
@@ -32,6 +33,7 @@ pub struct Application {
     // GUI states
     toasts: egui_notify::Toasts,
 
+    show_keybinds: bool,
     info_modal_open: bool,
     bios_modal_open: bool,
 
@@ -44,6 +46,8 @@ impl eframe::App for Application {
             error!(%err, "error loading file");
             self.toasts.error(format!("error loading file: {err}"));
         }
+
+        show_keybinds(&mut self.show_keybinds, ctx);
 
         show_top_menu(self, ctx);
 
@@ -127,8 +131,9 @@ impl Application {
             app_config: launch_config.app_config,
             config_path: launch_config.config_path,
 
-            toasts: Toasts::default(),
+            toasts: Toasts::default().with_margin(vec2(5.0, 40.0)),
 
+            show_keybinds: false,
             info_modal_open: false,
             bios_modal_open: false,
 
@@ -506,11 +511,9 @@ fn show_top_menu(app: &mut Application, ctx: &egui::Context) {
                     app.bios_modal_open = true;
                 }
 
-                ui.add_enabled(false, egui::Button::new("Games Directory"));
-
-                ui.add_enabled(false, egui::Button::new("Keybinds"));
-
-                ui.add_enabled(false, egui::Button::new("Switch Renderer"));
+                if ui.button("Keybinds").clicked() {
+                    app.show_keybinds = true;
+                }
             });
 
             ui.menu_button("Debug", |ui| {
@@ -659,6 +662,49 @@ fn show_bios_modal(app: &mut Application, ctx: &egui::Context) {
     if modal.should_close() {
         app.bios_modal_open = false;
     }
+}
+
+fn show_keybinds(open: &mut bool, ctx: &egui::Context) {
+    egui::Window::new("Keybinds")
+        .resizable(false)
+        .collapsible(false)
+        .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
+        .open(open)
+        .show(ctx, |ui| {
+            egui_extras::TableBuilder::new(ui)
+                .striped(true)
+                .resizable(false)
+                .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
+                .column(Column::auto())
+                .column(Column::auto())
+                .column(Column::auto())
+                .header(20.0, |mut header| {
+                    header.col(|ui| {
+                        ui.strong("Action");
+                    });
+                    header.col(|ui| {
+                        ui.strong("Controller");
+                    });
+                    header.col(|ui| {
+                        ui.strong("Keyboard");
+                    });
+                })
+                .body(|mut body| {
+                    for keybind in config::KEYBIND_ROWS {
+                        body.row(30.0, |mut row| {
+                            row.col(|ui| {
+                                ui.label(keybind.action);
+                            });
+                            row.col(|ui| {
+                                ui.label(keybind.controller);
+                            });
+                            row.col(|ui| {
+                                ui.label(keybind.keyboard);
+                            });
+                        });
+                    }
+                })
+        });
 }
 
 #[derive(Default)]

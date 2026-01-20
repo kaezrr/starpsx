@@ -318,3 +318,145 @@ impl AppConfig {
         self
     }
 }
+
+pub struct KeybindRow {
+    pub action: &'static str,
+    pub keyboard: &'static str,
+    pub controller: &'static str,
+}
+
+pub const KEYBIND_ROWS: &[KeybindRow] = &[
+    // Face buttons
+    KeybindRow {
+        action: "Cross",
+        keyboard: "K",
+        controller: "South (A)",
+    },
+    KeybindRow {
+        action: "Circle",
+        keyboard: "L",
+        controller: "East (B)",
+    },
+    KeybindRow {
+        action: "Triangle",
+        keyboard: "I",
+        controller: "North (Y)",
+    },
+    KeybindRow {
+        action: "Square",
+        keyboard: "J",
+        controller: "West (X)",
+    },
+    // Shoulder buttons
+    KeybindRow {
+        action: "L1",
+        keyboard: "Q",
+        controller: "L1",
+    },
+    KeybindRow {
+        action: "L2",
+        keyboard: "1",
+        controller: "L2",
+    },
+    KeybindRow {
+        action: "R1",
+        keyboard: "E",
+        controller: "R1",
+    },
+    KeybindRow {
+        action: "R2",
+        keyboard: "3",
+        controller: "R2",
+    },
+    // System buttons
+    KeybindRow {
+        action: "Select",
+        keyboard: "Backspace",
+        controller: "Select",
+    },
+    KeybindRow {
+        action: "Start",
+        keyboard: "Enter",
+        controller: "Start",
+    },
+    // Stick buttons
+    KeybindRow {
+        action: "L3",
+        keyboard: "2",
+        controller: "Left Stick Press",
+    },
+    KeybindRow {
+        action: "R3",
+        keyboard: "4",
+        controller: "Right Stick Press",
+    },
+    // D-Pad
+    KeybindRow {
+        action: "D-Pad Up",
+        keyboard: "Arrow Up",
+        controller: "D-Pad Up",
+    },
+    KeybindRow {
+        action: "D-Pad Right",
+        keyboard: "Arrow Right",
+        controller: "D-Pad Right",
+    },
+    KeybindRow {
+        action: "D-Pad Down",
+        keyboard: "Arrow Down",
+        controller: "D-Pad Down",
+    },
+    KeybindRow {
+        action: "D-Pad Left",
+        keyboard: "Arrow Left",
+        controller: "D-Pad Left",
+    },
+    // Left stick (digital / analog)
+    KeybindRow {
+        action: "Left Stick X−",
+        keyboard: "A",
+        controller: "Left Stick X",
+    },
+    KeybindRow {
+        action: "Left Stick X+",
+        keyboard: "D",
+        controller: "Left Stick X",
+    },
+    KeybindRow {
+        action: "Left Stick Y+",
+        keyboard: "W",
+        controller: "Left Stick Y",
+    },
+    KeybindRow {
+        action: "Left Stick Y−",
+        keyboard: "S",
+        controller: "Left Stick Y",
+    },
+    // Right stick (digital / analog)
+    KeybindRow {
+        action: "Right Stick X−",
+        keyboard: "F",
+        controller: "Right Stick X",
+    },
+    KeybindRow {
+        action: "Right Stick X+",
+        keyboard: "H",
+        controller: "Right Stick X",
+    },
+    KeybindRow {
+        action: "Right Stick Y+",
+        keyboard: "T",
+        controller: "Right Stick Y",
+    },
+    KeybindRow {
+        action: "Right Stick Y−",
+        keyboard: "G",
+        controller: "Right Stick Y",
+    },
+    // Mode
+    KeybindRow {
+        action: "Analog Mode",
+        keyboard: "M",
+        controller: "Mode",
+    },
+];
