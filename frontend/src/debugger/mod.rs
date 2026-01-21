@@ -222,7 +222,7 @@ impl Debugger {
 
             ui.separator();
 
-            egui_extras::TableBuilder::new(ui)
+            let mut table = egui_extras::TableBuilder::new(ui)
                 .id_salt("disasm")
                 .striped(true)
                 .resizable(false)
@@ -231,7 +231,14 @@ impl Debugger {
                 .column(Column::exact(90.0))
                 .column(Column::exact(80.0))
                 .column(Column::remainder())
-                .animate_scrolling(false)
+                .animate_scrolling(false);
+
+            // scroll to program counter
+            if !is_paused {
+                table = table.scroll_to_row(100, Some(Align::TOP));
+            }
+
+            table
                 .header(20.0, |mut header| {
                     header.col(|ui| {
                         ui.strong("");
@@ -259,14 +266,8 @@ impl Debugger {
                         let i = row.index();
                         let (addr, word, disasm) = &diassembly[i];
 
-                        let is_pc_row = snapshot.pc == *addr;
-
                         row.col(|ui| {
-                            let response =
-                                ui.label(get_disasm_label(snapshot.pc, *addr, &breakpoint_set));
-                            if is_pc_row && !is_paused {
-                                response.scroll_to_me(Some(Align::Min));
-                            }
+                            ui.label(get_disasm_label(snapshot.pc, *addr, &breakpoint_set));
                         });
 
                         row.col(|ui| {
@@ -296,7 +297,7 @@ impl Debugger {
                 ui.add(
                     egui::TextEdit::singleline(&mut self.address_input)
                         .desired_width(90.0)
-                        .hint_text("fe0c1234"),
+                        .hint_text("800FE234"),
                 );
 
                 if ui.button("Add").clicked() || ui.input(|i| i.key_pressed(egui::Key::Enter)) {
@@ -380,12 +381,12 @@ impl Debugger {
 }
 
 fn monospace_hex(ui: &mut egui::Ui, val: u32, prefix: bool) {
-    ui.monospace(format!("{}{val:08x}", if prefix { "0x" } else { "" }));
+    ui.monospace(format!("{}{val:08X}", if prefix { "0x" } else { "" }));
 }
 
 fn monospace_hex_change(ui: &mut egui::Ui, val: u32) {
     ui.label(
-        egui::RichText::new(format!("0x{val:08x}"))
+        egui::RichText::new(format!("0x{val:08X}"))
             .monospace()
             .color(egui::Color32::RED),
     );
