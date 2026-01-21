@@ -33,7 +33,11 @@ impl AppState {
             .sync_send(UiCommand::SetVramDisplay(is_enabled));
     }
 
-    pub fn shutdown(mut self) {
+    pub fn shutdown(self) {
         self.debugger.sync_send(UiCommand::Shutdown);
+    }
+
+    pub fn restart(&self) {
+        self.debugger.sync_send(UiCommand::Restart);
     }
 }

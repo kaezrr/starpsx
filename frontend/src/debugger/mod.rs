@@ -42,11 +42,12 @@ impl Debugger {
             curr_snapshot: Default::default(),
         }
     }
-    pub fn sync_send(&mut self, cmd: UiCommand) {
+
+    pub fn sync_send(&self, cmd: UiCommand) {
         self.input_tx.send(cmd).unwrap();
     }
 
-    pub fn send(&mut self, cmd: UiCommand) {
+    pub fn send(&self, cmd: UiCommand) {
         let _ = self.input_tx.try_send(cmd);
     }
 
@@ -66,7 +67,7 @@ impl Debugger {
     }
 
     pub fn show_ui(&mut self, ctx: &egui::Context) {
-        self.send(UiCommand::DebugRequestState);
+        self.request_snapshot();
 
         if let Ok(snapshot) = self.snapshot_rx.try_recv() {
             self.prev_snapshot = self.curr_snapshot.take();
@@ -86,6 +87,10 @@ impl Debugger {
                 self.components_state_view(ui);
             })
         });
+    }
+
+    fn request_snapshot(&self) {
+        self.send(UiCommand::DebugRequestState);
     }
 
     fn components_state_view(&mut self, ui: &mut egui::Ui) {
@@ -174,6 +179,7 @@ impl Debugger {
         let Some(snapshot) = self.curr_snapshot.take() else {
             return;
         };
+
         let is_paused = self.shared_state.is_paused();
 
         ui.vertical(|ui| {

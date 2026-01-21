@@ -32,8 +32,6 @@ pub struct Application {
     app_state: Option<AppState>,
     egui_ctx: egui::Context,
 
-    last_run: Option<RunnablePath>,
-
     // GUI states
     toasts: egui_notify::Toasts,
 
@@ -146,7 +144,6 @@ impl Application {
             input_state: input::GamepadState::default(),
 
             app_state: None,
-            last_run: None,
 
             app_config: launch_config.app_config,
             config_path: launch_config.config_path,
@@ -290,7 +287,7 @@ impl Application {
 
         // Message channels for thread communication
         let (frame_tx, frame_rx) = std::sync::mpsc::sync_channel::<FrameBuffer>(1);
-        let (input_tx, input_rx) = std::sync::mpsc::sync_channel::<UiCommand>(1);
+        let (input_tx, input_rx) = std::sync::mpsc::sync_channel::<UiCommand>(2);
         let (snapshot_tx, snapshot_rx) = std::sync::mpsc::sync_channel::<DebugSnapshot>(1);
 
         let shared_state = Arc::new(SharedState::default());
@@ -304,12 +301,10 @@ impl Application {
                 snapshot_tx,
             },
             shared_state.clone(),
-            bios_path,
-            &runnable_path,
+            bios_path.clone(),
+            runnable_path,
             self.app_config.display_vram,
         )?;
-
-        self.last_run = runnable_path;
 
         self.app_state = Some(AppState {
             debugger: Debugger::new(shared_state, input_tx, snapshot_rx),
@@ -325,22 +320,6 @@ impl Application {
         });
 
         emulator.run();
-        Ok(())
-    }
-
-    fn stop_emulator(&mut self) {
-        if let Some(state) = self.app_state.take() {
-            state.shutdown();
-        }
-    }
-
-    fn restart_emulator(&mut self) -> Result<(), Box<dyn Error>> {
-        if let Some(state) = self.app_state.take() {
-            state.shutdown();
-        }
-
-        let last_run = self.last_run.take();
-        self.start_emulator(last_run)?;
         Ok(())
     }
 

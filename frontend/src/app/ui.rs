@@ -56,7 +56,7 @@ pub fn show_top_menu(app: &mut Application, ctx: &egui::Context) {
                 );
 
                 // Only if emulator is running
-                if let Some(ref mut emu) = app.app_state {
+                if let Some(emu) = app.app_state.take() {
                     let is_paused = emu.debugger.is_paused();
                     let label = if is_paused { "Resume" } else { "Pause" };
 
@@ -65,20 +65,17 @@ pub fn show_top_menu(app: &mut Application, ctx: &egui::Context) {
                     }
 
                     if ui.button("Restart").clicked() {
-                        app.restart_emulator().unwrap_or_else(|err| {
-                            error!(%err, "could not restart emulator");
-                            app.toasts
-                                .error(format!("Could not restart emulator: {err}"));
-                        });
+                        emu.restart();
                     }
 
                     if ui.button("Stop").clicked() {
-                        app.stop_emulator();
+                        emu.shutdown();
+                    } else {
+                        app.app_state = Some(emu);
                     }
                 }
 
                 if ui.button("Exit").clicked() {
-                    app.stop_emulator();
                     ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                 }
             });

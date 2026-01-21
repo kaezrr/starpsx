@@ -10,7 +10,7 @@ use std::time::{Duration, Instant};
 use eframe::egui;
 use starpsx_core::RunType;
 use starpsx_renderer::FrameBuffer;
-use tracing::info;
+use tracing::{info, warn};
 
 use crate::config::RunnablePath;
 use crate::debugger::snapshot::DebugSnapshot;
@@ -19,6 +19,7 @@ use crate::input::GamepadState;
 pub enum UiCommand {
     NewInputState(GamepadState),
     SetVramDisplay(bool),
+    Restart,
     Shutdown,
 
     DebugSetBreakpoint(u32, bool),
@@ -34,6 +35,9 @@ pub struct Emulator {
     shared_state: Arc<SharedState>,
 
     breakpoints: HashSet<u32>,
+
+    bios_path: PathBuf,
+    file_path: Option<RunnablePath>,
 
     show_vram: bool,
 }
@@ -51,8 +55,8 @@ impl Emulator {
         channels: UiChannels,
         shared_state: Arc<SharedState>,
 
-        bios_path: &Path,
-        file_path: &Option<RunnablePath>,
+        bios_path: PathBuf,
+        file_path: Option<RunnablePath>,
 
         show_vram: bool,
     ) -> Result<Self, Box<dyn Error>> {
@@ -61,7 +65,10 @@ impl Emulator {
             channels,
             shared_state,
 
-            system: Emulator::build_core(bios_path, file_path)?,
+            system: Emulator::build_core(&bios_path, &file_path)?,
+
+            bios_path,
+            file_path,
 
             breakpoints: HashSet::new(),
             show_vram,
@@ -102,6 +109,7 @@ impl Emulator {
             cpu_regs: system_snapshot.cpu.regs,
             instructions: system_snapshot.ins,
         });
+        self.ui_ctx.request_repaint();
     }
 
     fn update_core_gamepad(&mut self, new_state: GamepadState) {
@@ -132,6 +140,12 @@ impl Emulator {
                         self.show_vram = show_vram;
                     }
 
+                    UiCommand::Restart => {
+                        self.system =
+                            Emulator::build_core(&self.bios_path, &self.file_path).unwrap();
+                        self.shared_state.resume();
+                    }
+
                     // Shutdown the thread
                     UiCommand::Shutdown => {
                         break 'emulator;
@@ -149,7 +163,10 @@ impl Emulator {
                     }
 
                     UiCommand::DebugStep => {
-                        debug_assert!(self.shared_state.is_paused());
+                        if !self.shared_state.is_paused() {
+                            warn!("trying to step while emulator is unpaused");
+                            continue;
+                        }
 
                         if let Some(fb) = self.system.step_instruction(self.show_vram) {
                             self.send_frame_buffer(fb);
