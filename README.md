@@ -95,7 +95,7 @@ The project is split into three main crates:
 
 - **frontend**
   The main binary crate providing the user interface.
-  Currently implemented using **`eframe` / `egui`**, handling.
+  Currently implemented using **`eframe` / `egui`**.
 
 ---
 
