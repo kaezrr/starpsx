@@ -29,10 +29,7 @@ pub enum UiCommand {
 
 pub struct Emulator {
     ui_ctx: egui::Context,
-
-    frame_tx: SyncSender<FrameBuffer>,
-    input_rx: Receiver<UiCommand>,
-    snapshot_tx: SyncSender<DebugSnapshot>,
+    channels: UiChannels,
 
     system: starpsx_core::System,
     shared_metrics: Arc<CoreMetrics>,
@@ -43,13 +40,16 @@ pub struct Emulator {
     show_vram: bool,
 }
 
+pub struct UiChannels {
+    pub frame_tx: SyncSender<FrameBuffer>,
+    pub input_rx: Receiver<UiCommand>,
+    pub snapshot_tx: SyncSender<DebugSnapshot>,
+}
+
 impl Emulator {
     pub fn build(
         ui_ctx: egui::Context,
-
-        frame_tx: SyncSender<FrameBuffer>,
-        input_rx: Receiver<UiCommand>,
-        snapshot_tx: SyncSender<DebugSnapshot>,
+        channels: UiChannels,
 
         shared_metrics: Arc<CoreMetrics>,
 
@@ -60,10 +60,7 @@ impl Emulator {
     ) -> Result<Self, Box<dyn Error>> {
         Ok(Self {
             ui_ctx,
-
-            frame_tx,
-            input_rx,
-            snapshot_tx,
+            channels,
 
             system: Emulator::build_core(bios_path, file_path)?,
             shared_metrics,
@@ -100,6 +97,10 @@ impl Emulator {
         info!("emulator thread started...");
     }
 
+    fn send_debug_snapshot(&self) {
+        let _ = self.channels.snapshot_tx.try_send(DebugSnapshot::default());
+    }
+
     fn update_core_gamepad(&mut self, new_state: GamepadState) {
         let gamepad = self.system.gamepad_mut();
         gamepad.set_buttons(new_state.buttons);
@@ -112,7 +113,7 @@ impl Emulator {
 
         'emulator: loop {
             // Read events from ui thread
-            while let Ok(command) = self.input_rx.try_recv() {
+            while let Ok(command) = self.channels.input_rx.try_recv() {
                 match command {
                     UiCommand::NewInputState(gamepad_state) => {
                         self.update_core_gamepad(gamepad_state)
@@ -132,7 +133,7 @@ impl Emulator {
                     }
 
                     UiCommand::DebugRequestState => {
-                        let _ = self.snapshot_tx.try_send(DebugSnapshot::default());
+                        self.send_debug_snapshot();
                     }
 
                     UiCommand::DebugSetBreakpoint(address, enabled) => {
@@ -142,7 +143,9 @@ impl Emulator {
                         };
                     }
 
-                    UiCommand::DebugStep => {}
+                    UiCommand::DebugStep => {
+                        self.send_debug_snapshot();
+                    }
                 }
             }
 
@@ -161,7 +164,7 @@ impl Emulator {
             let core_time = now.elapsed();
 
             // Non blocking send
-            let _ = self.frame_tx.try_send(frame_buffer);
+            let _ = self.channels.frame_tx.try_send(frame_buffer);
             self.ui_ctx.request_repaint();
 
             if let Some(sleep_dur) = FRAME_TIME.checked_sub(core_time) {

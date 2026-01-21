@@ -19,7 +19,7 @@ use crate::app::util::{MetricsSnapshot, PendingDialog};
 use crate::config::{self, LaunchConfig, RunnablePath};
 use crate::debugger::Debugger;
 use crate::debugger::snapshot::DebugSnapshot;
-use crate::emulator::{self, CoreMetrics, UiCommand};
+use crate::emulator::{self, CoreMetrics, UiChannels, UiCommand};
 use crate::input::{self, ActionValue, PhysicalInput};
 
 pub struct Application {
@@ -41,11 +41,23 @@ pub struct Application {
     info_modal_open: bool,
     bios_modal_open: bool,
 
+    previous_pause: bool,
+
     pending_dialog: Option<PendingDialog>,
 }
 
 impl eframe::App for Application {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        if self.previous_pause != self.is_paused() {
+            self.previous_pause = self.is_paused();
+
+            if self.previous_pause {
+                self.toasts.warning("Paused").duration(None).closable(false);
+            } else {
+                self.toasts.dismiss_all_toasts()
+            };
+        }
+
         if let Err(err) = self.poll_dialog() {
             error!(%err, "error loading file");
             self.toasts.error(format!("error loading file: {err}"));
@@ -142,6 +154,8 @@ impl Application {
             keybinds_table_open: false,
             info_modal_open: false,
             bios_modal_open: false,
+
+            previous_pause: false,
 
             pending_dialog: None,
         };
@@ -282,9 +296,11 @@ impl Application {
         // Build emulator from the provided configuration
         let emulator = emulator::Emulator::build(
             self.egui_ctx.clone(),
-            frame_tx,
-            input_rx,
-            snapshot_tx,
+            UiChannels {
+                frame_tx,
+                input_rx,
+                snapshot_tx,
+            },
             shared_metrics.clone(),
             bios_path,
             &runnable_path,
