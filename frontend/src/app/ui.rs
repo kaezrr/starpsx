@@ -34,9 +34,8 @@ pub fn show_top_menu(app: &mut Application, ctx: &egui::Context) {
 
             ui.menu_button("System", |ui| {
                 // Only if a valid bios is set and emulator is not running
-                ui.add_enabled_ui(
-                    app.app_config.bios_path.is_some() && app.app_state.is_none(),
-                    |ui| {
+                if app.app_state.is_none() {
+                    ui.add_enabled_ui(app.app_config.bios_path.is_some(), |ui| {
                         if ui.button("Start File").clicked() {
                             app.pending_dialog = Some(PendingDialog::SelectFile(Box::pin(
                                 AsyncFileDialog::new()
@@ -52,8 +51,8 @@ pub fn show_top_menu(app: &mut Application, ctx: &egui::Context) {
                                 app.toasts.error(format!("Could not start bios: {err}"));
                             })
                         }
-                    },
-                );
+                    });
+                }
 
                 // Only if emulator is running
                 if let Some(emu) = app.app_state.take() {

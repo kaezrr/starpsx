@@ -109,6 +109,7 @@ impl Emulator {
             cpu_regs: system_snapshot.cpu.regs,
             instructions: system_snapshot.ins,
         });
+        info!("sending snapshot");
         self.ui_ctx.request_repaint();
     }
 
@@ -146,7 +147,6 @@ impl Emulator {
                         self.shared_state.resume();
                     }
 
-                    // Shutdown the thread
                     UiCommand::Shutdown => {
                         break 'emulator;
                     }
@@ -182,12 +182,12 @@ impl Emulator {
             }
 
             let now = Instant::now();
+            let vram = self.show_vram;
 
             let frame_opt = if self.breakpoints.is_empty() {
-                Some(self.system.run_frame(self.show_vram))
+                Some(self.system.run_frame(vram))
             } else {
-                self.system
-                    .run_breakpoint(&self.breakpoints, self.show_vram)
+                self.system.run_breakpoint(&self.breakpoints, vram)
             };
 
             let core_time = now.elapsed();
@@ -196,6 +196,7 @@ impl Emulator {
                 self.send_frame_buffer(buffer);
             } else {
                 self.shared_state.pause();
+                self.send_debug_snapshot();
                 continue;
             }
 

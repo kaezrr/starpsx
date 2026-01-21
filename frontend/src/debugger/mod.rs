@@ -67,7 +67,9 @@ impl Debugger {
     }
 
     pub fn show_ui(&mut self, ctx: &egui::Context) {
-        self.request_snapshot();
+        if !self.is_paused() {
+            self.request_snapshot();
+        }
 
         if let Ok(snapshot) = self.snapshot_rx.try_recv() {
             self.prev_snapshot = self.curr_snapshot.take();
