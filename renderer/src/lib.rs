@@ -72,12 +72,12 @@ impl Renderer {
         }
     }
 
-    pub fn produce_frame_buffer<const SHOW_VRAM: bool>(&mut self) -> FrameBuffer {
+    pub fn produce_frame_buffer(&mut self, show_vram: bool) -> FrameBuffer {
         if self.ctx.display_disabled {
             return FrameBuffer::black();
         }
 
-        let (sx, sy, width, height) = if SHOW_VRAM {
+        let (sx, sy, width, height) = if show_vram {
             (0, 0, VRAM_WIDTH, VRAM_HEIGHT)
         } else {
             (

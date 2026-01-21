@@ -23,6 +23,7 @@ use mem::scratch::Scratch;
 use sched::{Event, EventScheduler};
 use sio::Sio0;
 use starpsx_renderer::FrameBuffer;
+use std::collections::HashSet;
 use std::error::Error;
 use timers::Timers;
 use tracing::info;
@@ -125,30 +126,6 @@ impl System {
         Ok(psx)
     }
 
-    // Run emulator for one frame and return the generated frame
-    pub fn run_frame<const SHOW_VRAM: bool>(&mut self) -> FrameBuffer {
-        loop {
-            if let Some(event) = self.scheduler.get_next_event() {
-                match event {
-                    // Frame completes just before entering vsync
-                    Event::VBlankStart => return self.enter_vsync::<SHOW_VRAM>(),
-                    Event::VBlankEnd => Timers::exit_vsync(self),
-                    Event::HBlankStart => Timers::enter_hsync(self),
-                    Event::HBlankEnd => Timers::exit_hsync(self),
-                    Event::Timer(x) => Timers::process_interrupt(self, x),
-                    Event::SerialSend => Sio0::process_serial_send(self),
-                    Event::CdromResultIrq(x) => CdRom::handle_response(self, x),
-                }
-            }
-
-            // Fixed 2 CPI right now
-            Cpu::run_instruction(self);
-            self.scheduler.advance(2);
-
-            self.check_for_tty_output();
-        }
-    }
-
     pub fn sideload_exe(&mut self, exe: Vec<u8>) {
         while self.cpu.pc != 0x80030000 {
             Cpu::run_instruction(self);
@@ -175,10 +152,10 @@ impl System {
         self.cpu.pc = init_pc;
     }
 
-    fn enter_vsync<const SHOW_VRAM: bool>(&mut self) -> FrameBuffer {
+    fn enter_vsync(&mut self, show_vram: bool) -> FrameBuffer {
         Timers::enter_vsync(self);
         self.irqctl.stat().set_vblank(true);
-        self.gpu.renderer.produce_frame_buffer::<SHOW_VRAM>()
+        self.gpu.renderer.produce_frame_buffer(show_vram)
     }
 
     fn check_for_tty_output(&mut self) {
@@ -209,6 +186,84 @@ impl System {
         });
 
         SystemSnapshot { cpu, ins }
+    }
+
+    // Run emulator for one frame and return the generated frame
+    pub fn run_frame(&mut self, show_vram: bool) -> FrameBuffer {
+        loop {
+            if let Some(event) = self.scheduler.get_next_event() {
+                match event {
+                    // Frame completes just before entering vsync
+                    Event::VBlankStart => return self.enter_vsync(show_vram),
+                    Event::VBlankEnd => Timers::exit_vsync(self),
+                    Event::HBlankStart => Timers::enter_hsync(self),
+                    Event::HBlankEnd => Timers::exit_hsync(self),
+                    Event::Timer(x) => Timers::process_interrupt(self, x),
+                    Event::SerialSend => Sio0::process_serial_send(self),
+                    Event::CdromResultIrq(x) => CdRom::handle_response(self, x),
+                }
+            }
+
+            // Fixed 2 CPI right now
+            Cpu::run_instruction(self);
+            self.scheduler.advance(2);
+
+            self.check_for_tty_output();
+        }
+    }
+
+    pub fn step_instruction(&mut self, show_vram: bool) -> Option<FrameBuffer> {
+        if let Some(event) = self.scheduler.get_next_event() {
+            match event {
+                // Frame completes just before entering vsync
+                Event::VBlankStart => return Some(self.enter_vsync(show_vram)),
+                Event::VBlankEnd => Timers::exit_vsync(self),
+                Event::HBlankStart => Timers::enter_hsync(self),
+                Event::HBlankEnd => Timers::exit_hsync(self),
+                Event::Timer(x) => Timers::process_interrupt(self, x),
+                Event::SerialSend => Sio0::process_serial_send(self),
+                Event::CdromResultIrq(x) => CdRom::handle_response(self, x),
+            }
+        }
+
+        // Fixed 2 CPI right now
+        Cpu::run_instruction(self);
+        self.scheduler.advance(2);
+
+        self.check_for_tty_output();
+
+        None
+    }
+
+    pub fn run_breakpoint(
+        &mut self,
+        breakpoints: &HashSet<u32>,
+        show_vram: bool,
+    ) -> Option<FrameBuffer> {
+        loop {
+            if let Some(event) = self.scheduler.get_next_event() {
+                match event {
+                    // Frame completes just before entering vsync
+                    Event::VBlankStart => return Some(self.enter_vsync(show_vram)),
+                    Event::VBlankEnd => Timers::exit_vsync(self),
+                    Event::HBlankStart => Timers::enter_hsync(self),
+                    Event::HBlankEnd => Timers::exit_hsync(self),
+                    Event::Timer(x) => Timers::process_interrupt(self, x),
+                    Event::SerialSend => Sio0::process_serial_send(self),
+                    Event::CdromResultIrq(x) => CdRom::handle_response(self, x),
+                }
+            }
+
+            // Fixed 2 CPI right now
+            Cpu::run_instruction(self);
+            self.scheduler.advance(2);
+
+            self.check_for_tty_output();
+
+            if breakpoints.contains(&self.cpu.pc) {
+                return None;
+            }
+        }
     }
 }
 

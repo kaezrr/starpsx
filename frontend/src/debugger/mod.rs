@@ -2,12 +2,13 @@ mod disasm;
 pub mod snapshot;
 
 use std::collections::HashSet;
+use std::sync::Arc;
 use std::sync::mpsc::{Receiver, SyncSender};
 
 use eframe::egui::{self, Align, RichText};
 use egui_extras::Column;
 
-use crate::emulator::UiCommand;
+use crate::emulator::{SharedState, UiCommand};
 use snapshot::DebugSnapshot;
 
 pub struct Debugger {
@@ -15,18 +16,22 @@ pub struct Debugger {
     state_view: StateView,
     address_input: String,
 
+    shared_state: Arc<SharedState>,
     input_tx: SyncSender<UiCommand>,
     snapshot_rx: Receiver<DebugSnapshot>,
 
     prev_snapshot: Option<DebugSnapshot>,
     curr_snapshot: Option<DebugSnapshot>,
-
-    pub is_paused: bool,
 }
 
 impl Debugger {
-    pub fn new(input_tx: SyncSender<UiCommand>, snapshot_rx: Receiver<DebugSnapshot>) -> Self {
+    pub fn new(
+        shared_state: Arc<SharedState>,
+        input_tx: SyncSender<UiCommand>,
+        snapshot_rx: Receiver<DebugSnapshot>,
+    ) -> Self {
         Self {
+            shared_state,
             input_tx,
             snapshot_rx,
 
@@ -35,7 +40,6 @@ impl Debugger {
             address_input: Default::default(),
             prev_snapshot: Default::default(),
             curr_snapshot: Default::default(),
-            is_paused: Default::default(),
         }
     }
     pub fn sync_send(&mut self, cmd: UiCommand) {
@@ -46,9 +50,19 @@ impl Debugger {
         let _ = self.input_tx.try_send(cmd);
     }
 
-    pub fn toggle_pause(&mut self) {
-        self.sync_send(UiCommand::SetPaused(!self.is_paused));
-        self.is_paused = !self.is_paused;
+    pub fn is_paused(&self) -> bool {
+        self.shared_state.is_paused()
+    }
+
+    pub fn toggle_pause(&self) {
+        match self.shared_state.is_paused() {
+            true => self.shared_state.resume(),
+            false => self.shared_state.pause(),
+        };
+    }
+
+    pub fn load_metrics(&self) -> (f32, f32) {
+        self.shared_state.load()
     }
 
     pub fn show_ui(&mut self, ctx: &egui::Context) {
@@ -160,17 +174,21 @@ impl Debugger {
         let Some(snapshot) = self.curr_snapshot.take() else {
             return;
         };
+        let is_paused = self.shared_state.is_paused();
 
         ui.vertical(|ui| {
             ui.horizontal(|ui| {
-                let label = if !self.is_paused { "Pause" } else { "Resume" };
+                let label = if is_paused { "Resume" } else { "Pause" };
+
                 if ui.button(label).clicked() {
                     self.toggle_pause();
                 }
 
-                if ui.button("Step").clicked() {
-                    self.sync_send(UiCommand::DebugStep);
-                }
+                ui.add_enabled_ui(is_paused, |ui| {
+                    if ui.button("Step").clicked() {
+                        self.sync_send(UiCommand::DebugStep);
+                    }
+                });
             });
 
             ui.separator();
@@ -215,7 +233,7 @@ impl Debugger {
                             row.col(|ui| {
                                 let response =
                                     ui.label(get_disasm_label(snapshot.pc, addr, &breakpoint_set));
-                                if is_pc_row && !self.is_paused {
+                                if is_pc_row && !is_paused {
                                     response.scroll_to_me(Some(Align::Min));
                                 }
                             });
@@ -251,7 +269,7 @@ impl Debugger {
                         .hint_text("fe0c1234"),
                 );
 
-                if ui.button("Add").clicked() {
+                if ui.button("Add").clicked() || ui.input(|i| i.key_pressed(egui::Key::Enter)) {
                     if let Ok(address) = u32::from_str_radix(&self.address_input, 16) {
                         self.breakpoints.push(Breakpoint {
                             address,

@@ -1,19 +1,15 @@
-use std::sync::{Arc, mpsc::Receiver};
+use std::sync::mpsc::Receiver;
 
 use eframe::egui::{self, TextureOptions};
 use starpsx_renderer::FrameBuffer;
 
-use crate::{
-    debugger::Debugger,
-    emulator::{CoreMetrics, UiCommand},
-};
+use crate::{debugger::Debugger, emulator::UiCommand};
 
 // This holds all the state required after emulator init
 pub struct AppState {
     pub debugger: Debugger,
 
     pub frame_rx: Receiver<FrameBuffer>,
-    pub shared_metrics: Arc<CoreMetrics>,
 
     pub texture: egui::TextureHandle,
     pub last_resolution: Option<(usize, usize)>,

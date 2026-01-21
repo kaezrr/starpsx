@@ -19,7 +19,7 @@ use crate::app::util::{MetricsSnapshot, PendingDialog};
 use crate::config::{self, LaunchConfig, RunnablePath};
 use crate::debugger::Debugger;
 use crate::debugger::snapshot::DebugSnapshot;
-use crate::emulator::{self, CoreMetrics, UiChannels, UiCommand};
+use crate::emulator::{self, SharedState, UiChannels, UiCommand};
 use crate::input::{self, ActionValue, PhysicalInput};
 
 pub struct Application {
@@ -48,8 +48,10 @@ pub struct Application {
 
 impl eframe::App for Application {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
-        if self.previous_pause != self.is_paused() {
-            self.previous_pause = self.is_paused();
+        let is_paused_now = self.is_paused();
+
+        if self.previous_pause != is_paused_now {
+            self.previous_pause = is_paused_now;
 
             if self.previous_pause {
                 self.toasts.warning("Paused").duration(None).closable(false);
@@ -75,7 +77,7 @@ impl eframe::App for Application {
 
         if let Some(mut emu) = self.app_state.take() {
             // Process all the input events
-            if !emu.debugger.is_paused {
+            if !is_paused_now {
                 let mut input_dirty = false;
                 let was_analog = self.input_state.analog_mode;
 
@@ -253,7 +255,7 @@ impl Application {
 
     fn get_metrics(&self) -> MetricsSnapshot {
         if let Some(ref emu) = self.app_state {
-            let (frame_ms, core_ms) = emu.shared_metrics.load();
+            let (frame_ms, core_ms) = emu.debugger.load_metrics();
             MetricsSnapshot {
                 fps: (1.0 / frame_ms).round() as u32,
                 core_fps: (1.0 / core_ms).round() as u32,
@@ -268,7 +270,7 @@ impl Application {
     fn is_paused(&self) -> bool {
         self.app_state
             .as_ref()
-            .map(|a| a.debugger.is_paused)
+            .map(|a| a.debugger.is_paused())
             .unwrap_or(false)
     }
 
@@ -291,7 +293,7 @@ impl Application {
         let (input_tx, input_rx) = std::sync::mpsc::sync_channel::<UiCommand>(1);
         let (snapshot_tx, snapshot_rx) = std::sync::mpsc::sync_channel::<DebugSnapshot>(1);
 
-        let shared_metrics = Arc::new(CoreMetrics::default());
+        let shared_state = Arc::new(SharedState::default());
 
         // Build emulator from the provided configuration
         let emulator = emulator::Emulator::build(
@@ -301,7 +303,7 @@ impl Application {
                 input_rx,
                 snapshot_tx,
             },
-            shared_metrics.clone(),
+            shared_state.clone(),
             bios_path,
             &runnable_path,
             self.app_config.display_vram,
@@ -310,7 +312,7 @@ impl Application {
         self.last_run = runnable_path;
 
         self.app_state = Some(AppState {
-            debugger: Debugger::new(input_tx, snapshot_rx),
+            debugger: Debugger::new(shared_state, input_tx, snapshot_rx),
 
             frame_rx,
             texture: self.egui_ctx.load_texture(
@@ -319,7 +321,6 @@ impl Application {
                 egui::TextureOptions::NEAREST,
             ),
 
-            shared_metrics,
             last_resolution: None,
         });
 
@@ -330,12 +331,6 @@ impl Application {
     fn stop_emulator(&mut self) {
         if let Some(state) = self.app_state.take() {
             state.shutdown();
-        }
-    }
-
-    fn toggle_pause(&mut self) {
-        if let Some(ref mut state) = self.app_state {
-            state.debugger.toggle_pause();
         }
     }
 

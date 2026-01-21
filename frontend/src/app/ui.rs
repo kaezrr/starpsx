@@ -56,10 +56,12 @@ pub fn show_top_menu(app: &mut Application, ctx: &egui::Context) {
                 );
 
                 // Only if emulator is running
-                ui.add_enabled_ui(app.app_state.is_some(), |ui| {
-                    let label = if app.is_paused() { "Resume" } else { "Pause" };
+                if let Some(ref mut emu) = app.app_state {
+                    let is_paused = emu.debugger.is_paused();
+                    let label = if is_paused { "Resume" } else { "Pause" };
+
                     if ui.button(label).clicked() {
-                        app.toggle_pause();
+                        emu.debugger.toggle_pause();
                     }
 
                     if ui.button("Restart").clicked() {
@@ -73,7 +75,7 @@ pub fn show_top_menu(app: &mut Application, ctx: &egui::Context) {
                     if ui.button("Stop").clicked() {
                         app.stop_emulator();
                     }
-                });
+                }
 
                 if ui.button("Exit").clicked() {
                     app.stop_emulator();
