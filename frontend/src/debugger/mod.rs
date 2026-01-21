@@ -4,7 +4,7 @@ pub mod snapshot;
 use std::collections::HashSet;
 use std::sync::mpsc::{Receiver, SyncSender};
 
-use eframe::egui;
+use eframe::egui::{self, Align, RichText};
 use egui_extras::Column;
 
 use crate::emulator::UiCommand;
@@ -180,10 +180,11 @@ impl Debugger {
                 .striped(true)
                 .resizable(false)
                 .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
-                .column(Column::auto())
+                .column(Column::exact(10.0))
                 .column(Column::exact(90.0))
                 .column(Column::exact(80.0))
-                .column(Column::remainder())
+                .column(Column::auto())
+                .animate_scrolling(false)
                 .header(20.0, |mut header| {
                     header.col(|ui| {
                         ui.strong("");
@@ -208,23 +209,25 @@ impl Debugger {
                         .collect();
 
                     for (addr, word, disasm) in diassembly {
+                        let is_pc_row = snapshot.pc == addr;
+
                         body.row(20.0, |mut row| {
                             row.col(|ui| {
-                                let label = if snapshot.pc == addr {
-                                    ">"
-                                } else if breakpoint_set.contains(&addr) {
-                                    "o"
-                                } else {
-                                    ""
-                                };
-                                ui.monospace(label);
+                                let response =
+                                    ui.label(get_disasm_label(snapshot.pc, addr, &breakpoint_set));
+                                if is_pc_row && !self.is_paused {
+                                    response.scroll_to_me(Some(Align::Min));
+                                }
                             });
+
                             row.col(|ui| {
                                 monospace_hex(ui, addr, true);
                             });
+
                             row.col(|ui| {
                                 monospace_hex(ui, word, false);
                             });
+
                             row.col(|ui| {
                                 ui.monospace(disasm);
                             });
@@ -350,4 +353,22 @@ struct Breakpoint {
 enum BreakpointAction {
     Toggle { index: usize, enabled: bool },
     Delete { index: usize },
+}
+
+fn get_disasm_label(pc: u32, addr: u32, breakpoint_set: &HashSet<u32>) -> RichText {
+    let label = if pc == addr {
+        "▶"
+    } else if breakpoint_set.contains(&addr) {
+        "●"
+    } else {
+        ""
+    };
+
+    let color = if pc == addr {
+        egui::Color32::YELLOW
+    } else {
+        egui::Color32::RED
+    };
+
+    egui::RichText::new(label).monospace().color(color)
 }

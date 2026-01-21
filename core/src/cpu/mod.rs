@@ -224,4 +224,21 @@ impl Cpu {
             _ => Err(Exception::IllegalInstruction),
         }
     }
+
+    pub fn snapshot(&self) -> Snapshot {
+        Snapshot {
+            pc: self.pc,
+            hi: self.hi,
+            lo: self.lo,
+            regs: self.regs,
+        }
+    }
+}
+
+pub struct Snapshot {
+    pub pc: u32,
+    pub hi: u32,
+    pub lo: u32,
+
+    pub regs: [u32; 32],
 }

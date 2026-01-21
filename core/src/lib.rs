@@ -197,4 +197,24 @@ impl System {
     pub fn gamepad_mut(&mut self) -> &mut gamepad::Gamepad {
         self.sio0.gamepad_port_0_mut()
     }
+
+    pub fn snapshot(&self) -> SystemSnapshot {
+        let cpu = self.cpu.snapshot();
+
+        let base = cpu.pc.wrapping_sub(100 * 4);
+        let ins = std::array::from_fn(|i| {
+            let addr = base.wrapping_add((i * 4) as u32);
+            let inst = self.fetch_instruction(addr);
+            (addr, inst)
+        });
+
+        SystemSnapshot { cpu, ins }
+    }
+}
+
+pub struct SystemSnapshot {
+    pub cpu: cpu::Snapshot,
+
+    /// cpu.pc +- 100
+    pub ins: [(u32, u32); 200],
 }

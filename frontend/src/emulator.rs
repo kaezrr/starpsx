@@ -98,7 +98,14 @@ impl Emulator {
     }
 
     fn send_debug_snapshot(&self) {
-        let _ = self.channels.snapshot_tx.try_send(DebugSnapshot::default());
+        let system_snapshot = self.system.snapshot();
+        let _ = self.channels.snapshot_tx.try_send(DebugSnapshot {
+            pc: system_snapshot.cpu.pc,
+            lo: system_snapshot.cpu.lo,
+            hi: system_snapshot.cpu.hi,
+            cpu_regs: system_snapshot.cpu.regs,
+            instructions: system_snapshot.ins,
+        });
     }
 
     fn update_core_gamepad(&mut self, new_state: GamepadState) {

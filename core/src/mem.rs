@@ -163,6 +163,16 @@ const fn mask_region(addr: u32) -> u32 {
 }
 
 impl System {
+    pub fn fetch_instruction(&self, addr: u32) -> u32 {
+        let addr = mask_region(addr);
+
+        match addr {
+            ram::PADDR_START..=ram::PADDR_END => self.ram.read(addr),
+            bios::PADDR_START..=bios::PADDR_END => self.bios.read(addr),
+            _ => 0xFFFFFFFF,
+        }
+    }
+
     pub fn read<T: ByteAddressable>(&mut self, addr: u32) -> Result<T, Exception> {
         if !addr.is_multiple_of(T::LEN as u32) {
             return Err(Exception::LoadAddressError(addr));
