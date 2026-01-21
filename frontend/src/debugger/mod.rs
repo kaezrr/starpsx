@@ -207,37 +207,39 @@ impl Debugger {
         let Some(snapshot) = self.curr_snapshot.take() else {
             return;
         };
-
         let is_paused = self.shared_state.is_paused();
-
         ui.vertical(|ui| {
             ui.horizontal(|ui| {
                 let label = if is_paused { "Resume" } else { "Pause" };
-
                 if ui.button(label).clicked() {
                     self.toggle_pause();
                 }
-
                 ui.add_enabled_ui(is_paused, |ui| {
                     if ui.button("Step").clicked() {
                         self.sync_send(UiCommand::DebugStep);
                     }
                 });
             });
-
             ui.separator();
+
+            // Define highlight color based on theme
+            let item_spacing = ui.spacing().item_spacing;
+            let pc_highlight = if ui.visuals().dark_mode {
+                Color32::from_rgb(60, 60, 0) // Dark yellow tint
+            } else {
+                Color32::from_rgb(255, 250, 200) // Light yellow tint
+            };
 
             let mut table = egui_extras::TableBuilder::new(ui)
                 .id_salt("disasm")
                 .striped(true)
                 .resizable(false)
                 .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
-                .column(Column::exact(10.0))
-                .column(Column::exact(90.0))
-                .column(Column::exact(80.0))
+                .column(Column::auto().at_least(10.0))
+                .column(Column::auto())
+                .column(Column::auto())
                 .column(Column::remainder())
                 .animate_scrolling(false);
-
             // scroll to program counter
             if !is_paused || self.pc_changed {
                 self.pc_changed = false;
@@ -271,26 +273,40 @@ impl Debugger {
                     body.rows(20.0, diassembly.len(), |mut row| {
                         let i = row.index();
                         let (addr, word, disasm) = &diassembly[i];
+                        let is_current_pc = snapshot.pc == *addr;
+
+                        let paint_bg = |ui: &mut egui::Ui| {
+                            let gapless_rect = ui.max_rect().expand2(0.5 * item_spacing);
+                            ui.painter().rect_filled(gapless_rect, 0.0, pc_highlight);
+                        };
 
                         row.col(|ui| {
+                            if is_current_pc {
+                                paint_bg(ui)
+                            }
                             line_indicator(ui, snapshot.pc, *addr, &breakpoint_set);
                         });
-
                         row.col(|ui| {
+                            if is_current_pc {
+                                paint_bg(ui)
+                            }
                             monospace_hex(ui, *addr, true);
                         });
-
                         row.col(|ui| {
+                            if is_current_pc {
+                                paint_bg(ui)
+                            }
                             monospace_hex(ui, *word, false);
                         });
-
                         row.col(|ui| {
+                            if is_current_pc {
+                                paint_bg(ui)
+                            }
                             disasm.label_monospace(ui);
                         });
                     });
                 });
         });
-
         self.curr_snapshot = Some(snapshot);
     }
 
