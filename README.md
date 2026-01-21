@@ -3,7 +3,7 @@
 StarPSX is a free and open-source PlayStation 1 emulator written in Rust.
 This project is **highly work in progress** and not yet suitable for playing games end-to-end.
 
-StarPSX now features a native **cross-platform GUI frontend** built using `eframe` / `egui`, with a CLI mode available for automation and development workflows.
+StarPSX features a native **cross-platform GUI frontend** built using `eframe` / `egui`, with a CLI mode and a basic debugger available for automation and development workflows.
 
 ---
 
@@ -56,27 +56,19 @@ From the GUI you can:
 - Select a BIOS image
 - Load a game or PS-EXE
 - Control emulator state (pause / restart)
+- Open the debugger
 - View runtime metrics
 
 ---
 
-#### CLI / Auto-Run Mode
+#### CLI Mode
 
-The CLI can be used to skip the GUI and immediately start emulation:
+The CLI can be used to skip the GUI and immediately start emulation and also has other useful flags:
 
 ```sh
-starpsx --auto-run
-starpsx --auto-run path/to/game.bin
+starpsx --help
+
 ```
-
-- With `--auto-run` only: boots using the configured BIOS
-- With `--auto-run <file>`: boots directly into the given game or PS-EXE
-
-This mode is intended for:
-
-- Development
-- Automation
-- Testing
 
 ---
 

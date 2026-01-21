@@ -240,10 +240,11 @@ impl Debugger {
                 .column(Column::auto())
                 .column(Column::remainder())
                 .animate_scrolling(false);
+
             // scroll to program counter
             if !is_paused || self.pc_changed {
                 self.pc_changed = false;
-                table = table.scroll_to_row(100, Some(Align::TOP));
+                table = table.scroll_to_row(100, Some(Align::Center));
             }
 
             table
