@@ -5,7 +5,7 @@ use std::collections::HashSet;
 use std::sync::Arc;
 use std::sync::mpsc::{Receiver, SyncSender};
 
-use eframe::egui::{self, Align, RichText};
+use eframe::egui::{self, Align, Color32, RichText};
 use egui_extras::Column;
 
 use crate::emulator::{SharedState, UiCommand};
@@ -22,6 +22,8 @@ pub struct Debugger {
 
     prev_snapshot: Option<DebugSnapshot>,
     curr_snapshot: Option<DebugSnapshot>,
+
+    pc_changed: bool,
 }
 
 impl Debugger {
@@ -40,6 +42,8 @@ impl Debugger {
             address_input: Default::default(),
             prev_snapshot: Default::default(),
             curr_snapshot: Default::default(),
+
+            pc_changed: false,
         }
     }
 
@@ -74,6 +78,7 @@ impl Debugger {
         if let Ok(snapshot) = self.snapshot_rx.try_recv() {
             self.prev_snapshot = self.curr_snapshot.take();
             self.curr_snapshot = Some(snapshot);
+            self.pc_changed = true;
         }
 
         egui::SidePanel::left("debug_left")
@@ -234,7 +239,8 @@ impl Debugger {
                 .animate_scrolling(false);
 
             // scroll to program counter
-            if !is_paused {
+            if !is_paused || self.pc_changed {
+                self.pc_changed = false;
                 table = table.scroll_to_row(100, Some(Align::TOP));
             }
 
@@ -267,7 +273,7 @@ impl Debugger {
                         let (addr, word, disasm) = &diassembly[i];
 
                         row.col(|ui| {
-                            ui.label(get_disasm_label(snapshot.pc, *addr, &breakpoint_set));
+                            line_indicator(ui, snapshot.pc, *addr, &breakpoint_set);
                         });
 
                         row.col(|ui| {
@@ -413,20 +419,26 @@ enum BreakpointAction {
     Delete { index: usize },
 }
 
-fn get_disasm_label(pc: u32, addr: u32, breakpoint_set: &HashSet<u32>) -> RichText {
-    let label = if pc == addr {
-        "▶"
+fn line_indicator(ui: &mut egui::Ui, pc: u32, addr: u32, breakpoint_set: &HashSet<u32>) {
+    let is_dark = ui.visuals().dark_mode;
+
+    let (label, color) = if pc == addr {
+        let color = if is_dark {
+            Color32::from_rgb(255, 220, 0)
+        } else {
+            Color32::from_rgb(200, 140, 0)
+        };
+        ("→", color) // Simple and clean
     } else if breakpoint_set.contains(&addr) {
-        "●"
+        let color = if is_dark {
+            Color32::from_rgb(255, 80, 80)
+        } else {
+            Color32::from_rgb(180, 0, 0)
+        };
+        ("●", color)
     } else {
-        ""
+        ("", Color32::TRANSPARENT)
     };
 
-    let color = if pc == addr {
-        egui::Color32::YELLOW
-    } else {
-        egui::Color32::RED
-    };
-
-    egui::RichText::new(label).monospace().color(color)
+    ui.label(RichText::new(label).monospace().color(color));
 }
