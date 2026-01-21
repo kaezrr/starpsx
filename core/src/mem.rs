@@ -169,6 +169,7 @@ impl System {
         match addr {
             ram::PADDR_START..=ram::PADDR_END => self.ram.read(addr),
             bios::PADDR_START..=bios::PADDR_END => self.bios.read(addr),
+            scratch::PADDR_START..=scratch::PADDR_END => self.scratch.read(addr),
             _ => 0xFFFFFFFF,
         }
     }

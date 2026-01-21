@@ -144,6 +144,7 @@ impl Emulator {
                         self.system =
                             Emulator::build_core(&self.bios_path, &self.file_path).unwrap();
                         self.shared_state.resume();
+                        info!("emulator thread restarted...");
                     }
 
                     UiCommand::Shutdown => {

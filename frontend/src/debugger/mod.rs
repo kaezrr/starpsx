@@ -78,6 +78,7 @@ impl Debugger {
 
         egui::SidePanel::left("debug_left")
             .resizable(false)
+            .min_width(400.0)
             .show(ctx, |ui| {
                 self.disassembly_view(ui);
             });
@@ -99,11 +100,13 @@ impl Debugger {
         ui.vertical(|ui| {
             ui.horizontal(|ui| {
                 ui.selectable_value(&mut self.state_view, StateView::Cpu, "CPU");
-                ui.selectable_value(&mut self.state_view, StateView::Gpu, "GPU");
-                ui.selectable_value(&mut self.state_view, StateView::Irq, "IRQ");
-                ui.selectable_value(&mut self.state_view, StateView::Spu, "SPU");
-                ui.selectable_value(&mut self.state_view, StateView::Sio0, "SIO0");
-                ui.selectable_value(&mut self.state_view, StateView::Cdrom, "CDROM");
+                ui.add_enabled_ui(false, |ui| {
+                    ui.selectable_value(&mut self.state_view, StateView::Gpu, "GPU");
+                    ui.selectable_value(&mut self.state_view, StateView::Irq, "IRQ");
+                    ui.selectable_value(&mut self.state_view, StateView::Spu, "SPU");
+                    ui.selectable_value(&mut self.state_view, StateView::Sio0, "SIO0");
+                    ui.selectable_value(&mut self.state_view, StateView::Cdrom, "CDROM");
+                });
             });
 
             ui.separator();
@@ -113,6 +116,22 @@ impl Debugger {
                 _ => todo!("view not implemented"),
             }
         });
+    }
+
+    fn cpu_register_changed(&self, i: usize) -> bool {
+        let Some(ref c) = self.curr_snapshot else {
+            return false;
+        };
+        let Some(ref p) = self.prev_snapshot else {
+            return false;
+        };
+
+        match i {
+            32 => c.hi != p.hi,
+            33 => c.lo != p.lo,
+            34 => c.pc != p.pc,
+            i => c.cpu_regs[i] != p.cpu_regs[i],
+        }
     }
 
     fn cpu_register_view(&self, ui: &mut egui::Ui) {
@@ -143,37 +162,39 @@ impl Debugger {
                     ui.strong("Value");
                 });
             })
-            .body(|mut body| {
+            .body(|body| {
                 let regs = snapshot.get_cpu_state();
-                let (regs, rem) = regs.as_chunks::<2>();
+                let rows = regs.len().div_ceil(2);
 
-                for r in regs {
-                    body.row(20.0, |mut row| {
-                        row.col(|ui| {
-                            ui.monospace(r[0].0);
-                        });
-                        row.col(|ui| {
-                            monospace_hex(ui, r[0].1, true);
-                        });
-                        row.col(|ui| {
-                            ui.monospace(r[1].0);
-                        });
-                        row.col(|ui| {
-                            monospace_hex(ui, r[1].1, true);
-                        });
-                    });
-                }
+                body.rows(20.0, rows, |mut row| {
+                    let i = row.index() * 2;
 
-                for r in rem {
-                    body.row(20.0, |mut row| {
+                    if let Some(&(name, val)) = regs.get(i) {
                         row.col(|ui| {
-                            ui.monospace(r.0);
+                            ui.monospace(name);
                         });
                         row.col(|ui| {
-                            monospace_hex(ui, r.1, true);
+                            if self.cpu_register_changed(i) {
+                                monospace_hex_change(ui, val);
+                            } else {
+                                monospace_hex(ui, val, true);
+                            }
                         });
-                    });
-                }
+                    }
+
+                    if let Some(&(name, val)) = regs.get(i + 1) {
+                        row.col(|ui| {
+                            ui.monospace(name);
+                        });
+                        row.col(|ui| {
+                            if self.cpu_register_changed(i + 1) {
+                                monospace_hex_change(ui, val);
+                            } else {
+                                monospace_hex(ui, val, true);
+                            }
+                        });
+                    }
+                });
             });
     }
 
@@ -209,7 +230,7 @@ impl Debugger {
                 .column(Column::exact(10.0))
                 .column(Column::exact(90.0))
                 .column(Column::exact(80.0))
-                .column(Column::auto())
+                .column(Column::remainder())
                 .animate_scrolling(false)
                 .header(20.0, |mut header| {
                     header.col(|ui| {
@@ -225,7 +246,7 @@ impl Debugger {
                         ui.strong("Instruction");
                     });
                 })
-                .body(|mut body| {
+                .body(|body| {
                     let diassembly = snapshot.get_disassembly();
                     let breakpoint_set: HashSet<u32> = self
                         .breakpoints
@@ -234,31 +255,32 @@ impl Debugger {
                         .map(|b| b.address)
                         .collect();
 
-                    for (addr, word, disasm) in diassembly {
-                        let is_pc_row = snapshot.pc == addr;
+                    body.rows(20.0, diassembly.len(), |mut row| {
+                        let i = row.index();
+                        let (addr, word, disasm) = &diassembly[i];
 
-                        body.row(20.0, |mut row| {
-                            row.col(|ui| {
-                                let response =
-                                    ui.label(get_disasm_label(snapshot.pc, addr, &breakpoint_set));
-                                if is_pc_row && !is_paused {
-                                    response.scroll_to_me(Some(Align::Min));
-                                }
-                            });
+                        let is_pc_row = snapshot.pc == *addr;
 
-                            row.col(|ui| {
-                                monospace_hex(ui, addr, true);
-                            });
-
-                            row.col(|ui| {
-                                monospace_hex(ui, word, false);
-                            });
-
-                            row.col(|ui| {
-                                ui.monospace(disasm);
-                            });
+                        row.col(|ui| {
+                            let response =
+                                ui.label(get_disasm_label(snapshot.pc, *addr, &breakpoint_set));
+                            if is_pc_row && !is_paused {
+                                response.scroll_to_me(Some(Align::Min));
+                            }
                         });
-                    }
+
+                        row.col(|ui| {
+                            monospace_hex(ui, *addr, true);
+                        });
+
+                        row.col(|ui| {
+                            monospace_hex(ui, *word, false);
+                        });
+
+                        row.col(|ui| {
+                            ui.monospace(disasm);
+                        });
+                    });
                 });
         });
 
@@ -315,26 +337,27 @@ impl Debugger {
                         ui.strong("");
                     });
                 })
-                .body(|mut body| {
+                .body(|body| {
                     let mut actions = Vec::new();
-                    for (i, br) in self.breakpoints.iter_mut().enumerate() {
-                        body.row(20.0, |mut row| {
-                            row.col(|ui| {
-                                let mut enabled = br.enabled;
-                                if ui.checkbox(&mut enabled, "").changed() {
-                                    actions.push(BreakpointAction::Toggle { index: i, enabled });
-                                };
-                            });
-                            row.col(|ui| {
-                                monospace_hex(ui, br.address, true);
-                            });
-                            row.col(|ui| {
-                                if ui.button("Delete").clicked() {
-                                    actions.push(BreakpointAction::Delete { index: i });
-                                }
-                            });
+                    body.rows(20.0, self.breakpoints.len(), |mut row| {
+                        let i = row.index();
+                        let br = &self.breakpoints[i];
+
+                        row.col(|ui| {
+                            let mut enabled = br.enabled;
+                            if ui.checkbox(&mut enabled, "").changed() {
+                                actions.push(BreakpointAction::Toggle { index: i, enabled });
+                            };
                         });
-                    }
+                        row.col(|ui| {
+                            monospace_hex(ui, br.address, true);
+                        });
+                        row.col(|ui| {
+                            if ui.button("Delete").clicked() {
+                                actions.push(BreakpointAction::Delete { index: i });
+                            }
+                        });
+                    });
 
                     for action in actions {
                         match action {
@@ -358,6 +381,14 @@ impl Debugger {
 
 fn monospace_hex(ui: &mut egui::Ui, val: u32, prefix: bool) {
     ui.monospace(format!("{}{val:08x}", if prefix { "0x" } else { "" }));
+}
+
+fn monospace_hex_change(ui: &mut egui::Ui, val: u32) {
+    ui.label(
+        egui::RichText::new(format!("0x{val:08x}"))
+            .monospace()
+            .color(egui::Color32::RED),
+    );
 }
 
 #[derive(PartialEq, Default)]

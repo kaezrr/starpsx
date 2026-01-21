@@ -9,28 +9,20 @@ pub struct DebugSnapshot {
 }
 
 impl DebugSnapshot {
-    pub fn get_cpu_state(&self) -> Vec<(&str, u32)> {
-        let mut registers = Vec::with_capacity(35);
-
-        for (i, v) in self.cpu_regs.into_iter().enumerate() {
-            registers.push((super::disasm::reg_name(i as u8), v));
-        }
-
-        registers.push(("hi", self.hi));
-        registers.push(("lo", self.lo));
-        registers.push(("pc", self.pc));
-
-        registers
+    pub fn get_cpu_state(&self) -> [(&str, u32); 35] {
+        std::array::from_fn(|i| match i {
+            32 => ("hi", self.hi),
+            33 => ("lo", self.lo),
+            34 => ("pc", self.pc),
+            _ => (super::disasm::reg_name(i as u8), self.cpu_regs[i]),
+        })
     }
 
-    pub fn get_disassembly(&self) -> Vec<(u32, u32, String)> {
-        let mut disasm = Vec::with_capacity(200);
-
-        for (addr, instr) in self.instructions {
+    pub fn get_disassembly(&self) -> [(u32, u32, String); 200] {
+        std::array::from_fn(|i| {
+            let (addr, instr) = self.instructions[i];
             let d = super::disasm::decode_instruction(instr, addr);
-            disasm.push((addr, instr, d));
-        }
-
-        disasm
+            (addr, instr, d)
+        })
     }
 }
