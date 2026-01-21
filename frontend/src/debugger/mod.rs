@@ -279,7 +279,7 @@ impl Debugger {
                         });
 
                         row.col(|ui| {
-                            ui.monospace(disasm);
+                            disasm.label_monospace(ui);
                         });
                     });
                 });
