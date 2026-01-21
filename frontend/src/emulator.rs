@@ -109,7 +109,6 @@ impl Emulator {
             cpu_regs: system_snapshot.cpu.regs,
             instructions: system_snapshot.ins,
         });
-        info!("sending snapshot");
         self.ui_ctx.request_repaint();
     }
 

@@ -188,30 +188,6 @@ impl System {
         SystemSnapshot { cpu, ins }
     }
 
-    // Run emulator for one frame and return the generated frame
-    pub fn run_frame(&mut self, show_vram: bool) -> FrameBuffer {
-        loop {
-            if let Some(event) = self.scheduler.get_next_event() {
-                match event {
-                    // Frame completes just before entering vsync
-                    Event::VBlankStart => return self.enter_vsync(show_vram),
-                    Event::VBlankEnd => Timers::exit_vsync(self),
-                    Event::HBlankStart => Timers::enter_hsync(self),
-                    Event::HBlankEnd => Timers::exit_hsync(self),
-                    Event::Timer(x) => Timers::process_interrupt(self, x),
-                    Event::SerialSend => Sio0::process_serial_send(self),
-                    Event::CdromResultIrq(x) => CdRom::handle_response(self, x),
-                }
-            }
-
-            // Fixed 2 CPI right now
-            Cpu::run_instruction(self);
-            self.scheduler.advance(2);
-
-            self.check_for_tty_output();
-        }
-    }
-
     pub fn step_instruction(&mut self, show_vram: bool) -> Option<FrameBuffer> {
         if let Some(event) = self.scheduler.get_next_event() {
             match event {
@@ -231,39 +207,39 @@ impl System {
         self.scheduler.advance(2);
 
         self.check_for_tty_output();
-
         None
     }
 
+    // Run emulator for one frame and return the generated frame
+    pub fn run_frame(&mut self, show_vram: bool) -> FrameBuffer {
+        loop {
+            match self.step_instruction(show_vram) {
+                Some(fb) => break fb,
+                None => continue,
+            }
+        }
+    }
+
+    // Run emulator until it generates a frame or hits a breakpoint
     pub fn run_breakpoint(
         &mut self,
         breakpoints: &HashSet<u32>,
         show_vram: bool,
     ) -> Option<FrameBuffer> {
         loop {
-            if let Some(event) = self.scheduler.get_next_event() {
-                match event {
-                    // Frame completes just before entering vsync
-                    Event::VBlankStart => return Some(self.enter_vsync(show_vram)),
-                    Event::VBlankEnd => Timers::exit_vsync(self),
-                    Event::HBlankStart => Timers::enter_hsync(self),
-                    Event::HBlankEnd => Timers::exit_hsync(self),
-                    Event::Timer(x) => Timers::process_interrupt(self, x),
-                    Event::SerialSend => Sio0::process_serial_send(self),
-                    Event::CdromResultIrq(x) => CdRom::handle_response(self, x),
-                }
-            }
-
-            // Fixed 2 CPI right now
-            Cpu::run_instruction(self);
-            self.scheduler.advance(2);
-
-            self.check_for_tty_output();
-
             if breakpoints.contains(&self.cpu.pc) {
                 return None;
             }
+
+            match self.step_instruction(show_vram) {
+                Some(fb) => break Some(fb),
+                None => continue,
+            }
         }
+    }
+
+    pub fn print_pc(&self) {
+        info!("pc={:08x}", self.cpu.pc);
     }
 }
 
