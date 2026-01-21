@@ -1,5 +1,4 @@
 mod cop0;
-pub mod disasm;
 mod instrs;
 pub mod utils;
 

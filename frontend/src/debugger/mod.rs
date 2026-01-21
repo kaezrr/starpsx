@@ -1,32 +1,64 @@
+mod disasm;
+pub mod snapshot;
+
+use std::collections::HashSet;
+use std::sync::mpsc::{Receiver, SyncSender};
+
 use eframe::egui;
 use egui_extras::Column;
 
-#[derive(PartialEq, Default)]
-enum StateView {
-    #[default]
-    Cpu,
-    Gpu,
-    Irq,
-    Sio0,
-    Spu,
-    Cdrom,
-}
+use crate::emulator::UiCommand;
+use snapshot::DebugSnapshot;
 
-struct Breakpoint {
-    address: u32,
-    enabled: bool,
-}
-
-#[derive(Default)]
 pub struct Debugger {
     breakpoints: Vec<Breakpoint>,
     state_view: StateView,
-    disasm_pc: u32,
     address_input: String,
+
+    input_tx: SyncSender<UiCommand>,
+    snapshot_rx: Receiver<DebugSnapshot>,
+
+    prev_snapshot: Option<DebugSnapshot>,
+    curr_snapshot: Option<DebugSnapshot>,
+
+    pub is_paused: bool,
 }
 
 impl Debugger {
+    pub fn new(input_tx: SyncSender<UiCommand>, snapshot_rx: Receiver<DebugSnapshot>) -> Self {
+        Self {
+            input_tx,
+            snapshot_rx,
+
+            breakpoints: Default::default(),
+            state_view: Default::default(),
+            address_input: Default::default(),
+            prev_snapshot: Default::default(),
+            curr_snapshot: Default::default(),
+            is_paused: Default::default(),
+        }
+    }
+    pub fn sync_send(&mut self, cmd: UiCommand) {
+        self.input_tx.send(cmd).unwrap();
+    }
+
+    pub fn send(&mut self, cmd: UiCommand) {
+        let _ = self.input_tx.try_send(cmd);
+    }
+
+    pub fn toggle_pause(&mut self) {
+        self.sync_send(UiCommand::SetPaused(!self.is_paused));
+        self.is_paused = !self.is_paused;
+    }
+
     pub fn show_ui(&mut self, ctx: &egui::Context) {
+        self.send(UiCommand::DebugRequestState);
+
+        if let Ok(snapshot) = self.snapshot_rx.try_recv() {
+            self.prev_snapshot = self.curr_snapshot.take();
+            self.curr_snapshot = Some(snapshot);
+        }
+
         egui::SidePanel::left("debug_left")
             .resizable(false)
             .show(ctx, |ui| {
@@ -63,6 +95,10 @@ impl Debugger {
     }
 
     fn cpu_register_view(&self, ui: &mut egui::Ui) {
+        let Some(ref snapshot) = self.curr_snapshot else {
+            return;
+        };
+
         egui_extras::TableBuilder::new(ui)
             .id_salt("cpu_state")
             .striped(true)
@@ -87,30 +123,54 @@ impl Debugger {
                 });
             })
             .body(|mut body| {
-                for i in (0..32).step_by(2) {
-                    body.row(30.0, |mut row| {
+                let regs = snapshot.get_cpu_state();
+                let (regs, rem) = regs.as_chunks::<2>();
+
+                for r in regs {
+                    body.row(20.0, |mut row| {
                         row.col(|ui| {
-                            ui.monospace(format!("reg{i:02}"));
+                            ui.monospace(r[0].0);
                         });
                         row.col(|ui| {
-                            ui.monospace("0x00000000");
+                            monospace_hex(ui, r[0].1, true);
                         });
                         row.col(|ui| {
-                            ui.monospace(format!("reg{:02}", i + 1));
+                            ui.monospace(r[1].0);
                         });
                         row.col(|ui| {
-                            ui.monospace("0x00000000");
+                            monospace_hex(ui, r[1].1, true);
+                        });
+                    });
+                }
+
+                for r in rem {
+                    body.row(20.0, |mut row| {
+                        row.col(|ui| {
+                            ui.monospace(r.0);
+                        });
+                        row.col(|ui| {
+                            monospace_hex(ui, r.1, true);
                         });
                     });
                 }
             });
     }
 
-    fn disassembly_view(&self, ui: &mut egui::Ui) {
+    fn disassembly_view(&mut self, ui: &mut egui::Ui) {
+        let Some(snapshot) = self.curr_snapshot.take() else {
+            return;
+        };
+
         ui.vertical(|ui| {
             ui.horizontal(|ui| {
-                if ui.button("Pause").clicked() {}
-                if ui.button("Step").clicked() {}
+                let label = if !self.is_paused { "Pause" } else { "Resume" };
+                if ui.button(label).clicked() {
+                    self.toggle_pause();
+                }
+
+                if ui.button("Step").clicked() {
+                    self.sync_send(UiCommand::DebugStep);
+                }
             });
 
             ui.separator();
@@ -139,24 +199,41 @@ impl Debugger {
                     });
                 })
                 .body(|mut body| {
-                    for i in 0..32 {
-                        body.row(30.0, |mut row| {
+                    let diassembly = snapshot.get_disassembly();
+                    let breakpoint_set: HashSet<u32> = self
+                        .breakpoints
+                        .iter()
+                        .filter(|b| b.enabled)
+                        .map(|b| b.address)
+                        .collect();
+
+                    for (addr, word, disasm) in diassembly {
+                        body.row(20.0, |mut row| {
                             row.col(|ui| {
-                                ui.monospace(if i == 3 { "⏵ " } else { "" });
+                                let label = if snapshot.pc == addr {
+                                    ">"
+                                } else if breakpoint_set.contains(&addr) {
+                                    "o"
+                                } else {
+                                    ""
+                                };
+                                ui.monospace(label);
                             });
                             row.col(|ui| {
-                                monospace_hex(ui, i * 4 + 0xfe100000);
+                                monospace_hex(ui, addr, true);
                             });
                             row.col(|ui| {
-                                ui.monospace("00000000");
+                                monospace_hex(ui, word, false);
                             });
                             row.col(|ui| {
-                                ui.monospace("sll 0, 0");
+                                ui.monospace(disasm);
                             });
                         });
                     }
                 });
         });
+
+        self.curr_snapshot = Some(snapshot);
     }
 
     fn breakpoints_ui(&mut self, ui: &mut egui::Ui) {
@@ -177,6 +254,7 @@ impl Debugger {
                             address,
                             enabled: true,
                         });
+                        self.sync_send(UiCommand::DebugSetBreakpoint(address, true));
                     }
                     self.address_input.clear();
                 }
@@ -209,31 +287,67 @@ impl Debugger {
                     });
                 })
                 .body(|mut body| {
-                    let mut delete_index = None;
+                    let mut actions = Vec::new();
                     for (i, br) in self.breakpoints.iter_mut().enumerate() {
-                        body.row(30.0, |mut row| {
+                        body.row(20.0, |mut row| {
                             row.col(|ui| {
-                                ui.checkbox(&mut br.enabled, "");
+                                let mut enabled = br.enabled;
+                                if ui.checkbox(&mut enabled, "").changed() {
+                                    actions.push(BreakpointAction::Toggle { index: i, enabled });
+                                };
                             });
                             row.col(|ui| {
-                                monospace_hex(ui, br.address);
+                                monospace_hex(ui, br.address, true);
                             });
                             row.col(|ui| {
                                 if ui.button("Delete").clicked() {
-                                    delete_index = Some(i);
+                                    actions.push(BreakpointAction::Delete { index: i });
                                 }
                             });
                         });
                     }
 
-                    if let Some(i) = delete_index {
-                        self.breakpoints.remove(i);
+                    for action in actions {
+                        match action {
+                            BreakpointAction::Toggle { index, enabled } => {
+                                let addr = self.breakpoints[index].address;
+                                self.breakpoints[index].enabled = enabled;
+                                self.sync_send(UiCommand::DebugSetBreakpoint(addr, enabled));
+                            }
+
+                            BreakpointAction::Delete { index } => {
+                                let addr = self.breakpoints[index].address;
+                                self.sync_send(UiCommand::DebugSetBreakpoint(addr, false));
+                                self.breakpoints.remove(index);
+                            }
+                        }
                     }
                 });
         });
     }
 }
 
-fn monospace_hex(ui: &mut egui::Ui, val: u32) {
-    ui.monospace(format!("0x{val:08x}"));
+fn monospace_hex(ui: &mut egui::Ui, val: u32, prefix: bool) {
+    ui.monospace(format!("{}{val:08x}", if prefix { "0x" } else { "" }));
+}
+
+#[derive(PartialEq, Default)]
+enum StateView {
+    #[default]
+    Cpu,
+    Gpu,
+    Irq,
+    Sio0,
+    Spu,
+    Cdrom,
+}
+
+struct Breakpoint {
+    address: u32,
+    enabled: bool,
+}
+
+enum BreakpointAction {
+    Toggle { index: usize, enabled: bool },
+    Delete { index: usize },
 }

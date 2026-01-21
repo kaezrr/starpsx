@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::error::Error;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -12,6 +13,7 @@ use starpsx_renderer::FrameBuffer;
 use tracing::info;
 
 use crate::config::RunnablePath;
+use crate::debugger::snapshot::DebugSnapshot;
 use crate::input::GamepadState;
 
 pub enum UiCommand {
@@ -19,6 +21,10 @@ pub enum UiCommand {
     SetPaused(bool),
     SetVramDisplay(bool),
     Shutdown,
+
+    DebugSetBreakpoint(u32, bool),
+    DebugStep,
+    DebugRequestState,
 }
 
 pub struct Emulator {
@@ -26,9 +32,12 @@ pub struct Emulator {
 
     frame_tx: SyncSender<FrameBuffer>,
     input_rx: Receiver<UiCommand>,
+    snapshot_tx: SyncSender<DebugSnapshot>,
 
     system: starpsx_core::System,
     shared_metrics: Arc<CoreMetrics>,
+
+    breakpoints: HashSet<u32>,
 
     is_paused: bool,
     show_vram: bool,
@@ -40,6 +49,8 @@ impl Emulator {
 
         frame_tx: SyncSender<FrameBuffer>,
         input_rx: Receiver<UiCommand>,
+        snapshot_tx: SyncSender<DebugSnapshot>,
+
         shared_metrics: Arc<CoreMetrics>,
 
         bios_path: &Path,
@@ -52,9 +63,12 @@ impl Emulator {
 
             frame_tx,
             input_rx,
+            snapshot_tx,
 
             system: Emulator::build_core(bios_path, file_path)?,
             shared_metrics,
+
+            breakpoints: HashSet::new(),
 
             is_paused: false,
             show_vram,
@@ -103,16 +117,32 @@ impl Emulator {
                     UiCommand::NewInputState(gamepad_state) => {
                         self.update_core_gamepad(gamepad_state)
                     }
+
                     UiCommand::SetPaused(is_paused) => {
                         self.is_paused = is_paused;
                     }
+
                     UiCommand::SetVramDisplay(show_vram) => {
                         self.show_vram = show_vram;
                     }
+
                     // Shutdown the thread
                     UiCommand::Shutdown => {
                         break 'emulator;
                     }
+
+                    UiCommand::DebugRequestState => {
+                        let _ = self.snapshot_tx.try_send(DebugSnapshot::default());
+                    }
+
+                    UiCommand::DebugSetBreakpoint(address, enabled) => {
+                        match enabled {
+                            true => self.breakpoints.insert(address),
+                            false => self.breakpoints.remove(&address),
+                        };
+                    }
+
+                    UiCommand::DebugStep => {}
                 }
             }
 
