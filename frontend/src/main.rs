@@ -7,7 +7,7 @@ mod debugger;
 mod emulator;
 mod input;
 
-use eframe::egui;
+use eframe::egui::{self, IconData};
 use tracing::error;
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::layer::SubscriberExt;
@@ -32,7 +32,8 @@ fn run_gui(launch_config: LaunchConfig) -> eframe::Result {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([1000.0, 800.0])
-            .with_min_inner_size([640.0, 480.0]),
+            .with_min_inner_size([640.0, 480.0])
+            .with_icon(IconData::default()),
         renderer: eframe::Renderer::Wgpu,
         vsync: true,
         ..Default::default()

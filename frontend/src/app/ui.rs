@@ -250,16 +250,14 @@ pub fn show_keybinds(open: &mut bool, ctx: &egui::Context) {
     egui::Window::new("Keybinds")
         .resizable(false)
         .collapsible(false)
-        .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
+        .default_pos(egui::pos2(30., 30.))
         .open(open)
         .show(ctx, |ui| {
             egui_extras::TableBuilder::new(ui)
                 .striped(true)
                 .resizable(false)
                 .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
-                .column(Column::auto())
-                .column(Column::auto())
-                .column(Column::auto())
+                .columns(Column::auto().at_least(100.0), 3)
                 .header(20.0, |mut header| {
                     header.col(|ui| {
                         ui.strong("Action");
@@ -271,20 +269,21 @@ pub fn show_keybinds(open: &mut bool, ctx: &egui::Context) {
                         ui.strong("Keyboard");
                     });
                 })
-                .body(|mut body| {
-                    for keybind in config::KEYBIND_ROWS {
-                        body.row(30.0, |mut row| {
-                            row.col(|ui| {
-                                ui.label(keybind.action);
-                            });
-                            row.col(|ui| {
-                                ui.label(keybind.controller);
-                            });
-                            row.col(|ui| {
-                                ui.label(keybind.keyboard);
-                            });
+                .body(|body| {
+                    body.rows(30.0, config::KEYBIND_ROWS.len(), |mut row| {
+                        let i = row.index();
+                        let keybind = &config::KEYBIND_ROWS[i];
+
+                        row.col(|ui| {
+                            ui.label(keybind.action);
                         });
-                    }
+                        row.col(|ui| {
+                            ui.label(keybind.controller);
+                        });
+                        row.col(|ui| {
+                            ui.label(keybind.keyboard);
+                        });
+                    });
                 })
         });
 }
