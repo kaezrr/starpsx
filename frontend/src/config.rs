@@ -8,6 +8,8 @@ use gilrs::Axis as GAxis;
 use gilrs::Button as GButton;
 use serde::{Deserialize, Serialize};
 use starpsx_core::gamepad;
+use tracing::error;
+use tracing::info;
 use tracing::warn;
 
 use crate::input;
@@ -52,7 +54,11 @@ impl LaunchConfig {
         let args = Args::parse();
         let runnable_path = args.file;
 
-        let config_path = resolve_config_path();
+        let config_path = dirs::config_dir()
+            .ok_or("could not find config directory")?
+            .join("starpsx")
+            .join("config.toml");
+
         let mut app_config = AppConfig::load_from_file(&config_path)
             .with_default_controller()
             .with_default_keyboard();
@@ -74,14 +80,6 @@ impl LaunchConfig {
     }
 }
 
-fn resolve_config_path() -> PathBuf {
-    std::env::current_exe()
-        .expect("exe path")
-        .parent()
-        .unwrap()
-        .join("config.toml")
-}
-
 #[derive(Serialize, Deserialize, Default)]
 #[serde(default)]
 pub struct AppConfig {
@@ -97,27 +95,37 @@ impl AppConfig {
     pub fn load_from_file(path: &Path) -> Self {
         if !path.exists() {
             warn!("no config file detected, writing a default one");
+
+            if let Some(parent) = path.parent() {
+                std::fs::create_dir_all(parent).expect("create config dir");
+            }
+
             let cfg = AppConfig::default();
             cfg.save_to_file(path);
+
             return cfg;
         }
 
         let text = match std::fs::read_to_string(path) {
-            Ok(t) => t,
+            Ok(t) => {
+                info!(?path, "found a valid config file at");
+                t
+            }
             Err(err) => {
-                warn!(%err, "failed to read config file, using defaults");
+                error!(%err, "failed to read config file, using defaults");
                 return AppConfig::default();
             }
         };
 
         toml::from_str(&text).unwrap_or_else(|err| {
-            warn!(%err, "config file was invalid, using a default config");
+            error!(%err, "config file was invalid, using a default config");
             AppConfig::default()
         })
     }
 
     pub fn save_to_file(&self, path: &Path) {
         if let Ok(toml_str) = toml::to_string_pretty(self) {
+            info!(?path, "saving config file to");
             let _ = std::fs::write(path, toml_str);
         }
     }
