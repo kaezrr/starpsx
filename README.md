@@ -12,12 +12,12 @@ StarPSX is a free, open-source PlayStation 1 emulator written in Rust. It featur
   <br/>
   <br/>
   
-  📖 **See the [Compatibility Wiki](https://github.com/kaezrr/starpsx/wiki/Compatibility) for a list of working games**
+  **See the [Compatibility Wiki](https://github.com/kaezrr/starpsx/wiki/Compatibility) for a list of working games**
 </div>
 
 ## Installation
 
-Download the latest binaries from the [official releases](https://github.com/kaezrr/starpsx/releases/latest) or if you are using Arch Linux based system, its available on the AUR as the `starpsx-bin` package.
+Download the latest binaries from the [official releases](https://github.com/kaezrr/starpsx/releases/latest) or if you are using an Arch Linux based system, its available on the AUR as the `starpsx-bin` package.
 
 ## Building
 
@@ -56,9 +56,28 @@ Options:
 
 ## Project Structure
 
+<div align="center">
+  <img src="/showcase/project-arch.svg" width="65%" alt="Project Architecture"/>
+</div>
+
 - **`core`**: Frontend-agnostic library containing the main emulator logic.
 - **`renderer`**: Software rasterizer written from scratch (hardware backend planned).
 - **`frontend`**: The main user interface crate implemented using `eframe` / `egui`.
+
+## Component Status
+
+| Component   | Status         | Notes                                   |
+| ----------- | -------------- | --------------------------------------- |
+| CPU         | 🟢 Done        | passes most test ROMs                   |
+| GPU         | 🟢 Done        | works well with some bugs               |
+| DMA         | 🟡 Partial     | burst and linked-list DMA supported     |
+| Timers      | 🟢 Done        | functional but may contain inaccuracies |
+| CDROM       | 🟡 Partial     | boots a few games                       |
+| GTE         | 🔴 Not started |                                         |
+| SPU         | 🔴 Not started |                                         |
+| Gamepad     | 🟢 Done        | full analog pad support                 |
+| Memory Card | 🔴 Not started |                                         |
+| MDEC        | 🔴 Not started |                                         |
 
 ## Acknowledgements
 
