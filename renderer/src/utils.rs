@@ -49,6 +49,11 @@ impl Color {
         pixel.to_color()
     }
 
+    pub fn with_full_alpha(mut self) -> Self {
+        self.mask = 0xFF;
+        self
+    }
+
     pub fn is_masked(&self) -> bool {
         self.mask == 1
     }

@@ -177,7 +177,7 @@ impl Emulator {
             }
 
             if self.shared_state.is_paused() {
-                std::thread::sleep(Duration::from_millis(1));
+                std::thread::sleep(Duration::from_millis(16));
                 continue;
             }
 

@@ -5,12 +5,12 @@ mod util;
 use std::error::Error;
 use std::path::PathBuf;
 use std::sync::{Arc, mpsc::TryRecvError};
+use std::task::{Context, Poll, Waker};
 use std::time::Duration;
 
 use eframe::egui::ViewportCommand;
 use eframe::egui::{self, Color32, ColorImage, vec2};
 use egui_notify::Toasts;
-use futures::FutureExt;
 use starpsx_renderer::FrameBuffer;
 use tracing::{error, info, trace};
 
@@ -45,7 +45,7 @@ pub struct Application {
 }
 
 impl eframe::App for Application {
-    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+    fn update(&mut self, ctx: &egui::Context, _: &mut eframe::Frame) {
         let is_paused_now = self.is_paused();
 
         if self.previous_pause != is_paused_now {
@@ -71,7 +71,7 @@ impl eframe::App for Application {
 
         ui::show_bios_modal(self, ctx);
 
-        ui::show_performance_panel(self, ctx, frame);
+        ui::show_performance_panel(self, ctx);
 
         if let Some(mut emu) = self.app_state.take() {
             // Process all the input events
@@ -360,9 +360,11 @@ impl Application {
             return Ok(());
         };
 
+        let mut ctx = Context::from_waker(Waker::noop());
+
         match dialog {
             PendingDialog::SelectBios(fut) => {
-                if let Some(result) = fut.now_or_never() {
+                if let Poll::Ready(result) = fut.as_mut().poll(&mut ctx) {
                     self.pending_dialog = None;
                     if let Some(file) = result {
                         self.app_config.bios_path = Some(file.path().to_path_buf());
@@ -371,7 +373,7 @@ impl Application {
                 }
             }
             PendingDialog::SelectFile(fut) => {
-                if let Some(result) = fut.now_or_never() {
+                if let Poll::Ready(result) = fut.as_mut().poll(&mut ctx) {
                     self.pending_dialog = None;
                     if let Some(file) = result {
                         self.start_file(file.path().to_path_buf())?;

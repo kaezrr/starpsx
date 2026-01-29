@@ -56,7 +56,7 @@ impl LaunchConfig {
 
         let config_path = dirs::config_dir()
             .ok_or("could not find config directory")?
-            .join("starpsx")
+            .join("StarPSX")
             .join("config.toml");
 
         let mut app_config = AppConfig::load_from_file(&config_path)

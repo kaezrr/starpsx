@@ -17,7 +17,7 @@ pub struct AppState {
 
 impl AppState {
     pub fn present_frame_buffer(&mut self, fb: FrameBuffer) {
-        let image = egui::ColorImage::from_rgba_premultiplied(
+        let image = egui::ColorImage::from_rgba_unmultiplied(
             [fb.resolution.0, fb.resolution.1],
             &fb.rgba_bytes,
         );

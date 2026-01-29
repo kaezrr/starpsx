@@ -97,7 +97,7 @@ impl Renderer {
                 for y in 0..height {
                     for x in 0..width {
                         let pixel = self.vram_read(sx + x, sy + y);
-                        pixel_buffer.push(Color::new_5bit(pixel));
+                        pixel_buffer.push(Color::new_5bit(pixel).with_full_alpha());
                     }
                 }
             }
@@ -112,8 +112,8 @@ impl Renderer {
                         let pixel0 = w0 | (w1 & 0xFF) << 16;
                         let pixel1 = (w2 << 8) | w1 >> 8;
 
-                        pixel_buffer.push(Color::new_8bit(pixel0));
-                        pixel_buffer.push(Color::new_8bit(pixel1));
+                        pixel_buffer.push(Color::new_8bit(pixel0).with_full_alpha());
+                        pixel_buffer.push(Color::new_8bit(pixel1).with_full_alpha());
 
                         vram_x += 3; // 3 words per 2 pixels
                     }

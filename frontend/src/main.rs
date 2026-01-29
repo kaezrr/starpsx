@@ -8,7 +8,7 @@ mod emulator;
 mod input;
 
 use eframe::egui::{self, IconData};
-use tracing::error;
+use tracing::{error, info};
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
@@ -34,8 +34,6 @@ fn run_gui(launch_config: LaunchConfig) -> eframe::Result {
             .with_inner_size([1000.0, 800.0])
             .with_min_inner_size([640.0, 480.0])
             .with_icon(IconData::default()),
-        renderer: eframe::Renderer::Wgpu,
-        vsync: true,
         ..Default::default()
     };
 
@@ -51,8 +49,12 @@ fn run_gui(launch_config: LaunchConfig) -> eframe::Result {
 
 fn init_logging(dir: &str, filename: &str) -> WorkerGuard {
     // Clear the previous log file
-    let path = std::path::Path::new(dir).join(filename);
-    let _ = std::fs::remove_file(path); // ignore errors
+    let path = dirs::data_local_dir()
+        .expect("local data directory")
+        .join("StarPSX")
+        .join(dir);
+
+    let _ = std::fs::remove_file(path.join(filename)); // ignore errors
 
     // Panics log to tracing now
     std::panic::set_hook(Box::new(|err| {
@@ -60,7 +62,7 @@ fn init_logging(dir: &str, filename: &str) -> WorkerGuard {
     }));
 
     // Start logging to stdout and log file
-    let file_appender = tracing_appender::rolling::never("logs", "psx.log");
+    let file_appender = tracing_appender::rolling::never(path.as_path(), filename);
     let (file_writer, file_guard) = tracing_appender::non_blocking(file_appender);
 
     let file_layer = fmt::layer()
@@ -77,6 +79,8 @@ fn init_logging(dir: &str, filename: &str) -> WorkerGuard {
         .with(stdout_layer)
         .with(filter)
         .init();
+
+    info!(?path, "initialized logging at");
 
     file_guard
 }

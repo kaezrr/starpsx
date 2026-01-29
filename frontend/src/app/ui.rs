@@ -10,7 +10,7 @@ use crate::{
 
 pub fn show_central_panel(app: &AppState, ctx: &egui::Context) {
     egui::CentralPanel::default()
-        .frame(egui::Frame::NONE)
+        .frame(egui::Frame::NONE.fill(egui::Color32::BLACK))
         .show(ctx, |ui| {
             // No resolution means show a 4:3 black screen
             let resolution = app.last_resolution.unwrap_or((4, 3));
@@ -173,7 +173,7 @@ pub fn show_info_modal(show_modal: &mut bool, ctx: &egui::Context) {
     }
 }
 
-pub fn show_performance_panel(app: &Application, ctx: &egui::Context, frame: &eframe::Frame) {
+pub fn show_performance_panel(app: &Application, ctx: &egui::Context) {
     egui::TopBottomPanel::bottom("bottom_panel").show(ctx, |ui| {
         let m = app.get_metrics();
         ui.horizontal(|ui| {
@@ -182,11 +182,7 @@ pub fn show_performance_panel(app: &Application, ctx: &egui::Context, frame: &ef
             ui.label(format!("Core: {:.2} ms ({} FPS)", m.core_ms, m.core_fps));
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if let Some(render_state) = frame.wgpu_render_state() {
-                    let info = &render_state.adapter.get_info();
-                    ui.label(format!("Software Renderer ({:?})", info.backend));
-                }
-
+                ui.label("Software Renderer");
                 ui.separator();
                 ui.label(match m.resolution {
                     Some((w, h)) => format!("{w}x{h}"),
