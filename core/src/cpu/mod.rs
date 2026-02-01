@@ -1,9 +1,11 @@
 mod cop0;
+mod gte;
 mod instrs;
 pub mod utils;
 
 use crate::System;
 use cop0::Cop0;
+use tracing::error;
 use utils::{Exception, Instruction};
 
 pub struct Cpu {
@@ -180,7 +182,10 @@ impl Cpu {
                 0x27 => Cpu::nor(system, instr),
                 0x2A => Cpu::slt(system, instr),
                 0x2B => Cpu::sltu(system, instr),
-                _ => Err(Exception::IllegalInstruction),
+                _ => {
+                    error!("Illegal instruction {:08x}", instr.0);
+                    Err(Exception::IllegalInstruction)
+                }
             },
             0x01 => Cpu::bxxx(system, instr),
             0x02 => Cpu::j(system, instr),
@@ -221,7 +226,10 @@ impl Cpu {
             0x39 => Cpu::swc1(),
             0x3A => Cpu::swc2(system, instr),
             0x3B => Cpu::swc3(),
-            _ => Err(Exception::IllegalInstruction),
+            _ => {
+                error!("Illegal instruction {:08x}", instr.0);
+                Err(Exception::IllegalInstruction)
+            }
         }
     }
 

@@ -71,4 +71,8 @@ impl Cop0 {
         system.cpu.cop0.sr = (system.cpu.cop0.sr & !0xF) | (mode >> 2);
         Ok(())
     }
+
+    pub fn gte_enabled(&self) -> bool {
+        (self.sr >> 30) & 1 != 0
+    }
 }
