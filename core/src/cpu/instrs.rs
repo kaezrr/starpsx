@@ -755,24 +755,6 @@ impl Cpu {
         Err(Exception::Break)
     }
 
-    pub fn cop2(system: &mut System, instr: Instruction) -> Result<(), Exception> {
-        check_valid_gte_access(system)?;
-
-        unimplemented!("GTE instruction instr={:#08x}", instr.0);
-    }
-
-    pub fn lwc2(system: &mut System, instr: Instruction) -> Result<(), Exception> {
-        check_valid_gte_access(system)?;
-
-        unimplemented!("GTE load word={:#08x}", instr.0);
-    }
-
-    pub fn swc2(system: &mut System, instr: Instruction) -> Result<(), Exception> {
-        check_valid_gte_access(system)?;
-
-        unimplemented!("GTE store word={:#08x}", instr.0);
-    }
-
     pub fn cop1() -> Result<(), Exception> {
         error!("coprocessor error, invalid instruction cop1");
         Err(Exception::CoprocessorError)
@@ -812,13 +794,4 @@ impl Cpu {
         error!("coprocessor error, invalid instruction swc3");
         Err(Exception::CoprocessorError)
     }
-}
-
-#[inline(always)]
-fn check_valid_gte_access(system: &System) -> Result<(), Exception> {
-    if system.cpu.cop0.gte_enabled() {
-        return Ok(());
-    }
-    error!("coprocessor error, trying to access gte while disabled");
-    Err(Exception::CoprocessorError)
 }
