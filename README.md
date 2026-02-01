@@ -51,9 +51,6 @@ Options:
   -V, --version        Print version
 ```
 
-> [!NOTE]
-> If you have multiple GPUs, you can use the environment variable `WGPU_POWER_PREF` (values: `none`, `low`, `high`) to force the application to use a specific device.
-
 ## Project Structure
 
 <div align="center">
