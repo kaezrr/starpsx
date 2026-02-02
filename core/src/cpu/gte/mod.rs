@@ -227,7 +227,7 @@ impl GTEngine {
             61 => self.zsf3.as_u32(),
             62 => self.zsf4.as_u32(),
 
-            63 => self.flag.0,
+            63 => self.flag.read(),
 
             _ => unimplemented!("invalid GTE register read: {r}"),
         }
@@ -343,6 +343,43 @@ fn check_valid_gte_access(system: &System) -> Result<(), Exception> {
 bitfield::bitfield! {
 #[derive(Default)]
     struct Flag(u32);
+    u8, err1, _: 30, 23;
+    u8, err2, _: 18, 13;
+
+    _, mac1_overflow_pos: 30;
+    _, mac2_overflow_pos: 29;
+    _, mac3_overflow_pos: 28;
+
+    _, mac1_overflow_neg: 27;
+    _, mac2_overflow_neg: 26;
+    _, mac3_overflow_neg: 25;
+
+    _, ir1_saturated: 24;
+    _, ir2_saturated: 23;
+    _, ir3_saturated: 22;
+
+    _, cfifo_r_saturated: 21;
+    _, cfifo_g_saturated: 20;
+    _, cfifo_b_saturated: 19;
+
+    _, sz3_or_otz_saturated: 18;
+
+    _, div_overflow: 17;
+
+    _, mac0_overflow_pos: 16;
+    _, mac0_overflow_neg: 15;
+
+    _, sx2_saturated: 14;
+    _, sy2_saturated: 13;
+
+    _, ir0_saturated: 12;
+}
+
+impl Flag {
+    fn read(&self) -> u32 {
+        let is_err = (self.err1() | self.err2()) != 0;
+        self.0 | ((is_err as u32) << 31)
+    }
 }
 
 bitfield::bitfield! {
