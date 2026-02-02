@@ -28,6 +28,10 @@ impl Instruction {
     pub fn imm16_se(&self) -> u32 {
         self.imm16_se_raw() as u32
     }
+
+    pub fn is_gte_command(&self) -> bool {
+        self.0 >> 25 == 0b0100101
+    }
 }
 
 #[derive(Debug)]
