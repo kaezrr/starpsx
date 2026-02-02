@@ -50,6 +50,9 @@ pub struct GTEngine {
 
     rgbc: Color,
 
+    /// Prohibited, should not be used
+    res1: Color,
+
     colors: ColorFifo,
 
     /// 16-bit vectors
@@ -58,7 +61,7 @@ pub struct GTEngine {
     ir: InterpolationVector,
 
     /// Interpolation Factor
-    ir0: FixedU16<12>,
+    ir0: FixedI16<12>,
 
     // Sum of products values
     mac: [FixedI32<0>; 4],
@@ -121,12 +124,21 @@ impl GTEngine {
 
             20..=22 => self.colors.fifo[r - 20].write_u32(data),
 
+            // RES1 prohibited/unused but readable and writeable
+            23 => self.res1.write_u32(data),
+
             24..=27 => self.mac[r - 24].write_u32(data),
 
             // IRGB and ORGB both are mirrors
             28 => self.ir.set_irgb(ColorConversion(data)),
 
+            // ORGB is read only
+            29 => {}
+
             30 => self.lzcs.write_u32(data),
+
+            // LZCR is read only
+            31 => {}
 
             32..=36 => self.rtm.write_reg_u32(r - 32, data),
 
@@ -156,10 +168,9 @@ impl GTEngine {
             61 => self.zsf3.write_u32(data),
             62 => self.zsf4.write_u32(data),
 
-            // Bits 30 - 12 writable
-            63 => self.flag.0 |= data & 0x7FFFF000,
+            63 => self.flag.write(data),
 
-            _ => unimplemented!("invalid GTE register read: {r}"),
+            _ => unimplemented!("invalid GTE register write: {r}"),
         };
     }
 
@@ -190,6 +201,9 @@ impl GTEngine {
             16..=19 => self.sz.fifo[r - 16].as_u32(),
 
             20..=22 => self.colors.fifo[r - 20].as_u32(),
+
+            // RES1 prohibited/unused but readable and writeable
+            23 => self.res1.as_u32(),
 
             24..=27 => self.mac[r - 24].as_u32(),
 
@@ -258,7 +272,7 @@ fn mfc2(system: &mut System, instr: Instruction) {
     let cop_r = instr.rd();
 
     let data = system.cpu.gte.read_reg(cop_r);
-    debug!("mfc2: cpu_reg{cpu_r} write <- {data:x}");
+    debug!("mfc2: cpu_reg{cpu_r} write <- cop2r{cop_r} = {data:x}");
 
     system.cpu.take_delayed_load(cpu_r, data);
 }
@@ -269,7 +283,7 @@ fn cfc2(system: &mut System, instr: Instruction) {
     let cop_r = instr.rd() + 32;
 
     let data = system.cpu.gte.read_reg(cop_r);
-    debug!("cfc2: cpu_reg{cpu_r} write <- {data:x}");
+    debug!("cfc2: cpu_reg{cpu_r} write <- cop2r{cop_r} = {data:x}");
 
     system.cpu.take_delayed_load(cpu_r, data);
 }
@@ -291,7 +305,7 @@ fn ctc2(system: &mut System, instr: Instruction) {
     let cop_r = instr.rd() + 32;
 
     let data = system.cpu.regs[cpu_r];
-    debug!("ctc2: cop2r{} write <- {data:x}", cop_r + 32);
+    debug!("ctc2: cop2r{} write <- {data:x}", cop_r);
 
     system.cpu.gte.write_reg(cop_r, data);
 }
@@ -380,14 +394,18 @@ impl Flag {
         let is_err = (self.err1() | self.err2()) != 0;
         self.0 | ((is_err as u32) << 31)
     }
+
+    fn write(&mut self, v: u32) {
+        self.0 = v & 0x7FFFF000;
+    }
 }
 
 bitfield::bitfield! {
 #[derive(Default)]
     struct ColorConversion(u32);
-    i16, r, set_r: 4, 0;
-    i16, g, set_g: 9, 5;
-    i16, b, set_b: 14, 10;
+    u16, r, set_r: 4, 0;
+    u16, g, set_g: 9, 5;
+    u16, b, set_b: 14, 10;
 }
 
 #[derive(Default, Clone, Copy)]
@@ -448,8 +466,8 @@ struct FarColor {
 
 #[derive(Default)]
 struct ScreenOffset {
-    x: FixedI16<16>,
-    y: FixedI16<16>,
+    x: FixedI32<16>,
+    y: FixedI32<16>,
 }
 
 #[derive(Default)]
@@ -476,7 +494,7 @@ impl Matrix3 {
         let msb = self.elems[r * 2 + 1].as_u32();
         let lsb = self.elems[r * 2].as_u32();
 
-        (msb << 16) | lsb
+        (msb << 16) | (lsb & 0xFFFF)
     }
 }
 
@@ -535,7 +553,7 @@ impl Vector2 {
     }
 
     fn as_u32(&self) -> u32 {
-        (self.y.as_u32() << 16) | self.x.as_u32()
+        (self.y.as_u32() << 16) | (self.x.as_u32() & 0xFFFF)
     }
 }
 
@@ -548,7 +566,7 @@ impl Vector3 {
     }
 
     fn xy(&self) -> u32 {
-        (self.y.as_u32() << 16) | self.x.as_u32()
+        (self.y.as_u32() << 16) | (self.x.as_u32() & 0xFFFF)
     }
 
     /// Sign extended z value
@@ -566,16 +584,16 @@ struct InterpolationVector {
 
 impl InterpolationVector {
     fn set_irgb(&mut self, irgb: ColorConversion) {
-        self.ir1 = (irgb.r() * 0x80).into();
-        self.ir2 = (irgb.g() * 0x80).into();
-        self.ir3 = (irgb.b() * 0x80).into();
+        self.ir1 = (irgb.r() as i16 * 0x80).into();
+        self.ir2 = (irgb.g() as i16 * 0x80).into();
+        self.ir3 = (irgb.b() as i16 * 0x80).into();
     }
 
     fn as_orgb(&mut self) -> ColorConversion {
         let mut orgb = ColorConversion(0);
-        orgb.set_r((self.ir1.0 / 0x80).clamp(0, 0x1F));
-        orgb.set_g((self.ir2.0 / 0x80).clamp(0, 0x1F));
-        orgb.set_b((self.ir3.0 / 0x80).clamp(0, 0x1F));
+        orgb.set_r((self.ir1.0 / 0x80).clamp(0, 0x1F) as u16);
+        orgb.set_g((self.ir2.0 / 0x80).clamp(0, 0x1F) as u16);
+        orgb.set_b((self.ir3.0 / 0x80).clamp(0, 0x1F) as u16);
         orgb
     }
 }
