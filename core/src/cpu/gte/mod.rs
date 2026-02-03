@@ -1,4 +1,5 @@
 mod commands;
+mod math_traits;
 
 use tracing::{debug, error};
 
@@ -18,13 +19,17 @@ pub struct GTEngine {
     /// Light color matrix
     lcm: Matrix3,
 
-    tr: TranslationVector,
+    /// Translation vector
+    tr: Vector3<i32, 0>,
 
-    bk: BackgroundColor,
+    /// Background color
+    bk: Vector3<i32, 12>,
 
-    fc: FarColor,
+    /// Far color
+    fc: Vector3<i32, 4>,
 
-    of: ScreenOffset,
+    /// Screen offset
+    of: Vector2<i32, 16>,
 
     /// Projection plane distance
     h: FixedI16<0>,
@@ -48,6 +53,7 @@ pub struct GTEngine {
 
     sz: ScreenZFifo,
 
+    /// Color and code register
     rgbc: Color,
 
     /// Prohibited, should not be used
@@ -56,9 +62,9 @@ pub struct GTEngine {
     colors: ColorFifo,
 
     /// 16-bit vectors
-    v: [Vector3; 3],
+    v: [Vector3<i16, 0>; 3],
 
-    ir: InterpolationVector,
+    ir: Vector3<i16, 0>,
 
     /// Interpolation Factor
     ir0: FixedI16<12>,
@@ -113,9 +119,9 @@ impl GTEngine {
             7 => self.otz.write_u32(data),
             8 => self.ir0.write_u32(data),
 
-            9 => self.ir.ir1.write_u32(data),
-            10 => self.ir.ir2.write_u32(data),
-            11 => self.ir.ir3.write_u32(data),
+            9 => self.ir.x.write_u32(data),
+            10 => self.ir.y.write_u32(data),
+            11 => self.ir.z.write_u32(data),
 
             12..=14 => self.sxy.fifo[r - 12].write_u32(data),
             // SXYP is a SXY2 mirror with move-on-write
@@ -132,7 +138,7 @@ impl GTEngine {
             25..=27 => self.macv.raw_reg_write(r - 25, data),
 
             // IRGB and ORGB both are mirrors
-            28 => self.ir.set_irgb(ColorConversion(data)),
+            28 => self.set_irgb(ColorConversion(data)),
 
             // ORGB is read only
             29 => {}
@@ -150,15 +156,15 @@ impl GTEngine {
 
             40..=44 => self.llm.write_reg_u32(r - 40, data),
 
-            45 => self.bk.r.write_u32(data),
-            46 => self.bk.g.write_u32(data),
-            47 => self.bk.b.write_u32(data),
+            45 => self.bk.x.write_u32(data),
+            46 => self.bk.y.write_u32(data),
+            47 => self.bk.z.write_u32(data),
 
             48..=52 => self.lcm.write_reg_u32(r - 48, data),
 
-            53 => self.fc.r.write_u32(data),
-            54 => self.fc.g.write_u32(data),
-            55 => self.fc.b.write_u32(data),
+            53 => self.fc.x.write_u32(data),
+            54 => self.fc.y.write_u32(data),
+            55 => self.fc.z.write_u32(data),
 
             56 => self.of.x.write_u32(data),
             57 => self.of.y.write_u32(data),
@@ -191,9 +197,9 @@ impl GTEngine {
             7 => self.otz.as_u32(),
             8 => self.ir0.as_u32(),
 
-            9 => self.ir.ir1.as_u32(),
-            10 => self.ir.ir2.as_u32(),
-            11 => self.ir.ir3.as_u32(),
+            9 => self.ir.x.as_u32(),
+            10 => self.ir.y.as_u32(),
+            11 => self.ir.z.as_u32(),
 
             12..=14 => self.sxy.fifo[r - 12].as_u32(),
 
@@ -211,7 +217,7 @@ impl GTEngine {
             25..=27 => self.macv.raw_reg_read(r - 25),
 
             // IRGB and ORGB both are mirrors
-            28..=29 => self.ir.as_orgb().0,
+            28..=29 => self.orgb(),
 
             30 => self.lzcs.as_u32(),
             31 => self.lzcr(),
@@ -224,15 +230,15 @@ impl GTEngine {
 
             40..=44 => self.llm.as_reg_u32(r - 40),
 
-            45 => self.bk.r.as_u32(),
-            46 => self.bk.g.as_u32(),
-            47 => self.bk.b.as_u32(),
+            45 => self.bk.x.as_u32(),
+            46 => self.bk.y.as_u32(),
+            47 => self.bk.z.as_u32(),
 
             48..=52 => self.lcm.as_reg_u32(r - 48),
 
-            53 => self.fc.r.as_u32(),
-            54 => self.fc.g.as_u32(),
-            55 => self.fc.b.as_u32(),
+            53 => self.fc.x.as_u32(),
+            54 => self.fc.y.as_u32(),
+            55 => self.fc.z.as_u32(),
 
             56 => self.of.x.as_u32(),
             57 => self.of.y.as_u32(),
@@ -257,6 +263,21 @@ impl GTEngine {
         } else {
             self.lzcs.0.leading_zeros()
         }
+    }
+
+    fn set_irgb(&mut self, irgb: ColorConversion) {
+        self.ir.x = (irgb.r() as i16 * 0x80).into();
+        self.ir.y = (irgb.g() as i16 * 0x80).into();
+        self.ir.z = (irgb.b() as i16 * 0x80).into();
+    }
+
+    /// Output color conversion register (mirror of irgb)
+    fn orgb(&self) -> u32 {
+        let mut orgb = ColorConversion(0);
+        orgb.set_r((self.ir.x.0 / 0x80).clamp(0, 0x1F) as u16);
+        orgb.set_g((self.ir.y.0 / 0x80).clamp(0, 0x1F) as u16);
+        orgb.set_b((self.ir.z.0 / 0x80).clamp(0, 0x1F) as u16);
+        orgb.0
     }
 
     fn command(&mut self, cmd: GteCommand) {
@@ -454,33 +475,6 @@ impl ColorFifo {
 }
 
 #[derive(Default)]
-struct TranslationVector {
-    x: FixedI32<0>,
-    y: FixedI32<0>,
-    z: FixedI32<0>,
-}
-
-#[derive(Default)]
-struct BackgroundColor {
-    r: FixedI32<12>,
-    g: FixedI32<12>,
-    b: FixedI32<12>,
-}
-
-#[derive(Default)]
-struct FarColor {
-    r: FixedI32<4>,
-    g: FixedI32<4>,
-    b: FixedI32<4>,
-}
-
-#[derive(Default)]
-struct ScreenOffset {
-    x: FixedI32<16>,
-    y: FixedI32<16>,
-}
-
-#[derive(Default)]
 struct Matrix3 {
     elems: [FixedI16<12>; 9],
 }
@@ -510,11 +504,11 @@ impl Matrix3 {
 
 #[derive(Default)]
 struct ScreenXYFifo {
-    fifo: [Vector2; 3],
+    fifo: [Vector2<i16, 0>; 3],
 }
 
 impl ScreenXYFifo {
-    fn push(&mut self, v: Vector2) {
+    fn push(&mut self, v: Vector2<i16, 0>) {
         self.fifo[0] = self.fifo[1];
         self.fifo[1] = self.fifo[2];
         self.fifo[2] = v;
@@ -536,19 +530,19 @@ impl ScreenZFifo {
 }
 
 #[derive(Default, Clone, Copy)]
-struct Vector3 {
-    x: FixedI16<0>,
-    y: FixedI16<0>,
-    z: FixedI16<0>,
+struct Vector3<T, const FB: usize> {
+    x: Fixed<T, FB>,
+    y: Fixed<T, FB>,
+    z: Fixed<T, FB>,
 }
 
 #[derive(Default, Clone, Copy)]
-struct Vector2 {
-    x: FixedI16<0>,
-    y: FixedI16<0>,
+struct Vector2<T, const FB: usize> {
+    x: Fixed<T, FB>,
+    y: Fixed<T, FB>,
 }
 
-impl Vector2 {
+impl<const FB: usize> Vector2<i16, FB> {
     fn from_u32(v: u32) -> Self {
         let msb = (v >> 16) as i16;
         let lsb = (v & 0xFFFF) as i16;
@@ -567,7 +561,7 @@ impl Vector2 {
     }
 }
 
-impl Vector3 {
+impl<const FB: usize> Vector3<i16, FB> {
     fn write_xy(&mut self, v: u32) {
         let msb = (v >> 16) as i16;
         let lsb = (v & 0xFFFF) as i16;
@@ -582,29 +576,6 @@ impl Vector3 {
     /// Sign extended z value
     fn zs(&self) -> u32 {
         self.z.as_u32()
-    }
-}
-
-#[derive(Default)]
-struct InterpolationVector {
-    ir1: FixedI16<0>,
-    ir2: FixedI16<0>,
-    ir3: FixedI16<0>,
-}
-
-impl InterpolationVector {
-    fn set_irgb(&mut self, irgb: ColorConversion) {
-        self.ir1 = (irgb.r() as i16 * 0x80).into();
-        self.ir2 = (irgb.g() as i16 * 0x80).into();
-        self.ir3 = (irgb.b() as i16 * 0x80).into();
-    }
-
-    fn as_orgb(&mut self) -> ColorConversion {
-        let mut orgb = ColorConversion(0);
-        orgb.set_r((self.ir1.0 / 0x80).clamp(0, 0x1F) as u16);
-        orgb.set_g((self.ir2.0 / 0x80).clamp(0, 0x1F) as u16);
-        orgb.set_b((self.ir3.0 / 0x80).clamp(0, 0x1F) as u16);
-        orgb
     }
 }
 
@@ -677,7 +648,7 @@ macro_rules! fixed_lossy_as_u32 {
 fixed_lossy_as_u32!(u16, i16, i32);
 
 bitfield::bitfield! {
-    struct GteCommand(u32);
+    pub struct GteCommand(u32);
     u8, into ShiftFraction, sf, _: 19, 19;
     u8, into MMVAMultiplyMatrix, mx, _: 18, 17;
     u8, into MMVAMultiplyVector, vx, _: 16, 15;
@@ -726,6 +697,7 @@ enum MMVAMultiplyVector {
     V2,
     IR,
 }
+
 impl From<u8> for MMVAMultiplyVector {
     fn from(value: u8) -> Self {
         match value {
