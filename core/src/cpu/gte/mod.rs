@@ -625,10 +625,14 @@ impl<T, const FB: usize> From<T> for Fixed<T, FB> {
     }
 }
 
+pub trait AsU32 {
+    fn as_u32(&self) -> u32;
+}
+
 macro_rules! fixed_lossy_as_u32 {
     ($($t:ty),+) => {
         $(
-            impl<const FB: usize> Fixed<$t, FB> {
+            impl<const FB: usize> AsU32 for Fixed<$t, FB> {
                 #[inline]
                 fn as_u32(&self) -> u32 {
                     self.0 as u32
