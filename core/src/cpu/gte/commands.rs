@@ -4,8 +4,12 @@ impl GTEngine {
     /// Perspective transformation(single)
     pub fn rtps(&mut self, cmd: GteCommand) {
         debug!("gte command, rtpt");
-        // IR = MAC = (TR * 1000h + RT * V0) SAR (sf * 12)
-        // push to screenz fifo = MAC3 SAR ((1 - sf) * 12)
+
+        let sf = cmd.sf();
+        let lm = SaturationRange::Signed16;
+
+        self.macv = (self.tr * 0x1000 + &self.rtm * self.v[0]) >> (sf * 12);
+        self.ir = Vector3::<i32>::from(self.macv).saturated(lm, true).into();
     }
 
     /// Perspective transformation(triple)
