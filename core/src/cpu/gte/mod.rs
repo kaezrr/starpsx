@@ -542,7 +542,7 @@ struct Vector3<T> {
     z: T,
 }
 
-#[derive(Default, Clone, Copy)]
+#[derive(Default, Debug, Clone, Copy)]
 struct Vector2<T> {
     x: T,
     y: T,

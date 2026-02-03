@@ -77,29 +77,19 @@ impl From<Vector3<i64>> for Vector3<i32> {
     }
 }
 
-impl Vector3<i32> {
+impl Vector3<i64> {
     // Saturates according to lm bit but rtpt doesnt follow it
-    pub fn saturated(self, lm: SaturationRange, rtpt: bool) -> Self {
+    pub fn saturated(self, lm: SaturationRange, rtpt: bool) -> Vector3<i16> {
         let min = match lm {
-            SaturationRange::Unsigned15 => 0,
             SaturationRange::Signed16 => -0x8000,
+            SaturationRange::Unsigned15 => 0,
         };
 
         // IR3 always follows lm bit (bug)
-        Self {
-            x: self.x.clamp(if rtpt { 0 } else { min }, 0x7FFF),
-            y: self.y.clamp(if rtpt { 0 } else { min }, 0x7FFF),
-            z: self.z.clamp(min, 0x7FFF),
-        }
-    }
-}
-
-impl From<Vector3<i32>> for Vector3<i16> {
-    fn from(value: Vector3<i32>) -> Self {
-        Self {
-            x: value.x as i16,
-            y: value.y as i16,
-            z: value.z as i16,
+        Vector3 {
+            x: (self.x as i32).clamp(if rtpt { -0x8000 } else { min }, 0x7FFF) as i16,
+            y: (self.y as i32).clamp(if rtpt { -0x8000 } else { min }, 0x7FFF) as i16,
+            z: (self.z as i32).clamp(min, 0x7FFF) as i16,
         }
     }
 }
