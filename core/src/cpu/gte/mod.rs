@@ -64,7 +64,8 @@ pub struct GTEngine {
     ir0: FixedI16<12>,
 
     // Sum of products values
-    mac: [FixedI32<0>; 4],
+    mac0: MultiplyAccumValue,
+    macv: MultiplyAccumVector,
 
     /// Leading count bit source data
     lzcs: FixedI32<0>,
@@ -77,7 +78,7 @@ pub fn cop2(system: &mut System, instr: Instruction) -> Result<(), Exception> {
     check_valid_gte_access(system)?;
 
     if instr.is_gte_command() {
-        system.cpu.gte.command(instr);
+        system.cpu.gte.command(GteCommand(instr.0));
         return Ok(());
     }
 
@@ -127,7 +128,8 @@ impl GTEngine {
             // RES1 prohibited/unused but readable and writeable
             23 => self.res1.write_u32(data),
 
-            24..=27 => self.mac[r - 24].write_u32(data),
+            24 => self.mac0.raw = data as i32,
+            25..=27 => self.macv.raw_reg_write(r - 25, data),
 
             // IRGB and ORGB both are mirrors
             28 => self.ir.set_irgb(ColorConversion(data)),
@@ -205,7 +207,8 @@ impl GTEngine {
             // RES1 prohibited/unused but readable and writeable
             23 => self.res1.as_u32(),
 
-            24..=27 => self.mac[r - 24].as_u32(),
+            24 => self.mac0.raw as u32,
+            25..=27 => self.macv.raw_reg_read(r - 25),
 
             // IRGB and ORGB both are mirrors
             28..=29 => self.ir.as_orgb().0,
@@ -256,8 +259,11 @@ impl GTEngine {
         }
     }
 
-    fn command(&mut self, instr: Instruction) {
-        match instr.sec() {
+    fn command(&mut self, cmd: GteCommand) {
+        self.flag.clear();
+
+        match cmd.opcode() {
+            0x01 => self.rtps(cmd),
             0x06 => self.nclip(),
             0x13 => self.ncds(),
             0x30 => self.rtpt(),
@@ -397,6 +403,10 @@ impl Flag {
 
     fn write(&mut self, v: u32) {
         self.0 = v & 0x7FFFF000;
+    }
+
+    fn clear(&mut self) {
+        self.0 = 0;
     }
 }
 
@@ -598,6 +608,38 @@ impl InterpolationVector {
     }
 }
 
+#[derive(Default)]
+struct MultiplyAccumValue {
+    raw: i32,
+}
+
+#[derive(Default)]
+struct MultiplyAccumVector {
+    raw1: i64,
+    raw2: i64,
+    raw3: i64,
+}
+
+impl MultiplyAccumVector {
+    fn raw_reg_read(&self, index: usize) -> u32 {
+        match index {
+            0 => self.raw1 as u32,
+            1 => self.raw2 as u32,
+            2 => self.raw3 as u32,
+            _ => panic!("invalid mma register"),
+        }
+    }
+
+    fn raw_reg_write(&mut self, index: usize, v: u32) {
+        match index {
+            0 => self.raw1 = v.into(),
+            1 => self.raw2 = v.into(),
+            2 => self.raw3 = v.into(),
+            _ => panic!("invalid mma register"),
+        };
+    }
+}
+
 #[derive(Default, Clone, Copy)]
 #[repr(transparent)]
 struct Fixed<T, const FB: usize>(T);
@@ -633,3 +675,99 @@ macro_rules! fixed_lossy_as_u32 {
 }
 
 fixed_lossy_as_u32!(u16, i16, i32);
+
+bitfield::bitfield! {
+    struct GteCommand(u32);
+    u8, into ShiftFraction, sf, _: 19, 19;
+    u8, into MMVAMultiplyMatrix, mx, _: 18, 17;
+    u8, into MMVAMultiplyVector, vx, _: 16, 15;
+    u8, into MMVATranslationVector, tx, _: 14, 13;
+    u8, into SaturationRange, lm, _: 10, 10;
+    u8, opcode, _ : 5, 0;
+}
+
+enum ShiftFraction {
+    None,
+    Bit12,
+}
+
+impl From<u8> for ShiftFraction {
+    fn from(value: u8) -> Self {
+        match value {
+            0 => Self::None,
+            1 => Self::Bit12,
+            _ => unreachable!("bool cannot reach here"),
+        }
+    }
+}
+
+enum MMVAMultiplyMatrix {
+    Rotation,
+    Light,
+    Color,
+    Reserved,
+}
+
+impl From<u8> for MMVAMultiplyMatrix {
+    fn from(value: u8) -> Self {
+        match value {
+            0 => Self::Rotation,
+            1 => Self::Light,
+            2 => Self::Color,
+            3 => Self::Reserved,
+            _ => unreachable!("2-bit cannot reach here"),
+        }
+    }
+}
+
+enum MMVAMultiplyVector {
+    V0,
+    V1,
+    V2,
+    IR,
+}
+impl From<u8> for MMVAMultiplyVector {
+    fn from(value: u8) -> Self {
+        match value {
+            0 => Self::V0,
+            1 => Self::V1,
+            2 => Self::V2,
+            3 => Self::IR,
+            _ => unreachable!("2 bit cannot reach here"),
+        }
+    }
+}
+
+enum MMVATranslationVector {
+    TranslationVector,
+    BackgroundColor,
+    FarColor,
+    None,
+}
+
+impl From<u8> for MMVATranslationVector {
+    fn from(value: u8) -> Self {
+        match value {
+            0 => Self::TranslationVector,
+            1 => Self::BackgroundColor,
+            2 => Self::FarColor,
+            3 => Self::None,
+            _ => panic!("2 bit cannot reach here"),
+        }
+    }
+}
+
+enum SaturationRange {
+    Unsigned15,
+    Signed16,
+}
+
+impl From<u8> for SaturationRange {
+    fn from(value: u8) -> Self {
+        match value {
+            0 => Self::Signed16,
+            1 => Self::Unsigned15,
+            _ => unreachable!("bool cannot reach here"),
+        }
+    }
+}

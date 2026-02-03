@@ -1,6 +1,11 @@
 use super::*;
 
 impl GTEngine {
+    /// Perspective transformation(single)
+    pub fn rtps(&mut self, cmd: GteCommand) {
+        debug!("gte command, rtpt");
+    }
+
     /// Perspective transformation(triple)
     pub fn rtpt(&mut self) {
         debug!("gte command, rtpt");
