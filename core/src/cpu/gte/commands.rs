@@ -14,9 +14,20 @@ impl GTEngine {
     pub fn nclip(&mut self) {
         debug!("gte command, nclip");
 
-        let s0 = self.sxy.fifo[0];
-        let s1 = self.sxy.fifo[1];
-        let s2 = self.sxy.fifo[2];
+        let s0 = Vector2 {
+            x: self.sxy[0].x as i64,
+            y: self.sxy[0].y as i64,
+        };
+
+        let s1 = Vector2 {
+            x: self.sxy[1].x as i64,
+            y: self.sxy[1].y as i64,
+        };
+
+        let s2 = Vector2 {
+            x: self.sxy[2].x as i64,
+            y: self.sxy[2].y as i64,
+        };
 
         self.mac0 = (s1 - s0).cross(s2 - s0);
 

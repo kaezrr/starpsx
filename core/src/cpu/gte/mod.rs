@@ -209,14 +209,14 @@ impl GTEngine {
             10 => self.ir.y as u32,
             11 => self.ir.z as u32,
 
-            12..=14 => self.sxy.fifo[r - 12].as_u32(),
+            12..=14 => self.sxy[r - 12].as_u32(),
 
             // SXYP is a SXY2 mirror with move-on-write
-            15 => self.sxy.fifo[2].as_u32(),
+            15 => self.sxy[2].as_u32(),
 
-            16..=19 => self.sz.fifo[r - 16] as u32,
+            16..=19 => self.sz[r - 16] as u32,
 
-            20..=22 => self.colors.fifo[r - 20].as_u32(),
+            20..=22 => self.colors[r - 20].as_u32(),
 
             // RES1 prohibited/unused but readable and writeable
             23 => self.res1.as_u32(),

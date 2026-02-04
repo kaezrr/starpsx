@@ -23,13 +23,13 @@ impl Vector2<i16> {
     }
 }
 
-impl Sub for Vector2<i16> {
+impl Sub for Vector2<i64> {
     type Output = Vector2<i64>;
 
     fn sub(self, rhs: Self) -> Self::Output {
         Vector2 {
-            x: self.x as i64 - rhs.x as i64,
-            y: self.y as i64 - rhs.y as i64,
+            x: self.x - rhs.x,
+            y: self.y - rhs.y,
         }
     }
 }
