@@ -1,7 +1,16 @@
 mod commands;
-mod math;
+mod mat3;
+mod util;
+mod vec2;
+mod vec3;
+
+use std::ops::{Index, IndexMut};
 
 use tracing::{error, trace};
+
+use mat3::Matrix3;
+use vec2::Vector2;
+use vec3::Vector3;
 
 use crate::{
     System,
@@ -49,9 +58,9 @@ pub struct GTEngine {
     /// Average Z value (for Ordering Table)
     otz: u16,
 
-    sxy: ScreenXYFifo,
+    sxy: FixedFifo<Vector2<i16>, 3>,
 
-    sz: ScreenZFifo,
+    sz: FixedFifo<u16, 4>,
 
     /// Color and code register
     rgbc: Color,
@@ -59,7 +68,7 @@ pub struct GTEngine {
     /// Prohibited, should not be used
     res1: Color,
 
-    colors: ColorFifo,
+    colors: FixedFifo<Color, 3>,
 
     /// 16-bit vectors
     v: [Vector3<i16>; 3],
@@ -119,13 +128,13 @@ impl GTEngine {
             10 => self.ir.y = data as i16,
             11 => self.ir.z = data as i16,
 
-            12..=14 => self.sxy.fifo[r - 12].write_u32(data),
+            12..=14 => self.sxy[r - 12].write_u32(data),
             // SXYP is a SXY2 mirror with move-on-write
             15 => self.sxy.push(Vector2::from_u32(data)),
 
-            16..=19 => self.sz.fifo[r - 16] = data as u16,
+            16..=19 => self.sz[r - 16] = data as u16,
 
-            20..=22 => self.colors.fifo[r - 20].write_u32(data),
+            20..=22 => self.colors[r - 20].write_u32(data),
 
             // RES1 prohibited/unused but readable and writeable
             23 => self.res1.write_u32(data),
@@ -286,7 +295,7 @@ impl GTEngine {
         self.flag.clear();
 
         match cmd.opcode() {
-            0x01 => self.rtps(cmd),
+            0x01 => self.rtps(),
             0x06 => self.nclip(),
             0x0C => self.op(cmd),
             0x10 => self.dpcs(),
@@ -312,27 +321,27 @@ impl GTEngine {
         }
     }
 
-    fn unr_div(&self) -> Option<i64> {
-        let h = self.h as u32;
-        let sz3 = self.sz.fifo[3];
-
-        if h >= (sz3 as u32 * 2) {
-            return None;
-        }
-
-        let z = sz3.leading_zeros();
-        let n = h << z;
-        let d_norm = (sz3 << z) as i64;
-
-        let u = UNR_TABLE[((d_norm - 0x7FC0) >> 7) as usize] + 0x101;
-
-        let d_refine = (0x2000080 - (d_norm * u)) >> 8;
-        let d_final = (0x0000080 + (d_refine * u)) >> 8;
-
-        let res = ((n as i64 * d_final) + 0x8000) >> 16;
-
-        Some(0x1FFFF.min(res))
-    }
+    // fn unr_div(&self) -> Option<i64> {
+    //     let h = self.h as u32;
+    //     let sz3 = self.sz.fifo[3];
+    //
+    //     if h >= (sz3 as u32 * 2) {
+    //         return None;
+    //     }
+    //
+    //     let z = sz3.leading_zeros();
+    //     let n = h << z;
+    //     let d_norm = (sz3 << z) as i64;
+    //
+    //     let u = UNR_TABLE[((d_norm - 0x7FC0) >> 7) as usize] + 0x101;
+    //
+    //     let d_refine = (0x2000080 - (d_norm * u)) >> 8;
+    //     let d_final = (0x0000080 + (d_refine * u)) >> 8;
+    //
+    //     let res = ((n as i64 * d_final) + 0x8000) >> 16;
+    //
+    //     Some(0x1FFFF.min(res))
+    // }
 }
 
 /// Transfer from data register
@@ -424,6 +433,16 @@ fn check_valid_gte_access(system: &System) -> Result<(), Exception> {
 }
 
 bitfield::bitfield! {
+    pub struct GteCommand(u32);
+    u8, sf, _: 19, 19;
+    u8, into MMVAMultiplyMatrix, mx, _: 18, 17;
+    u8, into MMVAMultiplyVector, vx, _: 16, 15;
+    u8, into MMVATranslationVector, tx, _: 14, 13;
+    u8, into SaturationRange, lm, _: 10, 10;
+    u8, opcode, _ : 5, 0;
+}
+
+bitfield::bitfield! {
 #[derive(Default)]
     struct Flag(u32);
     u8, err1, _: 30, 23;
@@ -503,128 +522,58 @@ impl Color {
     }
 }
 
-#[derive(Default)]
-struct ColorFifo {
-    fifo: [Color; 3],
+/// Fixed size first-in-first-out data structure
+struct FixedFifo<T, const LEN: usize>
+where
+    T: Default + Copy,
+{
+    fifo: [T; LEN],
 }
 
-impl ColorFifo {
-    fn push(&mut self, v: Color) {
-        self.fifo[0] = self.fifo[1];
-        self.fifo[1] = self.fifo[2];
-        self.fifo[2] = v;
-    }
-}
-
-#[derive(Default, Debug)]
-struct Matrix3 {
-    elems: [i16; 9],
-}
-
-impl Matrix3 {
-    fn write_reg_u32(&mut self, r: usize, v: u32) {
-        if r == 4 {
-            self.elems[8] = (v & 0xFFFF) as i16;
-            return;
+impl<T, const LEN: usize> FixedFifo<T, LEN>
+where
+    T: Copy + Default,
+{
+    // Shift fifo by LEN units and insert new value at the back
+    fn push(&mut self, v: T) {
+        for i in 0..(LEN - 1) {
+            self.fifo[i] = self.fifo[i + 1];
         }
-
-        self.elems[r * 2 + 1] = (v >> 16) as i16;
-        self.elems[r * 2] = (v & 0xFFFF) as i16;
-    }
-
-    fn as_reg_u32(&self, r: usize) -> u32 {
-        if r == 4 {
-            return self.elems[8] as u32;
-        }
-
-        let msb = self.elems[r * 2 + 1] as u32;
-        let lsb = self.elems[r * 2] as u32;
-
-        (msb << 16) | (lsb & 0xFFFF)
+        self.fifo[LEN - 1] = v;
     }
 }
 
-#[derive(Default)]
-struct ScreenXYFifo {
-    fifo: [Vector2<i16>; 3],
-}
-
-impl ScreenXYFifo {
-    fn push(&mut self, v: Vector2<i16>) {
-        self.fifo[0] = self.fifo[1];
-        self.fifo[1] = self.fifo[2];
-        self.fifo[2] = v;
+impl<T, const LEN: usize> IndexMut<usize> for FixedFifo<T, LEN>
+where
+    T: Default + Copy,
+{
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        debug_assert!(index < LEN);
+        &mut self.fifo[index]
     }
 }
 
-#[derive(Default)]
-struct ScreenZFifo {
-    fifo: [u16; 4],
-}
+impl<T, const LEN: usize> Index<usize> for FixedFifo<T, LEN>
+where
+    T: Default + Copy,
+{
+    type Output = T;
 
-impl ScreenZFifo {
-    fn push(&mut self, v: u16) {
-        self.fifo[0] = self.fifo[1];
-        self.fifo[1] = self.fifo[2];
-        self.fifo[2] = self.fifo[3];
-        self.fifo[3] = v;
+    fn index(&self, index: usize) -> &Self::Output {
+        debug_assert!(index < LEN);
+        &self.fifo[index]
     }
 }
 
-#[derive(Default, Debug, Clone, Copy)]
-struct Vector3<T> {
-    x: T,
-    y: T,
-    z: T,
-}
-
-#[derive(Default, Debug, Clone, Copy)]
-struct Vector2<T> {
-    x: T,
-    y: T,
-}
-
-impl Vector2<i16> {
-    fn from_u32(v: u32) -> Self {
-        Self {
-            y: (v >> 16) as i16,
-            x: (v & 0xFFFF) as i16,
+impl<T, const LEN: usize> Default for FixedFifo<T, LEN>
+where
+    T: Default + Copy,
+{
+    fn default() -> Self {
+        FixedFifo {
+            fifo: std::array::from_fn(|_| T::default()),
         }
     }
-
-    fn write_u32(&mut self, v: u32) {
-        *self = Self::from_u32(v);
-    }
-
-    fn as_u32(&self) -> u32 {
-        (self.y as u32) << 16 | (self.x as u32) & 0xFFFF
-    }
-}
-
-impl Vector3<i16> {
-    fn write_xy(&mut self, v: u32) {
-        self.y = (v >> 16) as i16;
-        self.x = (v & 0xFFFF) as i16;
-    }
-
-    fn xy(&self) -> u32 {
-        (self.y as u32) << 16 | self.x as u32 & 0xFFFF
-    }
-
-    /// Sign extended z value
-    fn zs(&self) -> u32 {
-        self.z as u32
-    }
-}
-
-bitfield::bitfield! {
-    pub struct GteCommand(u32);
-    u8, sf, _: 19, 19;
-    u8, into MMVAMultiplyMatrix, mx, _: 18, 17;
-    u8, into MMVAMultiplyVector, vx, _: 16, 15;
-    u8, into MMVATranslationVector, tx, _: 14, 13;
-    u8, into SaturationRange, lm, _: 10, 10;
-    u8, opcode, _ : 5, 0;
 }
 
 enum MMVAMultiplyMatrix {
@@ -698,23 +647,3 @@ impl From<u8> for SaturationRange {
         }
     }
 }
-
-const UNR_TABLE: [i64; 0x101] = [
-    0xFF, 0xFD, 0xFB, 0xF9, 0xF7, 0xF5, 0xF3, 0xF1, 0xEF, 0xEE, 0xEC, 0xEA, 0xE8, 0xE6, 0xE4, 0xE3,
-    0xE1, 0xDF, 0xDD, 0xDC, 0xDA, 0xD8, 0xD6, 0xD5, 0xD3, 0xD1, 0xD0, 0xCE, 0xCD, 0xCB, 0xC9, 0xC8,
-    0xC6, 0xC5, 0xC3, 0xC1, 0xC0, 0xBE, 0xBD, 0xBB, 0xBA, 0xB8, 0xB7, 0xB5, 0xB4, 0xB2, 0xB1, 0xB0,
-    0xAE, 0xAD, 0xAB, 0xAA, 0xA9, 0xA7, 0xA6, 0xA4, 0xA3, 0xA2, 0xA0, 0x9F, 0x9E, 0x9C, 0x9B, 0x9A,
-    0x99, 0x97, 0x96, 0x95, 0x94, 0x92, 0x91, 0x90, 0x8F, 0x8D, 0x8C, 0x8B, 0x8A, 0x89, 0x87, 0x86,
-    0x85, 0x84, 0x83, 0x82, 0x81, 0x7F, 0x7E, 0x7D, 0x7C, 0x7B, 0x7A, 0x79, 0x78, 0x77, 0x75, 0x74,
-    0x73, 0x72, 0x71, 0x70, 0x6F, 0x6E, 0x6D, 0x6C, 0x6B, 0x6A, 0x69, 0x68, 0x67, 0x66, 0x65, 0x64,
-    0x63, 0x62, 0x61, 0x60, 0x5F, 0x5E, 0x5D, 0x5D, 0x5C, 0x5B, 0x5A, 0x59, 0x58, 0x57, 0x56, 0x55,
-    0x54, 0x53, 0x53, 0x52, 0x51, 0x50, 0x4F, 0x4E, 0x4D, 0x4D, 0x4C, 0x4B, 0x4A, 0x49, 0x48, 0x48,
-    0x47, 0x46, 0x45, 0x44, 0x43, 0x43, 0x42, 0x41, 0x40, 0x3F, 0x3F, 0x3E, 0x3D, 0x3C, 0x3C, 0x3B,
-    0x3A, 0x39, 0x39, 0x38, 0x37, 0x36, 0x36, 0x35, 0x34, 0x33, 0x33, 0x32, 0x31, 0x31, 0x30, 0x2F,
-    0x2E, 0x2E, 0x2D, 0x2C, 0x2C, 0x2B, 0x2A, 0x2A, 0x29, 0x28, 0x28, 0x27, 0x26, 0x26, 0x25, 0x24,
-    0x24, 0x23, 0x22, 0x22, 0x21, 0x20, 0x20, 0x1F, 0x1E, 0x1E, 0x1D, 0x1D, 0x1C, 0x1B, 0x1B, 0x1A,
-    0x19, 0x19, 0x18, 0x18, 0x17, 0x16, 0x16, 0x15, 0x15, 0x14, 0x14, 0x13, 0x12, 0x12, 0x11, 0x11,
-    0x10, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0D, 0x0C, 0x0C, 0x0B, 0x0A, 0x0A, 0x09, 0x09, 0x08, 0x08,
-    0x07, 0x07, 0x06, 0x06, 0x05, 0x05, 0x04, 0x04, 0x03, 0x03, 0x02, 0x02, 0x01, 0x01, 0x00, 0x00,
-    0x00,
-];

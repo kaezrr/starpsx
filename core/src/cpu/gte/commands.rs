@@ -1,43 +1,12 @@
-use super::*;
 use tracing::debug;
 
-/// Check if mac0 postive or negative overflowed in 31 bits
-fn check_flag_mac0(f: &mut Flag, v: i64) {
-    if v.abs() > (1 << 31) {
-        if v.is_positive() {
-            f.mac0_overflow_pos(true);
-        } else {
-            f.mac0_overflow_neg(true);
-        }
-    }
-}
-
-/// Check if mac1/2/3 postive or negative overflowed in 43 bits
-fn check_flag_macv(f: &mut Flag, v: i64, index: usize) {
-    debug_assert!(matches!(index, 1..=3));
-
-    if v.abs() > (1 << 43) {
-        if v.is_positive() {
-            match index {
-                1 => f.mac1_overflow_pos(true),
-                2 => f.mac2_overflow_pos(true),
-                3 => f.mac3_overflow_pos(true),
-                _ => unreachable!(),
-            }
-        } else {
-            match index {
-                1 => f.mac1_overflow_neg(true),
-                2 => f.mac2_overflow_neg(true),
-                3 => f.mac3_overflow_neg(true),
-                _ => unreachable!(),
-            }
-        }
-    }
-}
+use super::*;
+use util::check_flag_mac0;
+use util::check_flag_macv;
 
 impl GTEngine {
     /// Perspective transformation(single)
-    pub fn rtps(&mut self, cmd: GteCommand) {
+    pub fn rtps(&mut self) {
         debug!("gte command, rtps");
     }
 
@@ -62,9 +31,9 @@ impl GTEngine {
         let lm = cmd.lm();
 
         let d = Vector3 {
-            x: self.rtm.elems[0] as i64,
-            y: self.rtm.elems[4] as i64,
-            z: self.rtm.elems[8] as i64,
+            x: self.rtm.at(0, 0) as i64,
+            y: self.rtm.at(1, 1) as i64,
+            z: self.rtm.at(2, 2) as i64,
         };
 
         let ir = Vector3 {
@@ -87,9 +56,24 @@ impl GTEngine {
         check_flag_macv(&mut self.flag, self.macv.z, 3);
     }
 
-    ///
+    /// Depth cueing (single)
     pub fn dpcs(&mut self) {
         debug!("gte command, dpcs");
+
+        let rgb_vec = Vector3 {
+            x: self.rgbc.r as i64,
+            y: self.rgbc.g as i64,
+            z: self.rgbc.b as i64,
+        };
+
+        let fc = Vector3 {
+            x: self.fc.x as i64,
+            y: self.fc.y as i64,
+            z: self.fc.z as i64,
+        };
+
+        let mac = rgb_vec << 16;
+        // self.macv = mac + (fc - mac) * self.ir0;
     }
 
     ///
