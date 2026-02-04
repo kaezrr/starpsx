@@ -5,6 +5,11 @@ pub fn m44(t: i64) -> i64 {
     (t << 20) >> 20
 }
 
+/// 32-bit math helper
+pub fn m32(t: i64) -> i64 {
+    (t << 32) >> 32
+}
+
 /// Saturate within [min..=max] and also return whether it overflowed
 pub fn checked_saturated<T>(curr: T, min: T, max: T) -> (T, bool)
 where

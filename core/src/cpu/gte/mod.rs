@@ -298,7 +298,7 @@ impl GTEngine {
             0x01 => self.rtps(),
             0x06 => self.nclip(),
             0x0C => self.op(cmd),
-            0x10 => self.dpcs(),
+            0x10 => self.dpcs(cmd),
             0x11 => self.intpl(),
             0x12 => self.mvmva(),
             0x13 => self.ncds(),

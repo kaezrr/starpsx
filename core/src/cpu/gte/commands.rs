@@ -68,13 +68,18 @@ impl GTEngine {
     }
 
     /// Depth cueing (single)
-    pub fn dpcs(&mut self) {
+    pub fn dpcs(&mut self, cmd: GteCommand) {
         debug!("gte command, dpcs");
 
+        let sf = cmd.sf();
+        let lm = cmd.lm();
+
+        let rgbc = self.rgbc;
+
         let rgb_vec = Vector3 {
-            x: self.rgbc.r as i64,
-            y: self.rgbc.g as i64,
-            z: self.rgbc.b as i64,
+            x: rgbc.r as i64,
+            y: rgbc.g as i64,
+            z: rgbc.b as i64,
         };
 
         let fc = Vector3 {
@@ -84,7 +89,26 @@ impl GTEngine {
         };
 
         let mac = rgb_vec << 16;
-        // self.macv = mac + (fc - mac) * self.ir0;
+        let mac = mac + (fc - mac) * (self.ir0 as i64);
+        self.macv = mac >> (sf * 12);
+
+        self.colors.push(Color {
+            c: rgbc.c,
+            r: (self.macv.x / 16) as u8,
+            g: (self.macv.y / 16) as u8,
+            b: (self.macv.z / 16) as u8,
+        });
+
+        let (v, ir_flags) = self.macv.saturated(lm);
+        self.ir = v;
+
+        self.flag.ir1_saturated(ir_flags[0]);
+        self.flag.ir2_saturated(ir_flags[1]);
+        self.flag.ir3_saturated(ir_flags[2]);
+
+        check_flag_macv(&mut self.flag, self.macv.x, 1);
+        check_flag_macv(&mut self.flag, self.macv.y, 2);
+        check_flag_macv(&mut self.flag, self.macv.z, 3);
     }
 
     ///

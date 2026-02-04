@@ -1,7 +1,7 @@
-use std::ops::{Add, Shl, Shr, Sub};
+use std::ops::{Add, Mul, Shl, Shr, Sub};
 
-use super::util::checked_saturated;
 use super::*;
+use util::checked_saturated;
 
 #[derive(Default, Debug, Clone, Copy)]
 pub struct Vector3<T> {
@@ -101,6 +101,18 @@ impl Shl<u8> for Vector3<i64> {
             x: self.x << rhs,
             y: self.y << rhs,
             z: self.z << rhs,
+        }
+    }
+}
+
+impl Mul<i64> for Vector3<i64> {
+    type Output = Self;
+
+    fn mul(self, rhs: i64) -> Self {
+        Self {
+            x: self.x * rhs,
+            y: self.y * rhs,
+            z: self.z * rhs,
         }
     }
 }
