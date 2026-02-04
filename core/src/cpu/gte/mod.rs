@@ -1,16 +1,9 @@
 mod commands;
-mod mat3;
 mod util;
-mod vec2;
-mod vec3;
 
 use std::ops::{Index, IndexMut};
 
 use tracing::{error, trace};
-
-use mat3::Matrix3;
-use vec2::Vector2;
-use vec3::Vector3;
 
 use crate::{
     System,
@@ -19,47 +12,49 @@ use crate::{
 
 #[derive(Default)]
 pub struct GTEngine {
-    /// Rotation matrix
-    rtm: Matrix3,
+    /// Rotation matrix (1, 3, 12)
+    rtm: [[i16; 3]; 3],
 
-    /// Light matrix
-    llm: Matrix3,
+    /// Light matrix (1, 3, 12)
+    llm: [[i16; 3]; 3],
 
-    /// Light color matrix
-    lcm: Matrix3,
+    /// Light color matrix (1, 3, 12)
+    lcm: [[i16; 3]; 3],
 
-    /// Translation vector
-    tr: Vector3<i32>,
+    /// Translation vector (1, 31, 0)
+    tr: [i32; 3],
 
-    /// Background color
-    bk: Vector3<i32>,
+    /// Background color (1, 19, 12)
+    bk: [i32; 3],
 
-    /// Far color
-    fc: Vector3<i32>,
+    /// Far color (1, 27, 4)
+    fc: [i32; 3],
 
-    /// Screen offset
-    of: Vector2<i32>,
+    /// Screen offset (1, 15, 16)
+    of: [i32; 2],
 
-    /// Projection plane distance
+    /// Projection plane distance (0, 16, 0)
     h: i16,
 
-    /// Depth queuing parameter A (coeff)
+    /// Depth queuing parameter A (coeff) (1, 7, 8)
     dqa: i16,
 
-    /// Depth queuing parameter B (offset)
+    /// Depth queuing parameter B (offset) (1, 7, 24)
     dqb: i32,
 
-    /// Z3 average scale factor
+    /// Z3 average scale factor (1, 3, 12)
     zsf3: i16,
 
-    /// Z4 average scale factor
+    /// Z4 average scale factor (1, 3, 12)
     zsf4: i16,
 
-    /// Average Z value (for Ordering Table)
+    /// Average Z value (for Ordering Table) (0, 15, 0)
     otz: u16,
 
-    sxy: FixedFifo<Vector2<i16>, 3>,
+    /// Screen XY coordinates (1, 15, 0)
+    sxy: FixedFifo<[i16; 2], 3>,
 
+    /// Screen Z coordinates (0, 16, 0)
     sz: FixedFifo<u16, 4>,
 
     /// Color and code register
@@ -70,19 +65,16 @@ pub struct GTEngine {
 
     colors: FixedFifo<Color, 3>,
 
-    /// 16-bit vectors
-    v: [Vector3<i16>; 3],
+    /// 16-bit vectors (1, 3, 12) or (1, 15, 0)
+    v: [[i16; 3]; 3],
 
-    ir: Vector3<i16>,
+    /// Interpolation Factors (1, 3, 12)
+    ir: [i16; 4],
 
-    /// Interpolation Factor
-    ir0: i16,
+    // Sum of products values (1, 31, 0)
+    mac: [i64; 4],
 
-    // Sum of products values
-    mac0: i64,
-    macv: Vector3<i64>,
-
-    /// Leading count bit source data
+    /// Leading count bit source data (1, 31, 0)
     lzcs: i32,
 
     /// Returns any calculation errors
@@ -111,26 +103,27 @@ pub fn cop2(system: &mut System, instr: Instruction) -> Result<(), Exception> {
 impl GTEngine {
     fn write_reg(&mut self, r: usize, data: u32) {
         match r {
-            0 => self.v[0].write_xy(data),
-            1 => self.v[0].z = data as i16,
+            0 => vec_xy_write(&mut self.v[0], data),
+            1 => self.v[0][2] = data as i16,
 
-            2 => self.v[1].write_xy(data),
-            3 => self.v[1].z = data as i16,
+            2 => vec_xy_write(&mut self.v[1], data),
+            3 => self.v[1][2] = data as i16,
 
-            4 => self.v[2].write_xy(data),
-            5 => self.v[2].z = data as i16,
+            4 => vec_xy_write(&mut self.v[2], data),
+            5 => self.v[2][2] = data as i16,
 
             6 => self.rgbc.write_u32(data),
             7 => self.otz = data as u16,
-            8 => self.ir0 = data as i16,
 
-            9 => self.ir.x = data as i16,
-            10 => self.ir.y = data as i16,
-            11 => self.ir.z = data as i16,
+            8..=11 => self.ir[r - 8] = data as i16,
 
-            12..=14 => self.sxy[r - 12].write_u32(data),
+            12..=14 => vec_xy_write(&mut self.sxy[r - 12], data),
             // SXYP is a SXY2 mirror with move-on-write
-            15 => self.sxy.push(Vector2::from_u32(data)),
+            15 => {
+                let mut v = [0; 2];
+                vec_xy_write(&mut v, data);
+                self.sxy.push(v);
+            }
 
             16..=19 => self.sz[r - 16] = data as u16,
 
@@ -139,11 +132,7 @@ impl GTEngine {
             // RES1 prohibited/unused but readable and writeable
             23 => self.res1.write_u32(data),
 
-            24 => self.mac0 = data as i64,
-
-            25 => self.macv.x = data as i64,
-            26 => self.macv.y = data as i64,
-            27 => self.macv.z = data as i64,
+            24..=27 => self.mac[r - 24] = data as i64,
 
             // IRGB and ORGB both are mirrors
             28 => self.set_irgb(ColorConversion(data)),
@@ -156,26 +145,19 @@ impl GTEngine {
             // LZCR is read only
             31 => {}
 
-            32..=36 => self.rtm.write_reg_u32(r - 32, data),
+            32..=36 => matrix_reg_write(&mut self.rtm, r - 32, data),
 
-            37 => self.tr.x = data as i32,
-            38 => self.tr.y = data as i32,
-            39 => self.tr.z = data as i32,
+            37..=39 => self.tr[r - 37] = data as i32,
 
-            40..=44 => self.llm.write_reg_u32(r - 40, data),
+            40..=44 => matrix_reg_write(&mut self.llm, r - 40, data),
 
-            45 => self.bk.x = data as i32,
-            46 => self.bk.y = data as i32,
-            47 => self.bk.z = data as i32,
+            45..=47 => self.bk[r - 45] = data as i32,
 
-            48..=52 => self.lcm.write_reg_u32(r - 48, data),
+            48..=52 => matrix_reg_write(&mut self.lcm, r - 48, data),
 
-            53 => self.fc.x = data as i32,
-            54 => self.fc.y = data as i32,
-            55 => self.fc.z = data as i32,
+            53..=55 => self.fc[r - 53] = data as i32,
 
-            56 => self.of.x = data as i32,
-            57 => self.of.y = data as i32,
+            56..=57 => self.of[r - 56] = data as i32,
 
             58 => self.h = data as i16,
             59 => self.dqa = data as i16,
@@ -192,27 +174,24 @@ impl GTEngine {
 
     fn read_reg(&mut self, r: usize) -> u32 {
         match r {
-            0 => self.v[0].xy(),
-            1 => self.v[0].zs(),
+            0 => vec_xy_read(&self.v[0]),
+            1 => self.v[0][2] as u32,
 
-            2 => self.v[1].xy(),
-            3 => self.v[1].zs(),
+            2 => vec_xy_read(&self.v[1]),
+            3 => self.v[1][2] as u32,
 
-            4 => self.v[2].xy(),
-            5 => self.v[2].zs(),
+            4 => vec_xy_read(&self.v[2]),
+            5 => self.v[2][2] as u32,
 
             6 => self.rgbc.as_u32(),
             7 => self.otz as u32,
-            8 => self.ir0 as u32,
 
-            9 => self.ir.x as u32,
-            10 => self.ir.y as u32,
-            11 => self.ir.z as u32,
+            8..=11 => self.ir[r - 8] as u32,
 
-            12..=14 => self.sxy[r - 12].as_u32(),
+            12..=14 => vec_xy_read(&self.sxy[r - 12]),
 
             // SXYP is a SXY2 mirror with move-on-write
-            15 => self.sxy[2].as_u32(),
+            15 => vec_xy_read(&self.sxy[2]),
 
             16..=19 => self.sz[r - 16] as u32,
 
@@ -221,11 +200,7 @@ impl GTEngine {
             // RES1 prohibited/unused but readable and writeable
             23 => self.res1.as_u32(),
 
-            24 => self.mac0 as u32,
-
-            25 => self.macv.x as u32,
-            26 => self.macv.y as u32,
-            27 => self.macv.z as u32,
+            24..=27 => self.mac[r - 24] as u32,
 
             // IRGB and ORGB both are mirrors
             28..=29 => self.orgb(),
@@ -233,26 +208,19 @@ impl GTEngine {
             30 => self.lzcs as u32,
             31 => self.lzcr(),
 
-            32..=36 => self.rtm.as_reg_u32(r - 32),
+            32..=36 => matrix_reg_read(&self.rtm, r - 32),
 
-            37 => self.tr.x as u32,
-            38 => self.tr.y as u32,
-            39 => self.tr.z as u32,
+            37..=39 => self.tr[r - 37] as u32,
 
-            40..=44 => self.llm.as_reg_u32(r - 40),
+            40..=44 => matrix_reg_read(&self.llm, r - 40),
 
-            45 => self.bk.x as u32,
-            46 => self.bk.y as u32,
-            47 => self.bk.z as u32,
+            45..=47 => self.bk[r - 45] as u32,
 
-            48..=52 => self.lcm.as_reg_u32(r - 48),
+            48..=52 => matrix_reg_read(&self.lcm, r - 48),
 
-            53 => self.fc.x as u32,
-            54 => self.fc.y as u32,
-            55 => self.fc.z as u32,
+            53..=55 => self.fc[r - 53] as u32,
 
-            56 => self.of.x as u32,
-            57 => self.of.y as u32,
+            56..=57 => self.of[r - 56] as u32,
 
             58 => self.h as u32,
             59 => self.dqa as u32,
@@ -277,17 +245,17 @@ impl GTEngine {
     }
 
     fn set_irgb(&mut self, irgb: ColorConversion) {
-        self.ir.x = irgb.r() as i16 * 0x80;
-        self.ir.y = irgb.g() as i16 * 0x80;
-        self.ir.z = irgb.b() as i16 * 0x80;
+        self.ir[1] = irgb.r() as i16 * 0x80;
+        self.ir[2] = irgb.g() as i16 * 0x80;
+        self.ir[3] = irgb.b() as i16 * 0x80;
     }
 
     /// Output color conversion register (mirror of irgb)
     fn orgb(&self) -> u32 {
         let mut orgb = ColorConversion(0);
-        orgb.set_r((self.ir.x / 0x80).clamp(0, 0x1F) as u16);
-        orgb.set_g((self.ir.y / 0x80).clamp(0, 0x1F) as u16);
-        orgb.set_b((self.ir.z / 0x80).clamp(0, 0x1F) as u16);
+        orgb.set_r((self.ir[1] / 0x80).clamp(0, 0x1F) as u16);
+        orgb.set_g((self.ir[2] / 0x80).clamp(0, 0x1F) as u16);
+        orgb.set_b((self.ir[3] / 0x80).clamp(0, 0x1F) as u16);
         orgb.0
     }
 
@@ -320,28 +288,42 @@ impl GTEngine {
             x => unimplemented!("GTE command {x:x}"),
         }
     }
+}
 
-    // fn unr_div(&self) -> Option<i64> {
-    //     let h = self.h as u32;
-    //     let sz3 = self.sz.fifo[3];
-    //
-    //     if h >= (sz3 as u32 * 2) {
-    //         return None;
-    //     }
-    //
-    //     let z = sz3.leading_zeros();
-    //     let n = h << z;
-    //     let d_norm = (sz3 << z) as i64;
-    //
-    //     let u = UNR_TABLE[((d_norm - 0x7FC0) >> 7) as usize] + 0x101;
-    //
-    //     let d_refine = (0x2000080 - (d_norm * u)) >> 8;
-    //     let d_final = (0x0000080 + (d_refine * u)) >> 8;
-    //
-    //     let res = ((n as i64 * d_final) + 0x8000) >> 16;
-    //
-    //     Some(0x1FFFF.min(res))
-    // }
+fn matrix_reg_read(m: &[[i16; 3]; 3], r: usize) -> u32 {
+    debug_assert!(r <= 4);
+    if r == 4 {
+        return m[2][2] as u32;
+    }
+
+    let elems = m.as_flattened();
+    let msb = elems[r * 2 + 1] as u32;
+    let lsb = elems[r * 2] as u32;
+
+    (msb << 16) | (lsb & 0xFFFF)
+}
+
+fn matrix_reg_write(m: &mut [[i16; 3]; 3], r: usize, v: u32) {
+    debug_assert!(r <= 4);
+    if r == 4 {
+        m[2][2] = (v & 0xFFFF) as i16;
+        return;
+    }
+
+    let elems = m.as_flattened_mut();
+    elems[r * 2 + 1] = (v >> 16) as i16;
+    elems[r * 2] = (v & 0xFFFF) as i16;
+}
+
+fn vec_xy_read(v: &[i16]) -> u32 {
+    let lsb = v[0] as u32;
+    let msb = v[1] as u32;
+    msb << 16 | (lsb & 0xFFFF)
+}
+
+fn vec_xy_write(v: &mut [i16], d: u32) {
+    v[0] = (d & 0xFFFF) as i16;
+    v[1] = (d >> 16) as i16;
 }
 
 /// Transfer from data register
