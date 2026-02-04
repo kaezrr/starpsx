@@ -1,7 +1,7 @@
 mod commands;
 mod math;
 
-use tracing::{debug, error};
+use tracing::{error, trace};
 
 use crate::{
     System,
@@ -93,11 +93,7 @@ pub fn cop2(system: &mut System, instr: Instruction) -> Result<(), Exception> {
         0x02 => cfc2(system, instr),
         0x04 => mtc2(system, instr),
         0x06 => ctc2(system, instr),
-        _ => unimplemented!(
-            "GTE instruction instr={:#08x} pc={:08x}",
-            instr.0,
-            system.cpu.pc
-        ),
+        _ => unimplemented!("GTE instruction instr={:#08x} ", instr.0),
     };
 
     Ok(())
@@ -292,7 +288,7 @@ impl GTEngine {
         match cmd.opcode() {
             0x01 => self.rtps(cmd),
             0x06 => self.nclip(),
-            0x0C => self.op(),
+            0x0C => self.op(cmd),
             0x10 => self.dpcs(),
             0x11 => self.intpl(),
             0x12 => self.mvmva(),
@@ -345,7 +341,7 @@ fn mfc2(system: &mut System, instr: Instruction) {
     let cop_r = instr.rd();
 
     let data = system.cpu.gte.read_reg(cop_r);
-    debug!("mfc2: cpu_reg{cpu_r} write <- cop2r{cop_r} = {data:x}");
+    trace!("mfc2: cpu_reg{cpu_r} write <- cop2r{cop_r} = {data:x}");
 
     system.cpu.take_delayed_load(cpu_r, data);
 }
@@ -356,7 +352,7 @@ fn cfc2(system: &mut System, instr: Instruction) {
     let cop_r = instr.rd() + 32;
 
     let data = system.cpu.gte.read_reg(cop_r);
-    debug!("cfc2: cpu_reg{cpu_r} write <- cop2r{cop_r} = {data:x}");
+    trace!("cfc2: cpu_reg{cpu_r} write <- cop2r{cop_r} = {data:x}");
 
     system.cpu.take_delayed_load(cpu_r, data);
 }
@@ -367,7 +363,7 @@ fn mtc2(system: &mut System, instr: Instruction) {
     let cop_r = instr.rd();
 
     let data = system.cpu.regs[cpu_r];
-    debug!("mtc2: cop2r{cop_r} write <- {data:x}");
+    trace!("mtc2: cop2r{cop_r} write <- {data:x}");
 
     system.cpu.gte.write_reg(cop_r, data);
 }
@@ -378,7 +374,7 @@ fn ctc2(system: &mut System, instr: Instruction) {
     let cop_r = instr.rd() + 32;
 
     let data = system.cpu.regs[cpu_r];
-    debug!("ctc2: cop2r{} write <- {data:x}", cop_r);
+    trace!("ctc2: cop2r{} write <- {data:x}", cop_r);
 
     system.cpu.gte.write_reg(cop_r, data);
 }
@@ -394,7 +390,7 @@ pub fn lwc2(system: &mut System, instr: Instruction) -> Result<(), Exception> {
     let addr = system.cpu.regs[rs].wrapping_add(im);
     let data = system.read::<u32>(addr)?;
 
-    debug!("lwc2: cop2r{rt} <- {data:x}");
+    trace!("lwc2: cop2r{rt} <- {data:x}");
 
     // Needs load delay
     system.cpu.gte.write_reg(rt, data);
@@ -412,7 +408,7 @@ pub fn swc2(system: &mut System, instr: Instruction) -> Result<(), Exception> {
     let addr = system.cpu.regs[rs].wrapping_add(im);
     let data = system.cpu.gte.read_reg(rt);
 
-    debug!("swc2: {addr:08x} <- cop2r{rt}");
+    trace!("swc2: {addr:08x} <- cop2r{rt}");
 
     system.write::<u32>(addr, data)?;
     Ok(())

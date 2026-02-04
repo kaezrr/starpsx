@@ -1,65 +1,32 @@
-use std::ops::{Add, Mul, Shr};
+use std::ops::{Add, Mul, Shr, Sub};
 
 use super::*;
 
-// NOTE: Every operation promotes types to FixedI64 to avoid overflows
+// NOTE: Every operation promotes types to i64 to avoid overflows
 
-impl Mul<i64> for Vector3<i32> {
-    type Output = Vector3<i64>;
+impl Sub for Vector2<i16> {
+    type Output = Vector2<i64>;
 
-    fn mul(self, rhs: i64) -> Self::Output {
-        Vector3 {
-            x: (self.x as i64) * rhs,
-            y: (self.y as i64) * rhs,
-            z: (self.z as i64) * rhs,
+    fn sub(self, rhs: Self) -> Self::Output {
+        Vector2 {
+            x: self.x as i64 - rhs.x as i64,
+            y: self.y as i64 - rhs.y as i64,
         }
     }
 }
 
-impl Mul<Vector3<i16>> for &Matrix3 {
-    type Output = Vector3<i64>;
-
-    fn mul(self, rhs: Vector3<i16>) -> Self::Output {
-        let dot = |row_idx: usize, vec: Vector3<i16>| -> i64 {
-            let m = &self.elems;
-            let i = row_idx * 3;
-
-            (m[i] as i64 * vec.x as i64)
-                + (m[i + 1] as i64 * vec.y as i64)
-                + (m[i + 2] as i64 * vec.z as i64)
-        };
-
-        Vector3 {
-            x: dot(0, rhs),
-            y: dot(1, rhs),
-            z: dot(2, rhs),
-        }
+impl Vector2<i64> {
+    pub fn cross(self, rhs: Self) -> i64 {
+        // Formula: (x1 * y2) - (y1 * x2)
+        self.x * rhs.y - self.y * rhs.x
     }
 }
 
-impl<T> Add<Vector3<T>> for Vector3<T>
-where
-    T: Add<T, Output = T>,
-{
-    type Output = Vector3<T>;
-
-    fn add(self, rhs: Vector3<T>) -> Self::Output {
-        Vector3 {
-            x: self.x + rhs.x,
-            y: self.y + rhs.y,
-            z: self.z + rhs.z,
-        }
-    }
-}
-
-impl<T> Shr<u8> for Vector3<T>
-where
-    T: Shr<u8, Output = T>,
-{
-    type Output = Vector3<T>;
+impl Shr<u8> for Vector3<i64> {
+    type Output = Self;
 
     fn shr(self, rhs: u8) -> Self::Output {
-        Vector3 {
+        Self {
             x: self.x >> rhs,
             y: self.y >> rhs,
             z: self.z >> rhs,
@@ -67,29 +34,54 @@ where
     }
 }
 
-impl From<Vector3<i64>> for Vector3<i32> {
-    fn from(value: Vector3<i64>) -> Self {
-        Self {
-            x: value.x as i32,
-            y: value.y as i32,
-            z: value.z as i32,
+impl Vector3<i64> {
+    pub fn cross(self, rhs: Self) -> Vector3<i64> {
+        Vector3 {
+            x: (self.y * rhs.z) - (self.z * rhs.y),
+            y: (self.z * rhs.x) - (self.x * rhs.z),
+            z: (self.x * rhs.y) - (self.y * rhs.x),
         }
     }
-}
 
-impl Vector3<i64> {
-    // Saturates according to lm bit but rtpt doesnt follow it
-    pub fn saturated(self, lm: SaturationRange, rtpt: bool) -> Vector3<i16> {
+    /// Saturates according to lm bit, also returns saturation status of each field
+    pub fn saturated(self, lm: SaturationRange) -> (Vector3<i16>, [bool; 3]) {
         let min = match lm {
             SaturationRange::Signed16 => -0x8000,
             SaturationRange::Unsigned15 => 0,
         };
 
-        // IR3 always follows lm bit (bug)
-        Vector3 {
-            x: (self.x as i32).clamp(if rtpt { -0x8000 } else { min }, 0x7FFF) as i16,
-            y: (self.y as i32).clamp(if rtpt { -0x8000 } else { min }, 0x7FFF) as i16,
-            z: (self.z as i32).clamp(min, 0x7FFF) as i16,
-        }
+        let (x, flag_x) = checked_saturated(self.x as i32, min, 0x7FFF);
+        let (y, flag_y) = checked_saturated(self.y as i32, min, 0x7FFF);
+        let (z, flag_z) = checked_saturated(self.z as i32, min, 0x7FFF);
+
+        (
+            Vector3 {
+                x: x as i16,
+                y: y as i16,
+                z: z as i16,
+            },
+            [flag_x, flag_y, flag_z],
+        )
     }
+}
+
+/// Saturate within [min..=max] and also return whether it overflowed
+fn checked_saturated<T>(curr: T, min: T, max: T) -> (T, bool)
+where
+    T: PartialOrd<T>,
+{
+    if curr < min {
+        return (min, true);
+    }
+
+    if curr > max {
+        return (max, true);
+    }
+
+    (curr, false)
+}
+
+/// 44-bit math helper
+fn m44(t: i64) -> i64 {
+    (t << 20) >> 20
 }
