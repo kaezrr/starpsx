@@ -1,5 +1,5 @@
 mod commands;
-mod util;
+mod utils;
 
 use std::ops::{Index, IndexMut};
 
@@ -9,6 +9,8 @@ use crate::{
     System,
     cpu::utils::{Exception, Instruction},
 };
+
+use utils::{matrix_reg_read, matrix_reg_write, vec_xy_read, vec_xy_write};
 
 #[derive(Default)]
 pub struct GTEngine {
@@ -85,7 +87,7 @@ pub fn cop2(system: &mut System, instr: Instruction) -> Result<(), Exception> {
     check_valid_gte_access(system)?;
 
     if instr.is_gte_command() {
-        system.cpu.gte.command(GteCommand(instr.0));
+        system.cpu.gte.command(CommandFields(instr.0));
         return Ok(());
     }
 
@@ -259,7 +261,7 @@ impl GTEngine {
         orgb.0
     }
 
-    fn command(&mut self, cmd: GteCommand) {
+    fn command(&mut self, cmd: CommandFields) {
         self.flag.clear();
 
         match cmd.opcode() {
@@ -288,42 +290,6 @@ impl GTEngine {
             x => unimplemented!("GTE command {x:x}"),
         }
     }
-}
-
-fn matrix_reg_read(m: &[[i16; 3]; 3], r: usize) -> u32 {
-    debug_assert!(r <= 4);
-    if r == 4 {
-        return m[2][2] as u32;
-    }
-
-    let elems = m.as_flattened();
-    let msb = elems[r * 2 + 1] as u32;
-    let lsb = elems[r * 2] as u32;
-
-    (msb << 16) | (lsb & 0xFFFF)
-}
-
-fn matrix_reg_write(m: &mut [[i16; 3]; 3], r: usize, v: u32) {
-    debug_assert!(r <= 4);
-    if r == 4 {
-        m[2][2] = (v & 0xFFFF) as i16;
-        return;
-    }
-
-    let elems = m.as_flattened_mut();
-    elems[r * 2 + 1] = (v >> 16) as i16;
-    elems[r * 2] = (v & 0xFFFF) as i16;
-}
-
-fn vec_xy_read(v: &[i16]) -> u32 {
-    let lsb = v[0] as u32;
-    let msb = v[1] as u32;
-    msb << 16 | (lsb & 0xFFFF)
-}
-
-fn vec_xy_write(v: &mut [i16], d: u32) {
-    v[0] = (d & 0xFFFF) as i16;
-    v[1] = (d >> 16) as i16;
 }
 
 /// Transfer from data register
@@ -415,7 +381,8 @@ fn check_valid_gte_access(system: &System) -> Result<(), Exception> {
 }
 
 bitfield::bitfield! {
-    pub struct GteCommand(u32);
+    #[derive(Clone, Copy)]
+    pub struct CommandFields(u32);
     u8, sf, _: 19, 19;
     u8, into MMVAMultiplyMatrix, mx, _: 18, 17;
     u8, into MMVAMultiplyVector, vx, _: 16, 15;
@@ -558,6 +525,7 @@ where
     }
 }
 
+#[derive(Clone, Copy)]
 enum MMVAMultiplyMatrix {
     Rotation,
     Light,
@@ -577,6 +545,7 @@ impl From<u8> for MMVAMultiplyMatrix {
     }
 }
 
+#[derive(Clone, Copy)]
 enum MMVAMultiplyVector {
     V0,
     V1,
@@ -596,6 +565,7 @@ impl From<u8> for MMVAMultiplyVector {
     }
 }
 
+#[derive(Clone, Copy)]
 enum MMVATranslationVector {
     TranslationVector,
     BackgroundColor,
@@ -615,6 +585,7 @@ impl From<u8> for MMVATranslationVector {
     }
 }
 
+#[derive(Clone, Copy)]
 enum SaturationRange {
     Unsigned15,
     Signed16,
