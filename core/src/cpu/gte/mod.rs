@@ -500,21 +500,21 @@ bitfield::bitfield! {
     u16, b, set_b: 14, 10;
 }
 
-#[derive(Default, Clone, Copy)]
+#[derive(Default, Clone, Debug, Copy)]
 struct Color {
     c: u8,
-    r: u8,
-    g: u8,
     b: u8,
+    g: u8,
+    r: u8,
 }
 
 impl Color {
     fn as_u32(&self) -> u32 {
-        u32::from_le_bytes([self.c, self.b, self.g, self.r])
+        u32::from_be_bytes([self.c, self.b, self.g, self.r])
     }
 
     fn write_u32(&mut self, v: u32) {
-        let bytes = v.to_le_bytes();
+        let bytes = v.to_be_bytes();
         self.c = bytes[0];
         self.b = bytes[1];
         self.g = bytes[2];
@@ -571,7 +571,7 @@ where
 {
     fn default() -> Self {
         FixedFifo {
-            fifo: std::array::from_fn(|_| T::default()),
+            fifo: [T::default(); LEN],
         }
     }
 }

@@ -86,7 +86,7 @@ impl GTEngine {
             x: self.fc.x as i64,
             y: self.fc.y as i64,
             z: self.fc.z as i64,
-        };
+        } << 12;
 
         let mac = rgb_vec << 16;
         let mac = mac + (fc - mac) * (self.ir0 as i64);
@@ -94,9 +94,9 @@ impl GTEngine {
 
         self.colors.push(Color {
             c: rgbc.c,
-            r: (self.macv.x / 16) as u8,
-            g: (self.macv.y / 16) as u8,
-            b: (self.macv.z / 16) as u8,
+            r: (self.macv.x >> 4) as u8,
+            g: (self.macv.y >> 4) as u8,
+            b: (self.macv.z >> 4) as u8,
         });
 
         let (v, ir_flags) = self.macv.saturated(lm);

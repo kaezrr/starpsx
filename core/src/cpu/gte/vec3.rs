@@ -2,6 +2,7 @@ use std::ops::{Add, Mul, Shl, Shr, Sub};
 
 use super::*;
 use util::checked_saturated;
+use util::m44;
 
 #[derive(Default, Debug, Clone, Copy)]
 pub struct Vector3<T> {
@@ -62,9 +63,9 @@ impl Sub for Vector3<i64> {
 
     fn sub(self, rhs: Self) -> Self::Output {
         Self {
-            x: self.x - rhs.x,
-            y: self.y - rhs.y,
-            z: self.y - rhs.y,
+            x: m44(self.x - rhs.x),
+            y: m44(self.y - rhs.y),
+            z: m44(self.z - rhs.z),
         }
     }
 }
@@ -74,9 +75,9 @@ impl Add for Vector3<i64> {
 
     fn add(self, rhs: Self) -> Self::Output {
         Self {
-            x: self.x + rhs.x,
-            y: self.y + rhs.y,
-            z: self.y + rhs.y,
+            x: m44(self.x + rhs.x),
+            y: m44(self.y + rhs.y),
+            z: m44(self.z + rhs.z),
         }
     }
 }
@@ -86,9 +87,9 @@ impl Shr<u8> for Vector3<i64> {
 
     fn shr(self, rhs: u8) -> Self::Output {
         Self {
-            x: self.x >> rhs,
-            y: self.y >> rhs,
-            z: self.z >> rhs,
+            x: m44(self.x) >> rhs,
+            y: m44(self.y) >> rhs,
+            z: m44(self.z) >> rhs,
         }
     }
 }
@@ -98,9 +99,9 @@ impl Shl<u8> for Vector3<i64> {
 
     fn shl(self, rhs: u8) -> Self::Output {
         Self {
-            x: self.x << rhs,
-            y: self.y << rhs,
-            z: self.z << rhs,
+            x: m44(self.x) << rhs,
+            y: m44(self.y) << rhs,
+            z: m44(self.z) << rhs,
         }
     }
 }
@@ -110,9 +111,9 @@ impl Mul<i64> for Vector3<i64> {
 
     fn mul(self, rhs: i64) -> Self {
         Self {
-            x: self.x * rhs,
-            y: self.y * rhs,
-            z: self.z * rhs,
+            x: m44(self.x * rhs),
+            y: m44(self.y * rhs),
+            z: m44(self.z * rhs),
         }
     }
 }
