@@ -15,7 +15,8 @@ use utils::{matrix_reg_read, matrix_reg_write, vec_xy_read, vec_xy_write};
 #[derive(Default)]
 pub struct GTEngine {
     /// Rotation, light and light color matrices (1, 3, 12)
-    matrices: [[[i16; 3]; 3]; 3],
+    /// Last one is a garbage matrix
+    matrices: [[[i16; 3]; 3]; 4],
 
     /// Translation vector (1, 31, 0)
     /// Background color (1, 19, 12)
@@ -60,7 +61,7 @@ pub struct GTEngine {
     colors: FixedFifo<[u8; 4], 3>,
 
     /// 16-bit vectors (1, 3, 12) or (1, 15, 0)
-    v: [[i16; 3]; 3],
+    v: [[i16; 3]; 4],
 
     /// Interpolation Factors (1, 3, 12)
     ir: [i16; 4],
@@ -378,7 +379,7 @@ bitfield::bitfield! {
     u8, sf, _: 19, 19;
     u8, into Matrix, mx, _: 18, 17;
     u8, into Vector, vx, _: 16, 15;
-    u8, into ControlVector, tx, _: 14, 13;
+    u8, into ControlVector, cv, _: 14, 13;
     u8, into Saturation, lm, _: 10, 10;
     u8, opcode, _ : 5, 0;
 }

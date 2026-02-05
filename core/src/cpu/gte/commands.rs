@@ -122,6 +122,7 @@ impl GTEngine {
     /// Multiply vector by matrix and vector addition
     pub fn mvmva(&mut self, fields: CommandFields) {
         debug!("gte command, mvmva");
+        self.multiply_matrix_by_vector(fields, fields.mx(), fields.vx(), fields.cv());
     }
 
     /// Normal color depth cue single vector
@@ -301,19 +302,69 @@ impl GTEngine {
         cv: ControlVector,
     ) {
         if mx == Matrix::Reserved {
-            panic!("Invalid multiplication matrix");
+            // Filling last matrix with garbage
+            self.matrices[3] = [
+                [
+                    -(self.rgbc[0] as i16) << 4,
+                    (self.rgbc[0] as i16) << 4,
+                    self.ir[0],
+                ],
+                [
+                    self.matrices[0][0][2],
+                    self.matrices[0][0][2],
+                    self.matrices[0][0][2],
+                ],
+                [
+                    self.matrices[0][1][1],
+                    self.matrices[0][1][1],
+                    self.matrices[0][1][1],
+                ],
+            ];
         }
 
-        if cv == ControlVector::FarColor {
-            panic!("Invalid control vector");
+        // Last vector is IR vector
+        if vx == Vector::IR {
+            self.v[3] = [self.ir[1], self.ir[2], self.ir[3]];
         }
 
-        let vector = if vx == Vector::IR {
-            [self.ir[1], self.ir[2], self.ir[3]]
-        } else {
-            self.v[vx as usize]
-        };
+        let is_farcolor = cv == ControlVector::FarColor;
 
-        let mx = &self.matrices[mx as usize];
+        let mx = mx as usize;
+        let cv = cv as usize;
+        let vx = vx as usize;
+
+        let sf = fields.sf() * 12;
+        let lm = fields.lm();
+
+        for r in 0..3 {
+            let prod1 = (self.v[vx][0] as i32) * (self.matrices[mx][r][0] as i32);
+            let prod2 = (self.v[vx][1] as i32) * (self.matrices[mx][r][1] as i32);
+            let prod3 = (self.v[vx][2] as i32) * (self.matrices[mx][r][2] as i32);
+
+            let mut res;
+            let add = (self.control_vectors[cv][r] as i64) << 12;
+
+            // Bugged
+            if is_farcolor {
+                res = self.i64_to_i44(r + 1, prod2 as i64);
+                res = self.i64_to_i44(r + 1, res + prod3 as i64);
+
+                // Calculation is ignored but flag is still set, wtf!
+                let sum = self.i64_to_i44(r + 1, add + prod1 as i64);
+                let mac = (sum >> sf) as i32;
+                let _ = self.i32_to_i16(r + 1, mac, Saturation::S16);
+            } else {
+                res = add;
+                res = self.i64_to_i44(r + 1, res + prod3 as i64);
+                res = self.i64_to_i44(r + 1, res + prod2 as i64);
+                res = self.i64_to_i44(r + 1, res + prod1 as i64);
+            }
+
+            self.mac[r + 1] = (res >> sf) as i32;
+        }
+
+        for i in 1..=3 {
+            self.ir[i] = self.i32_to_i16(i, self.mac[i], lm);
+        }
     }
 }
