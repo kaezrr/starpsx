@@ -28,7 +28,7 @@ pub struct GTEngine {
     of: [i32; 2],
 
     /// Projection plane distance (0, 16, 0)
-    h: i16,
+    h: u16,
 
     /// Depth queuing parameter A (coeff) (1, 7, 8)
     dqa: i16,
@@ -154,7 +154,7 @@ impl GTEngine {
 
             56..=57 => self.of[r - 56] = data as i32,
 
-            58 => self.h = data as i16,
+            58 => self.h = data as u16,
             59 => self.dqa = data as i16,
             60 => self.dqb = data as i32,
 
@@ -217,7 +217,8 @@ impl GTEngine {
 
             56..=57 => self.of[r - 56] as u32,
 
-            58 => self.h as u32,
+            // This gets sign extended despite being unsigned
+            58 => self.h as i16 as u32,
             59 => self.dqa as u32,
             60 => self.dqb as u32,
 
@@ -258,7 +259,7 @@ impl GTEngine {
         self.flag.clear();
 
         match fields.opcode() {
-            0x01 => self.rtps(),
+            0x01 => self.rtps(fields),
             0x06 => self.nclip(),
             0x0C => self.op(fields),
             0x10 => self.dpcs(fields),
