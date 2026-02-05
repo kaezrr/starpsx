@@ -111,34 +111,85 @@ impl GTEngine {
         self.dcpl(fields);
     }
 
-    ///
-    pub fn cdp(&mut self) {
+    /// Color depth cue
+    pub fn cdp(&mut self, fields: CommandFields) {
         debug!("gte command, cdp");
+
+        self.multiply_matrix_by_vector(fields, Matrix::Color, Vector::IR, ControlVec::Background);
+
+        self.dcpl(fields);
     }
 
-    ///
-    pub fn ncdt(&mut self) {
+    /// Normal color depth cue triple vectors
+    pub fn ncdt(&mut self, fields: CommandFields) {
         debug!("gte command, ncdt");
+
+        self.multiply_matrix_by_vector(fields, Matrix::Light, Vector::V0, ControlVec::None);
+        self.multiply_matrix_by_vector(fields, Matrix::Color, Vector::IR, ControlVec::Background);
+
+        self.dcpl(fields);
+
+        self.multiply_matrix_by_vector(fields, Matrix::Light, Vector::V1, ControlVec::None);
+        self.multiply_matrix_by_vector(fields, Matrix::Color, Vector::IR, ControlVec::Background);
+
+        self.dcpl(fields);
+
+        self.multiply_matrix_by_vector(fields, Matrix::Light, Vector::V2, ControlVec::None);
+        self.multiply_matrix_by_vector(fields, Matrix::Color, Vector::IR, ControlVec::Background);
+
+        self.dcpl(fields);
     }
 
-    ///
-    pub fn nccs(&mut self) {
+    /// Normal color color single vector
+    pub fn nccs(&mut self, fields: CommandFields) {
         debug!("gte command, nccs");
+
+        self.multiply_matrix_by_vector(fields, Matrix::Light, Vector::V0, ControlVec::None);
+        self.multiply_matrix_by_vector(fields, Matrix::Color, Vector::IR, ControlVec::Background);
+
+        self.dpcl_cc(fields);
     }
 
-    ///
-    pub fn cc(&mut self) {
+    /// Color color
+    pub fn cc(&mut self, fields: CommandFields) {
         debug!("gte command, cc");
+
+        self.multiply_matrix_by_vector(fields, Matrix::Color, Vector::IR, ControlVec::Background);
+        self.dpcl_cc(fields);
     }
 
-    ///
-    pub fn ncs(&mut self) {
+    /// Normal color single
+    pub fn ncs(&mut self, fields: CommandFields) {
         debug!("gte command, ncs");
+
+        self.multiply_matrix_by_vector(fields, Matrix::Light, Vector::V0, ControlVec::None);
+        self.multiply_matrix_by_vector(fields, Matrix::Color, Vector::IR, ControlVec::Background);
+
+        self.mac_to_ir(fields);
+        self.mac_to_color_push();
     }
 
-    ///
-    pub fn nct(&mut self) {
+    /// Normal color triple
+    pub fn nct(&mut self, fields: CommandFields) {
         debug!("gte command, nct");
+
+        self.multiply_matrix_by_vector(fields, Matrix::Light, Vector::V0, ControlVec::None);
+        self.multiply_matrix_by_vector(fields, Matrix::Color, Vector::IR, ControlVec::Background);
+
+        self.mac_to_ir(fields);
+        self.mac_to_color_push();
+
+        self.multiply_matrix_by_vector(fields, Matrix::Light, Vector::V1, ControlVec::None);
+        self.multiply_matrix_by_vector(fields, Matrix::Color, Vector::IR, ControlVec::Background);
+
+        self.mac_to_ir(fields);
+        self.mac_to_color_push();
+
+        self.multiply_matrix_by_vector(fields, Matrix::Light, Vector::V2, ControlVec::None);
+        self.multiply_matrix_by_vector(fields, Matrix::Color, Vector::IR, ControlVec::Background);
+
+        self.mac_to_ir(fields);
+        self.mac_to_color_push();
     }
 
     ///
@@ -363,6 +414,23 @@ impl GTEngine {
         }
 
         self.mac_to_ir(fields);
+    }
+
+    fn dpcl_cc(&mut self, fields: CommandFields) {
+        let sf = fields.sf() * 12;
+
+        for i in 0..3 {
+            let col = self.rgbc[i] as i64;
+            let ir = self.ir[i + 1] as i64;
+
+            let shaded = (col * ir) << 4;
+            let res = self.i64_to_i44(i + 1, shaded);
+
+            self.mac[i + 1] = (res >> sf) as i32;
+        }
+
+        self.mac_to_ir(fields);
+        self.mac_to_color_push();
     }
 
     fn mac_to_ir(&mut self, fields: CommandFields) {
