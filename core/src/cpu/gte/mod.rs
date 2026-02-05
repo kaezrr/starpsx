@@ -75,7 +75,7 @@ pub struct GTEngine {
     ir: [i16; 4],
 
     // Sum of products values (1, 31, 0)
-    mac: [i64; 4],
+    mac: [i32; 4],
 
     /// Leading count bit source data (1, 31, 0)
     lzcs: i32,
@@ -135,7 +135,7 @@ impl GTEngine {
             // RES1 prohibited/unused but readable and writeable
             23 => self.res1 = data.to_le_bytes(),
 
-            24..=27 => self.mac[r - 24] = data as i64,
+            24..=27 => self.mac[r - 24] = data as i32,
 
             // IRGB and ORGB both are mirrors
             28 => self.set_irgb(ColorConversion(data)),

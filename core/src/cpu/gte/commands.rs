@@ -16,15 +16,15 @@ impl GTEngine {
         let [x1, y1] = self.sxy[1];
         let [x2, y2] = self.sxy[2];
 
-        let (x0, y0) = (x0 as i32, y0 as i32);
-        let (x1, y1) = (x1 as i32, y1 as i32);
-        let (x2, y2) = (x2 as i32, y2 as i32);
+        let (x0, y0) = (x0 as i64, y0 as i64);
+        let (x1, y1) = (x1 as i64, y1 as i64);
+        let (x2, y2) = (x2 as i64, y2 as i64);
 
         let a = x0 * (y1 - y2);
         let b = x1 * (y2 - y0);
         let c = x2 * (y0 - y1);
 
-        self.mac[0] = self.mac_32_clamp(a as i64 + b as i64 + c as i64);
+        self.mac[0] = self.i64_to_i32(a + b + c);
     }
 
     /// Cross product of two vectors
@@ -33,27 +33,54 @@ impl GTEngine {
 
         let [_, ir1, ir2, ir3] = self.ir;
 
-        let (ir1, ir2, ir3) = (ir1 as i64, ir2 as i64, ir3 as i64);
+        let (ir1, ir2, ir3) = (ir1 as i32, ir2 as i32, ir3 as i32);
 
         let lm = fields.lm();
         let sf = fields.sf() * 12;
 
-        let d1 = self.rtm[0][0] as i64;
-        let d2 = self.rtm[1][1] as i64;
-        let d3 = self.rtm[2][2] as i64;
+        let d1 = self.rtm[0][0] as i32;
+        let d2 = self.rtm[1][1] as i32;
+        let d3 = self.rtm[2][2] as i32;
 
-        self.mac[1] = self.mac_44_clamp(1, d2 * ir3 - d3 * ir2) >> sf;
-        self.mac[2] = self.mac_44_clamp(2, d3 * ir1 - d1 * ir3) >> sf;
-        self.mac[3] = self.mac_44_clamp(3, d1 * ir2 - d2 * ir1) >> sf;
+        self.mac[1] = (d2 * ir3 - d3 * ir2) >> sf;
+        self.mac[2] = (d3 * ir1 - d1 * ir3) >> sf;
+        self.mac[3] = (d1 * ir2 - d2 * ir1) >> sf;
 
-        self.ir[1] = self.mac_to_ir(lm, 1);
-        self.ir[2] = self.mac_to_ir(lm, 2);
-        self.ir[3] = self.mac_to_ir(lm, 3);
+        for i in 1..=3 {
+            self.ir[i] = self.i32_to_i16(i, self.mac[i], lm);
+        }
     }
 
     /// Depth cueing (single)
-    pub fn dpcs(&mut self, cmd: CommandFields) {
+    pub fn dpcs(&mut self, fields: CommandFields) {
         debug!("gte command, dpcs");
+
+        let sf = fields.sf() * 12;
+        let lm = fields.lm();
+
+        for i in 0..3 {
+            let c = (self.rgbc[i] as i64) << 16;
+            let fc = (self.fc[i] as i64) << 12;
+            let ir0 = self.ir[0] as i64;
+
+            let sub = (self.i64_to_i44(i + 1, fc - c) >> sf) as i32;
+            let sat = self.i32_to_i16(i + 1, sub, Saturation::S16) as i64;
+            let res = self.i64_to_i44(i + 1, c + ir0 * sat);
+
+            self.mac[i + 1] = (res >> sf) as i32;
+        }
+
+        for i in 1..=3 {
+            self.ir[i] = self.i32_to_i16(i, self.mac[i], lm);
+        }
+
+        let color = [
+            self.i32_to_u8(0, self.mac[1] >> 4),
+            self.i32_to_u8(1, self.mac[2] >> 4),
+            self.i32_to_u8(2, self.mac[3] >> 4),
+            self.rgbc[3],
+        ];
+        self.colors.push(color);
     }
 
     ///
@@ -148,28 +175,28 @@ impl GTEngine {
 
     // --------------------------Helper Flag and Math Functions------------------------- //
 
-    fn mac_32_clamp(&mut self, mac: i64) -> i64 {
-        if mac > i32::MAX.into() {
+    fn i64_to_i32(&mut self, val: i64) -> i32 {
+        if val > i32::MAX.into() {
             self.flag.mac0_overflow_pos(true);
-        } else if mac < i32::MIN.into() {
+        } else if val < i32::MIN.into() {
             self.flag.mac0_overflow_neg(true);
         }
 
-        (mac << 32) >> 32
+        ((val << 32) >> 32) as i32
     }
 
-    fn mac_44_clamp(&mut self, mac_index: usize, mac: i64) -> i64 {
-        debug_assert!(matches!(mac_index, 1..=3));
+    fn i64_to_i44(&mut self, flag: usize, val: i64) -> i64 {
+        debug_assert!(matches!(flag, 1..=3));
 
-        if mac > 0x7FFFFFFFFFF {
-            match mac_index {
+        if val > 0x7FF_FFFF_FFFF {
+            match flag {
                 1 => self.flag.mac1_overflow_pos(true),
                 2 => self.flag.mac2_overflow_pos(true),
                 3 => self.flag.mac3_overflow_pos(true),
                 _ => unreachable!(),
             }
-        } else if mac < -0x80000000000 {
-            match mac_index {
+        } else if val < -0x800_0000_0000 {
+            match flag {
                 1 => self.flag.mac1_overflow_neg(true),
                 2 => self.flag.mac2_overflow_neg(true),
                 3 => self.flag.mac3_overflow_neg(true),
@@ -177,33 +204,61 @@ impl GTEngine {
             }
         }
 
-        (mac << 20) >> 20
+        (val << 20) >> 20
     }
 
-    fn mac_to_ir(&mut self, lm: SaturationRange, mac_index: usize) -> i16 {
-        debug_assert!(matches!(mac_index, 1..=3));
+    fn i32_to_i16(&mut self, flag: usize, val: i32, lm: Saturation) -> i16 {
+        debug_assert!(matches!(flag, 1..=3));
 
         let min = match lm {
-            SaturationRange::Unsigned15 => 0,
-            SaturationRange::Signed16 => -0x8000,
+            Saturation::S16 => i16::MIN.into(),
+            Saturation::U15 => 0,
         };
 
-        let res = self.mac[mac_index];
-        let (res, saturated) = if res > 0x7FFF {
-            (0x7FFF, true)
-        } else if res < min {
-            (min, true)
+        let max = i16::MAX.into();
+
+        let (res, saturated) = if val > max {
+            (max as i16, true)
+        } else if val < min {
+            (min as i16, true)
         } else {
-            (res, false)
+            (val as i16, false)
         };
 
-        match mac_index {
-            1 => self.flag.ir1_saturated(saturated),
-            2 => self.flag.ir2_saturated(saturated),
-            3 => self.flag.ir3_saturated(saturated),
-            _ => unreachable!(),
+        if saturated {
+            match flag {
+                1 => self.flag.ir1_saturated(true),
+                2 => self.flag.ir2_saturated(true),
+                3 => self.flag.ir3_saturated(true),
+                _ => unreachable!(),
+            }
         }
 
-        res as i16
+        res
+    }
+
+    fn i32_to_u8(&mut self, flag: usize, val: i32) -> u8 {
+        debug_assert!(matches!(flag, 0..3));
+
+        let (min, max) = (u8::MIN.into(), u8::MAX.into());
+
+        let (res, saturated) = if val > max {
+            (max as u8, true)
+        } else if val < min {
+            (min as u8, true)
+        } else {
+            (val as u8, false)
+        };
+
+        if saturated {
+            match flag {
+                0 => self.flag.cfifo_r_saturated(true),
+                1 => self.flag.cfifo_g_saturated(true),
+                2 => self.flag.cfifo_b_saturated(true),
+                _ => unreachable!(),
+            }
+        }
+
+        res
     }
 }
