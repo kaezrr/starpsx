@@ -4,8 +4,46 @@ use super::*;
 
 impl GTEngine {
     /// Perspective transformation(single)
-    pub fn rtps(&mut self) {
+    pub fn rtps(&mut self, fields: CommandFields) {
         debug!("gte command, rtps");
+
+        self.multiply_matrix_by_vector(
+            fields,
+            Matrix::Rotation,
+            Vector::V0,
+            ControlVec::Translation,
+        );
+
+        let sf = fields.sf();
+
+        let mac = self.mac[3] >> ((1 - sf) * 12);
+        let sz3 = self.i64_to_otz_sz3(mac as i64);
+
+        self.sz.push(sz3);
+
+        let projection_factor = if sz3 > self.h / 2 {
+            utils::divide(self.h, sz3)
+        } else {
+            self.flag.div_overflow(true);
+            0x1FFFF
+        };
+
+        let factor = projection_factor as i64;
+        let (x, y) = (self.ir[1] as i64, self.ir[2] as i64);
+        let (ofx, ofy) = (self.of[0] as i64, self.of[1] as i64);
+
+        let screen_x = x * factor + ofx;
+        let screen_y = y * factor + ofy;
+
+        self.mac0_overflow_check(screen_x);
+        self.mac0_overflow_check(screen_y);
+
+        let sx2 = self.i32_to_i11(true, (screen_x >> 16) as i32);
+        let sy2 = self.i32_to_i11(false, (screen_y >> 16) as i32);
+
+        self.sxy.push([sx2, sy2]);
+
+        self.depth_queuing(projection_factor);
     }
 
     /// Normal clipping
@@ -24,7 +62,10 @@ impl GTEngine {
         let b = x1 * (y2 - y0);
         let c = x2 * (y0 - y1);
 
-        self.mac[0] = self.i64_to_i32(a + b + c);
+        let sum = a + b + c;
+
+        self.mac[0] = sum as i32;
+        self.mac0_overflow_check(sum);
     }
 
     /// Cross product of two vectors
@@ -284,8 +325,10 @@ impl GTEngine {
         let sum = z1 + z2 + z3;
         let average = self.zsf3 as i64 * sum as i64;
 
-        self.mac[0] = self.i64_to_i32(average);
-        self.otz = self.i64_to_otz(average);
+        self.mac[0] = average as i32;
+        self.mac0_overflow_check(average);
+
+        self.otz = self.i64_to_otz_sz3(average);
     }
 
     /// Average of four Z values (for quads)
@@ -300,8 +343,10 @@ impl GTEngine {
         let sum = z0 + z1 + z2 + z3;
         let average = self.zsf4 as i64 * sum as i64;
 
-        self.mac[0] = self.i64_to_i32(average);
-        self.otz = self.i64_to_otz(average);
+        self.mac[0] = average as i32;
+        self.mac0_overflow_check(average);
+
+        self.otz = self.i64_to_otz_sz3(average);
     }
 
     /// Perspective transformation (triple)
@@ -362,14 +407,12 @@ impl GTEngine {
 
     // --------------------------Helper Flag and Math Functions------------------------- //
 
-    fn i64_to_i32(&mut self, val: i64) -> i32 {
+    fn mac0_overflow_check(&mut self, val: i64) {
         if val > i32::MAX.into() {
             self.flag.mac0_overflow_pos(true);
         } else if val < i32::MIN.into() {
             self.flag.mac0_overflow_neg(true);
         }
-
-        ((val << 32) >> 32) as i32
     }
 
     fn i64_to_i44(&mut self, flag: usize, val: i64) -> i64 {
@@ -533,7 +576,26 @@ impl GTEngine {
         self.colors.push(color);
     }
 
-    fn i64_to_otz(&mut self, val: i64) -> u16 {
+    fn i32_to_i11(&mut self, is_x: bool, val: i32) -> i16 {
+        let (res, saturated) = if val < -0x400 {
+            (-0x400, true)
+        } else if val > 0x3FF {
+            (0x3FF, true)
+        } else {
+            (val, false)
+        };
+
+        if saturated {
+            match is_x {
+                true => self.flag.sx2_saturated(true),
+                false => self.flag.sy2_saturated(true),
+            }
+        }
+
+        res as i16
+    }
+
+    fn i64_to_otz_sz3(&mut self, val: i64) -> u16 {
         let val = val >> 12;
 
         let (res, saturated) = if val < 0 {
@@ -549,5 +611,27 @@ impl GTEngine {
         }
 
         res as u16
+    }
+
+    fn depth_queuing(&mut self, projection_factor: u32) {
+        let (dqa, dqb) = (self.dqa as i64, self.dqb as i64);
+
+        let factor = projection_factor as i64;
+        let res = dqa * factor + dqb;
+
+        self.mac[0] = res as i32;
+        self.mac0_overflow_check(res);
+
+        let res = res >> 12;
+
+        self.ir[0] = if res < 0 {
+            self.flag.ir0_saturated(true);
+            0x0000
+        } else if res > 0x1000 {
+            self.flag.ir0_saturated(true);
+            0x1000
+        } else {
+            res as i16
+        };
     }
 }
