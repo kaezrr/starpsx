@@ -328,18 +328,12 @@ impl GTEngine {
 
         let is_farcolor = cv == ControlVec::FarColor;
 
-        debug!(?cv, ?mx, ?vx);
-
         let mx = mx as usize;
         let cv = cv as usize;
         let vx = vx as usize;
 
         let sf = fields.sf() * 12;
         let lm = fields.lm();
-
-        debug!(vec=?self.v[vx]);
-        debug!(mat=?self.matrices[mx]);
-        debug!(cve=?self.control_vectors[cv]);
 
         for r in 0..3 {
             let prod1 = (self.v[vx][0] as i32) * (self.matrices[mx][r][0] as i32);
