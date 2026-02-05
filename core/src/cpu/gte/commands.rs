@@ -54,7 +54,7 @@ impl GTEngine {
         debug!("gte command, dpcs");
 
         let sf = fields.sf() * 12;
-        let far_colors = self.control_vectors[ControlVector::FarColor as usize];
+        let far_colors = self.control_vectors[ControlVec::FarColor as usize];
 
         far_colors.iter().enumerate().for_each(|(i, &fc)| {
             let c = (self.rgbc[i] as i64) << 16;
@@ -77,7 +77,7 @@ impl GTEngine {
         debug!("gte command, intpl");
 
         let sf = fields.sf() * 12;
-        let far_colors = self.control_vectors[ControlVector::FarColor as usize];
+        let far_colors = self.control_vectors[ControlVec::FarColor as usize];
 
         far_colors.iter().enumerate().for_each(|(i, &fc)| {
             let ir = (self.ir[i + 1] as i64) << 12;
@@ -105,13 +105,10 @@ impl GTEngine {
     pub fn ncds(&mut self, fields: CommandFields) {
         debug!("gte command, ncds");
 
-        self.multiply_matrix_by_vector(fields, Matrix::Light, Vector::V0, ControlVector::None);
-        self.multiply_matrix_by_vector(
-            fields,
-            Matrix::Color,
-            Vector::IR,
-            ControlVector::BackgroundColor,
-        );
+        self.multiply_matrix_by_vector(fields, Matrix::Light, Vector::V0, ControlVec::None);
+        self.multiply_matrix_by_vector(fields, Matrix::Color, Vector::IR, ControlVec::Background);
+
+        self.dcpl(fields);
     }
 
     ///
@@ -149,12 +146,35 @@ impl GTEngine {
         debug!("gte command, sqr");
     }
 
-    ///
-    pub fn dcpl(&mut self) {
+    /// Depth cue color light
+    pub fn dcpl(&mut self, fields: CommandFields) {
         debug!("gte command, dcpl");
+
+        let sf = fields.sf() * 12;
+        let far_colors = self.control_vectors[ControlVec::FarColor as usize];
+
+        far_colors.iter().enumerate().for_each(|(i, &fc)| {
+            let col = self.rgbc[i] as i64;
+            let ir = self.ir[i + 1] as i64;
+            let fc = (fc as i64) << 12;
+
+            let shaded = (col * ir) << 4;
+            let ir0 = self.ir[0] as i64;
+
+            let sub = (self.i64_to_i44(i + 1, fc - shaded) >> sf) as i32;
+
+            let sat = self.i32_to_i16(i + 1, sub, Saturation::S16) as i64;
+
+            let res = self.i64_to_i44(i + 1, shaded + ir0 * sat);
+
+            self.mac[i + 1] = (res >> sf) as i32;
+        });
+
+        self.mac_to_ir(fields);
+        self.mac_to_color_push();
     }
 
-    ///
+    /// Depth cueing (triple)
     pub fn dpct(&mut self) {
         debug!("gte command, dpct");
     }
@@ -283,26 +303,21 @@ impl GTEngine {
         fields: CommandFields,
         mx: Matrix,
         vx: Vector,
-        cv: ControlVector,
+        cv: ControlVec,
     ) {
         if mx == Matrix::Reserved {
             // Filling last matrix with garbage
+            let r13 = self.matrices[0][0][2];
+            let r22 = self.matrices[0][1][1];
+
             self.matrices[3] = [
                 [
                     -(self.rgbc[0] as i16) << 4,
                     (self.rgbc[0] as i16) << 4,
                     self.ir[0],
                 ],
-                [
-                    self.matrices[0][0][2],
-                    self.matrices[0][0][2],
-                    self.matrices[0][0][2],
-                ],
-                [
-                    self.matrices[0][1][1],
-                    self.matrices[0][1][1],
-                    self.matrices[0][1][1],
-                ],
+                [r13, r13, r13],
+                [r22, r22, r22],
             ];
         }
 
@@ -311,13 +326,20 @@ impl GTEngine {
             self.v[3] = [self.ir[1], self.ir[2], self.ir[3]];
         }
 
-        let is_farcolor = cv == ControlVector::FarColor;
+        let is_farcolor = cv == ControlVec::FarColor;
+
+        debug!(?cv, ?mx, ?vx);
 
         let mx = mx as usize;
         let cv = cv as usize;
         let vx = vx as usize;
 
         let sf = fields.sf() * 12;
+        let lm = fields.lm();
+
+        debug!(vec=?self.v[vx]);
+        debug!(mat=?self.matrices[mx]);
+        debug!(cve=?self.control_vectors[cv]);
 
         for r in 0..3 {
             let prod1 = (self.v[vx][0] as i32) * (self.matrices[mx][r][0] as i32);
@@ -335,7 +357,7 @@ impl GTEngine {
                 // Calculation is ignored but flag is still set, wtf!
                 let sum = self.i64_to_i44(r + 1, add + prod1 as i64);
                 let mac = (sum >> sf) as i32;
-                let _ = self.i32_to_i16(r + 1, mac, Saturation::S16);
+                let _ = self.i32_to_i16(r + 1, mac, lm);
             } else {
                 res = add;
                 res = self.i64_to_i44(r + 1, res + prod3 as i64);

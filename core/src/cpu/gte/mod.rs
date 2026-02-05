@@ -272,7 +272,7 @@ impl GTEngine {
             0x1E => self.ncs(),
             0x20 => self.nct(),
             0x28 => self.sqr(),
-            0x29 => self.dcpl(),
+            0x29 => self.dcpl(fields),
             0x2A => self.dpct(),
             0x2D => self.avsz3(),
             0x2E => self.avsz4(),
@@ -379,7 +379,7 @@ bitfield::bitfield! {
     u8, sf, _: 19, 19;
     u8, into Matrix, mx, _: 18, 17;
     u8, into Vector, vx, _: 16, 15;
-    u8, into ControlVector, cv, _: 14, 13;
+    u8, into ControlVec, cv, _: 14, 13;
     u8, into Saturation, lm, _: 10, 10;
     u8, opcode, _ : 5, 0;
 }
@@ -497,7 +497,7 @@ where
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 enum Matrix {
     Rotation,
     Light,
@@ -518,7 +518,7 @@ impl From<u8> for Matrix {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 enum Vector {
     V0,
     V1,
@@ -539,19 +539,19 @@ impl From<u8> for Vector {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, PartialEq)]
-enum ControlVector {
-    TranslationVector,
-    BackgroundColor,
+#[derive(Clone, Copy, PartialEq, Debug)]
+enum ControlVec {
+    Translation,
+    Background,
     FarColor,
     None,
 }
 
-impl From<u8> for ControlVector {
+impl From<u8> for ControlVec {
     fn from(value: u8) -> Self {
         match value {
-            0 => Self::TranslationVector,
-            1 => Self::BackgroundColor,
+            0 => Self::Translation,
+            1 => Self::Background,
             2 => Self::FarColor,
             3 => Self::None,
             _ => panic!("2 bit cannot reach here"),

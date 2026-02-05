@@ -200,9 +200,9 @@ impl Emulator {
                 continue;
             }
 
-            if let Some(sleep_dur) = FRAME_TIME.checked_sub(core_time) {
-                std::thread::sleep(sleep_dur);
-            }
+            // if let Some(sleep_dur) = FRAME_TIME.checked_sub(core_time) {
+            //     std::thread::sleep(sleep_dur);
+            // }
 
             let core_time = core_time.as_secs_f32();
             let frame_time = now.elapsed().as_secs_f32();
