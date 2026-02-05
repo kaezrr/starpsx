@@ -145,9 +145,7 @@ impl GTEngine {
         debug!("gte command, nccs");
 
         self.multiply_matrix_by_vector(fields, Matrix::Light, Vector::V0, ControlVec::None);
-        self.multiply_matrix_by_vector(fields, Matrix::Color, Vector::IR, ControlVec::Background);
-
-        self.dpcl_cc(fields);
+        self.cc(fields);
     }
 
     /// Color color
@@ -155,7 +153,20 @@ impl GTEngine {
         debug!("gte command, cc");
 
         self.multiply_matrix_by_vector(fields, Matrix::Color, Vector::IR, ControlVec::Background);
-        self.dpcl_cc(fields);
+
+        let sf = fields.sf() * 12;
+        for i in 0..3 {
+            let col = self.rgbc[i] as i64;
+            let ir = self.ir[i + 1] as i64;
+
+            let shaded = (col * ir) << 4;
+            let res = self.i64_to_i44(i + 1, shaded);
+
+            self.mac[i + 1] = (res >> sf) as i32;
+        }
+
+        self.mac_to_ir(fields);
+        self.mac_to_color_push();
     }
 
     /// Normal color single
@@ -192,9 +203,21 @@ impl GTEngine {
         self.mac_to_color_push();
     }
 
-    ///
-    pub fn sqr(&mut self) {
+    /// Square vector
+    pub fn sqr(&mut self, fields: CommandFields) {
         debug!("gte command, sqr");
+
+        let sf = fields.sf() * 12;
+
+        let prod1 = self.ir[1] as i32 * self.ir[1] as i32;
+        let prod2 = self.ir[2] as i32 * self.ir[2] as i32;
+        let prod3 = self.ir[3] as i32 * self.ir[3] as i32;
+
+        self.mac[1] = prod1 >> sf;
+        self.mac[2] = prod2 >> sf;
+        self.mac[3] = prod3 >> sf;
+
+        self.mac_to_ir(fields);
     }
 
     /// Depth cue color light
@@ -226,8 +249,28 @@ impl GTEngine {
     }
 
     /// Depth cueing (triple)
-    pub fn dpct(&mut self) {
+    pub fn dpct(&mut self, fields: CommandFields) {
         debug!("gte command, dpct");
+
+        for _ in 0..3 {
+            let sf = fields.sf() * 12;
+            let far_colors = self.control_vectors[ControlVec::FarColor as usize];
+
+            far_colors.iter().enumerate().for_each(|(i, &fc)| {
+                let c = (self.colors[0][i] as i64) << 16;
+                let fc = (fc as i64) << 12;
+                let ir0 = self.ir[0] as i64;
+
+                let sub = (self.i64_to_i44(i + 1, fc - c) >> sf) as i32;
+                let sat = self.i32_to_i16(i + 1, sub, Saturation::S16) as i64;
+                let res = self.i64_to_i44(i + 1, c + ir0 * sat);
+
+                self.mac[i + 1] = (res >> sf) as i32;
+            });
+
+            self.mac_to_ir(fields);
+            self.mac_to_color_push();
+        }
     }
 
     ///
@@ -240,7 +283,7 @@ impl GTEngine {
         debug!("gte command, avsz4");
     }
 
-    /// Perspective transformation(triple)
+    /// Perspective transformation (triple)
     pub fn rtpt(&mut self) {
         debug!("gte command, rtpt");
     }
@@ -255,7 +298,7 @@ impl GTEngine {
         debug!("gte command, gpl");
     }
 
-    ///
+    /// Normal color color (triple vector)
     pub fn ncct(&mut self) {
         debug!("gte command, ncct");
     }
@@ -414,23 +457,6 @@ impl GTEngine {
         }
 
         self.mac_to_ir(fields);
-    }
-
-    fn dpcl_cc(&mut self, fields: CommandFields) {
-        let sf = fields.sf() * 12;
-
-        for i in 0..3 {
-            let col = self.rgbc[i] as i64;
-            let ir = self.ir[i + 1] as i64;
-
-            let shaded = (col * ir) << 4;
-            let res = self.i64_to_i44(i + 1, shaded);
-
-            self.mac[i + 1] = (res >> sf) as i32;
-        }
-
-        self.mac_to_ir(fields);
-        self.mac_to_color_push();
     }
 
     fn mac_to_ir(&mut self, fields: CommandFields) {
