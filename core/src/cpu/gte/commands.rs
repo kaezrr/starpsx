@@ -273,14 +273,35 @@ impl GTEngine {
         }
     }
 
-    ///
+    /// Average of three Z values (for triangles)
     pub fn avsz3(&mut self) {
         debug!("gte command, avsz3");
+
+        let z1 = self.sz.fifo[1] as u32;
+        let z2 = self.sz.fifo[2] as u32;
+        let z3 = self.sz.fifo[3] as u32;
+
+        let sum = z1 + z2 + z3;
+        let average = self.zsf3 as i64 * sum as i64;
+
+        self.mac[0] = self.i64_to_i32(average);
+        self.otz = self.i64_to_otz(average);
     }
 
-    ///
+    /// Average of four Z values (for quads)
     pub fn avsz4(&mut self) {
         debug!("gte command, avsz4");
+
+        let z0 = self.sz.fifo[0] as u32;
+        let z1 = self.sz.fifo[1] as u32;
+        let z2 = self.sz.fifo[2] as u32;
+        let z3 = self.sz.fifo[3] as u32;
+
+        let sum = z0 + z1 + z2 + z3;
+        let average = self.zsf4 as i64 * sum as i64;
+
+        self.mac[0] = self.i64_to_i32(average);
+        self.otz = self.i64_to_otz(average);
     }
 
     /// Perspective transformation (triple)
@@ -288,12 +309,12 @@ impl GTEngine {
         debug!("gte command, rtpt");
     }
 
-    ///
+    /// General purpose interpolation
     pub fn gpf(&mut self) {
         debug!("gte command, gpf");
     }
 
-    ///
+    /// General purpose interpolation with base
     pub fn gpl(&mut self) {
         debug!("gte command, gpl");
     }
@@ -474,5 +495,23 @@ impl GTEngine {
             self.rgbc[3],
         ];
         self.colors.push(color);
+    }
+
+    fn i64_to_otz(&mut self, val: i64) -> u16 {
+        let val = val >> 12;
+
+        let (res, saturated) = if val < 0 {
+            (0, true)
+        } else if val > 0xFFFF {
+            (0xFFFF, true)
+        } else {
+            (val, false)
+        };
+
+        if saturated {
+            self.flag.sz3_or_otz_saturated(true);
+        }
+
+        res as u16
     }
 }
