@@ -32,20 +32,21 @@ impl GTEngine {
         debug!("gte command, op");
 
         let [_, ir1, ir2, ir3] = self.ir;
-
         let (ir1, ir2, ir3) = (ir1 as i32, ir2 as i32, ir3 as i32);
 
-        let lm = fields.lm();
         let sf = fields.sf() * 12;
 
-        let d1 = self.rtm[0][0] as i32;
-        let d2 = self.rtm[1][1] as i32;
-        let d3 = self.rtm[2][2] as i32;
+        let rtm = &self.matrices[Matrix::Rotation as usize];
+
+        let d1 = rtm[0][0] as i32;
+        let d2 = rtm[1][1] as i32;
+        let d3 = rtm[2][2] as i32;
 
         self.mac[1] = (d2 * ir3 - d3 * ir2) >> sf;
         self.mac[2] = (d3 * ir1 - d1 * ir3) >> sf;
         self.mac[3] = (d1 * ir2 - d2 * ir1) >> sf;
 
+        let lm = fields.lm();
         for i in 1..=3 {
             self.ir[i] = self.i32_to_i16(i, self.mac[i], lm);
         }
@@ -56,11 +57,11 @@ impl GTEngine {
         debug!("gte command, dpcs");
 
         let sf = fields.sf() * 12;
-        let lm = fields.lm();
+        let far_colors = self.control_vectors[ControlVector::FarColor as usize];
 
-        for i in 0..3 {
+        far_colors.iter().enumerate().for_each(|(i, &fc)| {
             let c = (self.rgbc[i] as i64) << 16;
-            let fc = (self.fc[i] as i64) << 12;
+            let fc = (fc as i64) << 12;
             let ir0 = self.ir[0] as i64;
 
             let sub = (self.i64_to_i44(i + 1, fc - c) >> sf) as i32;
@@ -68,7 +69,42 @@ impl GTEngine {
             let res = self.i64_to_i44(i + 1, c + ir0 * sat);
 
             self.mac[i + 1] = (res >> sf) as i32;
+        });
+
+        let lm = fields.lm();
+        for i in 1..=3 {
+            self.ir[i] = self.i32_to_i16(i, self.mac[i], lm);
         }
+
+        let color = [
+            self.i32_to_u8(0, self.mac[1] >> 4),
+            self.i32_to_u8(1, self.mac[2] >> 4),
+            self.i32_to_u8(2, self.mac[3] >> 4),
+            self.rgbc[3],
+        ];
+        self.colors.push(color);
+    }
+
+    /// Interpolation of a vector and far color
+    pub fn intpl(&mut self, fields: CommandFields) {
+        debug!("gte command, intpl");
+
+        let sf = fields.sf() * 12;
+        let lm = fields.lm();
+
+        let far_colors = self.control_vectors[ControlVector::FarColor as usize];
+
+        far_colors.iter().enumerate().for_each(|(i, &fc)| {
+            let ir = (self.ir[i + 1] as i64) << 12;
+            let fc = (fc as i64) << 12;
+            let ir0 = self.ir[0] as i64;
+
+            let sub = (self.i64_to_i44(i + 1, fc - ir) >> sf) as i32;
+            let sat = self.i32_to_i16(i + 1, sub, Saturation::S16) as i64;
+            let res = self.i64_to_i44(i + 1, ir + ir0 * sat);
+
+            self.mac[i + 1] = (res >> sf) as i32;
+        });
 
         for i in 1..=3 {
             self.ir[i] = self.i32_to_i16(i, self.mac[i], lm);
@@ -83,13 +119,8 @@ impl GTEngine {
         self.colors.push(color);
     }
 
-    ///
-    pub fn intpl(&mut self) {
-        debug!("gte command, intpl");
-    }
-
-    ///
-    pub fn mvmva(&mut self) {
+    /// Multiply vector by matrix and vector addition
+    pub fn mvmva(&mut self, fields: CommandFields) {
         debug!("gte command, mvmva");
     }
 
@@ -260,5 +291,29 @@ impl GTEngine {
         }
 
         res
+    }
+
+    fn multiply_matrix_by_vector(
+        &mut self,
+        fields: CommandFields,
+        mx: Matrix,
+        vx: Vector,
+        cv: ControlVector,
+    ) {
+        if mx == Matrix::Reserved {
+            panic!("Invalid multiplication matrix");
+        }
+
+        if cv == ControlVector::FarColor {
+            panic!("Invalid control vector");
+        }
+
+        let vector = if vx == Vector::IR {
+            [self.ir[1], self.ir[2], self.ir[3]]
+        } else {
+            self.v[vx as usize]
+        };
+
+        let mx = &self.matrices[mx as usize];
     }
 }

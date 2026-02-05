@@ -14,23 +14,14 @@ use utils::{matrix_reg_read, matrix_reg_write, vec_xy_read, vec_xy_write};
 
 #[derive(Default)]
 pub struct GTEngine {
-    /// Rotation matrix (1, 3, 12)
-    rtm: [[i16; 3]; 3],
-
-    /// Light matrix (1, 3, 12)
-    llm: [[i16; 3]; 3],
-
-    /// Light color matrix (1, 3, 12)
-    lcm: [[i16; 3]; 3],
+    /// Rotation, light and light color matrices (1, 3, 12)
+    matrices: [[[i16; 3]; 3]; 3],
 
     /// Translation vector (1, 31, 0)
-    tr: [i32; 3],
-
     /// Background color (1, 19, 12)
-    bk: [i32; 3],
-
     /// Far color (1, 27, 4)
-    fc: [i32; 3],
+    /// Empty/None vector
+    control_vectors: [[i32; 3]; 4],
 
     /// Screen offset (1, 15, 16)
     of: [i32; 2],
@@ -148,17 +139,17 @@ impl GTEngine {
             // LZCR is read only
             31 => {}
 
-            32..=36 => matrix_reg_write(&mut self.rtm, r - 32, data),
+            32..=36 => matrix_reg_write(&mut self.matrices[0], r - 32, data),
 
-            37..=39 => self.tr[r - 37] = data as i32,
+            37..=39 => self.control_vectors[0][r - 37] = data as i32,
 
-            40..=44 => matrix_reg_write(&mut self.llm, r - 40, data),
+            40..=44 => matrix_reg_write(&mut self.matrices[1], r - 40, data),
 
-            45..=47 => self.bk[r - 45] = data as i32,
+            45..=47 => self.control_vectors[1][r - 45] = data as i32,
 
-            48..=52 => matrix_reg_write(&mut self.lcm, r - 48, data),
+            48..=52 => matrix_reg_write(&mut self.matrices[2], r - 48, data),
 
-            53..=55 => self.fc[r - 53] = data as i32,
+            53..=55 => self.control_vectors[2][r - 53] = data as i32,
 
             56..=57 => self.of[r - 56] = data as i32,
 
@@ -211,17 +202,17 @@ impl GTEngine {
             30 => self.lzcs as u32,
             31 => self.lzcr(),
 
-            32..=36 => matrix_reg_read(&self.rtm, r - 32),
+            32..=36 => matrix_reg_read(&self.matrices[0], r - 32),
 
-            37..=39 => self.tr[r - 37] as u32,
+            37..=39 => self.control_vectors[0][r - 37] as u32,
 
-            40..=44 => matrix_reg_read(&self.llm, r - 40),
+            40..=44 => matrix_reg_read(&self.matrices[1], r - 40),
 
-            45..=47 => self.bk[r - 45] as u32,
+            45..=47 => self.control_vectors[1][r - 45] as u32,
 
-            48..=52 => matrix_reg_read(&self.lcm, r - 48),
+            48..=52 => matrix_reg_read(&self.matrices[2], r - 48),
 
-            53..=55 => self.fc[r - 53] as u32,
+            53..=55 => self.control_vectors[2][r - 53] as u32,
 
             56..=57 => self.of[r - 56] as u32,
 
@@ -262,16 +253,16 @@ impl GTEngine {
         orgb.0
     }
 
-    fn command(&mut self, cmd: CommandFields) {
+    fn command(&mut self, fields: CommandFields) {
         self.flag.clear();
 
-        match cmd.opcode() {
+        match fields.opcode() {
             0x01 => self.rtps(),
             0x06 => self.nclip(),
-            0x0C => self.op(cmd),
-            0x10 => self.dpcs(cmd),
-            0x11 => self.intpl(),
-            0x12 => self.mvmva(),
+            0x0C => self.op(fields),
+            0x10 => self.dpcs(fields),
+            0x11 => self.intpl(fields),
+            0x12 => self.mvmva(fields),
             0x13 => self.ncds(),
             0x14 => self.cdp(),
             0x16 => self.ncdt(),
@@ -385,9 +376,9 @@ bitfield::bitfield! {
     #[derive(Clone, Copy)]
     pub struct CommandFields(u32);
     u8, sf, _: 19, 19;
-    u8, into MMVAMultiplyMatrix, mx, _: 18, 17;
-    u8, into MMVAMultiplyVector, vx, _: 16, 15;
-    u8, into MMVATranslationVector, tx, _: 14, 13;
+    u8, into Matrix, mx, _: 18, 17;
+    u8, into Vector, vx, _: 16, 15;
+    u8, into ControlVector, tx, _: 14, 13;
     u8, into Saturation, lm, _: 10, 10;
     u8, opcode, _ : 5, 0;
 }
@@ -504,15 +495,16 @@ where
     }
 }
 
-#[derive(Clone, Copy)]
-enum MMVAMultiplyMatrix {
+#[repr(C)]
+#[derive(Clone, Copy, PartialEq)]
+enum Matrix {
     Rotation,
     Light,
     Color,
     Reserved,
 }
 
-impl From<u8> for MMVAMultiplyMatrix {
+impl From<u8> for Matrix {
     fn from(value: u8) -> Self {
         match value {
             0 => Self::Rotation,
@@ -524,15 +516,16 @@ impl From<u8> for MMVAMultiplyMatrix {
     }
 }
 
-#[derive(Clone, Copy)]
-enum MMVAMultiplyVector {
+#[repr(C)]
+#[derive(Clone, Copy, PartialEq)]
+enum Vector {
     V0,
     V1,
     V2,
     IR,
 }
 
-impl From<u8> for MMVAMultiplyVector {
+impl From<u8> for Vector {
     fn from(value: u8) -> Self {
         match value {
             0 => Self::V0,
@@ -544,15 +537,16 @@ impl From<u8> for MMVAMultiplyVector {
     }
 }
 
-#[derive(Clone, Copy)]
-enum MMVATranslationVector {
+#[repr(C)]
+#[derive(Clone, Copy, PartialEq)]
+enum ControlVector {
     TranslationVector,
     BackgroundColor,
     FarColor,
     None,
 }
 
-impl From<u8> for MMVATranslationVector {
+impl From<u8> for ControlVector {
     fn from(value: u8) -> Self {
         match value {
             0 => Self::TranslationVector,
