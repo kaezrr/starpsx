@@ -59,13 +59,14 @@ pub struct GTEngine {
     /// Screen Z coordinates (0, 16, 0)
     sz: FixedFifo<u16, 4>,
 
-    /// Color and code register
-    rgbc: Color,
+    /// Color and code register (0, 8, 0) Red Green Blue Code
+    rgbc: [u8; 4],
 
     /// Prohibited, should not be used
-    res1: Color,
+    res1: [u8; 4],
 
-    colors: FixedFifo<Color, 3>,
+    /// Color and code registers fifo (0, 8, 0) Red Green Blue Code
+    colors: FixedFifo<[u8; 4], 3>,
 
     /// 16-bit vectors (1, 3, 12) or (1, 15, 0)
     v: [[i16; 3]; 3],
@@ -114,7 +115,7 @@ impl GTEngine {
             4 => vec_xy_write(&mut self.v[2], data),
             5 => self.v[2][2] = data as i16,
 
-            6 => self.rgbc.write_u32(data),
+            6 => self.rgbc = data.to_le_bytes(),
             7 => self.otz = data as u16,
 
             8..=11 => self.ir[r - 8] = data as i16,
@@ -129,10 +130,10 @@ impl GTEngine {
 
             16..=19 => self.sz[r - 16] = data as u16,
 
-            20..=22 => self.colors[r - 20].write_u32(data),
+            20..=22 => self.colors[r - 20] = data.to_le_bytes(),
 
             // RES1 prohibited/unused but readable and writeable
-            23 => self.res1.write_u32(data),
+            23 => self.res1 = data.to_le_bytes(),
 
             24..=27 => self.mac[r - 24] = data as i64,
 
@@ -185,7 +186,7 @@ impl GTEngine {
             4 => vec_xy_read(&self.v[2]),
             5 => self.v[2][2] as u32,
 
-            6 => self.rgbc.as_u32(),
+            6 => u32::from_le_bytes(self.rgbc),
             7 => self.otz as u32,
 
             8..=11 => self.ir[r - 8] as u32,
@@ -197,10 +198,10 @@ impl GTEngine {
 
             16..=19 => self.sz[r - 16] as u32,
 
-            20..=22 => self.colors[r - 20].as_u32(),
+            20..=22 => u32::from_le_bytes(self.colors[r - 20]),
 
             // RES1 prohibited/unused but readable and writeable
-            23 => self.res1.as_u32(),
+            23 => u32::from_le_bytes(self.res1),
 
             24..=27 => self.mac[r - 24] as u32,
 
@@ -387,7 +388,7 @@ bitfield::bitfield! {
     u8, into MMVAMultiplyMatrix, mx, _: 18, 17;
     u8, into MMVAMultiplyVector, vx, _: 16, 15;
     u8, into MMVATranslationVector, tx, _: 14, 13;
-    u8, into SaturationRange, lm, _: 10, 10;
+    u8, into Saturation, lm, _: 10, 10;
     u8, opcode, _ : 5, 0;
 }
 
@@ -447,28 +448,6 @@ bitfield::bitfield! {
     u16, r, set_r: 4, 0;
     u16, g, set_g: 9, 5;
     u16, b, set_b: 14, 10;
-}
-
-#[derive(Default, Clone, Debug, Copy)]
-struct Color {
-    c: u8,
-    b: u8,
-    g: u8,
-    r: u8,
-}
-
-impl Color {
-    fn as_u32(&self) -> u32 {
-        u32::from_be_bytes([self.c, self.b, self.g, self.r])
-    }
-
-    fn write_u32(&mut self, v: u32) {
-        let bytes = v.to_be_bytes();
-        self.c = bytes[0];
-        self.b = bytes[1];
-        self.g = bytes[2];
-        self.r = bytes[3];
-    }
 }
 
 /// Fixed size first-in-first-out data structure
@@ -586,16 +565,16 @@ impl From<u8> for MMVATranslationVector {
 }
 
 #[derive(Clone, Copy)]
-enum SaturationRange {
-    Unsigned15,
-    Signed16,
+enum Saturation {
+    S16,
+    U15,
 }
 
-impl From<u8> for SaturationRange {
+impl From<u8> for Saturation {
     fn from(value: u8) -> Self {
         match value {
-            0 => Self::Signed16,
-            1 => Self::Unsigned15,
+            0 => Self::S16,
+            1 => Self::U15,
             _ => unreachable!("bool cannot reach here"),
         }
     }

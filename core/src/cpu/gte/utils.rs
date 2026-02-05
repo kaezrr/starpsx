@@ -1,5 +1,3 @@
-use super::*;
-
 pub fn matrix_reg_read(m: &[[i16; 3]; 3], r: usize) -> u32 {
     debug_assert!(r <= 4);
     if r == 4 {
