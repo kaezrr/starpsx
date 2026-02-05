@@ -360,9 +360,9 @@ impl GTEngine {
                 let _ = self.i32_to_i16(r + 1, mac, lm);
             } else {
                 res = add;
-                res = self.i64_to_i44(r + 1, res + prod3 as i64);
-                res = self.i64_to_i44(r + 1, res + prod2 as i64);
                 res = self.i64_to_i44(r + 1, res + prod1 as i64);
+                res = self.i64_to_i44(r + 1, res + prod2 as i64);
+                res = self.i64_to_i44(r + 1, res + prod3 as i64);
             }
 
             self.mac[r + 1] = (res >> sf) as i32;
