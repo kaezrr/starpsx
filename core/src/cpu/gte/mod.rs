@@ -264,7 +264,7 @@ impl GTEngine {
             0x10 => self.dpcs(fields),
             0x11 => self.intpl(fields),
             0x12 => self.mvmva(fields),
-            0x13 => self.ncds(),
+            0x13 => self.ncds(fields),
             0x14 => self.cdp(),
             0x16 => self.ncdt(),
             0x1B => self.nccs(),

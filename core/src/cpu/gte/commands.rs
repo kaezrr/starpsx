@@ -46,10 +46,7 @@ impl GTEngine {
         self.mac[2] = (d3 * ir1 - d1 * ir3) >> sf;
         self.mac[3] = (d1 * ir2 - d2 * ir1) >> sf;
 
-        let lm = fields.lm();
-        for i in 1..=3 {
-            self.ir[i] = self.i32_to_i16(i, self.mac[i], lm);
-        }
+        self.mac_to_ir(fields);
     }
 
     /// Depth cueing (single)
@@ -71,18 +68,8 @@ impl GTEngine {
             self.mac[i + 1] = (res >> sf) as i32;
         });
 
-        let lm = fields.lm();
-        for i in 1..=3 {
-            self.ir[i] = self.i32_to_i16(i, self.mac[i], lm);
-        }
-
-        let color = [
-            self.i32_to_u8(0, self.mac[1] >> 4),
-            self.i32_to_u8(1, self.mac[2] >> 4),
-            self.i32_to_u8(2, self.mac[3] >> 4),
-            self.rgbc[3],
-        ];
-        self.colors.push(color);
+        self.mac_to_ir(fields);
+        self.mac_to_color_push();
     }
 
     /// Interpolation of a vector and far color
@@ -90,8 +77,6 @@ impl GTEngine {
         debug!("gte command, intpl");
 
         let sf = fields.sf() * 12;
-        let lm = fields.lm();
-
         let far_colors = self.control_vectors[ControlVector::FarColor as usize];
 
         far_colors.iter().enumerate().for_each(|(i, &fc)| {
@@ -106,17 +91,8 @@ impl GTEngine {
             self.mac[i + 1] = (res >> sf) as i32;
         });
 
-        for i in 1..=3 {
-            self.ir[i] = self.i32_to_i16(i, self.mac[i], lm);
-        }
-
-        let color = [
-            self.i32_to_u8(0, self.mac[1] >> 4),
-            self.i32_to_u8(1, self.mac[2] >> 4),
-            self.i32_to_u8(2, self.mac[3] >> 4),
-            self.rgbc[3],
-        ];
-        self.colors.push(color);
+        self.mac_to_ir(fields);
+        self.mac_to_color_push();
     }
 
     /// Multiply vector by matrix and vector addition
@@ -126,8 +102,16 @@ impl GTEngine {
     }
 
     /// Normal color depth cue single vector
-    pub fn ncds(&mut self) {
+    pub fn ncds(&mut self, fields: CommandFields) {
         debug!("gte command, ncds");
+
+        self.multiply_matrix_by_vector(fields, Matrix::Light, Vector::V0, ControlVector::None);
+        self.multiply_matrix_by_vector(
+            fields,
+            Matrix::Color,
+            Vector::IR,
+            ControlVector::BackgroundColor,
+        );
     }
 
     ///
@@ -334,7 +318,6 @@ impl GTEngine {
         let vx = vx as usize;
 
         let sf = fields.sf() * 12;
-        let lm = fields.lm();
 
         for r in 0..3 {
             let prod1 = (self.v[vx][0] as i32) * (self.matrices[mx][r][0] as i32);
@@ -363,8 +346,23 @@ impl GTEngine {
             self.mac[r + 1] = (res >> sf) as i32;
         }
 
+        self.mac_to_ir(fields);
+    }
+
+    fn mac_to_ir(&mut self, fields: CommandFields) {
+        let lm = fields.lm();
         for i in 1..=3 {
             self.ir[i] = self.i32_to_i16(i, self.mac[i], lm);
         }
+    }
+
+    fn mac_to_color_push(&mut self) {
+        let color = [
+            self.i32_to_u8(0, self.mac[1] >> 4),
+            self.i32_to_u8(1, self.mac[2] >> 4),
+            self.i32_to_u8(2, self.mac[3] >> 4),
+            self.rgbc[3],
+        ];
+        self.colors.push(color);
     }
 }
