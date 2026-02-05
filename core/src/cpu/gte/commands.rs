@@ -310,18 +310,54 @@ impl GTEngine {
     }
 
     /// General purpose interpolation
-    pub fn gpf(&mut self) {
+    pub fn gpf(&mut self, fields: CommandFields) {
         debug!("gte command, gpf");
+
+        let sf = fields.sf() * 12;
+        let ir0 = self.ir[0] as i32;
+
+        for i in 0..3 {
+            let prod = self.ir[i + 1] as i32 * ir0;
+            let res = self.i64_to_i44(i + 1, prod as i64);
+
+            self.mac[i + 1] = (res >> sf) as i32;
+        }
+
+        self.mac_to_ir(fields);
+        self.mac_to_color_push();
     }
 
     /// General purpose interpolation with base
-    pub fn gpl(&mut self) {
+    pub fn gpl(&mut self, fields: CommandFields) {
         debug!("gte command, gpl");
+
+        let sf = fields.sf() * 12;
+        let ir0 = self.ir[0] as i32;
+
+        for i in 0..3 {
+            let mac = (self.mac[i + 1] as i64) << sf;
+            let prod = self.ir[i + 1] as i32 * ir0;
+            let res = self.i64_to_i44(i + 1, mac + prod as i64);
+
+            self.mac[i + 1] = (res >> sf) as i32;
+        }
+
+        self.mac_to_ir(fields);
+        self.mac_to_color_push();
     }
 
     /// Normal color color (triple vector)
-    pub fn ncct(&mut self) {
+    pub fn ncct(&mut self, fields: CommandFields) {
         debug!("gte command, ncct");
+
+        self.multiply_matrix_by_vector(fields, Matrix::Light, Vector::V0, ControlVec::None);
+        self.cc(fields);
+
+        self.multiply_matrix_by_vector(fields, Matrix::Light, Vector::V1, ControlVec::None);
+        self.cc(fields);
+
+        self.multiply_matrix_by_vector(fields, Matrix::Light, Vector::V2, ControlVec::None);
+        self.cc(fields);
     }
 
     // --------------------------Helper Flag and Math Functions------------------------- //

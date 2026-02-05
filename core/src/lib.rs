@@ -152,8 +152,8 @@ impl System {
         self.cpu.pc = init_pc;
 
         // Pass args to amidogs exe
-        let args = ["console\0", "release\0"];
-        // let args = ["auto\0", "console\0", "release\0"];
+        // let args = ["console\0", "release\0"];
+        let args = ["auto\0", "console\0", "release\0"];
         let arg_len: u32 = 2; // only first 2 args
         let mut len: usize = 0;
 
