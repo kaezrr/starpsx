@@ -1,9 +1,11 @@
 mod cop0;
+mod gte;
 mod instrs;
 pub mod utils;
 
-use crate::System;
+use crate::{System, cpu::gte::GTEngine};
 use cop0::Cop0;
+use tracing::error;
 use utils::{Exception, Instruction};
 
 pub struct Cpu {
@@ -30,6 +32,9 @@ pub struct Cpu {
 
     /// Coprocessor 0
     cop0: Cop0,
+
+    /// Geometry Transformation Engine (Coprocessor 2)
+    gte: GTEngine,
 }
 
 impl Default for Cpu {
@@ -47,6 +52,7 @@ impl Default for Cpu {
             load: None,
             delayed_branch: None,
             cop0: Cop0::default(),
+            gte: GTEngine::default(),
         }
     }
 }
@@ -180,7 +186,10 @@ impl Cpu {
                 0x27 => Cpu::nor(system, instr),
                 0x2A => Cpu::slt(system, instr),
                 0x2B => Cpu::sltu(system, instr),
-                _ => Err(Exception::IllegalInstruction),
+                _ => {
+                    error!("Illegal instruction {:08x}", instr.0);
+                    Err(Exception::IllegalInstruction)
+                }
             },
             0x01 => Cpu::bxxx(system, instr),
             0x02 => Cpu::j(system, instr),
@@ -197,9 +206,9 @@ impl Cpu {
             0x0D => Cpu::ori(system, instr),
             0x0E => Cpu::xori(system, instr),
             0x0F => Cpu::lui(system, instr),
-            0x10 => Cop0::cop0(system, instr),
+            0x10 => cop0::cop0(system, instr),
             0x11 => Cpu::cop1(),
-            0x12 => Cpu::cop2(system, instr),
+            0x12 => gte::cop2(system, instr),
             0x13 => Cpu::cop3(),
             0x20 => Cpu::lb(system, instr),
             0x21 => Cpu::lh(system, instr),
@@ -215,13 +224,16 @@ impl Cpu {
             0x2E => Cpu::swr(system, instr),
             0x30 => Cpu::lwc0(),
             0x31 => Cpu::lwc1(),
-            0x32 => Cpu::lwc2(system, instr),
+            0x32 => gte::lwc2(system, instr),
             0x33 => Cpu::lwc3(),
             0x38 => Cpu::swc0(),
             0x39 => Cpu::swc1(),
-            0x3A => Cpu::swc2(system, instr),
+            0x3A => gte::swc2(system, instr),
             0x3B => Cpu::swc3(),
-            _ => Err(Exception::IllegalInstruction),
+            _ => {
+                error!("Illegal instruction {:08x}", instr.0);
+                Err(Exception::IllegalInstruction)
+            }
         }
     }
 

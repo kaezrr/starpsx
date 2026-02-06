@@ -755,51 +755,43 @@ impl Cpu {
         Err(Exception::Break)
     }
 
-    // Stubbed GTE for shell stuff
-    pub fn cop2(_system: &mut System, instr: Instruction) -> Result<(), Exception> {
-        debug!(target: "cpu", "stubbed GTE instruction instr={:#08x}", instr.0);
-        Ok(())
-    }
-
-    pub fn lwc2(_system: &mut System, instr: Instruction) -> Result<(), Exception> {
-        debug!(target: "cpu", "stubbed GTE load word={:#08x}", instr.0);
-        Ok(())
-    }
-
-    pub fn swc2(_system: &mut System, instr: Instruction) -> Result<(), Exception> {
-        debug!(target: "cpu", "stubbed GTE store word={:#08x}", instr.0);
-        Ok(())
-    }
-
     pub fn cop1() -> Result<(), Exception> {
+        error!("coprocessor error, invalid instruction cop1");
         Err(Exception::CoprocessorError)
     }
 
     pub fn cop3() -> Result<(), Exception> {
+        error!("coprocessor error, invalid instruction cop3");
         Err(Exception::CoprocessorError)
     }
 
     pub fn lwc0() -> Result<(), Exception> {
+        error!("coprocessor error, invalid instruction lwc0");
         Err(Exception::CoprocessorError)
     }
 
     pub fn lwc1() -> Result<(), Exception> {
+        error!("coprocessor error, invalid instruction lwc1");
         Err(Exception::CoprocessorError)
     }
 
     pub fn lwc3() -> Result<(), Exception> {
+        error!("coprocessor error, invalid instruction lwc3");
         Err(Exception::CoprocessorError)
     }
 
     pub fn swc0() -> Result<(), Exception> {
+        error!("coprocessor error, invalid instruction swc0");
         Err(Exception::CoprocessorError)
     }
 
     pub fn swc1() -> Result<(), Exception> {
+        error!("coprocessor error, invalid instruction swc1");
         Err(Exception::CoprocessorError)
     }
 
     pub fn swc3() -> Result<(), Exception> {
+        error!("coprocessor error, invalid instruction swc3");
         Err(Exception::CoprocessorError)
     }
 }
