@@ -42,11 +42,9 @@ impl GTEngine {
 
         let sf = fields.sf() * 12;
 
-        let rtm = &self.matrices[Matrix::Rotation as usize];
-
-        let d1 = rtm[0][0] as i32;
-        let d2 = rtm[1][1] as i32;
-        let d3 = rtm[2][2] as i32;
+        let d1 = self.rtm[0][0] as i32;
+        let d2 = self.rtm[1][1] as i32;
+        let d3 = self.rtm[2][2] as i32;
 
         self.mac[1] = (d2 * ir3 - d3 * ir2) >> sf;
         self.mac[2] = (d3 * ir1 - d1 * ir3) >> sf;
@@ -60,7 +58,7 @@ impl GTEngine {
         debug!(target:"gte","gte command, dpcs");
 
         let sf = fields.sf() * 12;
-        let far_colors = self.control_vectors[ControlVec::FarColor as usize];
+        let far_colors = self.fc;
 
         far_colors.iter().enumerate().for_each(|(i, &fc)| {
             let c = (self.rgbc[i] as i64) << 16;
@@ -83,7 +81,7 @@ impl GTEngine {
         debug!(target:"gte","gte command, intpl");
 
         let sf = fields.sf() * 12;
-        let far_colors = self.control_vectors[ControlVec::FarColor as usize];
+        let far_colors = self.fc;
 
         far_colors.iter().enumerate().for_each(|(i, &fc)| {
             let ir = (self.ir[i + 1] as i64) << 12;
@@ -231,7 +229,7 @@ impl GTEngine {
         debug!(target:"gte","gte command, dcpl");
 
         let sf = fields.sf() * 12;
-        let far_colors = self.control_vectors[ControlVec::FarColor as usize];
+        let far_colors = self.fc;
 
         far_colors.iter().enumerate().for_each(|(i, &fc)| {
             let col = self.rgbc[i] as i64;
@@ -260,7 +258,7 @@ impl GTEngine {
 
         for _ in 0..3 {
             let sf = fields.sf() * 12;
-            let far_colors = self.control_vectors[ControlVec::FarColor as usize];
+            let far_colors = self.fc;
 
             far_colors.iter().enumerate().for_each(|(i, &fc)| {
                 let c = (self.colors[0][i] as i64) << 16;
@@ -527,12 +525,12 @@ impl GTEngine {
         cv: ControlVec,
     ) {
         let mx = match mx {
-            Matrix::Rotation => self.matrices[0],
-            Matrix::Light => self.matrices[1],
-            Matrix::Color => self.matrices[2],
+            Matrix::Rotation => self.rtm,
+            Matrix::Light => self.llm,
+            Matrix::Color => self.lcm,
             Matrix::Reserved => {
-                let r13 = self.matrices[0][0][2];
-                let r22 = self.matrices[0][1][1];
+                let r13 = self.rtm[0][2];
+                let r22 = self.rtm[1][1];
                 let red = self.rgbc[0] as i16;
                 let ir0 = self.ir[0];
 
@@ -553,9 +551,9 @@ impl GTEngine {
         };
 
         let tr = match cv {
-            ControlVec::Translation => self.control_vectors[0],
-            ControlVec::Background => self.control_vectors[1],
-            ControlVec::FarColor => self.control_vectors[2],
+            ControlVec::Translation => self.tr,
+            ControlVec::Background => self.bk,
+            ControlVec::FarColor => self.fc,
             ControlVec::None => [0, 0, 0],
         };
 
@@ -601,11 +599,11 @@ impl GTEngine {
 
         let mut last_z = 0;
         for r in 0..3 {
-            let prod1 = (self.v[vx][0] as i32) * (self.matrices[0][r][0] as i32);
-            let prod2 = (self.v[vx][1] as i32) * (self.matrices[0][r][1] as i32);
-            let prod3 = (self.v[vx][2] as i32) * (self.matrices[0][r][2] as i32);
+            let prod1 = (self.v[vx][0] as i32) * (self.rtm[r][0] as i32);
+            let prod2 = (self.v[vx][1] as i32) * (self.rtm[r][1] as i32);
+            let prod3 = (self.v[vx][2] as i32) * (self.rtm[r][2] as i32);
 
-            let mut res = (self.control_vectors[0][r] as i64) << 12;
+            let mut res = (self.tr[r] as i64) << 12;
             res = self.i64_to_i44(r + 1, res + prod1 as i64);
             res = self.i64_to_i44(r + 1, res + prod2 as i64);
             res = self.i64_to_i44(r + 1, res + prod3 as i64);

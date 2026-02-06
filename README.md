@@ -70,7 +70,7 @@ Options:
 | DMA         | 🟡 Partial     | burst and linked-list DMA supported     |
 | Timers      | 🟢 Done        | functional but may contain inaccuracies |
 | CDROM       | 🟡 Partial     | boots a few games                       |
-| GTE         | 🟢 Done        |                                         |
+| GTE         | 🟢 Done        | passes all tests                        |
 | SPU         | 🔴 Not started |                                         |
 | Gamepad     | 🟢 Done        | full analog pad support                 |
 | Memory Card | 🔴 Not started |                                         |

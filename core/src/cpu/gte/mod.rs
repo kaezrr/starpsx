@@ -14,15 +14,19 @@ use utils::{matrix_reg_read, matrix_reg_write, vec_xy_read, vec_xy_write};
 
 #[derive(Default)]
 pub struct GTEngine {
-    /// Rotation, light and light color matrices (1, 3, 12)
-    /// Last one is a garbage matrix
-    matrices: [[[i16; 3]; 3]; 4],
+    /// Rotation matrix (1, 3, 12)
+    rtm: [[i16; 3]; 3],
+    /// Light matrix (1, 3, 12)
+    llm: [[i16; 3]; 3],
+    /// Light color matrix (1, 3, 12)
+    lcm: [[i16; 3]; 3],
 
     /// Translation vector (1, 31, 0)
+    tr: [i32; 3],
     /// Background color (1, 19, 12)
+    bk: [i32; 3],
     /// Far color (1, 27, 4)
-    /// Empty/None vector
-    control_vectors: [[i32; 3]; 4],
+    fc: [i32; 3],
 
     /// Screen offset (1, 15, 16)
     of: [i32; 2],
@@ -61,7 +65,7 @@ pub struct GTEngine {
     colors: FixedFifo<[u8; 4], 3>,
 
     /// 16-bit vectors (1, 3, 12) or (1, 15, 0)
-    v: [[i16; 3]; 4],
+    v: [[i16; 3]; 3],
 
     /// Interpolation Factors (1, 3, 12)
     ir: [i16; 4],
@@ -140,17 +144,17 @@ impl GTEngine {
             // LZCR is read only
             31 => {}
 
-            32..=36 => matrix_reg_write(&mut self.matrices[0], r - 32, data),
+            32..=36 => matrix_reg_write(&mut self.rtm, r - 32, data),
 
-            37..=39 => self.control_vectors[0][r - 37] = data as i32,
+            37..=39 => self.tr[r - 37] = data as i32,
 
-            40..=44 => matrix_reg_write(&mut self.matrices[1], r - 40, data),
+            40..=44 => matrix_reg_write(&mut self.llm, r - 40, data),
 
-            45..=47 => self.control_vectors[1][r - 45] = data as i32,
+            45..=47 => self.bk[r - 45] = data as i32,
 
-            48..=52 => matrix_reg_write(&mut self.matrices[2], r - 48, data),
+            48..=52 => matrix_reg_write(&mut self.lcm, r - 48, data),
 
-            53..=55 => self.control_vectors[2][r - 53] = data as i32,
+            53..=55 => self.fc[r - 53] = data as i32,
 
             56..=57 => self.of[r - 56] = data as i32,
 
@@ -203,17 +207,17 @@ impl GTEngine {
             30 => self.lzcs as u32,
             31 => self.lzcr(),
 
-            32..=36 => matrix_reg_read(&self.matrices[0], r - 32),
+            32..=36 => matrix_reg_read(&self.rtm, r - 32),
 
-            37..=39 => self.control_vectors[0][r - 37] as u32,
+            37..=39 => self.tr[r - 37] as u32,
 
-            40..=44 => matrix_reg_read(&self.matrices[1], r - 40),
+            40..=44 => matrix_reg_read(&self.llm, r - 40),
 
-            45..=47 => self.control_vectors[1][r - 45] as u32,
+            45..=47 => self.bk[r - 45] as u32,
 
-            48..=52 => matrix_reg_read(&self.matrices[2], r - 48),
+            48..=52 => matrix_reg_read(&self.lcm, r - 48),
 
-            53..=55 => self.control_vectors[2][r - 53] as u32,
+            53..=55 => self.fc[r - 53] as u32,
 
             56..=57 => self.of[r - 56] as u32,
 
