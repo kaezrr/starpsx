@@ -277,7 +277,7 @@ impl GTEngine {
             0x2A => self.dpct(fields),
             0x2D => self.avsz3(),
             0x2E => self.avsz4(),
-            0x30 => self.rtpt(),
+            0x30 => self.rtpt(fields),
             0x3D => self.gpf(fields),
             0x3E => self.gpl(fields),
             0x3F => self.ncct(fields),

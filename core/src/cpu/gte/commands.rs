@@ -5,50 +5,15 @@ use super::*;
 impl GTEngine {
     /// Perspective transformation(single)
     pub fn rtps(&mut self, fields: CommandFields) {
-        debug!("gte command, rtps");
+        debug!(target:"gte","gte command, rtps");
 
-        self.multiply_matrix_by_vector(
-            fields,
-            Matrix::Rotation,
-            Vector::V0,
-            ControlVec::Translation,
-        );
-
-        let sf = fields.sf();
-
-        let mac = self.mac[3] >> ((1 - sf) * 12);
-        let sz3 = self.i64_to_otz_sz3(mac as i64);
-
-        self.sz.push(sz3);
-
-        let projection_factor = if sz3 > self.h / 2 {
-            utils::divide(self.h, sz3)
-        } else {
-            self.flag.div_overflow(true);
-            0x1FFFF
-        };
-
-        let factor = projection_factor as i64;
-        let (x, y) = (self.ir[1] as i64, self.ir[2] as i64);
-        let (ofx, ofy) = (self.of[0] as i64, self.of[1] as i64);
-
-        let screen_x = x * factor + ofx;
-        let screen_y = y * factor + ofy;
-
-        self.mac0_overflow_check(screen_x);
-        self.mac0_overflow_check(screen_y);
-
-        let sx2 = self.i32_to_i11(true, (screen_x >> 16) as i32);
-        let sy2 = self.i32_to_i11(false, (screen_y >> 16) as i32);
-
-        self.sxy.push([sx2, sy2]);
-
+        let projection_factor = self.do_rtp(fields, Vector::V0);
         self.depth_queuing(projection_factor);
     }
 
     /// Normal clipping
     pub fn nclip(&mut self) {
-        debug!("gte command, nclip");
+        debug!(target:"gte","gte command, nclip");
 
         let [x0, y0] = self.sxy[0];
         let [x1, y1] = self.sxy[1];
@@ -70,7 +35,7 @@ impl GTEngine {
 
     /// Cross product of two vectors
     pub fn op(&mut self, fields: CommandFields) {
-        debug!("gte command, op");
+        debug!(target:"gte","gte command, op");
 
         let [_, ir1, ir2, ir3] = self.ir;
         let (ir1, ir2, ir3) = (ir1 as i32, ir2 as i32, ir3 as i32);
@@ -92,7 +57,7 @@ impl GTEngine {
 
     /// Depth cueing (single)
     pub fn dpcs(&mut self, fields: CommandFields) {
-        debug!("gte command, dpcs");
+        debug!(target:"gte","gte command, dpcs");
 
         let sf = fields.sf() * 12;
         let far_colors = self.control_vectors[ControlVec::FarColor as usize];
@@ -115,7 +80,7 @@ impl GTEngine {
 
     /// Interpolation of a vector and far color
     pub fn intpl(&mut self, fields: CommandFields) {
-        debug!("gte command, intpl");
+        debug!(target:"gte","gte command, intpl");
 
         let sf = fields.sf() * 12;
         let far_colors = self.control_vectors[ControlVec::FarColor as usize];
@@ -138,13 +103,13 @@ impl GTEngine {
 
     /// Multiply vector by matrix and vector addition
     pub fn mvmva(&mut self, fields: CommandFields) {
-        debug!("gte command, mvmva");
+        debug!(target:"gte","gte command, mvmva");
         self.multiply_matrix_by_vector(fields, fields.mx(), fields.vx(), fields.cv());
     }
 
     /// Normal color depth cue single vector
     pub fn ncds(&mut self, fields: CommandFields) {
-        debug!("gte command, ncds");
+        debug!(target:"gte","gte command, ncds");
 
         self.multiply_matrix_by_vector(fields, Matrix::Light, Vector::V0, ControlVec::None);
         self.multiply_matrix_by_vector(fields, Matrix::Color, Vector::IR, ControlVec::Background);
@@ -154,7 +119,7 @@ impl GTEngine {
 
     /// Color depth cue
     pub fn cdp(&mut self, fields: CommandFields) {
-        debug!("gte command, cdp");
+        debug!(target:"gte","gte command, cdp");
 
         self.multiply_matrix_by_vector(fields, Matrix::Color, Vector::IR, ControlVec::Background);
 
@@ -163,7 +128,7 @@ impl GTEngine {
 
     /// Normal color depth cue triple vectors
     pub fn ncdt(&mut self, fields: CommandFields) {
-        debug!("gte command, ncdt");
+        debug!(target:"gte","gte command, ncdt");
 
         self.multiply_matrix_by_vector(fields, Matrix::Light, Vector::V0, ControlVec::None);
         self.multiply_matrix_by_vector(fields, Matrix::Color, Vector::IR, ControlVec::Background);
@@ -183,7 +148,7 @@ impl GTEngine {
 
     /// Normal color color single vector
     pub fn nccs(&mut self, fields: CommandFields) {
-        debug!("gte command, nccs");
+        debug!(target:"gte","gte command, nccs");
 
         self.multiply_matrix_by_vector(fields, Matrix::Light, Vector::V0, ControlVec::None);
         self.cc(fields);
@@ -191,7 +156,7 @@ impl GTEngine {
 
     /// Color color
     pub fn cc(&mut self, fields: CommandFields) {
-        debug!("gte command, cc");
+        debug!(target:"gte","gte command, cc");
 
         self.multiply_matrix_by_vector(fields, Matrix::Color, Vector::IR, ControlVec::Background);
 
@@ -212,7 +177,7 @@ impl GTEngine {
 
     /// Normal color single
     pub fn ncs(&mut self, fields: CommandFields) {
-        debug!("gte command, ncs");
+        debug!(target:"gte","gte command, ncs");
 
         self.multiply_matrix_by_vector(fields, Matrix::Light, Vector::V0, ControlVec::None);
         self.multiply_matrix_by_vector(fields, Matrix::Color, Vector::IR, ControlVec::Background);
@@ -223,7 +188,7 @@ impl GTEngine {
 
     /// Normal color triple
     pub fn nct(&mut self, fields: CommandFields) {
-        debug!("gte command, nct");
+        debug!(target:"gte","gte command, nct");
 
         self.multiply_matrix_by_vector(fields, Matrix::Light, Vector::V0, ControlVec::None);
         self.multiply_matrix_by_vector(fields, Matrix::Color, Vector::IR, ControlVec::Background);
@@ -246,7 +211,7 @@ impl GTEngine {
 
     /// Square vector
     pub fn sqr(&mut self, fields: CommandFields) {
-        debug!("gte command, sqr");
+        debug!(target:"gte","gte command, sqr");
 
         let sf = fields.sf() * 12;
 
@@ -263,7 +228,7 @@ impl GTEngine {
 
     /// Depth cue color light
     pub fn dcpl(&mut self, fields: CommandFields) {
-        debug!("gte command, dcpl");
+        debug!(target:"gte","gte command, dcpl");
 
         let sf = fields.sf() * 12;
         let far_colors = self.control_vectors[ControlVec::FarColor as usize];
@@ -291,7 +256,7 @@ impl GTEngine {
 
     /// Depth cueing (triple)
     pub fn dpct(&mut self, fields: CommandFields) {
-        debug!("gte command, dpct");
+        debug!(target:"gte","gte command, dpct");
 
         for _ in 0..3 {
             let sf = fields.sf() * 12;
@@ -316,7 +281,7 @@ impl GTEngine {
 
     /// Average of three Z values (for triangles)
     pub fn avsz3(&mut self) {
-        debug!("gte command, avsz3");
+        debug!(target:"gte","gte command, avsz3");
 
         let z1 = self.sz.fifo[1] as u32;
         let z2 = self.sz.fifo[2] as u32;
@@ -328,12 +293,12 @@ impl GTEngine {
         self.mac[0] = average as i32;
         self.mac0_overflow_check(average);
 
-        self.otz = self.i64_to_otz_sz3(average);
+        self.otz = self.i64_to_otz(average);
     }
 
     /// Average of four Z values (for quads)
     pub fn avsz4(&mut self) {
-        debug!("gte command, avsz4");
+        debug!(target:"gte","gte command, avsz4");
 
         let z0 = self.sz.fifo[0] as u32;
         let z1 = self.sz.fifo[1] as u32;
@@ -346,17 +311,25 @@ impl GTEngine {
         self.mac[0] = average as i32;
         self.mac0_overflow_check(average);
 
-        self.otz = self.i64_to_otz_sz3(average);
+        self.otz = self.i64_to_otz(average);
     }
 
     /// Perspective transformation (triple)
-    pub fn rtpt(&mut self) {
-        debug!("gte command, rtpt");
+    pub fn rtpt(&mut self, fields: CommandFields) {
+        debug!(target:"gte","gte command, rtpt");
+
+        self.do_rtp(fields, Vector::V0);
+        self.do_rtp(fields, Vector::V1);
+
+        // We do depth queuing on the last vector
+        let projection_factor = self.do_rtp(fields, Vector::V2);
+
+        self.depth_queuing(projection_factor);
     }
 
     /// General purpose interpolation
     pub fn gpf(&mut self, fields: CommandFields) {
-        debug!("gte command, gpf");
+        debug!(target:"gte","gte command, gpf");
 
         let sf = fields.sf() * 12;
         let ir0 = self.ir[0] as i32;
@@ -374,7 +347,7 @@ impl GTEngine {
 
     /// General purpose interpolation with base
     pub fn gpl(&mut self, fields: CommandFields) {
-        debug!("gte command, gpl");
+        debug!(target:"gte","gte command, gpl");
 
         let sf = fields.sf() * 12;
         let ir0 = self.ir[0] as i32;
@@ -393,7 +366,7 @@ impl GTEngine {
 
     /// Normal color color (triple vector)
     pub fn ncct(&mut self, fields: CommandFields) {
-        debug!("gte command, ncct");
+        debug!(target:"gte","gte command, ncct");
 
         self.multiply_matrix_by_vector(fields, Matrix::Light, Vector::V0, ControlVec::None);
         self.cc(fields);
@@ -595,7 +568,7 @@ impl GTEngine {
         res as i16
     }
 
-    fn i64_to_otz_sz3(&mut self, val: i64) -> u16 {
+    fn i64_to_otz(&mut self, val: i64) -> u16 {
         let val = val >> 12;
 
         let (res, saturated) = if val < 0 {
@@ -613,14 +586,97 @@ impl GTEngine {
         res as u16
     }
 
-    fn depth_queuing(&mut self, projection_factor: u32) {
-        let (dqa, dqb) = (self.dqa as i64, self.dqb as i64);
+    fn do_rtp(&mut self, fields: CommandFields, vec: Vector) -> u32 {
+        let sf = fields.sf();
+        let vx = vec as usize;
+
+        let mut last_z = 0;
+        for r in 0..3 {
+            let prod1 = (self.v[vx][0] as i32) * (self.matrices[0][r][0] as i32);
+            let prod2 = (self.v[vx][1] as i32) * (self.matrices[0][r][1] as i32);
+            let prod3 = (self.v[vx][2] as i32) * (self.matrices[0][r][2] as i32);
+
+            let mut res = (self.control_vectors[0][r] as i64) << 12;
+            res = self.i64_to_i44(r + 1, res + prod1 as i64);
+            res = self.i64_to_i44(r + 1, res + prod2 as i64);
+            res = self.i64_to_i44(r + 1, res + prod3 as i64);
+
+            self.mac[r + 1] = (res >> (12 * sf)) as i32;
+            last_z = (res >> 12) as i32;
+        }
+
+        // Dont update IR3 here
+        let lm = fields.lm();
+        for i in 1..=2 {
+            self.ir[i] = self.i32_to_i16(i, self.mac[i], lm);
+        }
+
+        // Special IR3 bug handling
+        let min = i16::MIN.into();
+        let max = i16::MAX.into();
+
+        if last_z > max || last_z < min {
+            self.flag.ir3_saturated(true);
+        }
+
+        let min = match lm {
+            Saturation::S16 => i16::MIN.into(),
+            Saturation::U15 => 0x0000,
+        };
+
+        let val = self.mac[3];
+        self.ir[3] = if val < min {
+            min as i16
+        } else if val > max {
+            max as i16
+        } else {
+            val as i16
+        };
+
+        let sz3 = if last_z < 0 {
+            self.flag.sz3_or_otz_saturated(true);
+            0
+        } else if last_z > u16::MAX as i32 {
+            self.flag.sz3_or_otz_saturated(true);
+            u16::MAX
+        } else {
+            last_z as u16
+        };
+
+        self.sz.push(sz3);
+
+        let projection_factor = if sz3 > self.h / 2 {
+            utils::divide(self.h, sz3)
+        } else {
+            self.flag.div_overflow(true);
+            0x1FFFF
+        };
 
         let factor = projection_factor as i64;
-        let res = dqa * factor + dqb;
+        let (x, y) = (self.ir[1] as i64, self.ir[2] as i64);
+        let (ofx, ofy) = (self.of[0] as i64, self.of[1] as i64);
 
-        self.mac[0] = res as i32;
+        let screen_x = x * factor + ofx;
+        let screen_y = y * factor + ofy;
+
+        self.mac0_overflow_check(screen_x);
+        self.mac0_overflow_check(screen_y);
+
+        let sx2 = self.i32_to_i11(true, (screen_x >> 16) as i32);
+        let sy2 = self.i32_to_i11(false, (screen_y >> 16) as i32);
+
+        self.sxy.push([sx2, sy2]);
+
+        projection_factor
+    }
+
+    fn depth_queuing(&mut self, projection_factor: u32) {
+        let (dqa, dqb) = (self.dqa as i64, self.dqb as i64);
+        let factor = projection_factor as i64;
+
+        let res = dqb + dqa * factor;
         self.mac0_overflow_check(res);
+        self.mac[0] = res as i32;
 
         let res = res >> 12;
 
