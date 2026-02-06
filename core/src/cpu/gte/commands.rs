@@ -380,6 +380,23 @@ impl GTEngine {
 
     // --------------------------Helper Flag and Math Functions------------------------- //
 
+    fn mac_to_ir(&mut self, fields: CommandFields) {
+        let lm = fields.lm();
+        for i in 1..=3 {
+            self.ir[i] = self.i32_to_i16(i, self.mac[i], lm);
+        }
+    }
+
+    fn mac_to_color_push(&mut self) {
+        let color = [
+            self.i32_to_u8(0, self.mac[1] >> 4),
+            self.i32_to_u8(1, self.mac[2] >> 4),
+            self.i32_to_u8(2, self.mac[3] >> 4),
+            self.rgbc[3],
+        ];
+        self.colors.push(color);
+    }
+
     fn mac0_overflow_check(&mut self, val: i64) {
         if val > i32::MAX.into() {
             self.flag.mac0_overflow_pos(true);
@@ -465,90 +482,6 @@ impl GTEngine {
         res
     }
 
-    fn multiply_matrix_by_vector(
-        &mut self,
-        fields: CommandFields,
-        mx: Matrix,
-        vx: Vector,
-        cv: ControlVec,
-    ) {
-        if mx == Matrix::Reserved {
-            // Filling last matrix with garbage
-            let r13 = self.matrices[0][0][2];
-            let r22 = self.matrices[0][1][1];
-
-            self.matrices[3] = [
-                [
-                    -(self.rgbc[0] as i16) << 4,
-                    (self.rgbc[0] as i16) << 4,
-                    self.ir[0],
-                ],
-                [r13, r13, r13],
-                [r22, r22, r22],
-            ];
-        }
-
-        // Last vector is IR vector
-        if vx == Vector::IR {
-            self.v[3] = [self.ir[1], self.ir[2], self.ir[3]];
-        }
-
-        let is_farcolor = cv == ControlVec::FarColor;
-
-        let mx = mx as usize;
-        let cv = cv as usize;
-        let vx = vx as usize;
-
-        let sf = fields.sf() * 12;
-        let lm = fields.lm();
-
-        for r in 0..3 {
-            let prod1 = (self.v[vx][0] as i32) * (self.matrices[mx][r][0] as i32);
-            let prod2 = (self.v[vx][1] as i32) * (self.matrices[mx][r][1] as i32);
-            let prod3 = (self.v[vx][2] as i32) * (self.matrices[mx][r][2] as i32);
-
-            let mut res;
-            let add = (self.control_vectors[cv][r] as i64) << 12;
-
-            // Bugged
-            if is_farcolor {
-                res = self.i64_to_i44(r + 1, prod2 as i64);
-                res = self.i64_to_i44(r + 1, res + prod3 as i64);
-
-                // Calculation is ignored but flag is still set, wtf!
-                let sum = self.i64_to_i44(r + 1, add + prod1 as i64);
-                let mac = (sum >> sf) as i32;
-                let _ = self.i32_to_i16(r + 1, mac, lm);
-            } else {
-                res = add;
-                res = self.i64_to_i44(r + 1, res + prod1 as i64);
-                res = self.i64_to_i44(r + 1, res + prod2 as i64);
-                res = self.i64_to_i44(r + 1, res + prod3 as i64);
-            }
-
-            self.mac[r + 1] = (res >> sf) as i32;
-        }
-
-        self.mac_to_ir(fields);
-    }
-
-    fn mac_to_ir(&mut self, fields: CommandFields) {
-        let lm = fields.lm();
-        for i in 1..=3 {
-            self.ir[i] = self.i32_to_i16(i, self.mac[i], lm);
-        }
-    }
-
-    fn mac_to_color_push(&mut self) {
-        let color = [
-            self.i32_to_u8(0, self.mac[1] >> 4),
-            self.i32_to_u8(1, self.mac[2] >> 4),
-            self.i32_to_u8(2, self.mac[3] >> 4),
-            self.rgbc[3],
-        ];
-        self.colors.push(color);
-    }
-
     fn i32_to_i11(&mut self, is_x: bool, val: i32) -> i16 {
         let (res, saturated) = if val < -0x400 {
             (-0x400, true)
@@ -584,6 +517,82 @@ impl GTEngine {
         }
 
         res as u16
+    }
+
+    fn multiply_matrix_by_vector(
+        &mut self,
+        fields: CommandFields,
+        mx: Matrix,
+        vx: Vector,
+        cv: ControlVec,
+    ) {
+        let mx = match mx {
+            Matrix::Rotation => self.matrices[0],
+            Matrix::Light => self.matrices[1],
+            Matrix::Color => self.matrices[2],
+            Matrix::Reserved => {
+                let r13 = self.matrices[0][0][2];
+                let r22 = self.matrices[0][1][1];
+                let red = self.rgbc[0] as i16;
+                let ir0 = self.ir[0];
+
+                // Garbage matrix
+                [
+                    [(-red) << 4, red << 4, ir0],
+                    [r13, r13, r13],
+                    [r22, r22, r22],
+                ]
+            }
+        };
+
+        let v = match vx {
+            Vector::V0 => self.v[0],
+            Vector::V1 => self.v[1],
+            Vector::V2 => self.v[2],
+            Vector::IR => [self.ir[1], self.ir[2], self.ir[3]],
+        };
+
+        let tr = match cv {
+            ControlVec::Translation => self.control_vectors[0],
+            ControlVec::Background => self.control_vectors[1],
+            ControlVec::FarColor => self.control_vectors[2],
+            ControlVec::None => [0, 0, 0],
+        };
+
+        let sf = fields.sf() * 12;
+        let mut temp = [0; 3];
+
+        let tr_x = (tr[0] as i64) << 12;
+        let tr_y = (tr[1] as i64) << 12;
+        let tr_z = (tr[2] as i64) << 12;
+
+        temp[0] = self.i64_to_i44(1, tr_x + mx[0][0] as i64 * v[0] as i64);
+        temp[1] = self.i64_to_i44(2, tr_y + mx[1][0] as i64 * v[0] as i64);
+        temp[2] = self.i64_to_i44(3, tr_z + mx[2][0] as i64 * v[0] as i64);
+
+        if matches!(cv, ControlVec::FarColor) {
+            self.i32_to_i16(1, (temp[0] >> sf) as i32, Saturation::S16);
+            self.i32_to_i16(2, (temp[1] >> sf) as i32, Saturation::S16);
+            self.i32_to_i16(3, (temp[2] >> sf) as i32, Saturation::S16);
+
+            temp[0] = 0;
+            temp[1] = 0;
+            temp[2] = 0;
+        }
+
+        temp[0] = self.i64_to_i44(1, temp[0] + mx[0][1] as i64 * v[1] as i64);
+        temp[1] = self.i64_to_i44(2, temp[1] + mx[1][1] as i64 * v[1] as i64);
+        temp[2] = self.i64_to_i44(3, temp[2] + mx[2][1] as i64 * v[1] as i64);
+
+        temp[0] = self.i64_to_i44(1, temp[0] + mx[0][2] as i64 * v[2] as i64);
+        temp[1] = self.i64_to_i44(2, temp[1] + mx[1][2] as i64 * v[2] as i64);
+        temp[2] = self.i64_to_i44(3, temp[2] + mx[2][2] as i64 * v[2] as i64);
+
+        self.mac[1] = (temp[0] >> sf) as i32;
+        self.mac[2] = (temp[1] >> sf) as i32;
+        self.mac[3] = (temp[2] >> sf) as i32;
+
+        self.mac_to_ir(fields);
     }
 
     fn do_rtp(&mut self, fields: CommandFields, vec: Vector) -> u32 {

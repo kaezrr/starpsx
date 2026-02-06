@@ -70,7 +70,7 @@ Options:
 | DMA         | 🟡 Partial     | burst and linked-list DMA supported     |
 | Timers      | 🟢 Done        | functional but may contain inaccuracies |
 | CDROM       | 🟡 Partial     | boots a few games                       |
-| GTE         | 🔴 Not started |                                         |
+| GTE         | 🟢 Done        |                                         |
 | SPU         | 🔴 Not started |                                         |
 | Gamepad     | 🟢 Done        | full analog pad support                 |
 | Memory Card | 🔴 Not started |                                         |
@@ -82,3 +82,4 @@ Options:
 - jsgroth’s PSX emulator blog posts
 - duckstation for behavior comparison
 - The folks over at the EmuDev Discord
+- Lionel Flandrin's Rustation for GTE reference

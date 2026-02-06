@@ -497,8 +497,7 @@ where
     }
 }
 
-#[repr(C)]
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Clone, Copy, Debug)]
 enum Matrix {
     Rotation,
     Light,
@@ -518,8 +517,7 @@ impl From<u8> for Matrix {
     }
 }
 
-#[repr(C)]
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Clone, Copy, Debug)]
 enum Vector {
     V0,
     V1,
@@ -539,8 +537,7 @@ impl From<u8> for Vector {
     }
 }
 
-#[repr(C)]
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Clone, Copy, Debug)]
 enum ControlVec {
     Translation,
     Background,

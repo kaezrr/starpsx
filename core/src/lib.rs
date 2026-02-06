@@ -152,28 +152,28 @@ impl System {
         self.cpu.pc = init_pc;
 
         // Pass args to amidogs exe
-        // let args = ["console\0", "release\0"];
+        let args = ["console\0", "release\0"];
         // let args = ["auto\0", "console\0", "release\0"];
-        // let arg_len: u32 = 2; // only first 2 args
-        // let mut len: usize = 0;
-        //
-        // for i in 0..arg_len {
-        //     // write pointer to the string
-        //     self.write::<u32>(0x1f800004 + i * 4, 0x1f800044 + len as u32)
-        //         .unwrap();
-        //
-        //     let s = args[i as usize];
-        //     let n = s.len();
-        //
-        //     for x in len..len + n {
-        //         let byte = s.as_bytes()[x - len];
-        //         self.write::<u8>(0x1f800044 + x as u32, byte).unwrap();
-        //     }
-        //
-        //     len += n;
-        // }
-        //
-        // self.write::<u32>(0x1f800000, arg_len).unwrap();
+        let arg_len: u32 = 2; // only first 2 args
+        let mut len: usize = 0;
+
+        for i in 0..arg_len {
+            // write pointer to the string
+            self.write::<u32>(0x1f800004 + i * 4, 0x1f800044 + len as u32)
+                .unwrap();
+
+            let s = args[i as usize];
+            let n = s.len();
+
+            for x in len..len + n {
+                let byte = s.as_bytes()[x - len];
+                self.write::<u8>(0x1f800044 + x as u32, byte).unwrap();
+            }
+
+            len += n;
+        }
+
+        self.write::<u32>(0x1f800000, arg_len).unwrap();
     }
 
     fn enter_vsync(&mut self, show_vram: bool) -> FrameBuffer {
