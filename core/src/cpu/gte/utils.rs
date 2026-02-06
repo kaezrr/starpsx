@@ -34,6 +34,7 @@ pub fn vec_xy_write(v: &mut [i16], d: u32) {
     v[1] = (d >> 16) as i16;
 }
 
+/// Credits to Rustation for this division implementation
 pub fn divide(numerator: u16, divisor: u16) -> u32 {
     let shift = divisor.leading_zeros();
 

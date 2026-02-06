@@ -582,7 +582,34 @@ impl GTEngine {
         };
     }
 
-    // -------------------REFACTOR--------------------------- //
+    fn do_dpc(&mut self, vec: [i64; 3], shift: u8, fields: CommandFields) {
+        let sf = fields.sf() * 12;
+        let ir0 = self.ir[0] as i64;
+
+        let x = vec[0] << shift;
+        let y = vec[1] << shift;
+        let z = vec[2] << shift;
+
+        let rfc = (self.fc[0] as i64) << 12;
+        let gfc = (self.fc[1] as i64) << 12;
+        let bfc = (self.fc[2] as i64) << 12;
+
+        let sub1 = (self.i64_to_i44::<1>(rfc - x) >> sf) as i32;
+        let sub3 = (self.i64_to_i44::<3>(bfc - z) >> sf) as i32;
+        let sub2 = (self.i64_to_i44::<2>(gfc - y) >> sf) as i32;
+
+        let sat1 = self.i32_to_i16::<1>(sub1, Saturation::S16) as i64;
+        let sat2 = self.i32_to_i16::<2>(sub2, Saturation::S16) as i64;
+        let sat3 = self.i32_to_i16::<3>(sub3, Saturation::S16) as i64;
+
+        self.mac[1] = (self.i64_to_i44::<1>(x + ir0 * sat1) >> sf) as i32;
+        self.mac[2] = (self.i64_to_i44::<2>(y + ir0 * sat2) >> sf) as i32;
+        self.mac[3] = (self.i64_to_i44::<3>(z + ir0 * sat3) >> sf) as i32;
+
+        self.mac_to_ir(fields);
+        self.mac_to_color_push();
+    }
+
     fn i64_to_i44<const INDEX: usize>(&mut self, val: i64) -> i64 {
         if val > 0x7FF_FFFF_FFFF {
             match INDEX {
@@ -672,34 +699,6 @@ impl GTEngine {
         }
 
         res as i16
-    }
-
-    fn do_dpc(&mut self, vec: [i64; 3], shift: u8, fields: CommandFields) {
-        let sf = fields.sf() * 12;
-        let ir0 = self.ir[0] as i64;
-
-        let x = vec[0] << shift;
-        let y = vec[1] << shift;
-        let z = vec[2] << shift;
-
-        let rfc = (self.fc[0] as i64) << 12;
-        let gfc = (self.fc[1] as i64) << 12;
-        let bfc = (self.fc[2] as i64) << 12;
-
-        let sub1 = (self.i64_to_i44::<1>(rfc - x) >> sf) as i32;
-        let sub3 = (self.i64_to_i44::<3>(bfc - z) >> sf) as i32;
-        let sub2 = (self.i64_to_i44::<2>(gfc - y) >> sf) as i32;
-
-        let sat1 = self.i32_to_i16::<1>(sub1, Saturation::S16) as i64;
-        let sat2 = self.i32_to_i16::<2>(sub2, Saturation::S16) as i64;
-        let sat3 = self.i32_to_i16::<3>(sub3, Saturation::S16) as i64;
-
-        self.mac[1] = (self.i64_to_i44::<1>(x + ir0 * sat1) >> sf) as i32;
-        self.mac[2] = (self.i64_to_i44::<2>(y + ir0 * sat2) >> sf) as i32;
-        self.mac[3] = (self.i64_to_i44::<3>(z + ir0 * sat3) >> sf) as i32;
-
-        self.mac_to_ir(fields);
-        self.mac_to_color_push();
     }
 
     fn i64_to_otz(&mut self, val: i64) -> u16 {
