@@ -36,7 +36,7 @@ bitfield::bitfield! {
     ready_vram, set_ready_vram : 27;
     ready_dma_recv, set_ready_dma_recv: 28;
     u8, from into DmaDirection, dma_direction, set_dma_direction: 30, 29;
-    even_odd_draw, set_even_odd_draw : 31;
+    _, set_odd_scanline : 31;
 }
 
 bitfield::bitfield! {
@@ -114,6 +114,10 @@ pub struct Gpu {
     gpu_read: u32,
     gpu_stat: GpuStat,
     gp0_state: GP0State,
+
+    frame_counter: u32,
+    line_counter: u32,
+    in_vsync: bool,
 }
 
 impl Default for Gpu {
@@ -123,6 +127,10 @@ impl Default for Gpu {
             gpu_read: 0,
             gpu_stat: GpuStat(0),
             gp0_state: GP0State::AwaitCommand,
+
+            frame_counter: 0,
+            line_counter: 0,
+            in_vsync: false,
         }
     }
 }
@@ -135,6 +143,20 @@ const QUAD: bool = true;
 const TRI: bool = false;
 
 impl Gpu {
+    pub fn enter_vsync(&mut self) {
+        self.frame_counter += 1;
+        self.in_vsync = false;
+    }
+
+    pub fn exit_vsync(&mut self) {
+        self.in_vsync = false;
+        self.line_counter = 0;
+    }
+
+    pub fn enter_hsync(&mut self) {
+        self.line_counter += 1;
+    }
+
     pub fn draw_area_top_left(&self) -> u32 {
         let d = self.renderer.ctx.drawing_area_top_left;
         let (x, y) = (d.x as u32, d.y as u32);
@@ -181,8 +203,15 @@ impl Gpu {
         ret.set_ready_vram(true);
         ret.set_ready_dma_recv(true);
 
-        // Hack, GPU doesn't have proper timing to emulate vres 480 lines
-        ret.set_vres(VerticalRes::Y240);
+        // Set interlaced bit
+        if self.in_vsync || !ret.interlaced() {
+            ret.set_odd_scanline(false);
+        } else if matches!(ret.vres(), VerticalRes::Y480) {
+            ret.set_odd_scanline(self.frame_counter & 1 != 0);
+        } else {
+            ret.set_odd_scanline(self.line_counter & 1 != 0);
+        }
+
         ret.0
     }
 
@@ -301,8 +330,8 @@ impl Gpu {
                     0x36 => (9, Gpu::gp0_poly_texture_shaded::<TRI, SEMI_TRANS, BLEND>),
 
                     // Polygons Quads
-                    0x28 => (5, Gpu::gp0_poly_mono::<QUAD, OPAQUE>),
-                    0x2A => (5, Gpu::gp0_poly_mono::<QUAD, SEMI_TRANS>),
+                    0x28 | 0x29 => (5, Gpu::gp0_poly_mono::<QUAD, OPAQUE>),
+                    0x2A | 0x2B => (5, Gpu::gp0_poly_mono::<QUAD, SEMI_TRANS>),
                     0x38 => (8, Gpu::gp0_poly_shaded::<QUAD, OPAQUE>),
                     0x3A => (8, Gpu::gp0_poly_shaded::<QUAD, SEMI_TRANS>),
                     0x2C => (9, Gpu::gp0_poly_texture::<QUAD, OPAQUE, BLEND>),
@@ -313,8 +342,8 @@ impl Gpu {
                     0x3E => (12, Gpu::gp0_poly_texture_shaded::<QUAD, SEMI_TRANS, BLEND>),
 
                     // Single Line
-                    0x40 => (3, Gpu::gp0_line_mono::<OPAQUE>),
-                    0x42 => (3, Gpu::gp0_line_mono::<SEMI_TRANS>),
+                    0x40 | 0x41 => (3, Gpu::gp0_line_mono::<OPAQUE>),
+                    0x42 | 0x43 => (3, Gpu::gp0_line_mono::<SEMI_TRANS>),
                     0x50 => (4, Gpu::gp0_line_shaded::<OPAQUE>),
                     0x52 => (4, Gpu::gp0_line_shaded::<SEMI_TRANS>),
 

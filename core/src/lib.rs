@@ -154,8 +154,19 @@ impl System {
 
     fn enter_vsync(&mut self, show_vram: bool) -> FrameBuffer {
         Timers::enter_vsync(self);
+        self.gpu.enter_vsync();
         self.irqctl.stat().set_vblank(true);
         self.gpu.renderer.produce_frame_buffer(show_vram)
+    }
+
+    fn exit_vsync(&mut self) {
+        self.gpu.exit_vsync();
+        Timers::exit_vsync(self);
+    }
+
+    fn enter_hsync(&mut self) {
+        self.gpu.enter_hsync();
+        Timers::enter_hsync(self);
     }
 
     fn check_for_tty_output(&mut self) {
@@ -193,8 +204,8 @@ impl System {
             match event {
                 // Frame completes just before entering vsync
                 Event::VBlankStart => return Some(self.enter_vsync(show_vram)),
-                Event::VBlankEnd => Timers::exit_vsync(self),
-                Event::HBlankStart => Timers::enter_hsync(self),
+                Event::VBlankEnd => self.exit_vsync(),
+                Event::HBlankStart => self.enter_hsync(),
                 Event::HBlankEnd => Timers::exit_hsync(self),
                 Event::Timer(x) => Timers::process_interrupt(self, x),
                 Event::SerialSend => Sio0::process_serial_send(self),
