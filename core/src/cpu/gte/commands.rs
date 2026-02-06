@@ -57,46 +57,22 @@ impl GTEngine {
     pub fn dpcs(&mut self, fields: CommandFields) {
         debug!(target:"gte","gte command, dpcs");
 
-        let sf = fields.sf() * 12;
-        let far_colors = self.fc;
+        let dpc_vec = [
+            self.rgbc[0] as i64,
+            self.rgbc[1] as i64,
+            self.rgbc[2] as i64,
+        ];
 
-        far_colors.iter().enumerate().for_each(|(i, &fc)| {
-            let c = (self.rgbc[i] as i64) << 16;
-            let fc = (fc as i64) << 12;
-            let ir0 = self.ir[0] as i64;
-
-            let sub = (self.i64_to_i44(i + 1, fc - c) >> sf) as i32;
-            let sat = self.i32_to_i16(i + 1, sub, Saturation::S16) as i64;
-            let res = self.i64_to_i44(i + 1, c + ir0 * sat);
-
-            self.mac[i + 1] = (res >> sf) as i32;
-        });
-
-        self.mac_to_ir(fields);
-        self.mac_to_color_push();
+        self.do_dpc(dpc_vec, 16, fields);
     }
 
     /// Interpolation of a vector and far color
     pub fn intpl(&mut self, fields: CommandFields) {
         debug!(target:"gte","gte command, intpl");
 
-        let sf = fields.sf() * 12;
-        let far_colors = self.fc;
+        let dpc_vec = [self.ir[1] as i64, self.ir[2] as i64, self.ir[3] as i64];
 
-        far_colors.iter().enumerate().for_each(|(i, &fc)| {
-            let ir = (self.ir[i + 1] as i64) << 12;
-            let fc = (fc as i64) << 12;
-            let ir0 = self.ir[0] as i64;
-
-            let sub = (self.i64_to_i44(i + 1, fc - ir) >> sf) as i32;
-            let sat = self.i32_to_i16(i + 1, sub, Saturation::S16) as i64;
-            let res = self.i64_to_i44(i + 1, ir + ir0 * sat);
-
-            self.mac[i + 1] = (res >> sf) as i32;
-        });
-
-        self.mac_to_ir(fields);
-        self.mac_to_color_push();
+        self.do_dpc(dpc_vec, 12, fields);
     }
 
     /// Multiply vector by matrix and vector addition
@@ -158,16 +134,22 @@ impl GTEngine {
 
         self.multiply_matrix_by_vector(fields, Matrix::Color, Vector::IR, ControlVec::Background);
 
+        let r = self.rgbc[0] as i64;
+        let g = self.rgbc[1] as i64;
+        let b = self.rgbc[2] as i64;
+
+        let ir1 = self.ir[1] as i64;
+        let ir2 = self.ir[2] as i64;
+        let ir3 = self.ir[3] as i64;
+
+        let shaded1 = (r * ir1) << 4;
+        let shaded2 = (g * ir2) << 4;
+        let shaded3 = (b * ir3) << 4;
+
         let sf = fields.sf() * 12;
-        for i in 0..3 {
-            let col = self.rgbc[i] as i64;
-            let ir = self.ir[i + 1] as i64;
-
-            let shaded = (col * ir) << 4;
-            let res = self.i64_to_i44(i + 1, shaded);
-
-            self.mac[i + 1] = (res >> sf) as i32;
-        }
+        self.mac[1] = (self.i64_to_i44::<1>(shaded1) >> sf) as i32;
+        self.mac[2] = (self.i64_to_i44::<2>(shaded2) >> sf) as i32;
+        self.mac[3] = (self.i64_to_i44::<3>(shaded3) >> sf) as i32;
 
         self.mac_to_ir(fields);
         self.mac_to_color_push();
@@ -239,11 +221,11 @@ impl GTEngine {
             let shaded = (col * ir) << 4;
             let ir0 = self.ir[0] as i64;
 
-            let sub = (self.i64_to_i44(i + 1, fc - shaded) >> sf) as i32;
+            let sub = (self.i64_to_i44_temp(i + 1, fc - shaded) >> sf) as i32;
 
-            let sat = self.i32_to_i16(i + 1, sub, Saturation::S16) as i64;
+            let sat = self.i32_to_i16_temp(i + 1, sub, Saturation::S16) as i64;
 
-            let res = self.i64_to_i44(i + 1, shaded + ir0 * sat);
+            let res = self.i64_to_i44_temp(i + 1, shaded + ir0 * sat);
 
             self.mac[i + 1] = (res >> sf) as i32;
         });
@@ -265,9 +247,9 @@ impl GTEngine {
                 let fc = (fc as i64) << 12;
                 let ir0 = self.ir[0] as i64;
 
-                let sub = (self.i64_to_i44(i + 1, fc - c) >> sf) as i32;
-                let sat = self.i32_to_i16(i + 1, sub, Saturation::S16) as i64;
-                let res = self.i64_to_i44(i + 1, c + ir0 * sat);
+                let sub = (self.i64_to_i44_temp(i + 1, fc - c) >> sf) as i32;
+                let sat = self.i32_to_i16_temp(i + 1, sub, Saturation::S16) as i64;
+                let res = self.i64_to_i44_temp(i + 1, c + ir0 * sat);
 
                 self.mac[i + 1] = (res >> sf) as i32;
             });
@@ -332,12 +314,13 @@ impl GTEngine {
         let sf = fields.sf() * 12;
         let ir0 = self.ir[0] as i32;
 
-        for i in 0..3 {
-            let prod = self.ir[i + 1] as i32 * ir0;
-            let res = self.i64_to_i44(i + 1, prod as i64);
+        let prod1 = self.ir[1] as i32 * ir0;
+        let prod2 = self.ir[2] as i32 * ir0;
+        let prod3 = self.ir[3] as i32 * ir0;
 
-            self.mac[i + 1] = (res >> sf) as i32;
-        }
+        self.mac[1] = (self.i64_to_i44::<1>(prod1 as i64) >> sf) as i32;
+        self.mac[2] = (self.i64_to_i44::<2>(prod2 as i64) >> sf) as i32;
+        self.mac[3] = (self.i64_to_i44::<3>(prod3 as i64) >> sf) as i32;
 
         self.mac_to_ir(fields);
         self.mac_to_color_push();
@@ -350,13 +333,17 @@ impl GTEngine {
         let sf = fields.sf() * 12;
         let ir0 = self.ir[0] as i32;
 
-        for i in 0..3 {
-            let mac = (self.mac[i + 1] as i64) << sf;
-            let prod = self.ir[i + 1] as i32 * ir0;
-            let res = self.i64_to_i44(i + 1, mac + prod as i64);
+        let mac1 = (self.mac[1] as i64) << sf;
+        let mac2 = (self.mac[2] as i64) << sf;
+        let mac3 = (self.mac[3] as i64) << sf;
 
-            self.mac[i + 1] = (res >> sf) as i32;
-        }
+        let prod1 = self.ir[1] as i32 * ir0;
+        let prod2 = self.ir[2] as i32 * ir0;
+        let prod3 = self.ir[3] as i32 * ir0;
+
+        self.mac[1] = (self.i64_to_i44::<1>(mac1 + prod1 as i64) >> sf) as i32;
+        self.mac[2] = (self.i64_to_i44::<2>(mac2 + prod2 as i64) >> sf) as i32;
+        self.mac[3] = (self.i64_to_i44::<3>(mac3 + prod3 as i64) >> sf) as i32;
 
         self.mac_to_ir(fields);
         self.mac_to_color_push();
@@ -380,16 +367,16 @@ impl GTEngine {
 
     fn mac_to_ir(&mut self, fields: CommandFields) {
         let lm = fields.lm();
-        for i in 1..=3 {
-            self.ir[i] = self.i32_to_i16(i, self.mac[i], lm);
-        }
+        self.ir[1] = self.i32_to_i16::<1>(self.mac[1], lm);
+        self.ir[2] = self.i32_to_i16::<2>(self.mac[2], lm);
+        self.ir[3] = self.i32_to_i16::<3>(self.mac[3], lm);
     }
 
     fn mac_to_color_push(&mut self) {
         let color = [
-            self.i32_to_u8(0, self.mac[1] >> 4),
-            self.i32_to_u8(1, self.mac[2] >> 4),
-            self.i32_to_u8(2, self.mac[3] >> 4),
+            self.i32_to_u8::<0>(self.mac[1] >> 4),
+            self.i32_to_u8::<1>(self.mac[2] >> 4),
+            self.i32_to_u8::<2>(self.mac[3] >> 4),
             self.rgbc[3],
         ];
         self.colors.push(color);
@@ -403,7 +390,7 @@ impl GTEngine {
         }
     }
 
-    fn i64_to_i44(&mut self, flag: usize, val: i64) -> i64 {
+    fn i64_to_i44_temp(&mut self, flag: usize, val: i64) -> i64 {
         debug_assert!(matches!(flag, 1..=3));
 
         if val > 0x7FF_FFFF_FFFF {
@@ -425,7 +412,7 @@ impl GTEngine {
         (val << 20) >> 20
     }
 
-    fn i32_to_i16(&mut self, flag: usize, val: i32, lm: Saturation) -> i16 {
+    fn i32_to_i16_temp(&mut self, flag: usize, val: i32, lm: Saturation) -> i16 {
         debug_assert!(matches!(flag, 1..=3));
 
         let min = match lm {
@@ -455,32 +442,7 @@ impl GTEngine {
         res
     }
 
-    fn i32_to_u8(&mut self, flag: usize, val: i32) -> u8 {
-        debug_assert!(matches!(flag, 0..3));
-
-        let (min, max) = (u8::MIN.into(), u8::MAX.into());
-
-        let (res, saturated) = if val > max {
-            (max as u8, true)
-        } else if val < min {
-            (min as u8, true)
-        } else {
-            (val as u8, false)
-        };
-
-        if saturated {
-            match flag {
-                0 => self.flag.cfifo_r_saturated(true),
-                1 => self.flag.cfifo_g_saturated(true),
-                2 => self.flag.cfifo_b_saturated(true),
-                _ => unreachable!(),
-            }
-        }
-
-        res
-    }
-
-    fn i32_to_i11(&mut self, is_x: bool, val: i32) -> i16 {
+    fn i32_to_i11_temp(&mut self, is_x: bool, val: i32) -> i16 {
         let (res, saturated) = if val < -0x400 {
             (-0x400, true)
         } else if val > 0x3FF {
@@ -564,27 +526,27 @@ impl GTEngine {
         let tr_y = (tr[1] as i64) << 12;
         let tr_z = (tr[2] as i64) << 12;
 
-        temp[0] = self.i64_to_i44(1, tr_x + mx[0][0] as i64 * v[0] as i64);
-        temp[1] = self.i64_to_i44(2, tr_y + mx[1][0] as i64 * v[0] as i64);
-        temp[2] = self.i64_to_i44(3, tr_z + mx[2][0] as i64 * v[0] as i64);
+        temp[0] = self.i64_to_i44::<1>(tr_x + mx[0][0] as i64 * v[0] as i64);
+        temp[1] = self.i64_to_i44::<2>(tr_y + mx[1][0] as i64 * v[0] as i64);
+        temp[2] = self.i64_to_i44::<3>(tr_z + mx[2][0] as i64 * v[0] as i64);
 
         if matches!(cv, ControlVec::FarColor) {
-            self.i32_to_i16(1, (temp[0] >> sf) as i32, Saturation::S16);
-            self.i32_to_i16(2, (temp[1] >> sf) as i32, Saturation::S16);
-            self.i32_to_i16(3, (temp[2] >> sf) as i32, Saturation::S16);
+            self.i32_to_i16::<1>((temp[0] >> sf) as i32, Saturation::S16);
+            self.i32_to_i16::<2>((temp[1] >> sf) as i32, Saturation::S16);
+            self.i32_to_i16::<3>((temp[2] >> sf) as i32, Saturation::S16);
 
             temp[0] = 0;
             temp[1] = 0;
             temp[2] = 0;
         }
 
-        temp[0] = self.i64_to_i44(1, temp[0] + mx[0][1] as i64 * v[1] as i64);
-        temp[1] = self.i64_to_i44(2, temp[1] + mx[1][1] as i64 * v[1] as i64);
-        temp[2] = self.i64_to_i44(3, temp[2] + mx[2][1] as i64 * v[1] as i64);
+        temp[0] = self.i64_to_i44::<1>(temp[0] + mx[0][1] as i64 * v[1] as i64);
+        temp[1] = self.i64_to_i44::<2>(temp[1] + mx[1][1] as i64 * v[1] as i64);
+        temp[2] = self.i64_to_i44::<3>(temp[2] + mx[2][1] as i64 * v[1] as i64);
 
-        temp[0] = self.i64_to_i44(1, temp[0] + mx[0][2] as i64 * v[2] as i64);
-        temp[1] = self.i64_to_i44(2, temp[1] + mx[1][2] as i64 * v[2] as i64);
-        temp[2] = self.i64_to_i44(3, temp[2] + mx[2][2] as i64 * v[2] as i64);
+        temp[0] = self.i64_to_i44::<1>(temp[0] + mx[0][2] as i64 * v[2] as i64);
+        temp[1] = self.i64_to_i44::<2>(temp[1] + mx[1][2] as i64 * v[2] as i64);
+        temp[2] = self.i64_to_i44::<3>(temp[2] + mx[2][2] as i64 * v[2] as i64);
 
         self.mac[1] = (temp[0] >> sf) as i32;
         self.mac[2] = (temp[1] >> sf) as i32;
@@ -604,9 +566,9 @@ impl GTEngine {
             let prod3 = (self.v[vx][2] as i32) * (self.rtm[r][2] as i32);
 
             let mut res = (self.tr[r] as i64) << 12;
-            res = self.i64_to_i44(r + 1, res + prod1 as i64);
-            res = self.i64_to_i44(r + 1, res + prod2 as i64);
-            res = self.i64_to_i44(r + 1, res + prod3 as i64);
+            res = self.i64_to_i44_temp(r + 1, res + prod1 as i64);
+            res = self.i64_to_i44_temp(r + 1, res + prod2 as i64);
+            res = self.i64_to_i44_temp(r + 1, res + prod3 as i64);
 
             self.mac[r + 1] = (res >> (12 * sf)) as i32;
             last_z = (res >> 12) as i32;
@@ -615,7 +577,7 @@ impl GTEngine {
         // Dont update IR3 here
         let lm = fields.lm();
         for i in 1..=2 {
-            self.ir[i] = self.i32_to_i16(i, self.mac[i], lm);
+            self.ir[i] = self.i32_to_i16_temp(i, self.mac[i], lm);
         }
 
         // Special IR3 bug handling
@@ -669,8 +631,8 @@ impl GTEngine {
         self.mac0_overflow_check(screen_x);
         self.mac0_overflow_check(screen_y);
 
-        let sx2 = self.i32_to_i11(true, (screen_x >> 16) as i32);
-        let sy2 = self.i32_to_i11(false, (screen_y >> 16) as i32);
+        let sx2 = self.i32_to_i11_temp(true, (screen_x >> 16) as i32);
+        let sy2 = self.i32_to_i11_temp(false, (screen_y >> 16) as i32);
 
         self.sxy.push([sx2, sy2]);
 
@@ -696,5 +658,125 @@ impl GTEngine {
         } else {
             res as i16
         };
+    }
+
+    // -------------------REFACTOR--------------------------- //
+    fn i64_to_i44<const INDEX: usize>(&mut self, val: i64) -> i64 {
+        if val > 0x7FF_FFFF_FFFF {
+            match INDEX {
+                1 => self.flag.mac1_overflow_pos(true),
+                2 => self.flag.mac2_overflow_pos(true),
+                3 => self.flag.mac3_overflow_pos(true),
+                _ => unreachable!(),
+            }
+        } else if val < -0x800_0000_0000 {
+            match INDEX {
+                1 => self.flag.mac1_overflow_neg(true),
+                2 => self.flag.mac2_overflow_neg(true),
+                3 => self.flag.mac3_overflow_neg(true),
+                _ => unreachable!(),
+            }
+        }
+
+        (val << 20) >> 20
+    }
+
+    fn i32_to_i16<const INDEX: usize>(&mut self, val: i32, lm: Saturation) -> i16 {
+        let min = match lm {
+            Saturation::S16 => i16::MIN.into(),
+            Saturation::U15 => 0,
+        };
+
+        let max = i16::MAX.into();
+
+        let (res, saturated) = if val > max {
+            (max as i16, true)
+        } else if val < min {
+            (min as i16, true)
+        } else {
+            (val as i16, false)
+        };
+
+        if saturated {
+            match INDEX {
+                1 => self.flag.ir1_saturated(true),
+                2 => self.flag.ir2_saturated(true),
+                3 => self.flag.ir3_saturated(true),
+                _ => unreachable!(),
+            }
+        }
+
+        res
+    }
+
+    fn i32_to_u8<const INDEX: usize>(&mut self, val: i32) -> u8 {
+        let (min, max) = (u8::MIN.into(), u8::MAX.into());
+
+        let (res, saturated) = if val > max {
+            (max as u8, true)
+        } else if val < min {
+            (min as u8, true)
+        } else {
+            (val as u8, false)
+        };
+
+        if saturated {
+            match INDEX {
+                0 => self.flag.cfifo_r_saturated(true),
+                1 => self.flag.cfifo_g_saturated(true),
+                2 => self.flag.cfifo_b_saturated(true),
+                _ => unreachable!(),
+            }
+        }
+
+        res
+    }
+
+    fn i32_to_i11<const INDEX: usize>(&mut self, val: i32) -> i16 {
+        let (res, saturated) = if val < -0x400 {
+            (-0x400, true)
+        } else if val > 0x3FF {
+            (0x3FF, true)
+        } else {
+            (val, false)
+        };
+
+        if saturated {
+            match INDEX {
+                0 => self.flag.sx2_saturated(true),
+                1 => self.flag.sy2_saturated(true),
+                _ => unreachable!(),
+            }
+        }
+
+        res as i16
+    }
+
+    fn do_dpc(&mut self, vec: [i64; 3], shift: u8, fields: CommandFields) {
+        let sf = fields.sf() * 12;
+        let ir0 = self.ir[0] as i64;
+
+        let x = vec[0] << shift;
+        let y = vec[1] << shift;
+        let z = vec[2] << shift;
+
+        let rfc = (self.fc[0] as i64) << 12;
+        let gfc = (self.fc[1] as i64) << 12;
+        let bfc = (self.fc[2] as i64) << 12;
+
+        let sub1 = (self.i64_to_i44::<1>(rfc - x) >> sf) as i32;
+        let sub3 = (self.i64_to_i44::<3>(bfc - z) >> sf) as i32;
+        let sub2 = (self.i64_to_i44::<2>(gfc - y) >> sf) as i32;
+
+        let sat1 = self.i32_to_i16::<1>(sub1, Saturation::S16) as i64;
+        let sat2 = self.i32_to_i16::<2>(sub2, Saturation::S16) as i64;
+        let sat3 = self.i32_to_i16::<3>(sub3, Saturation::S16) as i64;
+
+        self.mac[1] = (self.i64_to_i44::<1>(x + ir0 * sat1) >> sf) as i32;
+        self.mac[2] = (self.i64_to_i44::<2>(y + ir0 * sat2) >> sf) as i32;
+        self.mac[3] = (self.i64_to_i44::<3>(z + ir0 * sat3) >> sf) as i32;
+
+        self.mac_to_ir(fields);
+        self.mac_to_color_push();
     }
 }
