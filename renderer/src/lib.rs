@@ -95,6 +95,7 @@ impl Renderer {
     }
 
     pub fn produce_frame_buffer(&mut self) -> FrameBuffer {
+        // Display is disabled or resolution is invalid
         if self.ctx.display_disabled || self.ctx.display_width == 0 || self.ctx.display_height == 0
         {
             self.frame = FrameBuffer::black();
@@ -110,6 +111,7 @@ impl Renderer {
         );
 
         let height_mul = if interlaced { 1 } else { 2 };
+        let draw_odd = self.ctx.frame_counter & 1 != 0;
         let new_size = width * height * height_mul;
 
         // Need to create a new frame buffer, cannot reuse the last one
@@ -119,17 +121,25 @@ impl Renderer {
 
         match self.ctx.display_depth {
             utils::DisplayDepth::D15 => {
-                for y in 0..height {
-                    let base_y = if interlaced { y } else { y * 2 };
-
-                    for x in 0..width {
-                        let pixel = self.vram_read(sx + x, sy + y);
-                        let index = base_y * width + x;
-                        self.frame.rgba[index] = Color::new_5bit(pixel).with_full_alpha();
+                if interlaced {
+                    for y in (draw_odd as usize..height).step_by(2) {
+                        for x in 0..width {
+                            let pixel = self.vram_read(sx + x, sy + y);
+                            let index = y * width + x;
+                            self.frame.rgba[index] = Color::new_5bit(pixel).with_full_alpha();
+                        }
                     }
+                } else {
+                    for y in 0..height {
+                        let base_y = y * 2;
 
-                    // Non interlaced displays have each row duplicated
-                    if !interlaced {
+                        for x in 0..width {
+                            let pixel = self.vram_read(sx + x, sy + y);
+                            let index = base_y * width + x;
+                            self.frame.rgba[index] = Color::new_5bit(pixel).with_full_alpha();
+                        }
+
+                        // Non interlaced displays have each row duplicated
                         let start = base_y * width;
                         let end = start + width;
                         self.frame.rgba.copy_within(start..end, end);
@@ -137,32 +147,52 @@ impl Renderer {
                 }
             }
             utils::DisplayDepth::D24 => {
-                for y in 0..height {
-                    let base_y = if interlaced { y } else { y * 2 };
-                    let mut vram_x = 0;
+                if interlaced {
+                    for y in (draw_odd as usize..height).step_by(2) {
+                        let mut vram_x = 0;
 
-                    // Write one full row
-                    for x in (0..width).step_by(2) {
-                        let w0 = self.vram_read(sx + vram_x, sy + y) as u32;
-                        let w1 = self.vram_read(sx + vram_x + 1, sy + y) as u32;
-                        let w2 = self.vram_read(sx + vram_x + 2, sy + y) as u32;
+                        // Write one full row
+                        for x in (0..width).step_by(2) {
+                            let w0 = self.vram_read(sx + vram_x, sy + y) as u32;
+                            let w1 = self.vram_read(sx + vram_x + 1, sy + y) as u32;
+                            let w2 = self.vram_read(sx + vram_x + 2, sy + y) as u32;
 
-                        let pixel0 = w0 | ((w1 & 0xFF) << 16);
-                        let pixel1 = (w2 << 8) | (w1 >> 8);
+                            let pixel0 = w0 | ((w1 & 0xFF) << 16);
+                            let pixel1 = (w2 << 8) | (w1 >> 8);
 
-                        let idx = base_y * width + x;
+                            let idx = y * width + x;
 
-                        self.frame.rgba[idx] = Color::new_8bit(pixel0).with_full_alpha();
-                        self.frame.rgba[idx + 1] = Color::new_8bit(pixel1).with_full_alpha();
+                            self.frame.rgba[idx] = Color::new_8bit(pixel0).with_full_alpha();
+                            self.frame.rgba[idx + 1] = Color::new_8bit(pixel1).with_full_alpha();
 
-                        vram_x += 3;
+                            vram_x += 3;
+                        }
                     }
+                } else {
+                    for y in 0..height {
+                        let base_y = y * 2;
+                        let mut vram_x = 0;
 
-                    // Non interlaced displays have each row duplicated
-                    if !interlaced {
+                        // Write one full row
+                        for x in (0..width).step_by(2) {
+                            let w0 = self.vram_read(sx + vram_x, sy + y) as u32;
+                            let w1 = self.vram_read(sx + vram_x + 1, sy + y) as u32;
+                            let w2 = self.vram_read(sx + vram_x + 2, sy + y) as u32;
+
+                            let pixel0 = w0 | ((w1 & 0xFF) << 16);
+                            let pixel1 = (w2 << 8) | (w1 >> 8);
+
+                            let idx = base_y * width + x;
+
+                            self.frame.rgba[idx] = Color::new_8bit(pixel0).with_full_alpha();
+                            self.frame.rgba[idx + 1] = Color::new_8bit(pixel1).with_full_alpha();
+
+                            vram_x += 3;
+                        }
+
+                        // Non interlaced displays have each row duplicated
                         let start = base_y * width;
                         let end = start + width;
-
                         self.frame.rgba.copy_within(start..end, end);
                     }
                 }
