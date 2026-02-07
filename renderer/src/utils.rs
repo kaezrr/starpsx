@@ -45,6 +45,13 @@ impl From5Bit for u32 {
 }
 
 impl Color {
+    pub const BLACK: Self = Self {
+        r: 0,
+        g: 0,
+        b: 0,
+        mask: 0xFF,
+    };
+
     pub fn new_5bit<T: From5Bit>(pixel: T) -> Self {
         pixel.to_color()
     }
@@ -119,7 +126,7 @@ fn convert_5bit_to_8bit(color: u16) -> u8 {
 }
 
 // Store the current drawing context
-#[derive(Debug, Default, Clone, Copy)]
+#[derive(Debug, Default)]
 pub struct DrawContext {
     pub drawing_area_top_left: Vec2,
     pub drawing_area_bottom_right: Vec2,
@@ -144,6 +151,10 @@ pub struct DrawContext {
     pub display_depth: DisplayDepth,
 
     pub display_disabled: bool,
+    pub is_interlaced: bool,
+
+    pub frame_counter: u32,
+    pub line_counter: u32,
 }
 
 impl DrawContext {

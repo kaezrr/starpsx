@@ -3,11 +3,11 @@ mod gp1;
 mod utils;
 
 use arrayvec::ArrayVec;
-use starpsx_renderer::{Renderer, utils::DisplayDepth, utils::HorizontalRes, utils::VerticalRes};
+use starpsx_renderer::{Renderer, utils::DisplayDepth};
 
 pub use utils::{
-    CommandArguments, CommandFn, DmaDirection, Field, GP0State, PolyLineArguments, TextureDepth,
-    VMode, VramCopyFields,
+    CommandArguments, CommandFn, DmaDirection, GP0State, HorizontalRes, PolyLineArguments,
+    TextureDepth, VMode, VerticalRes, VramCopyFields,
 };
 
 use crate::{System, gpu::utils::PolyLineFn, mem::ByteAddressable};
@@ -15,28 +15,36 @@ use crate::{System, gpu::utils::PolyLineFn, mem::ByteAddressable};
 bitfield::bitfield! {
     #[derive(Clone, Copy)]
     pub struct GpuStat(u32);
+
     page_base_x, set_page_base_x : 3, 0;
     page_base_y, set_page_base_y : 4;
+
     semi_transparency, set_semi_transparency : 6, 5;
     u8, from into TextureDepth, texture_depth, set_texture_depth : 8, 7;
     dithering, set_dithering : 9;
     draw_to_display, set_draw_to_display : 10;
+
     force_set_mask_bit, set_force_set_mask_bit : 11;
     preserve_masked_pixels, set_preserve_masked_pixels : 12;
-    u8, from into Field, field, set_field : 13, 13;
+
+    interlaced, set_interlaced : 13;
     texture_disable, set_texture_disable : 15;
+
     u8, into HorizontalRes, hres, set_hres : 18, 16;
     u8, from into VerticalRes, vres, set_vres : 19, 19;
     u8, from into VMode, vmode, set_vmode : 20, 20;
     u8, from into DisplayDepth, display_depth, set_display_depth : 21, 21;
-    interlaced, set_interlaced : 22;
+
+    interlaced_v, set_interlaced_v : 22;
     display_disabled, set_display_disabled : 23;
+
     interrupt, set_interrupt : 24;
     ready_cmd, set_ready_cmd : 26;
     ready_vram, set_ready_vram : 27;
     ready_dma_recv, set_ready_dma_recv: 28;
     u8, from into DmaDirection, dma_direction, set_dma_direction: 30, 29;
-    _, set_odd_scanline : 31;
+
+    odd_scanline, set_odd_scanline : 31;
 }
 
 bitfield::bitfield! {
@@ -93,10 +101,10 @@ bitfield::bitfield! {
     u16, display_vram_y, _ : 18, 10;
 
     // GP1 Display Horizontal and Vertical Ranges
-    u16, horizontal_x1, _ : 11, 0;
-    u16, horizontal_x2, _ : 23, 12;
-    u16, vertical_y1, _ : 9, 0;
-    u16, vertical_y2, _ : 19, 10;
+    u32, horizontal_x1, _ : 11, 0;
+    u32, horizontal_x2, _ : 23, 12;
+    u32, vertical_y1, _ : 9, 0;
+    u32, vertical_y2, _ : 19, 10;
 
     // GP0 Load Image
     image_width, _ : 15, 0;
@@ -111,13 +119,15 @@ pub const PADDR_END: u32 = 0x1F801817;
 
 pub struct Gpu {
     pub renderer: Renderer,
+
     gpu_read: u32,
     gpu_stat: GpuStat,
     gp0_state: GP0State,
 
-    frame_counter: u32,
-    line_counter: u32,
     in_vsync: bool,
+
+    horizontal_range: u32,
+    vertical_range: u32,
 }
 
 impl Default for Gpu {
@@ -128,9 +138,10 @@ impl Default for Gpu {
             gpu_stat: GpuStat(0),
             gp0_state: GP0State::AwaitCommand,
 
-            frame_counter: 0,
-            line_counter: 0,
             in_vsync: false,
+
+            horizontal_range: 0,
+            vertical_range: 0,
         }
     }
 }
@@ -143,18 +154,35 @@ const QUAD: bool = true;
 const TRI: bool = false;
 
 impl Gpu {
+    fn update_display_width(&mut self) {
+        // Calculate display width
+        let cycles_per_pix = self.get_dot_clock_divider();
+
+        let width = ((self.horizontal_range / cycles_per_pix) + 2) & !3;
+        self.renderer.ctx.display_width = width;
+    }
+
+    fn update_display_height(&mut self) {
+        // Calculate display height
+        let is_interlaced = self.gpu_stat.interlaced_v();
+        let mul = if is_interlaced { 2 } else { 1 };
+
+        let height = self.vertical_range * mul;
+        self.renderer.ctx.display_height = height;
+    }
+
     pub fn enter_vsync(&mut self) {
-        self.frame_counter += 1;
+        self.renderer.ctx.frame_counter += 1;
         self.in_vsync = false;
     }
 
     pub fn exit_vsync(&mut self) {
         self.in_vsync = false;
-        self.line_counter = 0;
+        self.renderer.ctx.line_counter = 0;
     }
 
     pub fn enter_hsync(&mut self) {
-        self.line_counter += 1;
+        self.renderer.ctx.line_counter += 1;
     }
 
     pub fn draw_area_top_left(&self) -> u32 {
@@ -204,12 +232,12 @@ impl Gpu {
         ret.set_ready_dma_recv(true);
 
         // Set interlaced bit
-        if self.in_vsync || !ret.interlaced() {
+        if self.in_vsync || !ret.interlaced_v() {
             ret.set_odd_scanline(false);
         } else if matches!(ret.vres(), VerticalRes::Y480) {
-            ret.set_odd_scanline(self.frame_counter & 1 != 0);
+            ret.set_odd_scanline(self.renderer.ctx.frame_counter & 1 != 0);
         } else {
-            ret.set_odd_scanline(self.line_counter & 1 != 0);
+            ret.set_odd_scanline(self.renderer.ctx.line_counter & 1 != 0);
         }
 
         ret.0

@@ -33,31 +33,6 @@ impl From<TextureDepth> for u8 {
     }
 }
 
-/// Interlaced output splits frames into 2 fields (top = odd lines, bottom = even lines)
-pub enum Field {
-    Top,
-    Bottom,
-}
-
-impl From<u8> for Field {
-    fn from(v: u8) -> Self {
-        match v {
-            0 => Self::Bottom,
-            1 => Self::Top,
-            _ => unreachable!(),
-        }
-    }
-}
-
-impl From<Field> for u8 {
-    fn from(v: Field) -> Self {
-        match v {
-            Field::Bottom => 0,
-            Field::Top => 1,
-        }
-    }
-}
-
 /// Video modes
 pub enum VMode {
     Ntsc,
@@ -110,6 +85,76 @@ impl From<DmaDirection> for u8 {
             DmaDirection::Fifo => 1,
             DmaDirection::CpuToGpu => 2,
             DmaDirection::VRamToCpu => 3,
+        }
+    }
+}
+
+/// Video output horizontal resolution
+#[derive(Debug, Clone, Copy)]
+pub enum HorizontalRes {
+    X256,
+    X320,
+    X368,
+    X512,
+    X640,
+}
+
+impl From<u8> for HorizontalRes {
+    fn from(v: u8) -> Self {
+        match v {
+            0 => Self::X256,
+            1 => Self::X320,
+            2 => Self::X512,
+            3 => Self::X640,
+            4..=7 => Self::X368,
+            _ => unreachable!(),
+        }
+    }
+}
+
+impl From<HorizontalRes> for usize {
+    fn from(value: HorizontalRes) -> Self {
+        match value {
+            HorizontalRes::X256 => 256,
+            HorizontalRes::X320 => 320,
+            HorizontalRes::X368 => 368,
+            HorizontalRes::X512 => 512,
+            HorizontalRes::X640 => 640,
+        }
+    }
+}
+
+/// Video output vertical resolution
+#[derive(Debug, Clone, Copy)]
+pub enum VerticalRes {
+    Y240,
+    Y480,
+}
+
+impl From<u8> for VerticalRes {
+    fn from(v: u8) -> Self {
+        match v {
+            0 => Self::Y240,
+            1 => Self::Y480,
+            _ => unreachable!(),
+        }
+    }
+}
+
+impl From<VerticalRes> for u8 {
+    fn from(v: VerticalRes) -> Self {
+        match v {
+            VerticalRes::Y240 => 0,
+            VerticalRes::Y480 => 1,
+        }
+    }
+}
+
+impl From<VerticalRes> for usize {
+    fn from(value: VerticalRes) -> Self {
+        match value {
+            VerticalRes::Y240 => 240,
+            VerticalRes::Y480 => 480,
         }
     }
 }

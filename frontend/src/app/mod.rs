@@ -116,7 +116,7 @@ impl eframe::App for Application {
                 emu.debugger.show_ui(ctx);
             }
 
-            ui::show_central_panel(&emu, ctx);
+            ui::show_central_panel(&emu, ctx, self.app_config.display_vram);
             self.app_state = Some(emu);
         } else {
             egui::CentralPanel::default().show(ctx, |ui| {

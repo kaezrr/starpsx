@@ -156,7 +156,11 @@ impl System {
         Timers::enter_vsync(self);
         self.gpu.enter_vsync();
         self.irqctl.stat().set_vblank(true);
-        self.gpu.renderer.produce_frame_buffer(show_vram)
+
+        match show_vram {
+            true => self.gpu.renderer.produce_vram_framebuffer(),
+            false => self.gpu.renderer.produce_frame_buffer(),
+        }
     }
 
     fn exit_vsync(&mut self) {

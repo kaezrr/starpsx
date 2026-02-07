@@ -8,16 +8,22 @@ use crate::{
     config,
 };
 
-pub fn show_central_panel(app: &AppState, ctx: &egui::Context) {
+pub fn show_central_panel(app: &AppState, ctx: &egui::Context, vram_open: bool) {
     egui::CentralPanel::default()
         .frame(egui::Frame::NONE.fill(egui::Color32::BLACK))
         .show(ctx, |ui| {
+            let (width, height) = if vram_open {
+                (1024.0, 512.0)
+            } else {
+                (640.0, 480.0)
+            };
+
             // No resolution means show a 4:3 black screen
             ui.centered_and_justified(|ui| {
                 ui.add(
                     egui::Image::from_texture(SizedTexture::new(
                         &app.texture,
-                        egui::vec2(640.0, 480.0),
+                        egui::vec2(width, height),
                     ))
                     .shrink_to_fit(),
                 );

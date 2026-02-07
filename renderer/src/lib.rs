@@ -11,24 +11,42 @@ const VRAM_SIZE: usize = VRAM_WIDTH * VRAM_HEIGHT;
 
 pub struct Renderer {
     pub ctx: DrawContext,
+
     vram: Box<[u16; VRAM_SIZE]>,
+    frame: FrameBuffer,
 }
 
+#[derive(Clone)]
 pub struct FrameBuffer {
-    pub rgba_bytes: Vec<u8>,
+    pub rgba: Vec<Color>,
+
     /// Resolution in pixels
     pub resolution: [usize; 2],
     pub is_interlaced: bool,
 }
 
 impl FrameBuffer {
+    /// Create a width x height framebuffer fully black
+    fn new(width: usize, height: usize, is_interlaced: bool) -> Self {
+        Self {
+            rgba: vec![Color::BLACK; width * height],
+            resolution: [width, height],
+            is_interlaced,
+        }
+    }
+
     /// A fully black 1x1 framebuffer
     fn black() -> Self {
         Self {
-            rgba_bytes: vec![0, 0, 0, 255],
+            rgba: vec![Color::BLACK],
             resolution: [1, 1],
             is_interlaced: false,
         }
+    }
+
+    /// Return framebuffer size
+    fn size(&self) -> usize {
+        self.resolution[0] * self.resolution[1]
     }
 }
 
@@ -37,6 +55,8 @@ impl Default for Renderer {
         Self {
             ctx: DrawContext::default(),
             vram: vec![0; VRAM_SIZE].try_into().unwrap(),
+
+            frame: FrameBuffer::black(),
         }
     }
 }
@@ -74,71 +94,98 @@ impl Renderer {
         }
     }
 
-    pub fn produce_frame_buffer(&mut self, show_vram: bool) -> FrameBuffer {
+    pub fn produce_frame_buffer(&mut self) -> FrameBuffer {
         if self.ctx.display_disabled || self.ctx.display_width == 0 || self.ctx.display_height == 0
         {
-            return FrameBuffer::black();
+            self.frame = FrameBuffer::black();
+            return self.frame.clone();
         }
 
-        let (sx, sy, width, height) = if show_vram {
-            (0, 0, VRAM_WIDTH, VRAM_HEIGHT)
-        } else {
-            (
-                self.ctx.display_vram_start.x as usize,
-                self.ctx.display_vram_start.y as usize,
-                self.ctx.display_width as usize,
-                self.ctx.display_height as usize,
-            )
-        };
+        let (sx, sy, width, height, interlaced) = (
+            self.ctx.display_vram_start.x as usize,
+            self.ctx.display_vram_start.y as usize,
+            self.ctx.display_width as usize,
+            self.ctx.display_height as usize,
+            self.ctx.is_interlaced,
+        );
 
-        let mut pixel_buffer: Vec<Color> = Vec::with_capacity(width * height * 2);
+        let height_mul = if interlaced { 1 } else { 2 };
+        let new_size = width * height * height_mul;
+
+        // Need to create a new frame buffer, cannot reuse the last one
+        if new_size != self.frame.size() || interlaced != self.frame.is_interlaced {
+            self.frame = FrameBuffer::new(width, height * height_mul, interlaced);
+        }
 
         match self.ctx.display_depth {
             utils::DisplayDepth::D15 => {
                 for y in 0..height {
-                    let mut pixel_row: Vec<Color> = Vec::with_capacity(width);
+                    let base_y = if interlaced { y } else { y * 2 };
 
                     for x in 0..width {
                         let pixel = self.vram_read(sx + x, sy + y);
-                        pixel_row.push(Color::new_5bit(pixel).with_full_alpha());
+                        let index = base_y * width + x;
+                        self.frame.rgba[index] = Color::new_5bit(pixel).with_full_alpha();
                     }
 
-                    // Duplicate line
-                    pixel_buffer.extend(&pixel_row);
-                    pixel_buffer.extend(&pixel_row);
+                    // Non interlaced displays have each row duplicated
+                    if !interlaced {
+                        let start = base_y * width;
+                        let end = start + width;
+                        self.frame.rgba.copy_within(start..end, end);
+                    }
                 }
             }
             utils::DisplayDepth::D24 => {
-                let mut vram_x = 0;
                 for y in 0..height {
-                    let mut pixel_row: Vec<Color> = Vec::with_capacity(width / 2);
+                    let base_y = if interlaced { y } else { y * 2 };
+                    let mut vram_x = 0;
 
-                    for _ in (0..width).step_by(2) {
+                    // Write one full row
+                    for x in (0..width).step_by(2) {
                         let w0 = self.vram_read(sx + vram_x, sy + y) as u32;
                         let w1 = self.vram_read(sx + vram_x + 1, sy + y) as u32;
                         let w2 = self.vram_read(sx + vram_x + 2, sy + y) as u32;
 
-                        let pixel0 = w0 | (w1 & 0xFF) << 16;
-                        let pixel1 = (w2 << 8) | w1 >> 8;
+                        let pixel0 = w0 | ((w1 & 0xFF) << 16);
+                        let pixel1 = (w2 << 8) | (w1 >> 8);
 
-                        pixel_row.push(Color::new_8bit(pixel0).with_full_alpha());
-                        pixel_row.push(Color::new_8bit(pixel1).with_full_alpha());
+                        let idx = base_y * width + x;
 
-                        vram_x += 3; // 3 words per 2 pixels
+                        self.frame.rgba[idx] = Color::new_8bit(pixel0).with_full_alpha();
+                        self.frame.rgba[idx + 1] = Color::new_8bit(pixel1).with_full_alpha();
+
+                        vram_x += 3;
                     }
-                    vram_x = 0;
 
-                    pixel_buffer.extend(&pixel_row);
-                    pixel_buffer.extend(&pixel_row);
+                    // Non interlaced displays have each row duplicated
+                    if !interlaced {
+                        let start = base_y * width;
+                        let end = start + width;
+
+                        self.frame.rgba.copy_within(start..end, end);
+                    }
                 }
             }
         };
 
-        FrameBuffer {
-            rgba_bytes: bytemuck::cast_vec(pixel_buffer),
-            resolution: [width, height * 2],
-            is_interlaced: false,
+        self.frame.clone()
+    }
+
+    pub fn produce_vram_framebuffer(&self) -> FrameBuffer {
+        let (sx, sy, width, height) = (0, 0, VRAM_WIDTH, VRAM_HEIGHT);
+
+        let mut vram_frame = FrameBuffer::new(width, height, false);
+
+        for y in 0..height {
+            for x in 0..width {
+                let pixel = self.vram_read(sx + x, sy + y);
+                let index = y * width + x;
+                vram_frame.rgba[index] = Color::new_5bit(pixel).with_full_alpha();
+            }
         }
+
+        vram_frame
     }
 
     // Don't reuse the rectangle drawer for this because this isn't affected by masked bit

@@ -3,8 +3,12 @@ use starpsx_renderer::vec2::Vec2;
 
 impl Gpu {
     pub fn gp1_reset(&mut self) {
-        self.gpu_stat.0 = 0;
+        self.gpu_stat.0 = 0x14802000;
+        self.gpu_stat.set_hres(1);
         self.renderer.ctx.reset();
+
+        self.horizontal_range = 0;
+        self.vertical_range = 0;
 
         // NOTE: Clear command cache and invalidate GPU cache here if I ever implement it
         self.gp1_reset_command_buffer();
@@ -12,15 +16,27 @@ impl Gpu {
 
     pub fn gp1_display_mode(&mut self, command: Command) {
         let hres = command.hres_1() | (command.hres_2() << 2);
+
         self.gpu_stat.set_hres(hres);
-        self.gpu_stat.set_vres(command.vres());
+
         self.gpu_stat.set_vmode(command.vmode());
         self.gpu_stat.set_display_depth(command.display_depth());
+
+        self.gpu_stat.set_interlaced_v(command.interlaced());
         self.gpu_stat.set_interlaced(command.interlaced());
 
-        self.renderer.ctx.resolution_x = self.gpu_stat.hres();
-        self.renderer.ctx.resolution_y = self.gpu_stat.vres();
         self.renderer.ctx.display_depth = command.display_depth();
+        self.renderer.ctx.is_interlaced = command.interlaced();
+
+        // Free to set whatever vertical resolution if interlaced
+        if command.interlaced() {
+            self.gpu_stat.set_vres(command.vres());
+        } else {
+            self.gpu_stat.set_vres(VerticalRes::Y240);
+        }
+
+        self.update_display_height();
+        self.update_display_width();
 
         if command.flip_screen() {
             unimplemented!("Flip screen bit not supported!");
@@ -40,19 +56,19 @@ impl Gpu {
     }
 
     pub fn gp1_display_horizontal_range(&mut self, command: Command) {
-        self.renderer.ctx.display_hori_range = {
-            let x = command.horizontal_x1();
-            let y = command.horizontal_x2();
-            Vec2::new(x as i32, y as i32)
-        };
+        let x1 = command.horizontal_x1();
+        let x2 = command.horizontal_x2();
+
+        self.horizontal_range = x2 - x1;
+        self.update_display_width();
     }
 
     pub fn gp1_display_vertical_range(&mut self, command: Command) {
-        self.renderer.ctx.display_line_range = {
-            let x = command.vertical_y1();
-            let y = command.vertical_y2();
-            Vec2::new(x as i32, y as i32)
-        };
+        let y1 = command.vertical_y1();
+        let y2 = command.vertical_y2();
+
+        self.vertical_range = y2 - y1;
+        self.update_display_height();
     }
 
     pub fn gp1_display_enable(&mut self, command: Command) {
