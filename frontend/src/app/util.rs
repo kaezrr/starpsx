@@ -7,7 +7,7 @@ pub struct MetricsSnapshot {
     pub fps: u32,
     pub core_fps: u32,
     pub core_ms: f32,
-    pub resolution: Option<(usize, usize)>,
+    pub last_frame_data: Option<([usize; 2], bool)>,
 }
 
 pub enum PendingDialog {

@@ -17,7 +17,8 @@ pub struct Renderer {
 pub struct FrameBuffer {
     pub rgba_bytes: Vec<u8>,
     /// Resolution in pixels
-    pub resolution: (usize, usize),
+    pub resolution: [usize; 2],
+    pub is_interlaced: bool,
 }
 
 impl FrameBuffer {
@@ -25,7 +26,8 @@ impl FrameBuffer {
     fn black() -> Self {
         Self {
             rgba_bytes: vec![0, 0, 0, 255],
-            resolution: (1, 1),
+            resolution: [1, 1],
+            is_interlaced: false,
         }
     }
 }
@@ -73,7 +75,8 @@ impl Renderer {
     }
 
     pub fn produce_frame_buffer(&mut self, show_vram: bool) -> FrameBuffer {
-        if self.ctx.display_disabled {
+        if self.ctx.display_disabled || self.ctx.display_width == 0 || self.ctx.display_height == 0
+        {
             return FrameBuffer::black();
         }
 
@@ -83,27 +86,33 @@ impl Renderer {
             (
                 self.ctx.display_vram_start.x as usize,
                 self.ctx.display_vram_start.y as usize,
-                self.ctx.resolution_x.into(),
-                self.ctx.resolution_y.into(),
+                self.ctx.display_width as usize,
+                self.ctx.display_height as usize,
             )
         };
 
-        debug_assert!(width != 0 && height != 0, "framebuffer has zero resolution");
-
-        let mut pixel_buffer: Vec<Color> = Vec::with_capacity(width * height);
+        let mut pixel_buffer: Vec<Color> = Vec::with_capacity(width * height * 2);
 
         match self.ctx.display_depth {
             utils::DisplayDepth::D15 => {
                 for y in 0..height {
+                    let mut pixel_row: Vec<Color> = Vec::with_capacity(width);
+
                     for x in 0..width {
                         let pixel = self.vram_read(sx + x, sy + y);
-                        pixel_buffer.push(Color::new_5bit(pixel).with_full_alpha());
+                        pixel_row.push(Color::new_5bit(pixel).with_full_alpha());
                     }
+
+                    // Duplicate line
+                    pixel_buffer.extend(&pixel_row);
+                    pixel_buffer.extend(&pixel_row);
                 }
             }
             utils::DisplayDepth::D24 => {
                 let mut vram_x = 0;
                 for y in 0..height {
+                    let mut pixel_row: Vec<Color> = Vec::with_capacity(width / 2);
+
                     for _ in (0..width).step_by(2) {
                         let w0 = self.vram_read(sx + vram_x, sy + y) as u32;
                         let w1 = self.vram_read(sx + vram_x + 1, sy + y) as u32;
@@ -112,19 +121,23 @@ impl Renderer {
                         let pixel0 = w0 | (w1 & 0xFF) << 16;
                         let pixel1 = (w2 << 8) | w1 >> 8;
 
-                        pixel_buffer.push(Color::new_8bit(pixel0).with_full_alpha());
-                        pixel_buffer.push(Color::new_8bit(pixel1).with_full_alpha());
+                        pixel_row.push(Color::new_8bit(pixel0).with_full_alpha());
+                        pixel_row.push(Color::new_8bit(pixel1).with_full_alpha());
 
                         vram_x += 3; // 3 words per 2 pixels
                     }
                     vram_x = 0;
+
+                    pixel_buffer.extend(&pixel_row);
+                    pixel_buffer.extend(&pixel_row);
                 }
             }
         };
 
         FrameBuffer {
             rgba_bytes: bytemuck::cast_vec(pixel_buffer),
-            resolution: (width, height),
+            resolution: [width, height * 2],
+            is_interlaced: false,
         }
     }
 

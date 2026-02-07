@@ -257,7 +257,7 @@ impl Application {
                 fps: (1.0 / frame_ms).round() as u32,
                 core_fps: (1.0 / core_ms).round() as u32,
                 core_ms: core_ms * 1000.0,
-                resolution: emu.last_resolution,
+                last_frame_data: emu.last_frame_state,
             }
         } else {
             MetricsSnapshot::default()
@@ -316,7 +316,7 @@ impl Application {
                 egui::TextureOptions::NEAREST,
             ),
 
-            last_resolution: None,
+            last_frame_state: None,
         });
 
         emulator.run();

@@ -132,11 +132,9 @@ pub struct DrawContext {
     pub texture_window_offset: Vec2,
 
     pub display_vram_start: Vec2,
-    pub display_hori_range: Vec2,
-    pub display_line_range: Vec2,
 
-    pub resolution_x: HorizontalRes,
-    pub resolution_y: VerticalRes,
+    pub display_width: u32,
+    pub display_height: u32,
 
     pub rect_texture: Texture,
 
@@ -328,78 +326,6 @@ impl From<DisplayDepth> for u8 {
         match v {
             DisplayDepth::D15 => 0,
             DisplayDepth::D24 => 1,
-        }
-    }
-}
-
-/// Video output horizontal resolution
-#[derive(Default, Debug, Clone, Copy)]
-pub enum HorizontalRes {
-    #[default]
-    X256,
-    X320,
-    X368,
-    X512,
-    X640,
-}
-
-impl From<u8> for HorizontalRes {
-    fn from(v: u8) -> Self {
-        match v {
-            0 => Self::X256,
-            1 => Self::X320,
-            2 => Self::X512,
-            3 => Self::X640,
-            4..=7 => Self::X368,
-            _ => unreachable!(),
-        }
-    }
-}
-
-impl From<HorizontalRes> for usize {
-    fn from(value: HorizontalRes) -> Self {
-        match value {
-            HorizontalRes::X256 => 256,
-            HorizontalRes::X320 => 320,
-            HorizontalRes::X368 => 368,
-            HorizontalRes::X512 => 512,
-            HorizontalRes::X640 => 640,
-        }
-    }
-}
-
-/// Video output vertical resolution
-#[derive(Default, Debug, Clone, Copy)]
-pub enum VerticalRes {
-    #[default]
-    Y240,
-    Y480,
-}
-
-impl From<u8> for VerticalRes {
-    fn from(v: u8) -> Self {
-        match v {
-            0 => Self::Y240,
-            1 => Self::Y480,
-            _ => unreachable!(),
-        }
-    }
-}
-
-impl From<VerticalRes> for u8 {
-    fn from(v: VerticalRes) -> Self {
-        match v {
-            VerticalRes::Y240 => 0,
-            VerticalRes::Y480 => 1,
-        }
-    }
-}
-
-impl From<VerticalRes> for usize {
-    fn from(value: VerticalRes) -> Self {
-        match value {
-            VerticalRes::Y240 => 240,
-            VerticalRes::Y480 => 480,
         }
     }
 }

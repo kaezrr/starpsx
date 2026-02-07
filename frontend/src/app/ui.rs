@@ -13,12 +13,11 @@ pub fn show_central_panel(app: &AppState, ctx: &egui::Context) {
         .frame(egui::Frame::NONE.fill(egui::Color32::BLACK))
         .show(ctx, |ui| {
             // No resolution means show a 4:3 black screen
-            let resolution = app.last_resolution.unwrap_or((4, 3));
             ui.centered_and_justified(|ui| {
                 ui.add(
                     egui::Image::from_texture(SizedTexture::new(
                         &app.texture,
-                        egui::vec2(resolution.0 as f32, resolution.1 as f32),
+                        egui::vec2(640.0, 480.0),
                     ))
                     .shrink_to_fit(),
                 );
@@ -184,9 +183,15 @@ pub fn show_performance_panel(app: &Application, ctx: &egui::Context) {
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.label("Software Renderer");
                 ui.separator();
-                ui.label(match m.resolution {
-                    Some((w, h)) => format!("{w}x{h}"),
+                ui.label(match m.last_frame_data {
                     None => "Display Off".into(),
+                    Some(([w, h], is_interlaced)) => {
+                        if is_interlaced {
+                            format!("{w}x{h} (Interlaced)")
+                        } else {
+                            format!("{w}x{h}")
+                        }
+                    }
                 });
             })
         })
