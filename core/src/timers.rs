@@ -106,7 +106,7 @@ impl Timers {
         let delta = match system.timers.clock_source(which) {
             Clock::Cpu => clock_delta,
             Clock::CpuDiv8 => clock_delta / 8,
-            Clock::Dot => clock_delta / system.gpu.get_dot_clock_divider(),
+            Clock::Dot => clock_delta / system.gpu.get_dot_clock_divider() as u32,
             Clock::HBlank => hblanks_since_last_read,
         };
 

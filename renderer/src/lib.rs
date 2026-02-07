@@ -95,11 +95,6 @@ impl Renderer {
     }
 
     pub fn produce_frame_buffer(&mut self) -> FrameBuffer {
-        // Display is disabled or resolution is invalid
-        if self.ctx.display_disabled || self.ctx.display_width * self.ctx.display_height == 0 {
-            return FrameBuffer::black();
-        }
-
         let (sx, sy, width, height, interlaced) = (
             self.ctx.display_vram_start.x as usize,
             self.ctx.display_vram_start.y as usize,
@@ -111,6 +106,11 @@ impl Renderer {
         let height_mul = if interlaced { 1 } else { 2 };
         let draw_odd = self.ctx.frame_counter & 1 != 0;
         let new_size = width * height * height_mul;
+
+        // Display is disabled or resolution is invalid
+        if self.ctx.display_disabled || new_size == 0 {
+            return FrameBuffer::black();
+        }
 
         // Need to create a new frame buffer, cannot reuse the last one
         if new_size != self.frame.size() || interlaced != self.frame.is_interlaced {

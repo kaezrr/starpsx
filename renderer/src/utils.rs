@@ -140,8 +140,8 @@ pub struct DrawContext {
 
     pub display_vram_start: Vec2,
 
-    pub display_width: u32,
-    pub display_height: u32,
+    pub display_width: u16,
+    pub display_height: u16,
 
     pub rect_texture: Texture,
 

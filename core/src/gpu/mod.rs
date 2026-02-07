@@ -101,10 +101,10 @@ bitfield::bitfield! {
     u16, display_vram_y, _ : 18, 10;
 
     // GP1 Display Horizontal and Vertical Ranges
-    u32, horizontal_x1, _ : 11, 0;
-    u32, horizontal_x2, _ : 23, 12;
-    u32, vertical_y1, _ : 9, 0;
-    u32, vertical_y2, _ : 19, 10;
+    u16, horizontal_x1, _ : 11, 0;
+    u16, horizontal_x2, _ : 23, 12;
+    u16, vertical_y1, _ : 9, 0;
+    u16, vertical_y2, _ : 19, 10;
 
     // GP0 Load Image
     image_width, _ : 15, 0;
@@ -126,8 +126,8 @@ pub struct Gpu {
 
     in_vsync: bool,
 
-    horizontal_range: u32,
-    vertical_range: u32,
+    horizontal_range: u16,
+    vertical_range: u16,
 }
 
 impl Default for Gpu {
@@ -435,7 +435,7 @@ impl Gpu {
         self.process_polyline_argument(data, PolyLineArguments::new(cmd, color))
     }
 
-    pub fn get_dot_clock_divider(&self) -> u32 {
+    pub fn get_dot_clock_divider(&self) -> u16 {
         match self.gpu_stat.hres() {
             HorizontalRes::X256 => 10,
             HorizontalRes::X320 => 8,
