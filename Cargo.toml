@@ -4,9 +4,16 @@ members = ["core", "frontend", "renderer"]
 
 [profile.dev]
 opt-level = 1
+debug = "line-tables-only"
 
 [profile.dev.package."*"]
 opt-level = 3
+
+[profile.release]
+strip = "symbols"
+lto = "fat"
+panic = "abort"
+codegen-units = 1
 
 [profile.benchmarking]
 inherits = "release"

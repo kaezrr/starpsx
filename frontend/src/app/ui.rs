@@ -144,9 +144,8 @@ pub fn show_info_modal(show_modal: &mut bool, ctx: &egui::Context) {
 
         ui.separator();
         ui.monospace(format!(
-            "Version: {}-{}\nPlatform: {} {}",
+            "Version: {}\nPlatform: {} {}",
             env!("CARGO_PKG_VERSION"),
-            option_env!("GIT_HASH").unwrap_or("unknown"),
             std::env::consts::OS,
             std::env::consts::ARCH,
         ));
