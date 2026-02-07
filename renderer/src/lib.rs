@@ -96,10 +96,8 @@ impl Renderer {
 
     pub fn produce_frame_buffer(&mut self) -> FrameBuffer {
         // Display is disabled or resolution is invalid
-        if self.ctx.display_disabled || self.ctx.display_width == 0 || self.ctx.display_height == 0
-        {
-            self.frame = FrameBuffer::black();
-            return self.frame.clone();
+        if self.ctx.display_disabled || self.ctx.display_width * self.ctx.display_height == 0 {
+            return FrameBuffer::black();
         }
 
         let (sx, sy, width, height, interlaced) = (
@@ -122,6 +120,7 @@ impl Renderer {
         match self.ctx.display_depth {
             utils::DisplayDepth::D15 => {
                 if interlaced {
+                    // Draw alternating odd/even lines every frame
                     for y in (draw_odd as usize..height).step_by(2) {
                         for x in 0..width {
                             let pixel = self.vram_read(sx + x, sy + y);
@@ -148,6 +147,7 @@ impl Renderer {
             }
             utils::DisplayDepth::D24 => {
                 if interlaced {
+                    // Draw alternating odd/even lines every frame
                     for y in (draw_odd as usize..height).step_by(2) {
                         let mut vram_x = 0;
 
