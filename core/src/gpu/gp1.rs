@@ -7,9 +7,6 @@ impl Gpu {
         self.gpu_stat.set_hres(1);
         self.renderer.ctx.reset();
 
-        self.horizontal_range = 0;
-        self.vertical_range = 0;
-
         // NOTE: Clear command cache and invalidate GPU cache here if I ever implement it
         self.gp1_reset_command_buffer();
     }
@@ -35,8 +32,10 @@ impl Gpu {
             self.gpu_stat.set_vres(VerticalRes::Y240);
         }
 
-        self.update_display_height();
-        self.update_display_width();
+        let width = self.gpu_stat.hres().as_value();
+        let height = self.gpu_stat.vres().as_value();
+
+        self.renderer.change_resolution(width, height);
 
         if command.flip_screen() {
             unimplemented!("Flip screen bit not supported!");
@@ -56,19 +55,13 @@ impl Gpu {
     }
 
     pub fn gp1_display_horizontal_range(&mut self, command: Command) {
-        let x1 = command.horizontal_x1();
-        let x2 = command.horizontal_x2();
-
-        self.horizontal_range = x2 - x1;
-        self.update_display_width();
+        self.renderer.ctx.display_x1 = command.horizontal_x1();
+        self.renderer.ctx.display_x2 = command.horizontal_x2();
     }
 
     pub fn gp1_display_vertical_range(&mut self, command: Command) {
-        let y1 = command.vertical_y1();
-        let y2 = command.vertical_y2();
-
-        self.vertical_range = y2 - y1;
-        self.update_display_height();
+        self.renderer.ctx.display_y1 = command.vertical_y1();
+        self.renderer.ctx.display_y2 = command.vertical_y2();
     }
 
     pub fn gp1_display_enable(&mut self, command: Command) {

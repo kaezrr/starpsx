@@ -30,8 +30,10 @@ impl FrameBuffer {
     fn new(width: usize, height: usize, is_interlaced: bool) -> Self {
         Self {
             rgba: vec![Color::BLACK; width * height],
-            resolution: [width, height],
             is_interlaced,
+
+            // Interlaced frames have duplicated rows
+            resolution: [width, height],
         }
     }
 
@@ -62,6 +64,22 @@ impl Default for Renderer {
 }
 
 impl Renderer {
+    pub fn change_resolution(&mut self, width: u16, height: u16) {
+        // Dont do anything if frame buffer size didnt change
+        if width == self.ctx.display_width && height == self.ctx.display_height {
+            return;
+        }
+
+        self.ctx.display_width = width;
+        self.ctx.display_height = height;
+
+        let width = width as usize;
+        let height = height as usize * if self.ctx.is_interlaced { 1 } else { 2 };
+
+        // Replace the frame buffer because resolution changed
+        self.frame = FrameBuffer::new(width, height, self.ctx.is_interlaced);
+    }
+
     pub fn vram_read(&self, x: usize, y: usize) -> u16 {
         let index = VRAM_WIDTH * y + x;
         self.vram[index]
@@ -95,6 +113,11 @@ impl Renderer {
     }
 
     pub fn produce_frame_buffer(&mut self) -> FrameBuffer {
+        // Display is disabled or resolution is invalid
+        if self.ctx.display_disabled || self.frame.size() == 0 {
+            return FrameBuffer::black();
+        }
+
         let (sx, sy, width, height, interlaced) = (
             self.ctx.display_vram_start.x as usize,
             self.ctx.display_vram_start.y as usize,
@@ -103,19 +126,7 @@ impl Renderer {
             self.ctx.is_interlaced,
         );
 
-        let height_mul = if interlaced { 1 } else { 2 };
         let draw_odd = self.ctx.frame_counter & 1 != 0;
-        let new_size = width * height * height_mul;
-
-        // Display is disabled or resolution is invalid
-        if self.ctx.display_disabled || new_size == 0 {
-            return FrameBuffer::black();
-        }
-
-        // Need to create a new frame buffer, cannot reuse the last one
-        if new_size != self.frame.size() || interlaced != self.frame.is_interlaced {
-            self.frame = FrameBuffer::new(width, height * height_mul, interlaced);
-        }
 
         match self.ctx.display_depth {
             utils::DisplayDepth::D15 => {

@@ -143,6 +143,13 @@ pub struct DrawContext {
     pub display_width: u16,
     pub display_height: u16,
 
+    // TODO: use these to calculate the display range
+    pub display_x1: u16,
+    pub display_x2: u16,
+
+    pub display_y1: u16,
+    pub display_y2: u16,
+
     pub rect_texture: Texture,
 
     pub preserve_masked_pixels: bool,

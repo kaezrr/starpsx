@@ -125,9 +125,6 @@ pub struct Gpu {
     gp0_state: GP0State,
 
     in_vsync: bool,
-
-    horizontal_range: u16,
-    vertical_range: u16,
 }
 
 impl Default for Gpu {
@@ -139,9 +136,6 @@ impl Default for Gpu {
             gp0_state: GP0State::AwaitCommand,
 
             in_vsync: false,
-
-            horizontal_range: 0,
-            vertical_range: 0,
         }
     }
 }
@@ -154,23 +148,6 @@ const QUAD: bool = true;
 const TRI: bool = false;
 
 impl Gpu {
-    fn update_display_width(&mut self) {
-        // Calculate display width
-        let cycles_per_pix = self.get_dot_clock_divider();
-
-        let width = ((self.horizontal_range / cycles_per_pix) + 2) & !3;
-        self.renderer.ctx.display_width = width;
-    }
-
-    fn update_display_height(&mut self) {
-        // Calculate display height
-        let is_interlaced = self.gpu_stat.interlaced_v();
-        let mul = if is_interlaced { 2 } else { 1 };
-
-        let height = self.vertical_range * mul;
-        self.renderer.ctx.display_height = height;
-    }
-
     pub fn enter_vsync(&mut self) {
         self.renderer.ctx.frame_counter += 1;
         self.in_vsync = false;

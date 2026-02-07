@@ -112,9 +112,9 @@ impl From<u8> for HorizontalRes {
     }
 }
 
-impl From<HorizontalRes> for usize {
-    fn from(value: HorizontalRes) -> Self {
-        match value {
+impl HorizontalRes {
+    pub fn as_value(&self) -> u16 {
+        match self {
             HorizontalRes::X256 => 256,
             HorizontalRes::X320 => 320,
             HorizontalRes::X368 => 368,
@@ -150,9 +150,9 @@ impl From<VerticalRes> for u8 {
     }
 }
 
-impl From<VerticalRes> for usize {
-    fn from(value: VerticalRes) -> Self {
-        match value {
+impl VerticalRes {
+    pub fn as_value(&self) -> u16 {
+        match self {
             VerticalRes::Y240 => 240,
             VerticalRes::Y480 => 480,
         }
