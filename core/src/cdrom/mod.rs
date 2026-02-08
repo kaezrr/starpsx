@@ -308,11 +308,11 @@ pub fn read<T: ByteAddressable>(system: &mut System, addr: u32) -> T {
 
     let val: u32 = match (cdrom.address.bank(), offs) {
         (_, 0) => cdrom.read_addr().into(),
-        (0, 2) => cdrom.read_rddata_word(),
-        (0, 3) => cdrom.read_hintmsk().into(),
-        (1, 1) => cdrom.pop_result().into(),
-        (1, 3) => cdrom.read_hintsts().into(),
-        (x, y) => unimplemented!("cdrom read bank {x} reg {y}"),
+        (_, 1) => cdrom.pop_result().into(),
+        (_, 2) => cdrom.read_rddata_word(),
+        (0, 3) | (2, 3) => cdrom.read_hintmsk().into(),
+        (1, 3) | (3, 3) => cdrom.read_hintsts().into(),
+        (x, y) => unreachable!("cdrom bank {x} register {y}"),
     };
 
     T::from_u32(val)
@@ -325,14 +325,17 @@ pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, data: T) {
 
     match (cdrom.address.bank(), offs) {
         (_, 0) => cdrom.write_addr(val),
+
         (0, 1) => CdRom::exec_command(system, val),
         (0, 2) => cdrom.push_parameter(val),
         (0, 3) => cdrom.write_hchpctl(val),
-        (1, 3) => cdrom.write_hclrctl(val),
+
         (1, 2) => cdrom.write_hintmsk(val),
+        (1, 3) => cdrom.write_hclrctl(val),
 
         (2, 2) => trace!(target:"cdrom", reg = "atv0", "cdrom ignored write to audio reg"),
         (2, 3) => trace!(target:"cdrom", reg = "atv1", "cdrom ignored write to audio reg"),
+
         (3, 1) => trace!(target:"cdrom", reg = "atv2", "cdrom ignored write to audio reg"),
         (3, 2) => trace!(target:"cdrom", reg = "atv3", "cdrom ignored write to audio reg"),
         (3, 3) => trace!(target:"cdrom", reg = "adpctl", "cdrom ignored write to audio reg"),

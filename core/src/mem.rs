@@ -212,6 +212,8 @@ impl System {
 
             0x1F802000..=0x1F802041 => unimplemented!("read to expansion2"),
 
+            0x1F802080..=0x1F802087 => stubbed!("expansion3 pcsx redux", addr),
+
             _ => unimplemented!("read at {addr:#08X}"),
         };
 
@@ -258,6 +260,15 @@ impl System {
             0x1F802000..=0x1F802041 => {
                 trace!(target: "mem", region = "expansion2", "stubbed write addr={:#08x}", addr)
             }
+            0x1F802080..=0x1F802087 => {
+                // PCSX Open Bios putchar()
+                if addr == 0x1F802080 {
+                    self.tty_put_char(data.to_u32() as u8 as char);
+                }
+
+                trace!(target: "mem", region = "expansion3 pcsx redux", "stubbed write addr={:#08x}", addr)
+            }
+
             _ => unimplemented!("write at {addr:#08X}"),
         };
 

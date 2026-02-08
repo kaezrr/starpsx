@@ -177,12 +177,16 @@ impl System {
         let pc = self.cpu.pc & 0x1FFFFFFF;
         if (pc == 0xA0 && self.cpu.regs[9] == 0x3C) || (pc == 0xB0 && self.cpu.regs[9] == 0x3D) {
             let ch = self.cpu.regs[4] as u8 as char;
-            if ch == '\n' || ch == '\r' {
-                info!("[TTY]" = %self.tty);
-                self.tty = String::new();
-            } else {
-                self.tty.push(ch);
-            }
+            self.tty_put_char(ch);
+        }
+    }
+
+    fn tty_put_char(&mut self, ch: char) {
+        if ch == '\n' || ch == '\r' {
+            info!("[TTY]" = %self.tty);
+            self.tty = String::new();
+        } else {
+            self.tty.push(ch);
         }
     }
 
