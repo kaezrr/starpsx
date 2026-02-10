@@ -82,6 +82,7 @@ impl Cpu {
         Cpu::execute_instruction(system, instr, in_delay, next_pc);
     }
 
+    #[inline(always)]
     fn execute_instruction(system: &mut System, instr: Instruction, in_delay: bool, next_pc: u32) {
         let cpu = &mut system.cpu;
         match cpu.load.take() {
@@ -100,6 +101,7 @@ impl Cpu {
         system.cpu.pc = next_pc;
     }
 
+    #[inline(always)]
     fn pending_interrupts(system: &mut System) -> bool {
         let cpu = &mut system.cpu;
 
@@ -115,6 +117,7 @@ impl Cpu {
         pending != 0 && (cpu.cop0.sr & 1 != 0)
     }
 
+    #[inline(always)]
     fn handle_exception(&mut self, cause: Exception, branch: bool) {
         // SR shifting
         let mode = self.cop0.sr & 0x3F;
@@ -147,6 +150,7 @@ impl Cpu {
         };
     }
 
+    #[inline(always)]
     fn take_delayed_load(&mut self, rt: usize, data: u32) {
         // If there was already a pending load to this register, then cancel it.
         if self.regd[rt] != self.regs[rt] {
