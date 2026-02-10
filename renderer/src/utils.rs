@@ -236,7 +236,7 @@ impl Texture {
         let depth = match (data >> 7) & 3 {
             0 => PageColor::Bit4,
             1 => PageColor::Bit8,
-            2 => PageColor::Bit15,
+            2 | 3 => PageColor::Bit15,
             _ => unreachable!(),
         };
         Self {

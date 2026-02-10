@@ -128,7 +128,7 @@ impl System {
 
     pub fn sideload_exe(&mut self, exe: Vec<u8>) {
         while self.cpu.pc != 0x80030000 {
-            Cpu::run_instruction(self);
+            Cpu::run_next_instruction(self);
             self.check_for_tty_output();
         }
 
@@ -218,7 +218,7 @@ impl System {
         }
 
         // Fixed 2 CPI right now
-        Cpu::run_instruction(self);
+        Cpu::run_next_instruction(self);
         self.scheduler.advance(2);
 
         self.check_for_tty_output();

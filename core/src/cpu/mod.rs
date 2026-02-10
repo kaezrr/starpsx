@@ -58,46 +58,46 @@ impl Default for Cpu {
 }
 
 impl Cpu {
-    /// Run a single instruction and return the number of cycles
-    pub fn run_instruction(system: &mut System) {
+    pub fn run_next_instruction(system: &mut System) {
         let instr = Instruction(match system.read::<u32>(system.cpu.pc) {
             Ok(v) => v,
             Err(e) => return system.cpu.handle_exception(e, false),
         });
 
         // Are we in a branch delay slot?
-        let (next_pc, in_delay_slot) = match system.cpu.delayed_branch.take() {
+        let (next_pc, in_delay) = match system.cpu.delayed_branch.take() {
             Some(addr) => (addr, true),
             None => (system.cpu.pc.wrapping_add(4), false),
         };
 
         if Cpu::pending_interrupts(system) {
-            system
-                .cpu
-                .handle_exception(Exception::ExternalInterrupt, in_delay_slot);
+            // Don't execute GTE instructions twice (doesn't apply in branch delays)
+            if (instr.0 & 0xFE000000) == 0x4A000000 && !in_delay {
+                Cpu::execute_instruction(system, instr, in_delay, next_pc);
+            }
+            system.cpu.handle_exception(Exception::Interrupt, in_delay);
             return;
         }
 
-        let cpu = &mut system.cpu;
+        Cpu::execute_instruction(system, instr, in_delay, next_pc);
+    }
 
-        // Execute any pending loads
+    fn execute_instruction(system: &mut System, instr: Instruction, in_delay: bool, next_pc: u32) {
+        let cpu = &mut system.cpu;
         match cpu.load.take() {
             Some((reg, val)) if reg != 0 => cpu.regd[reg] = val,
             _ => (),
         }
 
         if let Err(exception) = Cpu::execute_opcode(system, instr) {
-            system.cpu.handle_exception(exception, in_delay_slot);
+            system.cpu.handle_exception(exception, in_delay);
             return;
-        };
+        }
 
         let cpu = &mut system.cpu;
-
         cpu.regs = cpu.regd;
         cpu.regs[0] = 0;
-
-        // Increment program counter
-        cpu.pc = next_pc;
+        system.cpu.pc = next_pc;
     }
 
     fn pending_interrupts(system: &mut System) -> bool {
