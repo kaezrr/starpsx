@@ -64,41 +64,38 @@ impl Cpu {
             Err(e) => return system.cpu.handle_exception(e, false),
         });
 
-        // Are we in a branch delay slot?
         let (next_pc, in_delay) = match system.cpu.delayed_branch.take() {
             Some(addr) => (addr, true),
             None => (system.cpu.pc.wrapping_add(4), false),
         };
 
-        if Cpu::pending_interrupts(system) {
-            // Don't execute GTE instructions twice (doesn't apply in branch delays)
-            if (instr.0 & 0xFE000000) == 0x4A000000 && !in_delay {
-                Cpu::execute_instruction(system, instr, in_delay, next_pc);
+        let is_gte = (instr.0 & 0xFE000000) == 0x4A000000;
+        let interrupt_pending = Cpu::pending_interrupts(system);
+
+        // Skip execution when an interrupt is pending, UNLESS it's a GTE
+        // instruction outside a branch delay slot
+        if !interrupt_pending || (is_gte && !in_delay) {
+            let cpu = &mut system.cpu;
+            // Consume delay slot and set it, except if its zero register
+            match cpu.load.take() {
+                Some((reg, val)) if reg != 0 => cpu.regd[reg] = val,
+                _ => (),
             }
+
+            if let Err(exception) = Cpu::execute_opcode(system, instr) {
+                system.cpu.handle_exception(exception, in_delay);
+                return;
+            }
+
+            let cpu = &mut system.cpu;
+            cpu.regs = cpu.regd;
+            cpu.regs[0] = 0;
+            system.cpu.pc = next_pc;
+        }
+
+        if interrupt_pending {
             system.cpu.handle_exception(Exception::Interrupt, in_delay);
-            return;
         }
-
-        Cpu::execute_instruction(system, instr, in_delay, next_pc);
-    }
-
-    #[inline(always)]
-    fn execute_instruction(system: &mut System, instr: Instruction, in_delay: bool, next_pc: u32) {
-        let cpu = &mut system.cpu;
-        match cpu.load.take() {
-            Some((reg, val)) if reg != 0 => cpu.regd[reg] = val,
-            _ => (),
-        }
-
-        if let Err(exception) = Cpu::execute_opcode(system, instr) {
-            system.cpu.handle_exception(exception, in_delay);
-            return;
-        }
-
-        let cpu = &mut system.cpu;
-        cpu.regs = cpu.regd;
-        cpu.regs[0] = 0;
-        system.cpu.pc = next_pc;
     }
 
     #[inline(always)]
