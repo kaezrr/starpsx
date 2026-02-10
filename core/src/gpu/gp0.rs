@@ -18,26 +18,31 @@ impl Gpu {
     }
 
     pub fn gp0_draw_mode(&mut self, params: ArrayVec<Command, 16>) -> GP0State {
-        self.gpu_stat.set_page_base_x(params[0].page_base_x());
-        self.gpu_stat.set_page_base_y(params[0].page_base_y());
-        self.gpu_stat
-            .set_semi_transparency(params[0].semi_transparency());
-        self.gpu_stat.set_texture_depth(params[0].texture_depth());
-        self.gpu_stat.set_dithering(params[0].dithering());
-        self.gpu_stat
-            .set_draw_to_display(params[0].draw_to_display());
-        self.gpu_stat
-            .set_texture_disable(params[0].texture_disable());
+        let cmd = params[0];
 
-        self.renderer.ctx.rect_texture = Texture::new(params[0].0 as u16, None);
-        self.renderer.ctx.dithering = self.gpu_stat.dithering();
-        self.renderer.ctx.transparency_weights = match self.gpu_stat.semi_transparency() {
+        self.gpu_stat.set_page_base_x(cmd.page_base_x());
+        self.gpu_stat.set_page_base_y(cmd.page_base_y());
+        self.gpu_stat.set_semi_transparency(cmd.semi_transparency());
+        self.gpu_stat.set_texture_depth(cmd.texture_depth());
+        self.gpu_stat.set_dithering(cmd.dithering());
+        self.gpu_stat.set_draw_to_display(cmd.draw_to_display());
+        self.gpu_stat.set_texture_disable(cmd.texture_disable());
+
+        let ctx = &mut self.renderer.ctx;
+
+        ctx.rect_texture = Texture::new(cmd.0 as u16, None);
+        ctx.dithering = self.gpu_stat.dithering();
+        ctx.transparency_weights = match self.gpu_stat.semi_transparency() {
             0 => (0.5, 0.5),
             1 => (1.0, 1.0),
             2 => (1.0, -1.0),
             3 => (1.0, 0.25),
             _ => unreachable!("2 bit value cant reach here"),
         };
+
+        ctx.texture_flip_x = cmd.texture_rect_x_flip();
+        ctx.texture_flip_y = cmd.texture_rect_y_flip();
+
         GP0State::AwaitCommand
     }
 

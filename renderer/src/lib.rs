@@ -289,10 +289,12 @@ impl Renderer {
                     if blended {
                         tex_color.blend(color);
                     }
-                    color = tex_color
-                }
-
-                if SEMI_TRANS {
+                    color = tex_color;
+                    if SEMI_TRANS && (texel >> 15) & 1 == 1 {
+                        let old = self.vram_read(x as usize, y as usize);
+                        color.blend_screen(Color::new_5bit(old), self.ctx.transparency_weights);
+                    }
+                } else if SEMI_TRANS {
                     let old = self.vram_read(x as usize, y as usize);
                     color.blend_screen(Color::new_5bit(old), self.ctx.transparency_weights);
                 }
@@ -433,10 +435,13 @@ impl Renderer {
                     if blended {
                         tex_color.blend(color);
                     }
-                    color = tex_color
-                }
+                    color = tex_color;
 
-                if options.transparent {
+                    if options.transparent && (texel >> 15) & 1 == 1 {
+                        let old = self.vram_read(x as usize, y as usize);
+                        color.blend_screen(Color::new_5bit(old), self.ctx.transparency_weights);
+                    }
+                } else if options.transparent {
                     let old = self.vram_read(x as usize, y as usize);
                     color.blend_screen(Color::new_5bit(old), self.ctx.transparency_weights);
                 }

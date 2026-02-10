@@ -162,6 +162,9 @@ pub struct DrawContext {
 
     pub frame_counter: u32,
     pub line_counter: u32,
+
+    pub texture_flip_x: bool,
+    pub texture_flip_y: bool,
 }
 
 impl DrawContext {
