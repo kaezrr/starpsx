@@ -18,3 +18,4 @@ codegen-units = 1
 [profile.benchmarking]
 inherits = "release"
 debug = true
+strip = "none"

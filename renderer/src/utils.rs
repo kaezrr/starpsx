@@ -120,9 +120,20 @@ impl Color {
     }
 }
 
+const FIVE_BIT_TO_8BIT: [u8; 32] = {
+    let mut table = [0u8; 32];
+    let mut i = 0;
+    while i < 32 {
+        table[i] = (i as f64 * 255.0 / 31.0).round() as u8;
+        i += 1;
+    }
+    table
+};
+
 // TODO: Convert to a lookup table later
+#[inline(always)]
 fn convert_5bit_to_8bit(color: u16) -> u8 {
-    (f64::from(color) * 255.0 / 31.0).round() as u8
+    FIVE_BIT_TO_8BIT[color as usize]
 }
 
 // Store the current drawing context
