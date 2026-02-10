@@ -316,10 +316,10 @@ impl Gpu {
         let command = Command(data);
         let (color, cmd): (bool, PolyLineFn) = match command.opcode() {
             // Polyline
-            0x48 => (false, Gpu::gp0_line_mono_poly::<OPAQUE>),
-            0x4A => (false, Gpu::gp0_line_mono_poly::<SEMI_TRANS>),
-            0x58 => (true, Gpu::gp0_line_shaded_poly::<OPAQUE>),
-            0x5A => (true, Gpu::gp0_line_shaded_poly::<SEMI_TRANS>),
+            0x48 | 0x4C => (false, Gpu::gp0_line_mono_poly::<OPAQUE>),
+            0x4A | 0x4E => (false, Gpu::gp0_line_mono_poly::<SEMI_TRANS>),
+            0x58 | 0x5C => (true, Gpu::gp0_line_shaded_poly::<OPAQUE>),
+            0x5A | 0x5E => (true, Gpu::gp0_line_shaded_poly::<SEMI_TRANS>),
             _ => {
                 let (len, cmd): (usize, CommandFn) = match command.opcode() {
                     // Polygons Triangles
@@ -332,7 +332,9 @@ impl Gpu {
                     0x26 => (7, Gpu::gp0_poly_texture::<TRI, SEMI_TRANS, BLEND>),
                     0x27 => (7, Gpu::gp0_poly_texture::<TRI, SEMI_TRANS, RAW>),
                     0x34 => (9, Gpu::gp0_poly_texture_shaded::<TRI, OPAQUE, BLEND>),
+                    0x35 => (9, Gpu::gp0_poly_texture_shaded::<TRI, OPAQUE, RAW>),
                     0x36 => (9, Gpu::gp0_poly_texture_shaded::<TRI, SEMI_TRANS, BLEND>),
+                    0x37 => (9, Gpu::gp0_poly_texture_shaded::<TRI, SEMI_TRANS, RAW>),
 
                     // Polygons Quads
                     0x28 | 0x29 => (5, Gpu::gp0_poly_mono::<QUAD, OPAQUE>),
@@ -347,8 +349,8 @@ impl Gpu {
                     0x3E => (12, Gpu::gp0_poly_texture_shaded::<QUAD, SEMI_TRANS, BLEND>),
 
                     // Single Line
-                    0x40 | 0x41 => (3, Gpu::gp0_line_mono::<OPAQUE>),
-                    0x42 | 0x43 => (3, Gpu::gp0_line_mono::<SEMI_TRANS>),
+                    0x40 | 0x41 | 0x44 | 0x45 => (3, Gpu::gp0_line_mono::<OPAQUE>),
+                    0x42 | 0x43 | 0x46 | 0x47 => (3, Gpu::gp0_line_mono::<SEMI_TRANS>),
                     0x50 | 0x51 => (4, Gpu::gp0_line_shaded::<OPAQUE>),
                     0x52 | 0x53 => (4, Gpu::gp0_line_shaded::<SEMI_TRANS>),
 
