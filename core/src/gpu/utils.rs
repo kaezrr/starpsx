@@ -34,6 +34,7 @@ impl From<TextureDepth> for u8 {
 }
 
 /// Video modes
+#[derive(Debug, PartialEq)]
 pub enum VMode {
     Ntsc,
     Pal,

@@ -15,7 +15,7 @@ lto = "fat"
 panic = "abort"
 codegen-units = 1
 
-[profile.benchmarking]
+[profile.profiling]
 inherits = "release"
 debug = true
 strip = "none"

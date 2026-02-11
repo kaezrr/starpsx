@@ -1,8 +1,6 @@
 pub mod utils;
 pub mod vec2;
 
-use tracing::debug;
-
 use crate::utils::{Clut, Color, ColorOptions, DrawContext};
 use crate::utils::{DrawOptions, interpolate_color, interpolate_uv};
 use crate::vec2::{Vec2, compute_barycentric_coords, needs_vertex_reordering, point_in_triangle};
@@ -46,11 +44,6 @@ impl FrameBuffer {
             resolution: [1, 1],
             is_interlaced: false,
         }
-    }
-
-    /// Return framebuffer size
-    fn size(&self) -> usize {
-        self.resolution[0] * self.resolution[1]
     }
 }
 
@@ -116,13 +109,9 @@ impl Renderer {
 
     pub fn produce_frame_buffer(&mut self) -> FrameBuffer {
         // Display is disabled or resolution is invalid
-        if self.ctx.display_disabled || self.frame.size() == 0 {
+        if self.ctx.display_disabled {
             return FrameBuffer::black();
         }
-
-        // debug!(x1 = self.ctx.display_x1, x2 = self.ctx.display_x2);
-        // debug!(y1 = self.ctx.display_y1, y2 = self.ctx.display_y2);
-        // debug!("--------");
 
         let (sx, sy, width, height, interlaced) = (
             self.ctx.display_vram_start.x as usize,
@@ -224,6 +213,18 @@ impl Renderer {
 
         let rows_after_y2 = self.ctx.display_y2 as usize * width * mul;
         self.frame.rgba[rows_after_y2..].fill(Color::BLACK);
+
+        // Columns before x1 and after x2
+        for r in self.ctx.display_y1 as usize..self.ctx.display_y2 as usize {
+            let base = r * width;
+
+            for c in 0..self.ctx.display_x1 as usize {
+                self.frame.rgba[base + c] = Color::BLACK;
+            }
+            for c in self.ctx.display_x2 as usize..width {
+                self.frame.rgba[base + c] = Color::BLACK;
+            }
+        }
 
         self.frame.clone()
     }

@@ -2,6 +2,28 @@ use super::*;
 use starpsx_renderer::vec2::Vec2;
 
 impl Gpu {
+    fn update_horizontal_range(&mut self) {
+        let x1 = self.x1_raw.max(0x260); // 608
+        let x2 = self.x2_raw.min(0x260 + 320 * 8); // 3168
+
+        let dotclock = self.get_dot_clock_divider();
+
+        self.renderer.ctx.display_x1 = (x1 - 608) / dotclock;
+        self.renderer.ctx.display_x2 = (x2 - 608) / dotclock;
+    }
+
+    fn update_vertical_range(&mut self) {
+        let (y1, y2) = match self.gpu_stat.vmode() {
+            VMode::Ntsc => (self.y1_raw.max(16) - 16, self.y2_raw.min(256) - 16),
+            VMode::Pal => (self.y1_raw.max(19) - 47, self.y2_raw.min(307) - 47), // This is scuffed
+        };
+
+        let mul = if self.renderer.ctx.interlaced { 2 } else { 1 };
+
+        self.renderer.ctx.display_y1 = y1 * mul;
+        self.renderer.ctx.display_y2 = y2 * mul;
+    }
+
     pub fn gp1_reset(&mut self) {
         self.gpu_stat.0 = 0x14802000;
         self.gpu_stat.set_hres(1);
@@ -15,8 +37,6 @@ impl Gpu {
         let hres = command.hres_1() | (command.hres_2() << 2);
 
         self.gpu_stat.set_hres(hres);
-
-        self.gpu_stat.set_vmode(command.vmode());
         self.gpu_stat.set_display_depth(command.display_depth());
 
         self.gpu_stat.set_interlaced_v(command.interlaced());
@@ -37,6 +57,15 @@ impl Gpu {
 
         self.renderer.change_resolution(width, height);
 
+        let old_mode = self.gpu_stat.vmode();
+        self.gpu_stat.set_vmode(command.vmode());
+
+        // Update display ranges if video mode changed
+        if old_mode != command.vmode() {
+            self.update_vertical_range();
+            self.update_horizontal_range();
+        }
+
         if command.flip_screen() {
             unimplemented!("Flip screen bit not supported!");
         }
@@ -55,23 +84,15 @@ impl Gpu {
     }
 
     pub fn gp1_display_horizontal_range(&mut self, command: Command) {
-        let x1 = command.horizontal_x1().max(0x260); // 608
-        let x2 = command.horizontal_x2().min(0x260 + 320 * 8); // 3168
-
-        let dotclock = self.get_dot_clock_divider();
-
-        self.renderer.ctx.display_x1 = (x1 - 488) / dotclock;
-        self.renderer.ctx.display_x2 = (x2 - 488) / dotclock;
+        self.x1_raw = command.horizontal_x1();
+        self.x2_raw = command.horizontal_x2();
+        self.update_horizontal_range();
     }
 
     pub fn gp1_display_vertical_range(&mut self, command: Command) {
-        let y1 = command.vertical_y1().max(0x88 - 240 / 2); // 16
-        let y2 = command.vertical_y2().min(0x88 + 240 / 2); // 256
-
-        let mul = if self.renderer.ctx.interlaced { 2 } else { 1 };
-
-        self.renderer.ctx.display_y1 = (y1 - 16) * mul;
-        self.renderer.ctx.display_y2 = (y2 - 16) * mul;
+        self.y1_raw = command.vertical_y1();
+        self.y2_raw = command.vertical_y2();
+        self.update_vertical_range();
     }
 
     pub fn gp1_display_enable(&mut self, command: Command) {
