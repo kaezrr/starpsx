@@ -168,13 +168,10 @@ pub struct DrawContext {
     pub display_depth: DisplayDepth,
 
     pub display_disabled: bool,
-    pub is_interlaced: bool,
+    pub interlaced: bool,
 
     pub frame_counter: u32,
     pub line_counter: u32,
-
-    pub texture_flip_x: bool,
-    pub texture_flip_y: bool,
 }
 
 impl DrawContext {

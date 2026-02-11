@@ -1,6 +1,8 @@
 pub mod utils;
 pub mod vec2;
 
+use tracing::debug;
+
 use crate::utils::{Clut, Color, ColorOptions, DrawContext};
 use crate::utils::{DrawOptions, interpolate_color, interpolate_uv};
 use crate::vec2::{Vec2, compute_barycentric_coords, needs_vertex_reordering, point_in_triangle};
@@ -74,10 +76,10 @@ impl Renderer {
         self.ctx.display_height = height;
 
         let width = width as usize;
-        let height = height as usize * if self.ctx.is_interlaced { 1 } else { 2 };
+        let height = height as usize * if self.ctx.interlaced { 1 } else { 2 };
 
         // Replace the frame buffer because resolution changed
-        self.frame = FrameBuffer::new(width, height, self.ctx.is_interlaced);
+        self.frame = FrameBuffer::new(width, height, self.ctx.interlaced);
     }
 
     pub fn vram_read(&self, x: usize, y: usize) -> u16 {
@@ -118,12 +120,16 @@ impl Renderer {
             return FrameBuffer::black();
         }
 
+        // debug!(x1 = self.ctx.display_x1, x2 = self.ctx.display_x2);
+        // debug!(y1 = self.ctx.display_y1, y2 = self.ctx.display_y2);
+        // debug!("--------");
+
         let (sx, sy, width, height, interlaced) = (
             self.ctx.display_vram_start.x as usize,
             self.ctx.display_vram_start.y as usize,
             self.ctx.display_width as usize,
             self.ctx.display_height as usize,
-            self.ctx.is_interlaced,
+            self.ctx.interlaced,
         );
 
         let draw_odd = self.ctx.frame_counter & 1 != 0;
@@ -209,6 +215,15 @@ impl Renderer {
                 }
             }
         };
+
+        let mul = if interlaced { 1 } else { 2 };
+
+        // Pixels outside the display range are black
+        let rows_before_y1 = self.ctx.display_y1 as usize * width * mul;
+        self.frame.rgba[..rows_before_y1].fill(Color::BLACK);
+
+        let rows_after_y2 = self.ctx.display_y2 as usize * width * mul;
+        self.frame.rgba[rows_after_y2..].fill(Color::BLACK);
 
         self.frame.clone()
     }

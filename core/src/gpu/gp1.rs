@@ -23,7 +23,7 @@ impl Gpu {
         self.gpu_stat.set_interlaced(command.interlaced());
 
         self.renderer.ctx.display_depth = command.display_depth();
-        self.renderer.ctx.is_interlaced = command.interlaced();
+        self.renderer.ctx.interlaced = command.interlaced();
 
         // Free to set whatever vertical resolution if interlaced
         if command.interlaced() {
@@ -55,13 +55,23 @@ impl Gpu {
     }
 
     pub fn gp1_display_horizontal_range(&mut self, command: Command) {
-        self.renderer.ctx.display_x1 = command.horizontal_x1();
-        self.renderer.ctx.display_x2 = command.horizontal_x2();
+        let x1 = command.horizontal_x1().max(0x260); // 608
+        let x2 = command.horizontal_x2().min(0x260 + 320 * 8); // 3168
+
+        let dotclock = self.get_dot_clock_divider();
+
+        self.renderer.ctx.display_x1 = (x1 - 488) / dotclock;
+        self.renderer.ctx.display_x2 = (x2 - 488) / dotclock;
     }
 
     pub fn gp1_display_vertical_range(&mut self, command: Command) {
-        self.renderer.ctx.display_y1 = command.vertical_y1();
-        self.renderer.ctx.display_y2 = command.vertical_y2();
+        let y1 = command.vertical_y1().max(0x88 - 240 / 2); // 16
+        let y2 = command.vertical_y2().min(0x88 + 240 / 2); // 256
+
+        let mul = if self.renderer.ctx.interlaced { 2 } else { 1 };
+
+        self.renderer.ctx.display_y1 = (y1 - 16) * mul;
+        self.renderer.ctx.display_y2 = (y2 - 16) * mul;
     }
 
     pub fn gp1_display_enable(&mut self, command: Command) {

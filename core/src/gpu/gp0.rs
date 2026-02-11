@@ -40,9 +40,6 @@ impl Gpu {
             _ => unreachable!("2 bit value cant reach here"),
         };
 
-        ctx.texture_flip_x = cmd.texture_rect_x_flip();
-        ctx.texture_flip_y = cmd.texture_rect_y_flip();
-
         GP0State::AwaitCommand
     }
 
