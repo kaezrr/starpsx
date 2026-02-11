@@ -7,6 +7,7 @@ mod debugger;
 mod emulator;
 mod input;
 
+use clap::Parser;
 use eframe::egui::{self, IconData};
 use tracing::{error, info};
 use tracing_appender::non_blocking::WorkerGuard;
@@ -17,10 +18,13 @@ use tracing_subscriber::{EnvFilter, fmt};
 use crate::config::LaunchConfig;
 
 fn main() -> eframe::Result {
+    // Validate launch arguments
+    let args = config::Args::parse();
+
     // Making sure the log guard doesn't fall out of scope
     let _log_guard = init_logging("logs", "psx.log");
 
-    let launch_config = LaunchConfig::build().unwrap_or_else(|err| {
+    let launch_config = LaunchConfig::build(args).unwrap_or_else(|err| {
         error!(%err, "error building launch config");
         std::process::exit(1);
     });
