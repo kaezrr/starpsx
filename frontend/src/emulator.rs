@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::mpsc::{Receiver, SyncSender};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use eframe::egui;
 use starpsx_core::RunType;
@@ -126,10 +126,7 @@ impl Emulator {
     }
 
     fn main_loop(&mut self) {
-        const FRAME_TIME_NS: u64 = 16_666_667; // 16.67 ms
-        const SLEEP_TIME: Duration = Duration::from_nanos(16_666_667);
-
-        let clock = quanta::Clock::new();
+        const FRAME_TIME: Duration = Duration::from_nanos(16_666_667);
 
         'emulator: loop {
             // Read events from ui thread
@@ -180,11 +177,11 @@ impl Emulator {
             }
 
             if self.shared_state.is_paused() {
-                std::thread::sleep(SLEEP_TIME);
+                std::thread::sleep(Duration::from_millis(16));
                 continue;
             }
 
-            let start_raw = clock.raw();
+            let now = Instant::now();
             let vram = self.show_vram;
 
             let frame_opt = if self.breakpoints.is_empty() {
@@ -193,8 +190,7 @@ impl Emulator {
                 self.system.run_breakpoint(&self.breakpoints, vram)
             };
 
-            let end_raw = clock.raw();
-            let core_time_ns = clock.delta_as_nanos(start_raw, end_raw);
+            let core_time = now.elapsed();
 
             if let Some(buffer) = frame_opt {
                 self.send_frame_buffer(buffer);
@@ -204,16 +200,12 @@ impl Emulator {
                 continue;
             }
 
-            if core_time_ns < FRAME_TIME_NS {
-                let sleep_ns = FRAME_TIME_NS - core_time_ns;
-                std::thread::sleep(Duration::from_nanos(sleep_ns));
+            if let Some(sleep_dur) = FRAME_TIME.checked_sub(core_time) {
+                std::thread::sleep(sleep_dur);
             }
 
-            let total_frame_raw = clock.raw();
-            let frame_time_ns = clock.delta_as_nanos(start_raw, total_frame_raw);
-
-            let core_time = core_time_ns as f32 / 1_000_000_000.0; // convert to secs
-            let frame_time = frame_time_ns as f32 / 1_000_000_000.0; // convert to secs
+            let core_time = core_time.as_secs_f32();
+            let frame_time = now.elapsed().as_secs_f32();
 
             self.shared_state.store(frame_time, core_time);
         }

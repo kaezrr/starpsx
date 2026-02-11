@@ -24,7 +24,7 @@ pub enum RunnablePath {
 /// Cross Platform PS1 Emulator written in Rust
 #[derive(Parser, Debug)]
 #[command(version, about)]
-pub struct Args {
+struct Args {
     /// Display full VRAM
     #[arg(short, long)]
     show_vram: bool,
@@ -50,7 +50,8 @@ pub struct LaunchConfig {
 }
 
 impl LaunchConfig {
-    pub fn build(args: Args) -> Result<Self, Box<dyn Error>> {
+    pub fn build() -> Result<Self, Box<dyn Error>> {
+        let args = Args::parse();
         let runnable_path = args.file;
 
         let config_path = dirs::config_dir()
