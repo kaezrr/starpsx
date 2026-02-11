@@ -130,9 +130,8 @@ const FIVE_BIT_TO_8BIT: [u8; 32] = {
     table
 };
 
-// TODO: Convert to a lookup table later
 #[inline(always)]
-fn convert_5bit_to_8bit(color: u16) -> u8 {
+const fn convert_5bit_to_8bit(color: u16) -> u8 {
     FIVE_BIT_TO_8BIT[color as usize]
 }
 
