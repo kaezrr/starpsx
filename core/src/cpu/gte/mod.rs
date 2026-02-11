@@ -3,8 +3,6 @@ mod utils;
 
 use std::ops::{Index, IndexMut};
 
-use tracing::{error, trace};
-
 use crate::{
     System,
     cpu::utils::{Exception, Instruction},
@@ -296,7 +294,6 @@ fn mfc2(system: &mut System, instr: Instruction) {
     let cop_r = instr.rd();
 
     let data = system.cpu.gte.read_reg(cop_r);
-    trace!("mfc2: cpu_reg{cpu_r} write <- cop2r{cop_r} = {data:x}");
 
     system.cpu.take_delayed_load(cpu_r, data);
 }
@@ -307,7 +304,6 @@ fn cfc2(system: &mut System, instr: Instruction) {
     let cop_r = instr.rd() + 32;
 
     let data = system.cpu.gte.read_reg(cop_r);
-    trace!("cfc2: cpu_reg{cpu_r} write <- cop2r{cop_r} = {data:x}");
 
     system.cpu.take_delayed_load(cpu_r, data);
 }
@@ -318,7 +314,6 @@ fn mtc2(system: &mut System, instr: Instruction) {
     let cop_r = instr.rd();
 
     let data = system.cpu.regs[cpu_r];
-    trace!("mtc2: cop2r{cop_r} write <- {data:x}");
 
     system.cpu.gte.write_reg(cop_r, data);
 }
@@ -329,7 +324,6 @@ fn ctc2(system: &mut System, instr: Instruction) {
     let cop_r = instr.rd() + 32;
 
     let data = system.cpu.regs[cpu_r];
-    trace!("ctc2: cop2r{} write <- {data:x}", cop_r);
 
     system.cpu.gte.write_reg(cop_r, data);
 }
@@ -344,8 +338,6 @@ pub fn lwc2(system: &mut System, instr: Instruction) -> Result<(), Exception> {
 
     let addr = system.cpu.regs[rs].wrapping_add(im);
     let data = system.read::<u32>(addr)?;
-
-    trace!("lwc2: cop2r{rt} <- {data:x}");
 
     // Needs load delay
     system.cpu.gte.write_reg(rt, data);
@@ -363,8 +355,6 @@ pub fn swc2(system: &mut System, instr: Instruction) -> Result<(), Exception> {
     let addr = system.cpu.regs[rs].wrapping_add(im);
     let data = system.cpu.gte.read_reg(rt);
 
-    trace!("swc2: {addr:08x} <- cop2r{rt}");
-
     system.write::<u32>(addr, data)?;
     Ok(())
 }
@@ -374,7 +364,7 @@ fn check_valid_gte_access(system: &System) -> Result<(), Exception> {
     if system.cpu.cop0.gte_enabled() {
         return Ok(());
     }
-    error!("coprocessor error, trying to access gte while disabled");
+    tracing::error!("coprocessor error, trying to access gte while disabled");
     Err(Exception::CoprocessorError)
 }
 

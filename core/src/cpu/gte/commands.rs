@@ -1,20 +1,14 @@
-use tracing::debug;
-
 use super::*;
 
 impl GTEngine {
     /// Perspective transformation(single)
     pub fn rtps(&mut self, fields: CommandFields) {
-        debug!(target:"gte","gte command, rtps");
-
         let projection_factor = self.do_rtp(fields, Vector::V0);
         self.depth_queuing(projection_factor);
     }
 
     /// Normal clipping
     pub fn nclip(&mut self) {
-        debug!(target:"gte","gte command, nclip");
-
         let [x0, y0] = self.sxy[0];
         let [x1, y1] = self.sxy[1];
         let [x2, y2] = self.sxy[2];
@@ -35,8 +29,6 @@ impl GTEngine {
 
     /// Cross product of two vectors
     pub fn op(&mut self, fields: CommandFields) {
-        debug!(target:"gte","gte command, op");
-
         let [_, ir1, ir2, ir3] = self.ir;
         let (ir1, ir2, ir3) = (ir1 as i32, ir2 as i32, ir3 as i32);
 
@@ -55,8 +47,6 @@ impl GTEngine {
 
     /// Depth cueing (single)
     pub fn dpcs(&mut self, fields: CommandFields) {
-        debug!(target:"gte","gte command, dpcs");
-
         let dpc_vec = [
             self.rgbc[0] as i64,
             self.rgbc[1] as i64,
@@ -68,8 +58,6 @@ impl GTEngine {
 
     /// Interpolation of a vector and far color
     pub fn intpl(&mut self, fields: CommandFields) {
-        debug!(target:"gte","gte command, intpl");
-
         let dpc_vec = [self.ir[1] as i64, self.ir[2] as i64, self.ir[3] as i64];
 
         self.do_dpc(dpc_vec, 12, fields);
@@ -77,14 +65,11 @@ impl GTEngine {
 
     /// Multiply vector by matrix and vector addition
     pub fn mvmva(&mut self, fields: CommandFields) {
-        debug!(target:"gte","gte command, mvmva");
         self.multiply_matrix_by_vector(fields, fields.mx(), fields.vx(), fields.cv());
     }
 
     /// Normal color depth cue single vector
     pub fn ncds(&mut self, fields: CommandFields) {
-        debug!(target:"gte","gte command, ncds");
-
         self.multiply_matrix_by_vector(fields, Matrix::Light, Vector::V0, ControlVec::None);
         self.multiply_matrix_by_vector(fields, Matrix::Color, Vector::IR, ControlVec::Background);
 
@@ -93,8 +78,6 @@ impl GTEngine {
 
     /// Color depth cue
     pub fn cdp(&mut self, fields: CommandFields) {
-        debug!(target:"gte","gte command, cdp");
-
         self.multiply_matrix_by_vector(fields, Matrix::Color, Vector::IR, ControlVec::Background);
 
         self.dcpl(fields);
@@ -102,8 +85,6 @@ impl GTEngine {
 
     /// Normal color depth cue triple vectors
     pub fn ncdt(&mut self, fields: CommandFields) {
-        debug!(target:"gte","gte command, ncdt");
-
         self.multiply_matrix_by_vector(fields, Matrix::Light, Vector::V0, ControlVec::None);
         self.multiply_matrix_by_vector(fields, Matrix::Color, Vector::IR, ControlVec::Background);
 
@@ -122,16 +103,12 @@ impl GTEngine {
 
     /// Normal color color single vector
     pub fn nccs(&mut self, fields: CommandFields) {
-        debug!(target:"gte","gte command, nccs");
-
         self.multiply_matrix_by_vector(fields, Matrix::Light, Vector::V0, ControlVec::None);
         self.cc(fields);
     }
 
     /// Color color
     pub fn cc(&mut self, fields: CommandFields) {
-        debug!(target:"gte","gte command, cc");
-
         self.multiply_matrix_by_vector(fields, Matrix::Color, Vector::IR, ControlVec::Background);
 
         let r = self.rgbc[0] as i64;
@@ -157,8 +134,6 @@ impl GTEngine {
 
     /// Normal color single
     pub fn ncs(&mut self, fields: CommandFields) {
-        debug!(target:"gte","gte command, ncs");
-
         self.multiply_matrix_by_vector(fields, Matrix::Light, Vector::V0, ControlVec::None);
         self.multiply_matrix_by_vector(fields, Matrix::Color, Vector::IR, ControlVec::Background);
 
@@ -168,8 +143,6 @@ impl GTEngine {
 
     /// Normal color triple
     pub fn nct(&mut self, fields: CommandFields) {
-        debug!(target:"gte","gte command, nct");
-
         self.multiply_matrix_by_vector(fields, Matrix::Light, Vector::V0, ControlVec::None);
         self.multiply_matrix_by_vector(fields, Matrix::Color, Vector::IR, ControlVec::Background);
 
@@ -191,8 +164,6 @@ impl GTEngine {
 
     /// Square vector
     pub fn sqr(&mut self, fields: CommandFields) {
-        debug!(target:"gte","gte command, sqr");
-
         let sf = fields.sf() * 12;
 
         let prod1 = self.ir[1] as i32 * self.ir[1] as i32;
@@ -208,8 +179,6 @@ impl GTEngine {
 
     /// Depth cue color light
     pub fn dcpl(&mut self, fields: CommandFields) {
-        debug!(target:"gte","gte command, dcpl");
-
         let r = self.rgbc[0] as i64;
         let g = self.rgbc[1] as i64;
         let b = self.rgbc[2] as i64;
@@ -248,8 +217,6 @@ impl GTEngine {
 
     /// Depth cueing (triple)
     pub fn dpct(&mut self, fields: CommandFields) {
-        debug!(target:"gte","gte command, dpct");
-
         for _ in 0..3 {
             let dpc_vec = [
                 self.colors[0][0] as i64,
@@ -263,8 +230,6 @@ impl GTEngine {
 
     /// Average of three Z values (for triangles)
     pub fn avsz3(&mut self) {
-        debug!(target:"gte","gte command, avsz3");
-
         let z1 = self.sz.fifo[1] as u32;
         let z2 = self.sz.fifo[2] as u32;
         let z3 = self.sz.fifo[3] as u32;
@@ -280,8 +245,6 @@ impl GTEngine {
 
     /// Average of four Z values (for quads)
     pub fn avsz4(&mut self) {
-        debug!(target:"gte","gte command, avsz4");
-
         let z0 = self.sz.fifo[0] as u32;
         let z1 = self.sz.fifo[1] as u32;
         let z2 = self.sz.fifo[2] as u32;
@@ -298,8 +261,6 @@ impl GTEngine {
 
     /// Perspective transformation (triple)
     pub fn rtpt(&mut self, fields: CommandFields) {
-        debug!(target:"gte","gte command, rtpt");
-
         self.do_rtp(fields, Vector::V0);
         self.do_rtp(fields, Vector::V1);
 
@@ -311,8 +272,6 @@ impl GTEngine {
 
     /// General purpose interpolation
     pub fn gpf(&mut self, fields: CommandFields) {
-        debug!(target:"gte","gte command, gpf");
-
         let sf = fields.sf() * 12;
         let ir0 = self.ir[0] as i32;
 
@@ -330,8 +289,6 @@ impl GTEngine {
 
     /// General purpose interpolation with base
     pub fn gpl(&mut self, fields: CommandFields) {
-        debug!(target:"gte","gte command, gpl");
-
         let sf = fields.sf() * 12;
         let ir0 = self.ir[0] as i32;
 
@@ -353,8 +310,6 @@ impl GTEngine {
 
     /// Normal color color (triple vector)
     pub fn ncct(&mut self, fields: CommandFields) {
-        debug!(target:"gte","gte command, ncct");
-
         self.multiply_matrix_by_vector(fields, Matrix::Light, Vector::V0, ControlVec::None);
         self.cc(fields);
 
