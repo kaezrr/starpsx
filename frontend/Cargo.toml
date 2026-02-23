@@ -6,7 +6,7 @@ edition = "2024"
 [dependencies]
 bytemuck = "1.24.0"
 clap = { version = "4.5.54", features = ["derive"] }
-cue-parser = { path = "../cue-parser" }
+cue = { path = "../cue" }
 dirs = "6.0.0"
 eframe = { version = "0.33.3", default-features = false, features = [
   "default_fonts",

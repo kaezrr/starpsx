@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["core", "frontend", "renderer", "cue-parser"]
+members = ["core", "cue", "frontend", "renderer"]
 
 [profile.dev]
 opt-level = 1

@@ -4,10 +4,9 @@ use scanner::{Scanner, Token};
 
 pub fn parse_cue(input: Vec<u8>) -> anyhow::Result<()> {
     let tokens = Scanner::with_source(input).scan_tokens()?;
+    let cuesheet = Parser::new(tokens).parse_cuesheet()?;
 
-    for token in tokens {
-        println!("{token:?}");
-    }
+    eprintln!("{cuesheet:?}");
 
     Ok(())
 }
@@ -22,13 +21,38 @@ impl Parser {
         Self { tokens, current: 0 }
     }
 
-    pub fn parse(mut self) -> anyhow::Result<CueSheet> {
+    /// cue -> file*
+    pub fn parse_cuesheet(mut self) -> anyhow::Result<CueSheet> {
+        todo!()
+    }
+
+    /// file -> "FILE" filename filetype track+
+    fn parse_file(&mut self) -> anyhow::Result<Track> {
+        todo!()
+    }
+
+    /// track -> "TRACK" tracknumber tracktype pregap? index+
+    fn parse_track(&mut self) -> anyhow::Result<Track> {
+        todo!()
+    }
+
+    /// index -> "INDEX" indexnumber sector
+    fn parse_index(&mut self) -> anyhow::Result<Index> {
         todo!()
     }
 }
 
 #[derive(Debug)]
 struct CueSheet;
+
+#[derive(Debug)]
+struct File;
+
+#[derive(Debug)]
+struct Track;
+
+#[derive(Debug)]
+struct Index;
 
 #[test]
 fn parse_cue_file() {
