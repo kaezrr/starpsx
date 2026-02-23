@@ -1,4 +1,4 @@
-use anyhow::{Ok, anyhow};
+use super::*;
 
 pub struct Scanner {
     source: Vec<u8>,
@@ -19,38 +19,35 @@ impl Scanner {
         }
     }
 
-    pub fn scan_tokens(mut self) -> anyhow::Result<Vec<Token>> {
+    pub fn tokenize(mut self) -> anyhow::Result<Vec<Token>> {
         while !self.is_at_end() {
-            let token = self.scan_token()?;
-            self.tokens.push(token);
+            self.scan_token()?;
+            self.start = self.current;
         }
+
+        self.tokens.push(Token::Eof);
 
         Ok(self.tokens)
     }
 
-    fn scan_token(&mut self) -> anyhow::Result<Token> {
-        // Skip meaningless whitespace
-        while !self.is_at_end() && matches!(self.peek(), ' ' | '\t' | '\r') {
-            self.advance();
-        }
+    fn scan_token(&mut self) -> anyhow::Result<()> {
+        let token = match self.advance() {
+            ' ' | '\t' | '\r' => return Ok(()),
 
-        if self.is_at_end() {
-            return Ok(Token::Eof);
-        }
+            '\n' => Token::Newline,
 
-        self.start = self.current;
+            '"' => Token::String(self.string()?),
 
-        match self.advance() {
-            '\n' => Ok(Token::Newline),
+            c if c.is_ascii_alphabetic() => self.keyword()?,
 
-            '"' => Ok(Token::String(self.string()?)),
+            c if c.is_ascii_digit() => self.number_or_time()?,
 
-            c if c.is_ascii_alphabetic() => self.keyword(),
+            c => return Err(anyhow!("Unexpected character '{}'", c)),
+        };
 
-            c if c.is_ascii_digit() => self.number_or_time(),
+        self.tokens.push(token);
 
-            c => Err(anyhow!("Unexpected character '{}'", c)),
-        }
+        Ok(())
     }
 
     fn string(&mut self) -> anyhow::Result<String> {
@@ -108,7 +105,12 @@ impl Scanner {
 
         let bytes = &self.source[self.start..self.current];
         let word = std::str::from_utf8(bytes)?;
-        Ok(Token::CdTime(word.to_string()))
+
+        Ok(Token::CdTime(CdTime {
+            minutes: word[0..2].parse()?, // MM
+            seconds: word[3..5].parse()?, // HH
+            frames: word[6..8].parse()?,  // SS
+        }))
     }
 
     fn peek(&mut self) -> char {
@@ -142,40 +144,30 @@ fn try_to_keyword(s: &str) -> anyhow::Result<Token> {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Token {
     File,
     Track,
     Index,
-    Pregap,
-    Postgap,
 
     // File types
     Binary,
-    Motorola,
-    Aiff,
-    Wave,
-    Mp3,
 
     // Track types
     Audio,
-    Cdg,
-    Mode1_2048,
-    Mode1_2352,
-    Mode2_2336,
     Mode2_2352,
-    Cdi2336,
-    Cdi2352,
 
     String(String),
     Number(u32),
-    CdTime(String),
-
-    // Misc whatever
-    Performer,
-    Songwriter,
-    Title,
+    CdTime(CdTime),
 
     Newline,
     Eof,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CdTime {
+    pub minutes: u32,
+    pub seconds: u32,
+    pub frames: u32,
 }
