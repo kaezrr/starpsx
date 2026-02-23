@@ -1,18 +1,19 @@
+mod builder;
 mod parser;
 mod scanner;
 
 use std::path::{Path, PathBuf};
 
 use anyhow::{Ok, anyhow};
-use scanner::{Scanner, Token};
+use scanner::Scanner;
 
-use crate::{parser::CueParser, scanner::CdTime};
+use crate::{builder::CueBuilder, parser::CueParser, scanner::CdTime};
 
-pub fn build_binary(cue_path: &Path) -> anyhow::Result<()> {
+pub fn build_binary<P: AsRef<Path>>(cue_path: P) -> anyhow::Result<Vec<u8>> {
     let cue_file = std::fs::read(cue_path)?;
     let tokens = Scanner::with_source(cue_file).tokenize()?;
     let cue_sheet = CueParser::new(tokens).parse_cuesheet()?;
-    Ok(())
+    CueBuilder::new(cue_sheet).build_binary()
 }
 
 #[derive(Debug)]
@@ -57,10 +58,10 @@ fn parse_cue_files() {
 
     const GAME_DIR: &str = "/home/kaezr/Projects/starpsx/stuff/games/";
     const GAMES: [&str; 8] = [
+        "mortal-kombat-2/Mortal Kombat II (Japan).cue",
         "battle-arena-toshiden/Battle Arena Toshinden (USA).cue",
         "crash/Crash Bandicoot (USA).cue",
         "ew-jim-2/Earthworm Jim 2 (Europe).cue",
-        "mortal-kombat-2/Mortal Kombat II (Japan).cue",
         "puzzle-bobble-2/Puzzle Bobble 2 (Japan).cue",
         "ridge/Ridge Racer (USA).cue",
         "silent-hill/Silent Hill (USA).cue",

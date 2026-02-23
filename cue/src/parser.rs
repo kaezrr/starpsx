@@ -1,3 +1,5 @@
+use crate::scanner::Token;
+
 use super::*;
 
 pub struct CueParser {

@@ -171,3 +171,9 @@ pub struct CdTime {
     pub seconds: u32,
     pub frames: u32,
 }
+
+impl CdTime {
+    pub fn to_sectors(self) -> u32 {
+        self.minutes * 60 * 75 + self.seconds * 75 + self.frames
+    }
+}
