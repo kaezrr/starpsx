@@ -124,12 +124,6 @@ pub struct Gpu {
     gpu_stat: GpuStat,
     gp0_state: GP0State,
 
-    x1_raw: u16,
-    x2_raw: u16,
-
-    y1_raw: u16,
-    y2_raw: u16,
-
     in_vsync: bool,
 }
 
@@ -140,12 +134,6 @@ impl Default for Gpu {
             gpu_read: 0,
             gpu_stat: GpuStat(0),
             gp0_state: GP0State::AwaitCommand,
-
-            x1_raw: 0,
-            x2_raw: 0,
-
-            y1_raw: 0,
-            y2_raw: 0,
 
             in_vsync: false,
         }

@@ -2,28 +2,6 @@ use super::*;
 use starpsx_renderer::vec2::Vec2;
 
 impl Gpu {
-    fn update_horizontal_range(&mut self) {
-        let x1 = self.x1_raw.max(0x260); // 608
-        let x2 = self.x2_raw.min(0x260 + 320 * 8); // 3168
-
-        let dotclock = self.get_dot_clock_divider();
-
-        self.renderer.ctx.display_x1 = (x1 - 608) / dotclock;
-        self.renderer.ctx.display_x2 = (x2 - 608) / dotclock;
-    }
-
-    fn update_vertical_range(&mut self) {
-        let (y1, y2) = match self.gpu_stat.vmode() {
-            VMode::Ntsc => (self.y1_raw.max(16) - 16, self.y2_raw.min(256) - 16),
-            VMode::Pal => (self.y1_raw.max(19) - 47, self.y2_raw.min(307) - 47), // This is scuffed
-        };
-
-        let mul = if self.renderer.ctx.interlaced { 2 } else { 1 };
-
-        self.renderer.ctx.display_y1 = y1 * mul;
-        self.renderer.ctx.display_y2 = y2 * mul;
-    }
-
     pub fn gp1_reset(&mut self) {
         self.gpu_stat.0 = 0x14802000;
         self.gpu_stat.set_hres(1);
@@ -56,15 +34,7 @@ impl Gpu {
         let height = self.gpu_stat.vres().as_value();
 
         self.renderer.change_resolution(width, height);
-
-        let old_mode = self.gpu_stat.vmode();
         self.gpu_stat.set_vmode(command.vmode());
-
-        // Update display ranges if video mode changed
-        if old_mode != command.vmode() {
-            self.update_vertical_range();
-            self.update_horizontal_range();
-        }
 
         if command.flip_screen() {
             unimplemented!("Flip screen bit not supported!");
@@ -84,15 +54,19 @@ impl Gpu {
     }
 
     pub fn gp1_display_horizontal_range(&mut self, command: Command) {
-        self.x1_raw = command.horizontal_x1();
-        self.x2_raw = command.horizontal_x2();
-        self.update_horizontal_range();
+        let x1 = command.horizontal_x1();
+        let x2 = command.horizontal_x2();
+
+        let dotclock = self.get_dot_clock_divider();
+        self.renderer.ctx.display_hor_range = (((x2 - x1) / dotclock) + 2) & !3;
     }
 
     pub fn gp1_display_vertical_range(&mut self, command: Command) {
-        self.y1_raw = command.vertical_y1();
-        self.y2_raw = command.vertical_y2();
-        self.update_vertical_range();
+        let y1 = command.vertical_y1();
+        let y2 = command.vertical_y2();
+
+        let mul = if self.renderer.ctx.interlaced { 2 } else { 1 };
+        self.renderer.ctx.display_ver_range = (y2 - y1) * mul;
     }
 
     pub fn gp1_display_enable(&mut self, command: Command) {

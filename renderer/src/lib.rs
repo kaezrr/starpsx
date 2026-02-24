@@ -205,25 +205,11 @@ impl Renderer {
             }
         };
 
-        let mul = if interlaced { 1 } else { 2 };
+        let vrange = self.ctx.display_ver_range as usize;
 
-        // Pixels outside the display range are black
-        let rows_before_y1 = self.ctx.display_y1 as usize * width * mul;
-        self.frame.rgba[..rows_before_y1].fill(Color::BLACK);
-
-        let rows_after_y2 = self.ctx.display_y2 as usize * width * mul;
-        self.frame.rgba[rows_after_y2..].fill(Color::BLACK);
-
-        // Columns before x1 and after x2
-        for r in self.ctx.display_y1 as usize..self.ctx.display_y2 as usize {
-            let base = r * width;
-
-            for c in 0..self.ctx.display_x1 as usize {
-                self.frame.rgba[base + c] = Color::BLACK;
-            }
-            for c in self.ctx.display_x2 as usize..width {
-                self.frame.rgba[base + c] = Color::BLACK;
-            }
+        if height >= vrange {
+            let starting_row = vrange * width * if interlaced { 1 } else { 2 };
+            self.frame.rgba[starting_row..].fill(Color::BLACK);
         }
 
         self.frame.clone()
