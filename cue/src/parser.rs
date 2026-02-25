@@ -24,7 +24,7 @@ impl CueParser {
     }
 
     /// file -> "FILE" filename filetype "\n" track*
-    fn parse_file(&mut self) -> anyhow::Result<CueFile> {
+    fn parse_file(&mut self) -> anyhow::Result<File> {
         let Token::File = self.advance() else {
             return Err(anyhow!("Expect 'FILE'."));
         };
@@ -34,7 +34,7 @@ impl CueParser {
         };
 
         let file_type = match self.advance() {
-            Token::Binary => CueFileType::Binary,
+            Token::Binary => FileType::Binary,
             t => return Err(anyhow!("File type {t:?} not implemented.")),
         };
 
@@ -48,7 +48,7 @@ impl CueParser {
             tracks.push(self.parse_track()?);
         }
 
-        Ok(CueFile {
+        Ok(File {
             path: PathBuf::from(name),
             file_type,
             tracks,

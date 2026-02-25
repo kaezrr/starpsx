@@ -18,7 +18,7 @@ impl CueBuilder {
 
     pub fn build_binary(mut self) -> anyhow::Result<Vec<u8>> {
         for file in self.cue_sheet.files {
-            eprintln!("{file:?}");
+            self.binary.extend(std::fs::read(file.path)?);
         }
 
         Ok(self.binary)

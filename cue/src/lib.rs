@@ -18,18 +18,18 @@ pub fn build_binary<P: AsRef<Path>>(cue_path: P) -> anyhow::Result<Vec<u8>> {
 
 #[derive(Debug)]
 struct CueSheet {
-    files: Vec<CueFile>,
+    files: Vec<File>,
 }
 
 #[derive(Debug)]
-struct CueFile {
+struct File {
     path: PathBuf,
-    file_type: CueFileType,
+    file_type: FileType,
     tracks: Vec<Track>,
 }
 
 #[derive(Debug)]
-enum CueFileType {
+enum FileType {
     Binary,
 }
 
