@@ -233,15 +233,10 @@ impl Renderer {
 
     // Don't reuse the rectangle drawer for this because this isn't affected by masked bit
     pub fn vram_quick_fill(&mut self, r: Vec2, side_x: i32, side_y: i32, color: Color) {
-        let min_x = r.x;
-        let min_y = r.y;
-        let max_x = r.x + side_x - 1;
-        let max_y = r.y + side_y - 1;
-
-        let min_x = std::cmp::max(min_x, self.ctx.drawing_area_top_left.x) as usize;
-        let min_y = std::cmp::max(min_y, self.ctx.drawing_area_top_left.y) as usize;
-        let max_x = std::cmp::min(max_x, self.ctx.drawing_area_bottom_right.x) as usize;
-        let max_y = std::cmp::min(max_y, self.ctx.drawing_area_bottom_right.y) as usize;
+        let min_x = r.x as usize;
+        let min_y = r.y as usize;
+        let max_x = (r.x + side_x - 1) as usize;
+        let max_y = (r.y + side_y - 1) as usize;
 
         for x in min_x..=max_x {
             for y in min_y..=max_y {
