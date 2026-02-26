@@ -43,6 +43,13 @@ impl CdRom {
                     AVG_1ST_RESP_GENERIC,
                 );
             }
+
+            0x60 => {
+                debug!(target: "cdrom", subcmd = "read one byte from drive ram or i/o", "cdrom test command");
+
+                responses.push(ResponseType::INT3(vec![0]), AVG_1ST_RESP_GENERIC);
+            }
+
             _ => unimplemented!("cdrom command Test {cmd:02x}"),
         };
         responses
@@ -290,6 +297,18 @@ impl CdRom {
                 Speed::Normal => 0x0d38aca,
                 Speed::Double => 0x18a6076,
             },
+        );
+
+        responses
+    }
+
+    pub fn get_locp(&mut self) -> CommandResponse {
+        debug!(target: "cdrom", "cdrom getlocp");
+
+        let mut responses = CommandResponse::default();
+        responses.push(
+            ResponseType::INT3(vec![0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]),
+            AVG_1ST_RESP_GENERIC,
         );
 
         responses

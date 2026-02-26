@@ -226,6 +226,7 @@ impl CdRom {
             0x06 => cdrom.readn(),
             0x1B => cdrom.reads(),
             0x09 => cdrom.pause(),
+            0x11 => cdrom.get_locp(),
             _ => unimplemented!("cdrom command {cmd:02x}"),
         };
 
@@ -248,21 +249,24 @@ impl CdRom {
         let cdrom = &mut system.cdrom;
 
         cdrom.results.clear();
-        match response {
+        let irq = match response {
             ResponseType::INT3(response) => {
                 cdrom.results.extend(response);
-                cdrom.hintsts.set_interrupt(3);
                 cdrom.address.set_busy_sts(false);
+                3
             }
+
             ResponseType::INT2(response) => {
                 cdrom.results.extend(response);
-                cdrom.hintsts.set_interrupt(2);
+                2
             }
+
             ResponseType::INT2Seek => {
                 cdrom.status.set_seeking(false);
                 cdrom.results.extend(vec![cdrom.status.0]);
-                cdrom.hintsts.set_interrupt(2);
+                2
             }
+
             ResponseType::INT1Stat => {
                 let sector_data = cdrom
                     .disc
@@ -272,15 +276,17 @@ impl CdRom {
 
                 cdrom.replace_sector_buffer(sector_data);
                 cdrom.results.extend(vec![cdrom.status.0]);
-                cdrom.hintsts.set_interrupt(1);
+                1
             }
+
             ResponseType::INT5([status, error_code]) => {
                 cdrom.results.push(status);
                 cdrom.results.push(error_code);
-                cdrom.hintsts.set_interrupt(5);
+                5
             }
-        }
+        };
 
+        cdrom.hintsts.set_interrupt(irq);
         cdrom.address.set_result_read_ready(true);
 
         if cdrom.hintsts.0 & cdrom.hintmsk.0 != 0 {
