@@ -266,7 +266,7 @@ impl CdRom {
 
     // stub values, need to load cue sheet
     pub fn get_td(&mut self) -> CommandResponse {
-        debug!(target: "cdrom", "cdrom get tn");
+        debug!(target: "cdrom", "cdrom get td");
 
         let mut responses = CommandResponse::default();
         responses.push(

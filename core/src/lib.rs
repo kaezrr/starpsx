@@ -24,7 +24,6 @@ use sched::{Event, EventScheduler};
 use sio::Sio0;
 use starpsx_renderer::FrameBuffer;
 use std::collections::HashSet;
-use std::error::Error;
 use timers::Timers;
 use tracing::info;
 
@@ -64,7 +63,7 @@ pub struct System {
 }
 
 impl System {
-    pub fn build(bios: Vec<u8>, runnable: Option<RunType>) -> Result<Self, Box<dyn Error>> {
+    pub fn build(bios: Vec<u8>, runnable: Option<RunType>) -> anyhow::Result<Self> {
         let mut psx = System {
             cpu: Cpu::default(),
             gpu: Gpu::default(),

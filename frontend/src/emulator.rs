@@ -1,12 +1,11 @@
 use std::collections::HashSet;
-use std::error::Error;
-use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::mpsc::{Receiver, SyncSender};
 use std::time::{Duration, Instant};
 
+use anyhow::anyhow;
 use eframe::egui;
 use starpsx_core::RunType;
 use starpsx_renderer::FrameBuffer;
@@ -59,7 +58,7 @@ impl Emulator {
         file_path: Option<RunnablePath>,
 
         show_vram: bool,
-    ) -> Result<Self, Box<dyn Error>> {
+    ) -> anyhow::Result<Self> {
         Ok(Self {
             ui_ctx,
             channels,
@@ -78,15 +77,16 @@ impl Emulator {
     pub fn build_core(
         bios_path: &Path,
         file_path: &Option<RunnablePath>,
-    ) -> Result<starpsx_core::System, Box<dyn Error>> {
+    ) -> anyhow::Result<starpsx_core::System> {
         let bios = std::fs::read(bios_path)?;
 
         let run_type = file_path
             .as_ref()
-            .map(|run_type| -> Result<RunType, io::Error> {
+            .map(|run_type| -> anyhow::Result<RunType> {
                 let bytes = match run_type {
                     RunnablePath::Exe(path) => RunType::Executable(std::fs::read(path)?),
                     RunnablePath::Bin(path) => RunType::Game(std::fs::read(path)?),
+                    RunnablePath::Cue(path) => RunType::Game(cue::build_binary(path)?),
                 };
                 Ok(bytes)
             })
@@ -247,10 +247,11 @@ impl SharedState {
     }
 }
 
-pub fn parse_runnable(path: PathBuf) -> Result<RunnablePath, Box<dyn Error>> {
+pub fn parse_runnable(path: PathBuf) -> anyhow::Result<RunnablePath> {
     match path.extension().and_then(|e| e.to_str()) {
-        Some("exe") => Ok(RunnablePath::Exe(path)),
+        Some("exe") | Some("ps-exe") => Ok(RunnablePath::Exe(path)),
         Some("bin") => Ok(RunnablePath::Bin(path)),
-        _ => Err("unsupported file format".into()),
+        Some("cue") => Ok(RunnablePath::Cue(path)),
+        _ => Err(anyhow!("unsupported file format")),
     }
 }

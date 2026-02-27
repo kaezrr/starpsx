@@ -2,7 +2,7 @@ mod app_state;
 mod ui;
 mod util;
 
-use std::error::Error;
+use anyhow::anyhow;
 use std::path::PathBuf;
 use std::sync::{Arc, mpsc::TryRecvError};
 use std::task::{Context, Poll, Waker};
@@ -275,15 +275,12 @@ impl Application {
         self.app_config.display_vram
     }
 
-    fn start_emulator(
-        &mut self,
-        runnable_path: Option<RunnablePath>,
-    ) -> Result<(), Box<dyn Error>> {
+    fn start_emulator(&mut self, runnable_path: Option<RunnablePath>) -> anyhow::Result<()> {
         let bios_path = self
             .app_config
             .bios_path
             .as_ref()
-            .ok_or("bios path missing")?;
+            .ok_or_else(|| anyhow!("bios path missing"))?;
 
         // Message channels for thread communication
         let (frame_tx, frame_rx) = std::sync::mpsc::sync_channel::<FrameBuffer>(1);
@@ -323,7 +320,7 @@ impl Application {
         Ok(())
     }
 
-    fn start_bios(&mut self) -> Result<(), Box<dyn Error>> {
+    fn start_bios(&mut self) -> anyhow::Result<()> {
         if let Some(state) = self.app_state.take() {
             state.shutdown();
         }
@@ -332,7 +329,7 @@ impl Application {
         Ok(())
     }
 
-    fn start_file(&mut self, path: PathBuf) -> Result<(), Box<dyn Error>> {
+    fn start_file(&mut self, path: PathBuf) -> anyhow::Result<()> {
         if let Some(state) = self.app_state.take() {
             state.shutdown();
         }
@@ -355,7 +352,7 @@ impl Application {
         self.app_config.save_to_file(&self.config_path);
     }
 
-    fn poll_dialog(&mut self) -> Result<(), Box<dyn Error>> {
+    fn poll_dialog(&mut self) -> anyhow::Result<()> {
         let Some(dialog) = self.pending_dialog.as_mut() else {
             return Ok(());
         };

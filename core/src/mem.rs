@@ -3,7 +3,6 @@ use tracing::trace;
 use crate::cpu::utils::Exception;
 use crate::{System, cdrom, sio, spu};
 use crate::{dma, gpu, irq, timers};
-use std::error::Error;
 use std::fmt::{Display, LowerHex};
 
 pub trait ByteAddressable: Copy + LowerHex + Display {
@@ -73,8 +72,11 @@ pub mod bios {
     }
 
     impl Bios {
-        pub fn new(bytes: Vec<u8>) -> Result<Self, Box<dyn Error>> {
-            let box_bytes = bytes.try_into().map_err(|_| "invalid bios")?;
+        pub fn new(bytes: Vec<u8>) -> anyhow::Result<Self> {
+            let box_bytes = bytes
+                .try_into()
+                .map_err(|_| anyhow::anyhow!("invalid bios image"))?;
+
             Ok(Bios { bytes: box_bytes })
         }
 

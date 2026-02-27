@@ -1,4 +1,4 @@
-use std::error::Error;
+use anyhow::anyhow;
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -19,6 +19,7 @@ use crate::input::PhysicalInput;
 pub enum RunnablePath {
     Exe(PathBuf),
     Bin(PathBuf),
+    Cue(PathBuf),
 }
 
 /// Cross Platform PS1 Emulator written in Rust
@@ -50,11 +51,11 @@ pub struct LaunchConfig {
 }
 
 impl LaunchConfig {
-    pub fn build(args: Args) -> Result<Self, Box<dyn Error>> {
+    pub fn build(args: Args) -> anyhow::Result<Self> {
         let runnable_path = args.file;
 
         let config_path = dirs::config_dir()
-            .ok_or("could not find config directory")?
+            .ok_or_else(|| anyhow!("could not find config directory"))?
             .join("StarPSX")
             .join("config.toml");
 
