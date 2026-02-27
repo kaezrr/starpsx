@@ -9,7 +9,7 @@ use scanner::Scanner;
 
 use crate::{builder::CueBuilder, parser::CueParser, scanner::CdTime};
 
-pub fn build_binary<P: AsRef<Path>>(cue_path: P) -> anyhow::Result<Vec<u8>> {
+pub fn build_disk<P: AsRef<Path>>(cue_path: P) -> anyhow::Result<Vec<u8>> {
     let cue_file = std::fs::read(cue_path.as_ref())?;
     let tokens = Scanner::with_source(cue_file).tokenize()?;
     let cue_sheet = CueParser::new(tokens).parse_cuesheet()?;

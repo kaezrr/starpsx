@@ -85,8 +85,8 @@ impl Emulator {
             .map(|run_type| -> anyhow::Result<RunType> {
                 let bytes = match run_type {
                     RunnablePath::Exe(path) => RunType::Executable(std::fs::read(path)?),
-                    RunnablePath::Bin(path) => RunType::Game(std::fs::read(path)?),
-                    RunnablePath::Cue(path) => RunType::Game(cue::build_binary(path)?),
+                    RunnablePath::Bin(path) => RunType::Binary(std::fs::read(path)?),
+                    RunnablePath::Cue(path) => RunType::Disk(cue::build_disk(path)?),
                 };
                 Ok(bytes)
             })

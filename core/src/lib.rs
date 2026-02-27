@@ -33,7 +33,8 @@ use crate::sio::Sio1;
 use crate::spu::Spu;
 
 pub enum RunType {
-    Game(Vec<u8>),
+    Disk(Vec<u8>),
+    Binary(Vec<u8>),
     Executable(Vec<u8>),
 }
 
@@ -93,7 +94,8 @@ impl System {
             // Do not open the shell after bios start
             psx.cdrom.status.set_shell_open(false);
             match run_type {
-                RunType::Game(bytes) => psx.cdrom.insert_disc(CdImage::from_bytes(bytes)),
+                RunType::Disk(bytes) => psx.cdrom.insert_disc(CdImage::from_disk(bytes)),
+                RunType::Binary(bytes) => psx.cdrom.insert_disc(CdImage::from_bytes(bytes)),
                 RunType::Executable(bytes) => psx.sideload_exe(bytes),
             }
         } else {

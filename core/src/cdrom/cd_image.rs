@@ -21,6 +21,13 @@ impl CdImage {
         }
     }
 
+    pub fn from_disk(bytes: Vec<u8>) -> Self {
+        Self {
+            data: bytes.into_boxed_slice(),
+            read_head: 0,
+        }
+    }
+
     pub fn seek_location(&mut self, mins: u8, secs: u8, sect: u8) {
         let total_sectors = ((mins as usize) * 60 * 75) + ((secs as usize) * 75) + (sect as usize);
         self.read_head = total_sectors * SECTOR_SIZE;
