@@ -45,7 +45,7 @@ pub fn show_top_menu(app: &mut Application, ctx: &egui::Context) {
                         if ui.button("Start File").clicked() {
                             app.pending_dialog = Some(PendingDialog::SelectFile(Box::pin(
                                 AsyncFileDialog::new()
-                                    .add_filter("Game", &["bin", "BIN", "cue", "exe"])
+                                    .add_filter("Game", &["bin", "BIN", "cue", "exe", "ps-exe"])
                                     .set_title("Select file to Run")
                                     .pick_file(),
                             )));
