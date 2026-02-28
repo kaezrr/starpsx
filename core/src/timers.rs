@@ -44,6 +44,8 @@ impl Timers {
     }
 
     pub fn enter_vsync(system: &mut System) {
+        Timers::update_value(system, 1);
+
         system.timers.in_vsync = true;
 
         match system.timers.sync_mode(1) {
@@ -59,10 +61,13 @@ impl Timers {
             system.timers[1].mode.set_sync_enabled(false);
         }
 
+        system.timers[1].last_read = system.scheduler.sysclk();
         Timers::reschedule_interrupt_if_needed(system, 1);
     }
 
     pub fn enter_hsync(system: &mut System) {
+        Timers::update_value(system, 0);
+
         system.timers.hblanks += 1;
         system.timers.in_hsync = true;
 
@@ -79,6 +84,7 @@ impl Timers {
             system.timers[0].mode.set_sync_enabled(false);
         }
 
+        system.timers[0].last_read = system.scheduler.sysclk();
         Timers::reschedule_interrupt_if_needed(system, 0);
     }
 
@@ -104,6 +110,7 @@ impl Timers {
             false => 0xFFFF,
         };
 
+        // Only drain hblanks when this timer actually uses the HBlank clock.
         let delta = match system.timers.clock_source(which) {
             Clock::Cpu => clock_delta,
             Clock::CpuDiv8 => clock_delta / 8,
@@ -125,9 +132,13 @@ impl Timers {
         timer
             .mode
             .set_reached_target(delta64 > 0 && old_counter + delta64 > target64);
-        timer
-            .mode
-            .set_reached_ffff(delta64 > 0 && old_counter + delta64 > ffff64);
+
+        let crossed_ffff = if timer.mode.reset_to_target() {
+            false
+        } else {
+            delta64 > 0 && old_counter + delta64 > ffff64
+        };
+        timer.mode.set_reached_ffff(crossed_ffff);
 
         timer.counter = ((old_counter + delta64) % (reset64 + 1)) as u32;
     }
@@ -162,9 +173,8 @@ impl Timers {
             1 => (cycles_til_target, cycles_til_target_reset),
             // Only 0xFFFF IRQ
             2 => (cycles_til_ffff, cycles_til_ffff_reset),
-            // Both FFFF and Target IRQ
+            // Both FFFF and Target IRQ — schedule whichever comes first
             3 => {
-                // Schedule whichever happens first.
                 if cycles_til_target < cycles_til_ffff {
                     (cycles_til_target, cycles_til_target_reset)
                 } else {
@@ -365,7 +375,7 @@ impl Timer {
         if counter < target {
             target - counter
         } else if counter == target {
-            // Already sitting on the target, next hit is one full period away.
+            // Already sitting on the target so next hit is one full period away.
             period
         } else {
             // counter > target: wrap around.
