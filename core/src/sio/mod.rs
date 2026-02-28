@@ -157,9 +157,9 @@ impl Sio0 {
                     .schedule(Event::SerialSend, consts::BAUDRATE_TRANSFER_DELAY, None);
             }
 
-            // Turn off ACK after 10 cycles
+            // Turn off ACK after 96 cycles
             if sio.status.dsr_input_on() {
-                system.scheduler.schedule(Event::DsrOff, 10, None);
+                system.scheduler.schedule(Event::DsrOff, 96, None);
             }
 
             system.sio0.push_received_data(received);

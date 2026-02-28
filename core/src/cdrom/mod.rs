@@ -24,7 +24,7 @@ pub struct CdRom {
 
     speed: Speed,
     sector_size: SectorSize,
-    sector_buffer: VecDeque<u32>,
+    sector_buffer: VecDeque<u8>,
 
     disk: Option<CdImage>,
 }
@@ -61,8 +61,14 @@ impl CdRom {
         self.address.0
     }
 
-    fn read_rddata_word(&mut self) -> u32 {
-        self.pop_from_sector_buffer()
+    fn read_rddata<T: ByteAddressable>(&mut self) -> u32 {
+        let mut bytes = [0u8; 4];
+
+        (0..T::LEN).for_each(|i| {
+            bytes[i] = self.pop_from_sector_buffer();
+        });
+
+        u32::from_le_bytes(bytes)
     }
 
     // Clear the corresponding set bit of HINTSTS
@@ -90,12 +96,12 @@ impl CdRom {
         trace!(target:"cdrom", "cdrom write hchpctl={:#02x}", data);
     }
 
-    fn replace_sector_buffer(&mut self, new_buffer: VecDeque<u32>) {
+    fn replace_sector_buffer(&mut self, new_buffer: VecDeque<u8>) {
         self.sector_buffer = new_buffer;
         self.address.set_data_request(true);
     }
 
-    fn pop_from_sector_buffer(&mut self) -> u32 {
+    fn pop_from_sector_buffer(&mut self) -> u8 {
         let data = self.sector_buffer.pop_front().unwrap();
 
         if self.sector_buffer.is_empty() {
@@ -234,15 +240,10 @@ pub fn read<T: ByteAddressable>(system: &mut System, addr: u32) -> T {
     let offs = addr - PADDR_START;
     let cdrom = &mut system.cdrom;
 
-    // RDDATA reads happen mostly through DMA, ensure bus width is a word
-    if cdrom.address.bank() == 0 && offs == 2 {
-        debug_assert_eq!(T::LEN, 4);
-    }
-
     let val: u32 = match (cdrom.address.bank(), offs) {
         (_, 0) => cdrom.read_addr().into(),
         (_, 1) => cdrom.pop_result().into(),
-        (_, 2) => cdrom.read_rddata_word(),
+        (_, 2) => cdrom.read_rddata::<T>().to_u32(),
         (0, 3) | (2, 3) => cdrom.read_hintmsk().into(),
         (1, 3) | (3, 3) => cdrom.read_hintsts().into(),
         (x, y) => unreachable!("cdrom bank {x} register {y}"),

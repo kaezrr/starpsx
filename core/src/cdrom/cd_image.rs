@@ -54,7 +54,7 @@ impl CdImage {
         self.read_head = total_sectors * SECTOR_SIZE;
     }
 
-    pub fn read_sector_and_advance(&mut self, sect_size: SectorSize) -> VecDeque<u32> {
+    pub fn read_sector_and_advance(&mut self, sect_size: SectorSize) -> VecDeque<u8> {
         debug!(
             target: "cdrom",
             LBA = self.read_head / SECTOR_SIZE,
@@ -72,10 +72,7 @@ impl CdImage {
             SectorSize::WholeSectorExceptSyncBytes => &sector[0xC..],
         };
 
-        let words = bytemuck::cast_slice::<u8, u32>(sector_read);
-        let mut buffer = VecDeque::with_capacity(words.len());
-        buffer.extend(words.iter().copied());
-        buffer
+        VecDeque::from_iter(sector_read.iter().copied())
     }
 }
 
