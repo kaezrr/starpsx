@@ -132,7 +132,7 @@ impl CdRom {
         if let 0x08..=0x09 = cmd {
             system
                 .scheduler
-                .unschedule(&Event::CdromResultIrq(ResponseType::INT1Stat));
+                .unschedule(&Event::CdromResultIrq(ResponseType::INT1));
         }
 
         let response = match cmd {
@@ -165,7 +165,7 @@ impl CdRom {
             .into_iter()
             .for_each(|(res_type, delay)| {
                 let repeat = match res_type {
-                    ResponseType::INT1Stat => Some(cdrom.speed.transform(AVG_RATE_INT1)),
+                    ResponseType::INT1 => Some(cdrom.speed.transform(AVG_RATE_INT1)),
                     _ => None,
                 };
                 system
@@ -185,17 +185,12 @@ impl CdRom {
             }
 
             ResponseType::INT2(response) => {
+                cdrom.status.set_seeking(false);
                 cdrom.results.extend(response);
                 2
             }
 
-            ResponseType::INT2Seek => {
-                cdrom.status.set_seeking(false);
-                cdrom.results.extend(vec![cdrom.status.0]);
-                2
-            }
-
-            ResponseType::INT1Stat => {
+            ResponseType::INT1 => {
                 let sector_data = cdrom
                     .disk
                     .as_mut()

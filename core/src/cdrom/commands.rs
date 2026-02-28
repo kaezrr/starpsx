@@ -98,7 +98,7 @@ impl CdRom {
 
         CommandResponse::new()
             .int3([self.status.0], AVG_1ST_RESP_GENERIC)
-            .int2_seek(AVG_1ST_RESP_GENERIC + AVG_2ND_RESP_SEEKL)
+            .int2([self.status.0], AVG_1ST_RESP_GENERIC + AVG_2ND_RESP_SEEKL)
     }
 
     pub fn setmode(&mut self) -> CommandResponse {
@@ -147,7 +147,7 @@ impl CdRom {
 
         CommandResponse::new()
             .int3([self.status.0], AVG_1ST_RESP_GENERIC)
-            .int1_stat(AVG_1ST_RESP_GENERIC + self.speed.transform(AVG_RATE_INT1))
+            .int1(AVG_1ST_RESP_GENERIC + self.speed.transform(AVG_RATE_INT1))
     }
 
     pub fn pause(&mut self) -> CommandResponse {
@@ -329,8 +329,7 @@ pub enum ResponseType {
     INT3(ArrayVec<u8, 8>),
     INT2(ArrayVec<u8, 8>),
     INT5([u8; 2]),
-    INT2Seek,
-    INT1Stat,
+    INT1,
 }
 
 #[derive(Default)]
@@ -360,13 +359,8 @@ impl CommandResponse {
         self
     }
 
-    pub fn int2_seek(mut self, delay: u64) -> Self {
-        self.responses.push((ResponseType::INT2Seek, delay));
-        self
-    }
-
-    pub fn int1_stat(mut self, delay: u64) -> Self {
-        self.responses.push((ResponseType::INT1Stat, delay));
+    pub fn int1(mut self, delay: u64) -> Self {
+        self.responses.push((ResponseType::INT1, delay));
         self
     }
 }
