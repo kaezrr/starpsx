@@ -32,6 +32,10 @@ impl CommandResponse {
 
 impl CdRom {
     pub fn test(&mut self) -> CommandResponse {
+        if self.parameters.len() != 1 {
+            return error_response(&mut self.status, 0x20);
+        }
+
         let cmd = self.parameters[0];
         let mut responses = CommandResponse::default();
         match cmd {
@@ -56,6 +60,10 @@ impl CdRom {
     }
 
     pub fn nop(&mut self) -> CommandResponse {
+        if !self.parameters.is_empty() {
+            return error_response(&mut self.status, 0x20);
+        }
+
         debug!(target: "cdrom", status=?self.status.0, "cdrom nop command");
 
         let mut responses = CommandResponse::default();
@@ -67,6 +75,10 @@ impl CdRom {
     }
 
     pub fn get_id(&mut self) -> CommandResponse {
+        if !self.parameters.is_empty() {
+            return error_response(&mut self.status, 0x20);
+        }
+
         debug!(target: "cdrom", "cdrom get id");
 
         let mut responses = CommandResponse::default();
@@ -83,6 +95,10 @@ impl CdRom {
 
     // TODO: better error handling with result
     pub fn set_loc(&mut self) -> CommandResponse {
+        if self.parameters.len() != 3 {
+            return error_response(&mut self.status, 0x20);
+        }
+
         debug!(target: "cdrom", params=?self.parameters, "cdrom set loc");
 
         let mins_res = from_bcd(self.parameters[0]);
@@ -118,6 +134,10 @@ impl CdRom {
     }
 
     pub fn seekl(&mut self) -> CommandResponse {
+        if !self.parameters.is_empty() {
+            return error_response(&mut self.status, 0x20);
+        }
+
         debug!(target: "cdrom", "cdrom seekl");
 
         self.status.set_seeking(true);
@@ -135,6 +155,10 @@ impl CdRom {
     }
 
     pub fn setmode(&mut self) -> CommandResponse {
+        if self.parameters.len() != 1 {
+            return error_response(&mut self.status, 0x20);
+        }
+
         debug!(target: "cdrom", params=?self.parameters, "cdrom set mode");
 
         let mode = self.parameters[0];
@@ -161,12 +185,20 @@ impl CdRom {
     }
 
     pub fn reads(&mut self) -> CommandResponse {
+        if !self.parameters.is_empty() {
+            return error_response(&mut self.status, 0x20);
+        }
+
         debug!(target: "cdrom", "cdrom reads");
 
         self.readn()
     }
 
     pub fn readn(&mut self) -> CommandResponse {
+        if !self.parameters.is_empty() {
+            return error_response(&mut self.status, 0x20);
+        }
+
         debug!(target: "cdrom", "cdrom readn");
 
         self.status.set_reading(true);
@@ -185,6 +217,10 @@ impl CdRom {
     }
 
     pub fn pause(&mut self) -> CommandResponse {
+        if !self.parameters.is_empty() {
+            return error_response(&mut self.status, 0x20);
+        }
+
         debug!(target: "cdrom", "cdrom pause");
 
         let mut responses = CommandResponse::default();
@@ -204,6 +240,10 @@ impl CdRom {
     }
 
     pub fn init(&mut self) -> CommandResponse {
+        if !self.parameters.is_empty() {
+            return error_response(&mut self.status, 0x20);
+        }
+
         debug!(target: "cdrom", "cdrom init");
 
         self.speed = Speed::Normal;
@@ -224,6 +264,10 @@ impl CdRom {
 
     // stubbed audio command
     pub fn set_filter(&mut self) -> CommandResponse {
+        if !self.parameters.is_empty() {
+            return error_response(&mut self.status, 0x20);
+        }
+
         debug!(target: "cdrom", "cdrom set filter");
 
         let mut responses = CommandResponse::default();
@@ -233,6 +277,10 @@ impl CdRom {
     }
 
     pub fn play(&mut self) -> CommandResponse {
+        if !self.parameters.is_empty() {
+            return error_response(&mut self.status, 0x20);
+        }
+
         debug!(target: "cdrom", "cdrom play");
 
         let mut responses = CommandResponse::default();
@@ -243,6 +291,10 @@ impl CdRom {
 
     // stubbed audio command
     pub fn demute(&mut self) -> CommandResponse {
+        if !self.parameters.is_empty() {
+            return error_response(&mut self.status, 0x20);
+        }
+
         debug!(target: "cdrom", "cdrom demute");
 
         let mut responses = CommandResponse::default();
@@ -252,17 +304,11 @@ impl CdRom {
     }
 
     pub fn get_tn(&mut self) -> CommandResponse {
-        debug!(target: "cdrom", "cdrom get tn");
-
         if !self.parameters.is_empty() {
-            let mut response = CommandResponse::default();
-
-            self.status.set_error(true);
-            response.push(ResponseType::INT5([self.status.0, 0x20]), AVG_1ST_RESP_INIT);
-            self.status.set_error(false);
-
-            return response;
+            return error_response(&mut self.status, 0x20);
         }
+
+        debug!(target: "cdrom", "cdrom get tn");
 
         let disk = &self.disk.as_ref().unwrap();
 
@@ -279,17 +325,11 @@ impl CdRom {
     }
 
     pub fn get_td(&mut self) -> CommandResponse {
-        debug!(target: "cdrom", "cdrom get td");
-
         if self.parameters.len() != 1 {
-            let mut response = CommandResponse::default();
-
-            self.status.set_error(true);
-            response.push(ResponseType::INT5([self.status.0, 0x20]), AVG_1ST_RESP_INIT);
-            self.status.set_error(false);
-
-            return response;
+            return error_response(&mut self.status, 0x20);
         }
+
+        debug!(target: "cdrom", "cdrom get td");
 
         let disk = &self.disk.as_ref().unwrap();
         let last_track = disk.last_track_id();
@@ -324,6 +364,10 @@ impl CdRom {
     }
 
     pub fn stop(&mut self) -> CommandResponse {
+        if !self.parameters.is_empty() {
+            return error_response(&mut self.status, 0x20);
+        }
+
         debug!(target: "cdrom", "cdrom stop");
 
         let mut responses = CommandResponse::default();
@@ -349,6 +393,10 @@ impl CdRom {
     }
 
     pub fn get_locp(&mut self) -> CommandResponse {
+        if !self.parameters.is_empty() {
+            return error_response(&mut self.status, 0x20);
+        }
+
         debug!(target: "cdrom", "cdrom getlocp");
 
         let mut responses = CommandResponse::default();
@@ -359,6 +407,16 @@ impl CdRom {
 
         responses
     }
+}
+
+fn error_response(stat: &mut Status, err_byte: u8) -> CommandResponse {
+    let mut response = CommandResponse::default();
+
+    stat.set_error(true);
+    response.push(ResponseType::INT5([stat.0, err_byte]), AVG_1ST_RESP_INIT);
+    stat.set_error(false);
+
+    response
 }
 
 fn from_bcd(bcd: u8) -> Option<u8> {
