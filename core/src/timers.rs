@@ -58,6 +58,8 @@ impl Timers {
         if system.timers.sync_mode(1) == SyncMode::StartOnNextFrame {
             system.timers[1].mode.set_sync_enabled(false);
         }
+
+        Timers::reschedule_interrupt_if_needed(system, 1);
     }
 
     pub fn enter_hsync(system: &mut System) {
@@ -76,6 +78,8 @@ impl Timers {
         if system.timers.sync_mode(0) == SyncMode::StartOnNextLine {
             system.timers[0].mode.set_sync_enabled(false);
         }
+
+        Timers::reschedule_interrupt_if_needed(system, 0);
     }
 
     fn update_value(system: &mut System, which: usize) {
@@ -84,10 +88,7 @@ impl Timers {
         let clock_delta = (system.scheduler.sysclk() - timer.last_read) as u32;
         timer.last_read = system.scheduler.sysclk();
 
-        let hblanks_since_last_read = system.timers.hblanks;
-        system.timers.hblanks = 0;
-
-        // Don't do anything if timer is paused
+        // Don't do anything if timer is paused.
         match system.timers.sync_mode(which) {
             SyncMode::Paused => return,
             SyncMode::PauseOnHsync if system.timers.in_hsync => return,
@@ -107,23 +108,32 @@ impl Timers {
             Clock::Cpu => clock_delta,
             Clock::CpuDiv8 => clock_delta / 8,
             Clock::Dot => clock_delta / system.gpu.get_dot_clock_divider() as u32,
-            Clock::HBlank => hblanks_since_last_read,
+            Clock::HBlank => {
+                let h = system.timers.hblanks;
+                system.timers.hblanks = 0;
+                h
+            }
         };
 
         let timer = &mut system.timers[which];
-        let ticks_until_target = timer.get_ticks_to_value(timer.target);
-        let ticks_until_ffff = timer.get_ticks_to_value(0xFFFF);
+        let old_counter = u64::from(timer.counter);
+        let delta64 = u64::from(delta);
+        let target64 = u64::from(u32::from(timer.target));
+        let ffff64 = u64::from(0xFFFFu32);
+        let reset64 = u64::from(reset);
 
-        // Actual timer update
-        timer.counter = (timer.counter + delta) % (reset + 1);
+        timer
+            .mode
+            .set_reached_target(delta64 > 0 && old_counter + delta64 > target64);
+        timer
+            .mode
+            .set_reached_ffff(delta64 > 0 && old_counter + delta64 > ffff64);
 
-        // Set Reach Target and FFFF bits
-        timer.mode.set_reached_target(delta >= ticks_until_target);
-        timer.mode.set_reached_ffff(delta >= ticks_until_ffff);
+        timer.counter = ((old_counter + delta64) % (reset64 + 1)) as u32;
     }
 
     pub fn reschedule_interrupt_if_needed(system: &mut System, which: usize) {
-        // Don't do anything if timer is paused
+        // Don't do anything if timer is paused.
         match system.timers.sync_mode(which) {
             SyncMode::Paused => return,
             SyncMode::PauseOnHsync if system.timers.in_hsync => return,
@@ -154,7 +164,7 @@ impl Timers {
             2 => (cycles_til_ffff, cycles_til_ffff_reset),
             // Both FFFF and Target IRQ
             3 => {
-                // (schedule whichever happens first) Not the accurate behavior, change in future
+                // Schedule whichever happens first.
                 if cycles_til_target < cycles_til_ffff {
                     (cycles_til_target, cycles_til_target_reset)
                 } else {
@@ -329,32 +339,37 @@ impl Timer {
 
     fn read_mode(&mut self) -> u16 {
         let v = self.mode.0;
-        // Bit 12-11 are reset after read
+        // Bits 12-11 are reset after read.
         self.mode.0 &= !0x1800;
         v
     }
 
     fn set_mode(&mut self, val: u16) {
-        // Reset timer value on mode write
+        // Reset timer value on mode write.
         self.counter = 0;
-        // Bit 12-11 are read only
+        // Bits 12-11 are read only.
         self.mode.0 = (val & !0x1800) | (self.mode.0 & 0x1800);
-        // Bit 10 sets on write
+        // Bit 10 sets on write.
         self.mode.set_irq_disabled(true);
     }
 
-    fn get_ticks_to_value(&mut self, target: u16) -> u32 {
+    fn get_ticks_to_value(&self, target: u16) -> u32 {
         let counter = self.counter;
         let target = u32::from(target);
         let reset = match self.mode.reset_to_target() {
             true => target,
             false => 0xFFFF,
         };
+        let period = reset + 1;
 
-        if counter <= target {
+        if counter < target {
             target - counter
+        } else if counter == target {
+            // Already sitting on the target, next hit is one full period away.
+            period
         } else {
-            (reset + 1 - counter) + target
+            // counter > target: wrap around.
+            period - counter + target
         }
     }
 }
