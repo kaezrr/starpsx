@@ -61,6 +61,34 @@ bitfield::bitfield! {
     _, set_error: 0;
 }
 
+impl Status {
+    /// Returns the status byte with the error bit set, without mutating self.
+    pub fn with_error(&self) -> u8 {
+        self.0 | 0x01
+    }
+
+    /// Clears the reading flag and returns the status byte before the change.
+    pub fn clear_reading(&mut self) -> u8 {
+        let before = self.0;
+        self.set_reading(false);
+        before
+    }
+
+    /// Sets the motor_on flag and returns the status byte before the change.
+    pub fn enable_motor(&mut self) -> u8 {
+        let before = self.0;
+        self.set_motor_on(true);
+        before
+    }
+
+    /// Clears the motor_on flag and returns the status byte before the change.
+    pub fn disable_motor(&mut self) -> u8 {
+        let before = self.0;
+        self.set_motor_on(false);
+        before
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 enum Speed {
     Normal,
@@ -206,7 +234,7 @@ impl CdRom {
                 .unschedule(&Event::CdromResultIrq(ResponseType::INT1Stat));
         }
 
-        let responses = match cmd {
+        let response = match cmd {
             0x01 => cdrom.nop(),
             0x03 => cdrom.play(),
             0x08 => cdrom.stop(),
@@ -231,15 +259,18 @@ impl CdRom {
         cdrom.address.set_param_empty(true);
         cdrom.address.set_param_write_ready(true);
 
-        responses.get().into_iter().for_each(|(res_type, delay)| {
-            let repeat = match res_type {
-                ResponseType::INT1Stat => Some(cdrom.speed.transform(AVG_RATE_INT1)),
-                _ => None,
-            };
-            system
-                .scheduler
-                .schedule(Event::CdromResultIrq(res_type), delay, repeat)
-        });
+        response
+            .responses
+            .into_iter()
+            .for_each(|(res_type, delay)| {
+                let repeat = match res_type {
+                    ResponseType::INT1Stat => Some(cdrom.speed.transform(AVG_RATE_INT1)),
+                    _ => None,
+                };
+                system
+                    .scheduler
+                    .schedule(Event::CdromResultIrq(res_type), delay, repeat)
+            });
     }
 
     pub fn handle_response(system: &mut System, response: ResponseType) {
