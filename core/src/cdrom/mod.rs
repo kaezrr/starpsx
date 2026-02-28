@@ -14,105 +14,6 @@ pub use commands::ResponseType;
 pub const PADDR_START: u32 = 0x1F801800;
 pub const PADDR_END: u32 = 0x1F801803;
 
-bitfield::bitfield! {
-    #[derive(Default)]
-    struct Address(u8);
-    bank, _: 1, 0;
-    _, set_param_empty : 3;
-    _, set_param_write_ready : 4;
-    _, set_result_read_ready : 5;
-    _, set_data_request: 6;
-}
-
-bitfield::bitfield! {
-    #[derive(Default)]
-    struct Hclrctl(u8);
-    ack_hc05, _ : 2, 0;
-    ack_bfempt, _ : 3;
-    ack_bfbfwrdy, _ : 4;
-    clear_sound_map, _: 5;
-    clear_params, _ : 6;
-    reset_decoder, _ : 7;
-}
-
-bitfield::bitfield! {
-    #[derive(Default)]
-    struct Hintsts(u8);
-    interrupt, set_interrupt : 2, 0;
-    sound_map_empty, _ : 3;
-    sound_map_ready, _ : 4;
-}
-
-bitfield::bitfield! {
-    #[derive(Default)]
-    struct Hintmsk(u8);
-    irq_intsts, _ : 2, 0;
-    irq_bfempt, _ : 3;
-    irq_bfwrdy, _ : 4;
-}
-
-bitfield::bitfield! {
-    #[derive(Default)]
-    pub struct Status(u8);
-    _, set_seeking: 6;
-    _, set_shell_open: 4;
-    _, set_reading: 5;
-    _, set_motor_on: 1;
-    _, set_error: 0;
-}
-
-impl Status {
-    /// Returns the status byte with the error bit set, without mutating self.
-    pub fn with_error(&self) -> u8 {
-        self.0 | 0x01
-    }
-
-    /// Clears the reading flag and returns the status byte before the change.
-    pub fn clear_reading(&mut self) -> u8 {
-        let before = self.0;
-        self.set_reading(false);
-        before
-    }
-
-    /// Sets the motor_on flag and returns the status byte before the change.
-    pub fn enable_motor(&mut self) -> u8 {
-        let before = self.0;
-        self.set_motor_on(true);
-        before
-    }
-
-    /// Clears the motor_on flag and returns the status byte before the change.
-    pub fn disable_motor(&mut self) -> u8 {
-        let before = self.0;
-        self.set_motor_on(false);
-        before
-    }
-}
-
-#[derive(Clone, Copy, Debug)]
-enum Speed {
-    Normal,
-    Double,
-}
-
-impl Speed {
-    fn transform<T>(&self, value: T) -> T
-    where
-        T: Div<u64, Output = T>,
-    {
-        match self {
-            Speed::Normal => value,
-            Speed::Double => value / 2,
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug)]
-pub enum SectorSize {
-    DataOnly,
-    WholeSectorExceptSyncBytes,
-}
-
 pub struct CdRom {
     status: Status,
     address: Address,
@@ -379,4 +280,103 @@ pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, data: T) {
 
         (x, y) => unimplemented!("cdrom write bank {x} reg {y} <- {data:08x}"),
     }
+}
+
+bitfield::bitfield! {
+    #[derive(Default)]
+    struct Address(u8);
+    bank, _: 1, 0;
+    _, set_param_empty : 3;
+    _, set_param_write_ready : 4;
+    _, set_result_read_ready : 5;
+    _, set_data_request: 6;
+}
+
+bitfield::bitfield! {
+    #[derive(Default)]
+    struct Hclrctl(u8);
+    ack_hc05, _ : 2, 0;
+    ack_bfempt, _ : 3;
+    ack_bfbfwrdy, _ : 4;
+    clear_sound_map, _: 5;
+    clear_params, _ : 6;
+    reset_decoder, _ : 7;
+}
+
+bitfield::bitfield! {
+    #[derive(Default)]
+    struct Hintsts(u8);
+    interrupt, set_interrupt : 2, 0;
+    sound_map_empty, _ : 3;
+    sound_map_ready, _ : 4;
+}
+
+bitfield::bitfield! {
+    #[derive(Default)]
+    struct Hintmsk(u8);
+    irq_intsts, _ : 2, 0;
+    irq_bfempt, _ : 3;
+    irq_bfwrdy, _ : 4;
+}
+
+bitfield::bitfield! {
+    #[derive(Default)]
+    pub struct Status(u8);
+    _, set_seeking: 6;
+    _, set_shell_open: 4;
+    _, set_reading: 5;
+    _, set_motor_on: 1;
+    _, set_error: 0;
+}
+
+impl Status {
+    /// Returns the status byte with the error bit set, without mutating self.
+    pub fn with_error(&self) -> u8 {
+        self.0 | 0x01
+    }
+
+    /// Clears the reading flag and returns the status byte before the change.
+    pub fn clear_reading(&mut self) -> u8 {
+        let before = self.0;
+        self.set_reading(false);
+        before
+    }
+
+    /// Sets the motor_on flag and returns the status byte before the change.
+    pub fn enable_motor(&mut self) -> u8 {
+        let before = self.0;
+        self.set_motor_on(true);
+        before
+    }
+
+    /// Clears the motor_on flag and returns the status byte before the change.
+    pub fn disable_motor(&mut self) -> u8 {
+        let before = self.0;
+        self.set_motor_on(false);
+        before
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+enum Speed {
+    Normal,
+    Double,
+}
+
+impl Speed {
+    fn transform<T>(&self, value: T) -> T
+    where
+        T: Div<u64, Output = T>,
+    {
+        match self {
+            Speed::Normal => value,
+            Speed::Double => value / 2,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum SectorSize {
+    DataOnly,
+    WholeSectorExceptSyncBytes,
 }
