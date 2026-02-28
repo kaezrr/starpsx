@@ -98,7 +98,7 @@ impl CueParser {
             return Err(anyhow!("Expect index number."));
         };
 
-        let &Token::CdTime(timestamp) = self.advance() else {
+        let &Token::CdTime(lba) = self.advance() else {
             return Err(anyhow!("Expect track time."));
         };
 
@@ -106,7 +106,7 @@ impl CueParser {
             return Err(anyhow!("Expect newline after index."));
         };
 
-        Ok(TrackIndex { id, timestamp })
+        Ok(TrackIndex { id, lba })
     }
 
     fn is_at_end(&self) -> bool {

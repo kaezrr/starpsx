@@ -106,11 +106,11 @@ impl Scanner {
         let bytes = &self.source[self.start..self.current];
         let word = std::str::from_utf8(bytes)?;
 
-        Ok(Token::CdTime(CdTime {
-            minutes: word[0..2].parse()?, // MM
-            seconds: word[3..5].parse()?, // HH
-            frames: word[6..8].parse()?,  // SS
-        }))
+        Ok(Token::CdTime(to_sectors(
+            word[0..2].parse()?, // MM
+            word[3..5].parse()?, // HH
+            word[6..8].parse()?, // SS
+        )))
     }
 
     fn peek(&mut self) -> char {
@@ -158,22 +158,13 @@ pub enum Token {
     Mode2_2352,
 
     String(String),
-    Number(u32),
-    CdTime(CdTime),
+    Number(u8),
+    CdTime(u32),
 
     Newline,
     Eof,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct CdTime {
-    pub minutes: u32,
-    pub seconds: u32,
-    pub frames: u32,
-}
-
-impl CdTime {
-    pub fn to_sectors(self) -> u32 {
-        self.minutes * 60 * 75 + self.seconds * 75 + self.frames
-    }
+fn to_sectors(minutes: u32, seconds: u32, frames: u32) -> u32 {
+    minutes * 60 * 75 + seconds * 75 + frames
 }

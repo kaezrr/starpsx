@@ -2574,6 +2574,7 @@ dependencies = [
  "arrayvec",
  "bitfield",
  "bytemuck",
+ "cue",
  "starpsx-renderer",
  "tracing",
 ]

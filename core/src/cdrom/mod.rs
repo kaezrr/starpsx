@@ -22,7 +22,6 @@ bitfield::bitfield! {
     _, set_param_write_ready : 4;
     _, set_result_read_ready : 5;
     _, set_data_request: 6;
-    _, set_busy_sts: 7;
 }
 
 bitfield::bitfield! {
@@ -55,8 +54,8 @@ bitfield::bitfield! {
 bitfield::bitfield! {
     #[derive(Default)]
     pub struct Status(u8);
-    pub _, set_shell_open: 4;
     _, set_seeking: 6;
+    _, set_shell_open: 4;
     _, set_reading: 5;
     _, set_motor_on: 1;
     _, set_error: 0;
@@ -87,6 +86,7 @@ pub enum SectorSize {
 }
 
 pub struct CdRom {
+    status: Status,
     address: Address,
     hintsts: Hintsts,
     hintmsk: Hintmsk,
@@ -97,26 +97,25 @@ pub struct CdRom {
     sector_size: SectorSize,
     sector_buffer: VecDeque<u32>,
 
-    disc: Option<CdImage>,
-
-    pub status: Status,
+    disk: Option<CdImage>,
 }
 
 impl Default for CdRom {
     fn default() -> Self {
         Self {
             // Parameters empty and ready to write
+            status: Status(0),
             address: Address(0x18),
             hintsts: Hintsts::default(),
             hintmsk: Hintmsk::default(),
             parameters: ArrayVec::default(),
             results: Vec::new(),
-            disc: None,
-            sector_buffer: VecDeque::new(),
-            // Motor on, shell open
-            status: Status(0),
+
             speed: Speed::Normal,
+            sector_buffer: VecDeque::new(),
             sector_size: SectorSize::DataOnly,
+
+            disk: None,
         }
     }
 }
@@ -200,8 +199,6 @@ impl CdRom {
     fn exec_command(system: &mut System, cmd: u8) {
         let cdrom = &mut system.cdrom;
 
-        cdrom.address.set_busy_sts(true);
-
         // Certain commands stop read responses
         if let 0x08..=0x09 = cmd {
             system
@@ -252,7 +249,6 @@ impl CdRom {
         let irq = match response {
             ResponseType::INT3(response) => {
                 cdrom.results.extend(response);
-                cdrom.address.set_busy_sts(false);
                 3
             }
 
@@ -269,7 +265,7 @@ impl CdRom {
 
             ResponseType::INT1Stat => {
                 let sector_data = cdrom
-                    .disc
+                    .disk
                     .as_mut()
                     .unwrap()
                     .read_sector_and_advance(cdrom.sector_size);
@@ -295,11 +291,15 @@ impl CdRom {
     }
 
     pub fn insert_disc(&mut self, image: CdImage) {
-        self.disc = Some(image);
+        self.disk = Some(image);
 
         // Reset cdrom state
         self.parameters.clear();
         self.results.clear();
+    }
+
+    pub fn open_shell(&mut self) {
+        self.status.set_shell_open(true);
     }
 }
 

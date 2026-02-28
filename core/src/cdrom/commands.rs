@@ -85,13 +85,13 @@ impl CdRom {
     pub fn set_loc(&mut self) -> CommandResponse {
         debug!(target: "cdrom", params=?self.parameters, "cdrom set loc");
 
-        let mins_res = bcd_to_u8(self.parameters[0]);
-        let secs_res = bcd_to_u8(self.parameters[1]);
-        let sect_res = bcd_to_u8(self.parameters[2]);
+        let mins_res = from_bcd(self.parameters[0]);
+        let secs_res = from_bcd(self.parameters[1]);
+        let sect_res = from_bcd(self.parameters[2]);
 
         let mut responses = CommandResponse::default();
         if let (Some(mins), Some(secs), Some(sect)) = (mins_res, secs_res, sect_res) {
-            self.disc
+            self.disk
                 .as_mut()
                 .expect("set loc while no disk inserted")
                 .seek_location(mins, secs, sect);
@@ -251,13 +251,27 @@ impl CdRom {
         responses
     }
 
-    // stub values, need to load cue sheet
     pub fn get_tn(&mut self) -> CommandResponse {
         debug!(target: "cdrom", "cdrom get tn");
 
+        if !self.parameters.is_empty() {
+            let mut response = CommandResponse::default();
+
+            self.status.set_error(true);
+            response.push(ResponseType::INT5([self.status.0, 0x20]), AVG_1ST_RESP_INIT);
+            self.status.set_error(false);
+
+            return response;
+        }
+
+        let disk = &self.disk.as_ref().unwrap();
+
+        let first_track = to_bcd(disk.first_track_id()).unwrap();
+        let last_track = to_bcd(disk.last_track_id()).unwrap();
+
         let mut responses = CommandResponse::default();
         responses.push(
-            ResponseType::INT3(vec![self.status.0, 1, 1]),
+            ResponseType::INT3(vec![self.status.0, first_track, last_track]),
             AVG_1ST_RESP_INIT,
         );
 
@@ -267,6 +281,16 @@ impl CdRom {
     // stub values, need to load cue sheet
     pub fn get_td(&mut self) -> CommandResponse {
         debug!(target: "cdrom", "cdrom get td");
+
+        if self.parameters.len() != 1 {
+            let mut response = CommandResponse::default();
+
+            self.status.set_error(true);
+            response.push(ResponseType::INT5([self.status.0, 0x20]), AVG_1ST_RESP_INIT);
+            self.status.set_error(false);
+
+            return response;
+        }
 
         let mut responses = CommandResponse::default();
         responses.push(
@@ -285,7 +309,7 @@ impl CdRom {
         self.status.set_reading(false);
         responses.push(ResponseType::INT3(vec![self.status.0]), AVG_1ST_RESP_INIT);
 
-        if let Some(cd) = self.disc.as_mut() {
+        if let Some(cd) = self.disk.as_mut() {
             cd.seek_location(0, 2, 0)
         }
 
@@ -315,13 +339,24 @@ impl CdRom {
     }
 }
 
-fn bcd_to_u8(bcd_val: u8) -> Option<u8> {
-    let hi = (bcd_val >> 4) & 0xF;
-    let lo = bcd_val & 0xF;
+fn from_bcd(bcd: u8) -> Option<u8> {
+    let tens = bcd >> 4;
+    let ones = bcd & 0x0F;
 
-    if hi < 10 && lo < 10 {
-        Some(hi * 10 + lo)
+    if tens <= 9 && ones <= 9 {
+        Some(tens * 10 + ones)
     } else {
         None
     }
+}
+
+fn to_bcd(val: u8) -> Option<u8> {
+    if val > 99 {
+        return None;
+    }
+
+    let tens = val / 10;
+    let ones = val % 10;
+
+    Some((tens << 4) | ones)
 }

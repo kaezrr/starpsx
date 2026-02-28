@@ -8,5 +8,6 @@ anyhow = "1.0.102"
 arrayvec = "0.7.6"
 bitfield = "0.19.1"
 bytemuck = "1.24.0"
+cue = { path = "../cue" }
 starpsx-renderer = { path = "../renderer" }
 tracing = "0.1.43"

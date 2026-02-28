@@ -2,20 +2,23 @@ mod builder;
 mod parser;
 mod scanner;
 
+pub use builder::CdDisk;
+
 use std::path::{Path, PathBuf};
 
 use anyhow::{Ok, anyhow};
+
+use builder::CueBuilder;
+use parser::CueParser;
 use scanner::Scanner;
 
-use crate::{builder::CueBuilder, parser::CueParser, scanner::CdTime};
-
-pub fn build_disk<P: AsRef<Path>>(cue_path: P) -> anyhow::Result<Vec<u8>> {
+pub fn build_disk<P: AsRef<Path>>(cue_path: P) -> anyhow::Result<CdDisk> {
     let cue_file = std::fs::read(cue_path.as_ref())?;
     let tokens = Scanner::with_source(cue_file).tokenize()?;
     let cue_sheet = CueParser::new(tokens).parse_cuesheet()?;
 
     let parent_dir = cue_path.as_ref().parent().unwrap();
-    CueBuilder::new(cue_sheet, parent_dir).build_binary()
+    CueBuilder::new(parent_dir).build_binary(cue_sheet)
 }
 
 #[derive(Debug)]
@@ -25,8 +28,10 @@ struct CueSheet {
 
 #[derive(Debug)]
 struct File {
-    path: PathBuf,
+    #[expect(unused)]
     file_type: FileType,
+
+    path: PathBuf,
     tracks: Vec<Track>,
 }
 
@@ -36,10 +41,22 @@ enum FileType {
 }
 
 #[derive(Debug)]
-struct Track {
-    id: u32,
+pub struct Track {
+    #[expect(unused)]
     track_type: TrackType,
-    indexes: Vec<TrackIndex>,
+
+    pub id: u8,
+    pub indexes: Vec<TrackIndex>,
+}
+
+impl Track {
+    pub fn single() -> Self {
+        Self {
+            track_type: TrackType::Mode2_2352,
+            id: 1,
+            indexes: vec![TrackIndex { id: 1, lba: 0 }],
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -49,7 +66,7 @@ enum TrackType {
 }
 
 #[derive(Debug)]
-struct TrackIndex {
-    id: u32,
-    timestamp: CdTime,
+pub struct TrackIndex {
+    pub id: u8,
+    pub lba: u32,
 }

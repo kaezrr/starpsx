@@ -33,7 +33,7 @@ use crate::sio::Sio1;
 use crate::spu::Spu;
 
 pub enum RunType {
-    Disk(Vec<u8>),
+    Disk(cue::CdDisk),
     Binary(Vec<u8>),
     Executable(Vec<u8>),
 }
@@ -89,17 +89,22 @@ impl System {
             produced_frame_buffer: None,
         };
 
+        // ---------------------CDROM TESTING---------------------
+        psx.cdrom.insert_disc(CdImage::from_disk(cue::build_disk(
+            "/home/kaezr/Projects/starpsx/stuff/cdrom_tests/pcsx_redux_cdrom_tests/test.cue",
+        )?));
+        // ---------------------CDROM TESTING---------------------
+
         // Load game or exe
         if let Some(run_type) = runnable {
             // Do not open the shell after bios start
-            psx.cdrom.status.set_shell_open(false);
             match run_type {
-                RunType::Disk(bytes) => psx.cdrom.insert_disc(CdImage::from_disk(bytes)),
+                RunType::Disk(disk) => psx.cdrom.insert_disc(CdImage::from_disk(disk)),
                 RunType::Binary(bytes) => psx.cdrom.insert_disc(CdImage::from_bytes(bytes)),
                 RunType::Executable(bytes) => psx.sideload_exe(bytes),
             }
         } else {
-            psx.cdrom.status.set_shell_open(true);
+            psx.cdrom.open_shell();
         }
 
         // Schedule some initial events

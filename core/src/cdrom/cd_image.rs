@@ -5,8 +5,9 @@ use crate::consts::SECTOR_SIZE;
 use std::collections::VecDeque;
 
 pub struct CdImage {
-    data: Box<[u8]>,
     read_head: usize,
+    data: Box<[u8]>,
+    tracks: Box<[cue::Track]>,
 }
 
 impl CdImage {
@@ -16,16 +17,26 @@ impl CdImage {
         data.extend(bytes);
 
         Self {
-            data: data.into_boxed_slice(),
             read_head: 0,
+            data: data.into_boxed_slice(),
+            tracks: Box::new([cue::Track::single()]),
         }
     }
 
-    pub fn from_disk(bytes: Vec<u8>) -> Self {
+    pub fn from_disk(disk: cue::CdDisk) -> Self {
         Self {
-            data: bytes.into_boxed_slice(),
             read_head: 0,
+            data: disk.sectors.into_boxed_slice(),
+            tracks: disk.tracks.into_boxed_slice(),
         }
+    }
+
+    pub fn first_track_id(&self) -> u8 {
+        self.tracks.first().unwrap().id
+    }
+
+    pub fn last_track_id(&self) -> u8 {
+        self.tracks.last().unwrap().id
     }
 
     pub fn seek_location(&mut self, mins: u8, secs: u8, sect: u8) {
