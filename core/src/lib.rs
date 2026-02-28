@@ -56,7 +56,7 @@ pub struct System {
     sio0: Sio0,
     sio1: Sio1,
 
-    tty: String,
+    tty: Vec<u8>,
     scheduler: EventScheduler,
 
     // RGBA frame buffer
@@ -78,7 +78,7 @@ impl System {
             timers: Timers::default(),
             irqctl: InterruptController::default(),
 
-            tty: String::new(),
+            tty: Vec::new(),
             scheduler: EventScheduler::default(),
 
             cdrom: CdRom::default(),
@@ -182,12 +182,12 @@ impl System {
     fn check_for_tty_output(&mut self) {
         let pc = self.cpu.pc & 0x1FFFFFFF;
         if (pc == 0xA0 && self.cpu.regs[9] == 0x3C) || (pc == 0xB0 && self.cpu.regs[9] == 0x3D) {
-            let ch = self.cpu.regs[4] as u8 as char;
-            if ch == '\n' || ch == '\r' {
-                info!("[TTY]" = %self.tty);
-                self.tty = String::new();
+            let byte = self.cpu.regs[4] as u8;
+            if byte == b'\n' || byte == b'\r' {
+                info!("[TTY]" = %String::from_utf8_lossy(&self.tty));
+                self.tty.clear();
             } else {
-                self.tty.push(ch);
+                self.tty.push(byte);
             }
         }
     }
