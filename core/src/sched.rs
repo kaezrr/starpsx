@@ -16,6 +16,7 @@ pub enum Event {
     Timer(TimerInterrupt),
     CdromResultIrq(ResponseType),
     SerialSend,
+    DsrOff,
 }
 
 pub struct Task {

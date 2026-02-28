@@ -108,6 +108,10 @@ impl Sio0 {
         }
     }
 
+    pub fn turn_off_dsr(&mut self) {
+        self.status.set_dsr_input_on(false);
+    }
+
     fn write_control(system: &mut System, val: u16) {
         let sio = &mut system.sio0;
         // Unused bits
@@ -151,6 +155,11 @@ impl Sio0 {
                 system
                     .scheduler
                     .schedule(Event::SerialSend, consts::BAUDRATE_TRANSFER_DELAY, None);
+            }
+
+            // Turn off ACK after 10 cycles
+            if sio.status.dsr_input_on() {
+                system.scheduler.schedule(Event::DsrOff, 10, None);
             }
 
             system.sio0.push_received_data(received);

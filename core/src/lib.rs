@@ -89,12 +89,6 @@ impl System {
             produced_frame_buffer: None,
         };
 
-        // ---------------------CDROM TESTING---------------------
-        psx.cdrom.insert_disc(CdImage::from_disk(cue::build_disk(
-            "/home/kaezr/Projects/starpsx/stuff/cdrom_tests/pcsx_redux_cdrom_tests/test.cue",
-        )?));
-        // ---------------------CDROM TESTING---------------------
-
         // Load game or exe
         if let Some(run_type) = runnable {
             // Do not open the shell after bios start
@@ -220,6 +214,7 @@ impl System {
                 Event::Timer(x) => Timers::process_interrupt(self, x),
                 Event::SerialSend => Sio0::process_serial_send(self),
                 Event::CdromResultIrq(x) => CdRom::handle_response(self, x),
+                Event::DsrOff => self.sio0.turn_off_dsr(),
             }
         }
 
