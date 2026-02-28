@@ -137,22 +137,23 @@ impl CdRom {
 
         let response = match cmd {
             0x01 => cdrom.nop(),
-            0x03 => cdrom.play(),
-            0x08 => cdrom.stop(),
-            0x0A => cdrom.init(),
-            0x0D => cdrom.set_filter(),
-            0x19 => cdrom.test(),
-            0x1A => cdrom.get_id(),
             0x02 => cdrom.set_loc(),
+            0x03 => cdrom.play(),
+            0x06 => cdrom.readn(),
+            0x08 => cdrom.stop(),
+            0x09 => cdrom.pause(),
+            0x0A => cdrom.init(),
+            0x0C => cdrom.demute(),
+            0x0D => cdrom.set_filter(),
+            0x0E => cdrom.setmode(),
+            0x11 => cdrom.get_locp(),
             0x13 => cdrom.get_tn(),
             0x14 => cdrom.get_td(),
             0x15 => cdrom.seekl(),
-            0x0C => cdrom.demute(),
-            0x0E => cdrom.setmode(),
-            0x06 => cdrom.readn(),
+            0x16 => cdrom.seekp(),
+            0x19 => cdrom.test(),
+            0x1A => cdrom.get_id(),
             0x1B => cdrom.reads(),
-            0x09 => cdrom.pause(),
-            0x11 => cdrom.get_locp(),
             _ => unimplemented!("cdrom command {cmd:02x}"),
         };
 
@@ -185,7 +186,6 @@ impl CdRom {
             }
 
             ResponseType::INT2(response) => {
-                cdrom.status.set_seeking(false);
                 cdrom.results.extend(response);
                 2
             }
@@ -317,7 +317,6 @@ bitfield::bitfield! {
 bitfield::bitfield! {
     #[derive(Default)]
     pub struct Status(u8);
-    _, set_seeking: 6;
     _, set_shell_open: 4;
     _, set_reading: 5;
     _, set_motor_on: 1;

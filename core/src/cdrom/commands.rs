@@ -58,7 +58,6 @@ impl CdRom {
             )
     }
 
-    // TODO: better error handling with result
     pub fn set_loc(&mut self) -> CommandResponse {
         if self.parameters.len() != 3 {
             return error_response(&self.status, 0x20);
@@ -66,25 +65,22 @@ impl CdRom {
 
         debug!(target: "cdrom", params=?self.parameters, "cdrom set loc");
 
-        let mins_res = from_bcd(self.parameters[0]);
-        let secs_res = from_bcd(self.parameters[1]);
-        let sect_res = from_bcd(self.parameters[2]);
+        let mm = self.parameters[0];
+        let ss = self.parameters[1];
+        let ff = self.parameters[2];
 
-        if let (Some(mins), Some(secs), Some(sect)) = (mins_res, secs_res, sect_res) {
-            self.disk
-                .as_mut()
-                .expect("set loc while no disk inserted")
-                .seek_location(mins, secs, sect);
+        let (Some(m), Some(s), Some(f)) = (from_bcd(mm), from_bcd(ss), from_bcd(ff)) else {
+            error!("invalid/out of range seek to {mm:2X}:{ss:2X}:{ff:2X}",);
+            return CommandResponse::new()
+                .int5([self.status.with_error(), 0x10], AVG_1ST_RESP_GENERIC);
+        };
 
-            CommandResponse::new().int3([self.status.0], AVG_1ST_RESP_GENERIC)
-        } else {
-            error!(
-                "invalid/out of range seek to {:2X}:{:2X}:{:2X}",
-                self.parameters[0], self.parameters[1], self.parameters[2]
-            );
+        self.disk
+            .as_mut()
+            .expect("set loc while no disk inserted")
+            .seek_location(m, s, f);
 
-            CommandResponse::new().int5([self.status.with_error(), 0x10], AVG_1ST_RESP_GENERIC)
-        }
+        CommandResponse::new().int3([self.status.0], AVG_1ST_RESP_GENERIC)
     }
 
     pub fn seekl(&mut self) -> CommandResponse {
@@ -94,7 +90,17 @@ impl CdRom {
 
         debug!(target: "cdrom", "cdrom seekl");
 
-        self.status.set_seeking(true);
+        CommandResponse::new()
+            .int3([self.status.0], AVG_1ST_RESP_GENERIC)
+            .int2([self.status.0], AVG_1ST_RESP_GENERIC + AVG_2ND_RESP_SEEKL)
+    }
+
+    pub fn seekp(&mut self) -> CommandResponse {
+        if !self.parameters.is_empty() {
+            return error_response(&self.status, 0x20);
+        }
+
+        debug!(target: "cdrom", "cdrom seekp");
 
         CommandResponse::new()
             .int3([self.status.0], AVG_1ST_RESP_GENERIC)
@@ -291,10 +297,7 @@ impl CdRom {
 
         debug!(target: "cdrom", "cdrom getlocp");
 
-        CommandResponse::new().int3(
-            [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00],
-            AVG_1ST_RESP_GENERIC,
-        )
+        CommandResponse::new().int3([0x00; 8], AVG_1ST_RESP_GENERIC)
     }
 }
 
