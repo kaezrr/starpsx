@@ -159,12 +159,12 @@ pub enum Token {
 
     String(String),
     Number(u8),
-    CdTime(u32),
+    CdTime(usize),
 
     Newline,
     Eof,
 }
 
-fn to_sectors(minutes: u32, seconds: u32, frames: u32) -> u32 {
-    minutes * 60 * 75 + seconds * 75 + frames
+fn to_sectors(minutes: usize, seconds: usize, frames: usize) -> usize {
+    (minutes * 60 * 75 + seconds * 75 + frames) * builder::SECTOR_SIZE
 }

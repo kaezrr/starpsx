@@ -26,8 +26,8 @@ impl CdImage {
     pub fn from_disk(disk: cue::CdDisk) -> Self {
         Self {
             read_head: 0,
-            data: disk.sectors.into_boxed_slice(),
-            tracks: disk.tracks.into_boxed_slice(),
+            data: disk.sectors,
+            tracks: disk.tracks,
         }
     }
 
@@ -39,6 +39,16 @@ impl CdImage {
         self.tracks.last().unwrap().id
     }
 
+    pub fn track_mm_ss_ff(&self, track_id: u8) -> (u8, u8, u8) {
+        let track = &self.tracks[track_id as usize - 1];
+        mm_ss_ff(track.indexes[0].lba)
+    }
+
+    pub fn last_track_end(&self) -> (u8, u8, u8) {
+        let index = self.data.len();
+        mm_ss_ff(index)
+    }
+
     pub fn seek_location(&mut self, mins: u8, secs: u8, sect: u8) {
         let total_sectors = ((mins as usize) * 60 * 75) + ((secs as usize) * 75) + (sect as usize);
         self.read_head = total_sectors * SECTOR_SIZE;
@@ -48,7 +58,7 @@ impl CdImage {
         debug!(
             target: "cdrom",
             LBA = self.read_head / SECTOR_SIZE,
-            read_head = %read_head_to_disk_str(self.read_head),
+            read_head = %mm_ss_ff_str(self.read_head),
             ?sect_size,
             "reading sector"
         );
@@ -69,12 +79,17 @@ impl CdImage {
     }
 }
 
-fn read_head_to_disk_str(read_head: usize) -> String {
+fn mm_ss_ff(read_head: usize) -> (u8, u8, u8) {
     let sectors = read_head / SECTOR_SIZE;
     let secs = sectors / 75;
     let sect = sectors % 75;
     let mins = secs / 60;
     let secs = secs % 60;
 
-    format!("{:02}:{:02}:{:02}", mins, secs, sect)
+    (mins as u8, secs as u8, sect as u8)
+}
+
+fn mm_ss_ff_str(read_head: usize) -> String {
+    let i = mm_ss_ff(read_head);
+    format!("{}:{}:{}", i.0, i.1, i.2)
 }

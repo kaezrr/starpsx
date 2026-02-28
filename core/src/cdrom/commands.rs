@@ -278,7 +278,6 @@ impl CdRom {
         responses
     }
 
-    // stub values, need to load cue sheet
     pub fn get_td(&mut self) -> CommandResponse {
         debug!(target: "cdrom", "cdrom get td");
 
@@ -292,9 +291,32 @@ impl CdRom {
             return response;
         }
 
+        let disk = &self.disk.as_ref().unwrap();
+        let last_track = disk.last_track_id();
+
+        let Some(track) = from_bcd(self.parameters[0]).filter(|&x| x <= last_track) else {
+            let mut response = CommandResponse::default();
+
+            self.status.set_error(true);
+            response.push(ResponseType::INT5([self.status.0, 0x10]), AVG_1ST_RESP_INIT);
+            self.status.set_error(false);
+
+            return response;
+        };
+
+        let (mm, ss, _) = if track != 0 {
+            disk.track_mm_ss_ff(track)
+        } else {
+            disk.last_track_end()
+        };
+
         let mut responses = CommandResponse::default();
         responses.push(
-            ResponseType::INT3(vec![self.status.0, 1, 1]),
+            ResponseType::INT3(vec![
+                self.status.0,
+                to_bcd(mm).unwrap(),
+                to_bcd(ss).unwrap(),
+            ]),
             AVG_1ST_RESP_INIT,
         );
 

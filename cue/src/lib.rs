@@ -18,7 +18,7 @@ pub fn build_disk<P: AsRef<Path>>(cue_path: P) -> anyhow::Result<CdDisk> {
     let cue_sheet = CueParser::new(tokens).parse_cuesheet()?;
 
     let parent_dir = cue_path.as_ref().parent().unwrap();
-    CueBuilder::new(parent_dir).build_binary(cue_sheet)
+    CueBuilder::new(parent_dir).build_disk(cue_sheet)
 }
 
 #[derive(Debug)]
@@ -68,5 +68,5 @@ enum TrackType {
 #[derive(Debug)]
 pub struct TrackIndex {
     pub id: u8,
-    pub lba: u32,
+    pub lba: usize,
 }

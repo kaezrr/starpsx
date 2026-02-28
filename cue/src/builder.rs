@@ -1,40 +1,65 @@
 use super::*;
 
-const SECTOR_SIZE: usize = 0x930;
+pub(crate) const SECTOR_SIZE: usize = 0x930;
+const SEC_2: usize = SECTOR_SIZE * 75 * 2;
 
 pub struct CueBuilder<'a> {
     parent_dir: &'a Path,
+    current: usize,
+    sectors: Vec<u8>,
+    tracks: Vec<Track>,
 }
 
 impl<'a> CueBuilder<'a> {
     pub fn new(parent_dir: &'a Path) -> Self {
-        Self { parent_dir }
+        Self {
+            parent_dir,
+            current: 0,
+            sectors: Vec::new(),
+            tracks: Vec::new(),
+        }
     }
 
-    pub fn build_binary(self, cue_sheet: CueSheet) -> anyhow::Result<CdDisk> {
-        let mut sectors = Vec::new();
-        let total_tracks = cue_sheet
-            .files
-            .iter()
-            .fold(0, |acc, elem| acc + elem.tracks.len());
-
-        let mut tracks = Vec::with_capacity(total_tracks);
+    pub fn build_disk(mut self, cue_sheet: CueSheet) -> anyhow::Result<CdDisk> {
+        self.current += SEC_2;
+        self.sectors.extend_from_slice(&vec![0; SEC_2]);
 
         for file in cue_sheet.files {
-            let file_path = self.parent_dir.join(&file.path);
-            let file_data = std::fs::read(&file_path)?;
-
-            tracks.extend(file.tracks);
-
-            sectors.extend(vec![0u8; SECTOR_SIZE * 75 * 2]);
-            sectors.extend(file_data);
+            self.insert_file(file)?;
         }
 
-        Ok(CdDisk { tracks, sectors })
+        Ok(CdDisk {
+            sectors: self.sectors.into_boxed_slice(),
+            tracks: self.tracks.into_boxed_slice(),
+        })
+    }
+
+    fn insert_file(&mut self, mut file: File) -> anyhow::Result<()> {
+        let mut data = std::fs::read(self.parent_dir.join(&file.path))?;
+
+        let first_index = &mut file.tracks[0].indexes[0];
+        if first_index.id == 1 && first_index.lba == SEC_2 {
+            data = data.split_off(SEC_2);
+            first_index.lba = 0;
+        }
+
+        for mut track in file.tracks {
+            for index in track.indexes.iter_mut() {
+                index.lba += self.current;
+            }
+            if track.indexes[0].id == 0 {
+                track.indexes.remove(0);
+            }
+            self.tracks.push(track);
+        }
+
+        self.current += data.len();
+        self.sectors.extend(data);
+        Ok(())
     }
 }
 
 pub struct CdDisk {
-    pub sectors: Vec<u8>,
-    pub tracks: Vec<Track>,
+    pub sectors: Box<[u8]>,
+    pub tracks: Box<[Track]>,
 }
