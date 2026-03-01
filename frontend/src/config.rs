@@ -22,6 +22,18 @@ pub enum RunnablePath {
     Cue(PathBuf),
 }
 
+impl RunnablePath {
+    pub fn file_prefix(&self) -> String {
+        let buf = match self {
+            RunnablePath::Exe(path_buf) => path_buf,
+            RunnablePath::Bin(path_buf) => path_buf,
+            RunnablePath::Cue(path_buf) => path_buf,
+        };
+
+        buf.file_prefix().unwrap().to_string_lossy().into_owned()
+    }
+}
+
 /// Cross Platform PS1 Emulator written in Rust
 #[derive(Parser, Debug)]
 #[command(version, about)]

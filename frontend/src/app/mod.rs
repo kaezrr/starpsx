@@ -58,7 +58,7 @@ impl eframe::App for Application {
             };
         }
 
-        if let Err(err) = self.poll_dialog() {
+        if let Err(err) = self.poll_dialog(ctx) {
             error!(%err, "error loading file");
             self.toasts.error(format!("error loading file: {err}"));
         }
@@ -161,7 +161,7 @@ impl Application {
 
         if launch_config.auto_run {
             let result = match launch_config.runnable_path {
-                Some(file) => app.start_file(file),
+                Some(file) => app.start_file(&cc.egui_ctx, file),
                 None => app.start_bios(),
             };
 
@@ -329,13 +329,20 @@ impl Application {
         Ok(())
     }
 
-    fn start_file(&mut self, path: PathBuf) -> anyhow::Result<()> {
+    fn start_file(&mut self, ctx: &egui::Context, path: PathBuf) -> anyhow::Result<()> {
         if let Some(state) = self.app_state.take() {
             state.shutdown();
         }
 
         let runnable = emulator::parse_runnable(path)?;
+        let file_prefix = runnable.file_prefix();
+
         self.start_emulator(Some(runnable))?;
+
+        ctx.send_viewport_cmd(ViewportCommand::Title(
+            "StarPSX - ".to_string() + &file_prefix,
+        ));
+
         Ok(())
     }
 
@@ -352,16 +359,16 @@ impl Application {
         self.app_config.save_to_file(&self.config_path);
     }
 
-    fn poll_dialog(&mut self) -> anyhow::Result<()> {
+    fn poll_dialog(&mut self, ctx: &egui::Context) -> anyhow::Result<()> {
         let Some(dialog) = self.pending_dialog.as_mut() else {
             return Ok(());
         };
 
-        let mut ctx = Context::from_waker(Waker::noop());
+        let mut task_ctx = Context::from_waker(Waker::noop());
 
         match dialog {
             PendingDialog::SelectBios(fut) => {
-                if let Poll::Ready(result) = fut.as_mut().poll(&mut ctx) {
+                if let Poll::Ready(result) = fut.as_mut().poll(&mut task_ctx) {
                     self.pending_dialog = None;
                     if let Some(file) = result {
                         self.app_config.bios_path = Some(file.path().to_path_buf());
@@ -370,10 +377,10 @@ impl Application {
                 }
             }
             PendingDialog::SelectFile(fut) => {
-                if let Poll::Ready(result) = fut.as_mut().poll(&mut ctx) {
+                if let Poll::Ready(result) = fut.as_mut().poll(&mut task_ctx) {
                     self.pending_dialog = None;
                     if let Some(file) = result {
-                        self.start_file(file.path().to_path_buf())?;
+                        self.start_file(ctx, file.path().to_path_buf())?;
                     }
                 }
             }
