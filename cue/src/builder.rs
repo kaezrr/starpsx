@@ -47,9 +47,6 @@ impl<'a> CueBuilder<'a> {
             for index in track.indexes.iter_mut() {
                 index.lba += self.current;
             }
-            if track.indexes[0].id == 0 {
-                track.indexes.remove(0);
-            }
             self.tracks.push(track);
         }
 

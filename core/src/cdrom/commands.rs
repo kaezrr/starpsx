@@ -183,6 +183,10 @@ impl CdRom {
         self.speed = Speed::Normal;
         self.sector_size = SectorSize::WholeSectorExceptSyncBytes;
 
+        if let Some(disk) = self.disk.as_mut() {
+            disk.reset_read_head();
+        }
+
         let before = self.status.enable_motor();
 
         CommandResponse::new()
@@ -202,10 +206,6 @@ impl CdRom {
     }
 
     pub fn play(&mut self) -> CommandResponse {
-        if !self.parameters.is_empty() {
-            return error_response(&self.status, 0x20);
-        }
-
         debug!(target: "cdrom", "cdrom play");
 
         CommandResponse::new().int3([self.status.0], AVG_1ST_RESP_INIT)
@@ -297,7 +297,12 @@ impl CdRom {
 
         debug!(target: "cdrom", "cdrom getlocp");
 
-        CommandResponse::new().int3([0x00; 8], AVG_1ST_RESP_GENERIC)
+        let disk = self.disk.as_ref().unwrap();
+
+        CommandResponse::new().int3(
+            disk.position_info().map(|x| to_bcd(x).unwrap()),
+            AVG_1ST_RESP_GENERIC,
+        )
     }
 }
 

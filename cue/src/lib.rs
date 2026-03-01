@@ -42,11 +42,9 @@ enum FileType {
 
 #[derive(Debug)]
 pub struct Track {
-    #[expect(unused)]
-    track_type: TrackType,
-
     pub id: u8,
     pub indexes: Vec<TrackIndex>,
+    pub track_type: TrackType,
 }
 
 impl Track {
@@ -59,8 +57,8 @@ impl Track {
     }
 }
 
-#[derive(Debug)]
-enum TrackType {
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum TrackType {
     Audio,
     Mode2_2352,
 }

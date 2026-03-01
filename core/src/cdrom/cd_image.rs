@@ -17,7 +17,7 @@ impl CdImage {
         data.extend(bytes);
 
         Self {
-            read_head: 0,
+            read_head: SECTOR_SIZE * 75 * 2, // 2 seconds,
             data: data.into_boxed_slice(),
             tracks: Box::new([cue::Track::single()]),
         }
@@ -25,7 +25,7 @@ impl CdImage {
 
     pub fn from_disk(disk: cue::CdDisk) -> Self {
         Self {
-            read_head: 0,
+            read_head: SECTOR_SIZE * 75 * 2, // 2 seconds,
             data: disk.sectors,
             tracks: disk.tracks,
         }
@@ -41,12 +41,61 @@ impl CdImage {
 
     pub fn track_mm_ss_ff(&self, track_id: u8) -> (u8, u8, u8) {
         let track = &self.tracks[track_id as usize - 1];
-        mm_ss_ff(track.indexes[0].lba)
+
+        let start = if track.indexes[0].id == 1 {
+            track.indexes[0].lba
+        } else {
+            track.indexes[1].lba
+        };
+
+        mm_ss_ff(start)
     }
 
     pub fn last_track_end(&self) -> (u8, u8, u8) {
-        let index = self.data.len();
-        mm_ss_ff(index)
+        mm_ss_ff(self.data.len()) // total length of the disk
+    }
+
+    pub fn reset_read_head(&mut self) {
+        self.read_head = SECTOR_SIZE * 75 * 2; // 2 seconds
+    }
+
+    pub fn position_info(&self) -> [u8; 8] {
+        let current_track = self
+            .tracks
+            .partition_point(|t| t.indexes[0].lba <= self.read_head)
+            .saturating_sub(1);
+
+        let current_track = &self.tracks[current_track];
+
+        let current_index = current_track
+            .indexes
+            .partition_point(|i| i.lba <= self.read_head)
+            .saturating_sub(1);
+
+        let current_index = &current_track.indexes[current_index];
+
+        let track_pos = mm_ss_ff(self.read_head.saturating_sub(current_index.lba));
+        let disk_pos = mm_ss_ff(self.read_head);
+
+        [
+            current_track.id,
+            current_index.id,
+            track_pos.0,
+            track_pos.1,
+            track_pos.2,
+            disk_pos.0,
+            disk_pos.1,
+            disk_pos.2,
+        ]
+    }
+
+    pub fn current_sector_type(&self) -> cue::TrackType {
+        let current_track = self
+            .tracks
+            .partition_point(|t| t.indexes[0].lba <= self.read_head)
+            .saturating_sub(1);
+
+        self.tracks[current_track].track_type
     }
 
     pub fn seek_location(&mut self, mins: u8, secs: u8, sect: u8) {
@@ -62,7 +111,9 @@ impl CdImage {
             ?sect_size,
             "reading sector"
         );
+
         debug_assert!(self.read_head + SECTOR_SIZE <= self.data.len());
+        debug_assert_ne!(self.current_sector_type(), cue::TrackType::Audio);
 
         let sector = &self.data[self.read_head..self.read_head + SECTOR_SIZE];
         self.read_head += SECTOR_SIZE;
@@ -88,5 +139,5 @@ fn mm_ss_ff(read_head: usize) -> (u8, u8, u8) {
 
 fn mm_ss_ff_str(read_head: usize) -> String {
     let i = mm_ss_ff(read_head);
-    format!("{}:{}:{}", i.0, i.1, i.2)
+    format!("{:02}:{:02}:{:02}", i.0, i.1, i.2)
 }
