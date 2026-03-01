@@ -1,15 +1,18 @@
 mod cd_image;
 mod commands;
 
-use std::{collections::VecDeque, ops::Div};
+use std::collections::VecDeque;
+use std::ops::Div;
 
 use arrayvec::ArrayVec;
-use tracing::trace;
-
-use crate::{System, consts::AVG_RATE_INT1, mem::ByteAddressable, sched::Event};
-
 pub use cd_image::CdImage;
 pub use commands::ResponseType;
+use tracing::trace;
+
+use crate::System;
+use crate::consts::AVG_RATE_INT1;
+use crate::mem::ByteAddressable;
+use crate::sched::Event;
 
 pub const PADDR_START: u32 = 0x1F801800;
 pub const PADDR_END: u32 = 0x1F801803;

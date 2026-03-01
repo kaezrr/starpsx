@@ -1,9 +1,11 @@
 use std::sync::mpsc::Receiver;
 
-use eframe::egui::{self, TextureOptions};
+use eframe::egui::TextureOptions;
+use eframe::egui::{self};
 use starpsx_renderer::FrameBuffer;
 
-use crate::{debugger::Debugger, emulator::UiCommand};
+use crate::debugger::Debugger;
+use crate::emulator::UiCommand;
 
 // This holds all the state required after emulator init
 pub struct AppState {

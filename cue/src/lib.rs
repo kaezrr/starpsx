@@ -2,12 +2,12 @@ mod builder;
 mod parser;
 mod scanner;
 
+use std::path::Path;
+use std::path::PathBuf;
+
+use anyhow::Ok;
+use anyhow::anyhow;
 pub use builder::CdDisk;
-
-use std::path::{Path, PathBuf};
-
-use anyhow::{Ok, anyhow};
-
 use builder::CueBuilder;
 use parser::CueParser;
 use scanner::Scanner;

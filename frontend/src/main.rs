@@ -8,12 +8,15 @@ mod emulator;
 mod input;
 
 use clap::Parser;
-use eframe::egui::{self, IconData};
-use tracing::{error, info};
+use eframe::egui::IconData;
+use eframe::egui::{self};
+use tracing::error;
+use tracing::info;
 use tracing_appender::non_blocking::WorkerGuard;
+use tracing_subscriber::EnvFilter;
+use tracing_subscriber::fmt;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
-use tracing_subscriber::{EnvFilter, fmt};
 
 use crate::config::LaunchConfig;
 

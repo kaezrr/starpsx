@@ -1,4 +1,5 @@
-use crate::{Renderer, vec2::Vec2};
+use crate::Renderer;
+use crate::vec2::Vec2;
 
 #[repr(C)]
 #[derive(Debug, Default, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]

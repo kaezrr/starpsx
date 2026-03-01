@@ -1,9 +1,17 @@
+use std::fmt::Display;
+use std::fmt::LowerHex;
+
 use tracing::trace;
 
+use crate::System;
+use crate::cdrom;
 use crate::cpu::utils::Exception;
-use crate::{System, cdrom, sio, spu};
-use crate::{dma, gpu, irq, timers};
-use std::fmt::{Display, LowerHex};
+use crate::dma;
+use crate::gpu;
+use crate::irq;
+use crate::sio;
+use crate::spu;
+use crate::timers;
 
 pub trait ByteAddressable: Copy + LowerHex + Display {
     const LEN: usize;

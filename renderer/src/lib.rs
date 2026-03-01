@@ -1,8 +1,14 @@
 pub mod utils;
 pub mod vec2;
 
-use utils::{Color, DrawContext, RectTextureOptions, TextureOptions};
-use vec2::{Vec2, edge_function, is_top_left, needs_vertex_reordering};
+use crate::utils::Color;
+use crate::utils::DrawContext;
+use crate::utils::RectTextureOptions;
+use crate::utils::TextureOptions;
+use crate::vec2::Vec2;
+use crate::vec2::edge_function;
+use crate::vec2::is_top_left;
+use crate::vec2::needs_vertex_reordering;
 
 const VRAM_WIDTH: usize = 1024;
 const VRAM_HEIGHT: usize = 512;

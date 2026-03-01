@@ -1,4 +1,6 @@
-use eframe::egui::{self, Color32, RichText};
+use eframe::egui::Color32;
+use eframe::egui::RichText;
+use eframe::egui::{self};
 
 /// Map a 5‑bit register number to its conventional name.
 pub const REG_NAME: [&str; 32] = [

@@ -1,12 +1,13 @@
-use anyhow::anyhow;
 use std::path::Path;
 use std::path::PathBuf;
 
+use anyhow::anyhow;
 use clap::Parser;
 use eframe::egui::Key as EKey;
 use gilrs::Axis as GAxis;
 use gilrs::Button as GButton;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 use starpsx_core::gamepad;
 use tracing::error;
 use tracing::info;

@@ -1,4 +1,6 @@
-use super::utils::{Direction, Step, Sync};
+use super::utils::Direction;
+use super::utils::Step;
+use super::utils::Sync;
 
 bitfield::bitfield! {
     pub struct Control(u32);

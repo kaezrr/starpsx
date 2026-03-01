@@ -1,8 +1,9 @@
+use std::collections::VecDeque;
+
 use tracing::debug;
 
 use super::SectorSize;
 use crate::consts::SECTOR_SIZE;
-use std::collections::VecDeque;
 
 pub struct CdImage {
     read_head: usize,

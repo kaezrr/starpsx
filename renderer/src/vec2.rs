@@ -1,4 +1,6 @@
-use std::ops::{Add, AddAssign, Sub};
+use std::ops::Add;
+use std::ops::AddAssign;
+use std::ops::Sub;
 
 #[derive(Default, Debug, Clone, Copy)]
 pub struct Vec2 {

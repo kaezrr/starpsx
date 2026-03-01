@@ -1,4 +1,5 @@
-use crate::debugger::disasm::{self, DisasmLine};
+use crate::debugger::disasm::DisasmLine;
+use crate::debugger::disasm::{self};
 
 pub struct DebugSnapshot {
     // CPU

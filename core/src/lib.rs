@@ -10,9 +10,12 @@ mod sio;
 mod spu;
 mod timers;
 
+use std::collections::HashSet;
+
 use cdrom::CdImage;
 use cdrom::CdRom;
-use consts::{HBLANK_DURATION, LINE_DURATION};
+use consts::HBLANK_DURATION;
+use consts::LINE_DURATION;
 use cpu::Cpu;
 use dma::DMAController;
 use gpu::Gpu;
@@ -20,14 +23,13 @@ use irq::InterruptController;
 use mem::bios::Bios;
 use mem::ram::Ram;
 use mem::scratch::Scratch;
-use sched::{Event, EventScheduler};
+use sched::Event;
+use sched::EventScheduler;
 use sio::Sio0;
+pub use sio::gamepad;
 use starpsx_renderer::FrameBuffer;
-use std::collections::HashSet;
 use timers::Timers;
 use tracing::info;
-
-pub use sio::gamepad;
 
 use crate::sio::Sio1;
 use crate::spu::Spu;

@@ -1,15 +1,21 @@
 use std::collections::HashSet;
-use std::path::{Path, PathBuf};
+use std::path::Path;
+use std::path::PathBuf;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
-use std::sync::mpsc::{Receiver, SyncSender};
-use std::time::{Duration, Instant};
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::AtomicU32;
+use std::sync::atomic::Ordering;
+use std::sync::mpsc::Receiver;
+use std::sync::mpsc::SyncSender;
+use std::time::Duration;
+use std::time::Instant;
 
 use anyhow::anyhow;
 use eframe::egui;
 use starpsx_core::RunType;
 use starpsx_renderer::FrameBuffer;
-use tracing::{info, warn};
+use tracing::info;
+use tracing::warn;
 
 use crate::config::RunnablePath;
 use crate::debugger::snapshot::DebugSnapshot;

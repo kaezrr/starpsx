@@ -1,14 +1,17 @@
 mod commands;
 mod utils;
 
-use std::ops::{Index, IndexMut};
+use std::ops::Index;
+use std::ops::IndexMut;
 
-use crate::{
-    System,
-    cpu::utils::{Exception, Instruction},
-};
+use utils::matrix_reg_read;
+use utils::matrix_reg_write;
+use utils::vec_xy_read;
+use utils::vec_xy_write;
 
-use utils::{matrix_reg_read, matrix_reg_write, vec_xy_read, vec_xy_write};
+use crate::System;
+use crate::cpu::utils::Exception;
+use crate::cpu::utils::Instruction;
 
 #[derive(Default)]
 pub struct GTEngine {

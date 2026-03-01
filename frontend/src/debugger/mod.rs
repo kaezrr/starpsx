@@ -3,13 +3,18 @@ pub mod snapshot;
 
 use std::collections::HashSet;
 use std::sync::Arc;
-use std::sync::mpsc::{Receiver, SyncSender};
+use std::sync::mpsc::Receiver;
+use std::sync::mpsc::SyncSender;
 
-use eframe::egui::{self, Align, Color32, RichText};
+use eframe::egui::Align;
+use eframe::egui::Color32;
+use eframe::egui::RichText;
+use eframe::egui::{self};
 use egui_extras::Column;
-
-use crate::emulator::{SharedState, UiCommand};
 use snapshot::DebugSnapshot;
+
+use crate::emulator::SharedState;
+use crate::emulator::UiCommand;
 
 pub struct Debugger {
     breakpoints: Vec<Breakpoint>,
