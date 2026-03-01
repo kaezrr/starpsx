@@ -1,7 +1,5 @@
-use starpsx_renderer::{
-    utils::{Clut, Texture},
-    vec2::Vec2,
-};
+use starpsx_renderer::utils::{Clut, Texture};
+use starpsx_renderer::vec2::Vec2;
 
 use super::*;
 

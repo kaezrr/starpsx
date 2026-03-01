@@ -1,5 +1,6 @@
-use super::*;
 use starpsx_renderer::vec2::Vec2;
+
+use super::*;
 
 impl Gpu {
     pub fn gp1_reset(&mut self) {

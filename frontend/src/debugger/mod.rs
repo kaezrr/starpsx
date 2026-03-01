@@ -7,9 +7,9 @@ use std::sync::mpsc::{Receiver, SyncSender};
 
 use eframe::egui::{self, Align, Color32, RichText};
 use egui_extras::Column;
+use snapshot::DebugSnapshot;
 
 use crate::emulator::{SharedState, UiCommand};
-use snapshot::DebugSnapshot;
 
 pub struct Debugger {
     breakpoints: Vec<Breakpoint>,

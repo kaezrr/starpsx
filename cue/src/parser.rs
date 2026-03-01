@@ -1,6 +1,5 @@
-use crate::scanner::Token;
-
 use super::*;
+use crate::scanner::Token;
 
 pub struct CueParser {
     tokens: Vec<Token>,

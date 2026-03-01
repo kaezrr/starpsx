@@ -1,6 +1,7 @@
 use tracing::trace;
 
-use crate::{System, mem::ByteAddressable};
+use crate::System;
+use crate::mem::ByteAddressable;
 
 pub const PADDR_START: u32 = 0x1F801C00;
 pub const PADDR_END: u32 = 0x1F801E7F;

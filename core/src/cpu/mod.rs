@@ -3,10 +3,12 @@ mod gte;
 mod instrs;
 pub mod utils;
 
-use crate::{System, cpu::gte::GTEngine};
 use cop0::Cop0;
 use tracing::error;
 use utils::{Exception, Instruction};
+
+use crate::System;
+use crate::cpu::gte::GTEngine;
 
 pub struct Cpu {
     /// 32-bit general purpose registers, R0 is always zero

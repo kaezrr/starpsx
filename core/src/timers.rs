@@ -1,10 +1,8 @@
 use std::ops::{Index, IndexMut};
 
-use crate::{
-    LINE_DURATION, System,
-    mem::ByteAddressable,
-    sched::{Event, TimerInterrupt},
-};
+use crate::mem::ByteAddressable;
+use crate::sched::{Event, TimerInterrupt};
+use crate::{LINE_DURATION, System};
 
 pub const PADDR_START: u32 = 0x1F801100;
 pub const PADDR_END: u32 = 0x1F80112F;

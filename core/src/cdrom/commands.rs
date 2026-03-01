@@ -1,13 +1,11 @@
 use arrayvec::ArrayVec;
+use tracing::{debug, error};
 
+use super::*;
 use crate::consts::{
     AVG_1ST_RESP_GENERIC, AVG_1ST_RESP_INIT, AVG_2ND_RESP_GET_ID, AVG_2ND_RESP_PAUSE,
     AVG_2ND_RESP_SEEKL, AVG_RATE_INT1,
 };
-
-use tracing::{debug, error};
-
-use super::*;
 
 impl CdRom {
     pub fn test(&mut self) -> CommandResponse {

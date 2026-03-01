@@ -3,12 +3,11 @@ pub mod gamepad;
 
 use arrayvec::ArrayVec;
 
-use crate::{
-    System, consts,
-    mem::ByteAddressable,
-    sched::Event,
-    sio::{device_manager::DeviceManager, gamepad::Gamepad},
-};
+use crate::mem::ByteAddressable;
+use crate::sched::Event;
+use crate::sio::device_manager::DeviceManager;
+use crate::sio::gamepad::Gamepad;
+use crate::{System, consts};
 
 pub const PADDR_START: u32 = 0x1F801040;
 pub const PADDR_END: u32 = 0x1F80105F;

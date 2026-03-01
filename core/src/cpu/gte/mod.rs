@@ -3,12 +3,10 @@ mod utils;
 
 use std::ops::{Index, IndexMut};
 
-use crate::{
-    System,
-    cpu::utils::{Exception, Instruction},
-};
-
 use utils::{matrix_reg_read, matrix_reg_write, vec_xy_read, vec_xy_write};
+
+use crate::System;
+use crate::cpu::utils::{Exception, Instruction};
 
 #[derive(Default)]
 pub struct GTEngine {

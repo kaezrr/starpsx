@@ -2,14 +2,14 @@ mod app_state;
 mod ui;
 mod util;
 
-use anyhow::anyhow;
 use std::path::PathBuf;
-use std::sync::{Arc, mpsc::TryRecvError};
+use std::sync::Arc;
+use std::sync::mpsc::TryRecvError;
 use std::task::{Context, Poll, Waker};
 use std::time::Duration;
 
-use eframe::egui::ViewportCommand;
-use eframe::egui::{self, Color32, ColorImage, vec2};
+use anyhow::anyhow;
+use eframe::egui::{self, Color32, ColorImage, ViewportCommand, vec2};
 use egui_notify::Toasts;
 use starpsx_renderer::FrameBuffer;
 use tracing::{error, info, trace};

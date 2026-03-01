@@ -3,11 +3,12 @@ pub mod utils;
 
 use std::array::from_fn;
 
-use crate::cdrom;
-use crate::{System, mem::ByteAddressable};
 use channel::Channel;
 use tracing::trace;
 use utils::{Direction, Port, Step, Sync};
+
+use crate::mem::ByteAddressable;
+use crate::{System, cdrom};
 
 bitfield::bitfield! {
     #[derive(Copy, Clone)]

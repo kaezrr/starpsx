@@ -1,12 +1,13 @@
-use eframe::egui::{self, load::SizedTexture};
+use eframe::egui::load::SizedTexture;
+use eframe::egui::{self};
 use egui_extras::Column;
 use rfd::AsyncFileDialog;
 use tracing::error;
 
-use crate::{
-    app::{Application, app_state::AppState, util::PendingDialog},
-    config,
-};
+use crate::app::Application;
+use crate::app::app_state::AppState;
+use crate::app::util::PendingDialog;
+use crate::config;
 
 pub fn show_central_panel(app: &AppState, ctx: &egui::Context, vram_open: bool) {
     egui::CentralPanel::default()

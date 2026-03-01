@@ -3,14 +3,16 @@ mod gp1;
 mod utils;
 
 use arrayvec::ArrayVec;
-use starpsx_renderer::{Renderer, utils::DisplayDepth};
-
+use starpsx_renderer::Renderer;
+use starpsx_renderer::utils::DisplayDepth;
 pub use utils::{
     CommandArguments, CommandFn, DmaDirection, GP0State, HorizontalRes, PolyLineArguments,
     TextureDepth, VMode, VerticalRes, VramCopyFields,
 };
 
-use crate::{System, gpu::utils::PolyLineFn, mem::ByteAddressable};
+use crate::System;
+use crate::gpu::utils::PolyLineFn;
+use crate::mem::ByteAddressable;
 
 bitfield::bitfield! {
     #[derive(Clone, Copy)]

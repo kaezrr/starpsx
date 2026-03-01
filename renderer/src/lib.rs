@@ -1,8 +1,9 @@
 pub mod utils;
 pub mod vec2;
 
-use crate::utils::{Clut, Color, ColorOptions, DrawContext};
-use crate::utils::{DrawOptions, interpolate_color, interpolate_uv};
+use crate::utils::{
+    Clut, Color, ColorOptions, DrawContext, DrawOptions, interpolate_color, interpolate_uv,
+};
 use crate::vec2::{Vec2, compute_barycentric_coords, needs_vertex_reordering, point_in_triangle};
 
 const VRAM_WIDTH: usize = 1024;

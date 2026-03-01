@@ -1,5 +1,6 @@
-use crate::cdrom::ResponseType;
 use arrayvec::ArrayVec;
+
+use crate::cdrom::ResponseType;
 
 #[derive(Clone, Copy, PartialEq)]
 pub struct TimerInterrupt {
