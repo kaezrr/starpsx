@@ -8,7 +8,7 @@ StarPSX is a free, open-source PlayStation 1 emulator written in Rust. It featur
 
 <div align="center">
   <img src="/showcase/mk2-logo.png" width="45%" alt="Mortal Kombat 2"/>
-  <img src="/showcase/ewj2-logo.png" width="45%" alt="Earthworm Jim 2"/>
+  <img src="/showcase/spyro.png" width="45%" alt="Spyro"/>
   <img src="/showcase/crash.png" width="45%" alt="Crash Bandicoot"/>
   <img src="/showcase/ridge-racer.png" width="45%" alt="Ridge Racer"/>
   <br/>
@@ -56,7 +56,7 @@ Options:
 ## Project Structure
 
 <div align="center">
-  <img src="/showcase/project-arch.svg" width="65%" alt="Project Architecture"/>
+  <img src="/showcase/project-arch.excalidraw.svg" width="65%" alt="Project Architecture"/>
 </div>
 
 - **`core`**: Frontend-agnostic library containing the main emulator logic.
