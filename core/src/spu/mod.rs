@@ -1,13 +1,15 @@
+mod utils;
+
 use tracing::debug;
 
 use crate::System;
 use crate::mem::ByteAddressable;
 
+use utils::write_half;
+
 pub const PADDR_START: u32 = 0x1F801C00;
 pub const PADDR_END: u32 = 0x1F801E7F;
 
-// This is a stubbed component right now, just returns whatever is written
-#[derive(Default)]
 pub struct Spu {
     volume: Volume,
     cd_volume: Volume,
@@ -23,45 +25,38 @@ pub struct Spu {
     reverb: Reverb,
 
     data_transfer_address: u16,
+    current_address: usize,
 
     control: u16,
+
+    sound_ram: Box<[u8; 0x80000]>,
 }
 
-#[derive(Clone, Copy, Default)]
-struct Volume {
-    left: u16,
-    right: u16,
-}
+impl Default for Spu {
+    fn default() -> Self {
+        Self {
+            volume: Volume::default(),
+            cd_volume: Volume::default(),
+            external_volume: Volume::default(),
 
-#[derive(Default)]
-struct Voice {
-    volume: Volume,
-    sample_rate: u16,
+            voice_key_off: 0,
+            voice_key_on: 0,
+            voice_pitch_enable: 0,
+            voice_noise_enable: 0,
+            voice_echo_on: 0,
 
-    adsr: u32,
-    adsr_volume: u16,
+            voices: std::array::from_fn(|_| Voice::default()),
 
-    start_address: u16,
-    repeat_address: u16,
-}
+            reverb: Reverb::default(),
 
-#[derive(Default)]
-struct Reverb {
-    output_volume: Volume,
-    base: u16,
+            data_transfer_address: 0,
+            current_address: 0,
 
-    apf_offset: [u16; 2],
-    apf_volume: [u16; 2],
-    apf_address: [Volume; 2],
+            control: 0,
 
-    reflection_volume: [u16; 2],
-    same_side_reflect_addr: [Volume; 2],
-    diff_side_reflect_addr: [Volume; 2],
-
-    comb_volume: [u16; 4],
-    comb_address: [Volume; 4],
-
-    input_volume: Volume,
+            sound_ram: Box::new([0; 0x80000]),
+        }
+    }
 }
 
 pub fn read<T: ByteAddressable>(system: &System, addr: u32) -> T {
@@ -92,11 +87,6 @@ pub fn read<T: ByteAddressable>(system: &System, addr: u32) -> T {
             let voice = &spu.voices[idx];
 
             match reg {
-                // 0x00 => voice.volume.left as u32,
-                // 0x02 => voice.volume.right as u32,
-                // 0x04 => voice.sample_rate as u32,
-                // 0x06 => voice.start_address as u32,
-                // 0x08 => voice.adsr,
                 0x0C => voice.adsr_volume as u32,
 
                 x => unimplemented!("spu voice reg read {x}"),
@@ -110,6 +100,10 @@ pub fn read<T: ByteAddressable>(system: &System, addr: u32) -> T {
 }
 
 pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, val: T) {
+    // To make generics more readable
+    const HIGH: bool = true;
+    const LOW: bool = true;
+
     debug!("spu write addr={addr:08x}, data={:08x}", val.to_u32());
     debug_assert_ne!(T::LEN, 1);
 
@@ -199,8 +193,19 @@ pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, val: T) {
 
         0x1F801DAC => assert_eq!(val.to_u16(), 4), // Sound RAM Data Control
 
-        0x1F801DA6 => spu.data_transfer_address = val.to_u16(),
-        0x1F801DA8 => {} // transfer fifo
+        0x1F801DA6 => {
+            spu.data_transfer_address = val.to_u16();
+            spu.current_address = spu.data_transfer_address as usize * 8;
+        }
+
+        // Transfer half word to ram
+        0x1F801DA8 => {
+            let bytes = val.to_u16().to_le_bytes();
+            let addr = spu.current_address;
+
+            spu.sound_ram[addr..addr + 2].copy_from_slice(&bytes);
+            spu.current_address += 2;
+        }
 
         0x1F801C00..=0x1F801D7F => {
             let offset = addr - 0x1F801C00;
@@ -232,12 +237,39 @@ pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, val: T) {
     }
 }
 
-const HIGH: bool = true;
-const LOW: bool = true;
+#[derive(Clone, Copy, Default)]
+struct Volume {
+    left: u16,
+    right: u16,
+}
 
-fn write_half<const HIGH: bool>(reg: &mut u32, val: u16) {
-    let shift = if HIGH { 16 } else { 0 };
-    let mask = 0xFFFF << shift;
+#[derive(Default)]
+struct Voice {
+    volume: Volume,
+    sample_rate: u16,
 
-    *reg = (*reg & !mask) | ((val as u32) << shift);
+    adsr: u32,
+    adsr_volume: u16,
+
+    start_address: u16,
+    repeat_address: u16,
+}
+
+#[derive(Default)]
+struct Reverb {
+    output_volume: Volume,
+    base: u16,
+
+    apf_offset: [u16; 2],
+    apf_volume: [u16; 2],
+    apf_address: [Volume; 2],
+
+    reflection_volume: [u16; 2],
+    same_side_reflect_addr: [Volume; 2],
+    diff_side_reflect_addr: [Volume; 2],
+
+    comb_volume: [u16; 4],
+    comb_address: [Volume; 4],
+
+    input_volume: Volume,
 }
