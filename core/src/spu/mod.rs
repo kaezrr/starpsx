@@ -1,5 +1,6 @@
 mod utils;
 
+use num_enum::{FromPrimitive, IntoPrimitive};
 use tracing::debug;
 
 use crate::System;
@@ -9,6 +10,27 @@ use utils::write_half;
 
 pub const PADDR_START: u32 = 0x1F801C00;
 pub const PADDR_END: u32 = 0x1F801E7F;
+
+bitfield::bitfield! {
+    struct Status(u16);
+}
+
+bitfield::bitfield! {
+    struct Control(u16);
+    set_enable, enable: 15;
+    set_mute, mute: 14;
+    from into RamMode, _, ram_mode: 5, 4;
+}
+
+#[derive(FromPrimitive, IntoPrimitive)]
+#[repr(u16)]
+enum RamMode {
+    #[default]
+    Stop = 0,
+    ManualWrite = 1,
+    DmaWrite = 2,
+    DmaRead = 3,
+}
 
 pub struct Spu {
     volume: Volume,
@@ -27,7 +49,8 @@ pub struct Spu {
     data_transfer_address: u16,
     current_address: usize,
 
-    control: u16,
+    control: Control,
+    status: Status,
 
     sound_ram: Box<[u8; 0x80000]>,
 }
@@ -52,7 +75,8 @@ impl Default for Spu {
             data_transfer_address: 0,
             current_address: 0,
 
-            control: 0,
+            control: Control(0),
+            status: Status(0),
 
             sound_ram: Box::new([0; 0x80000]),
         }
@@ -67,8 +91,8 @@ pub fn read<T: ByteAddressable>(system: &System, addr: u32) -> T {
     let data = match addr {
         0x1F801DB8 => spu.volume.left as u32,
 
-        0x1F801DAE => 0, // TODO: status
-        0x1F801DAA => spu.control as u32,
+        0x1F801DAE => spu.status.0 as u32,
+        0x1F801DAA => spu.control.0 as u32,
 
         0x1F801D88 => spu.voice_key_on,
         0x1F801D8A => spu.voice_key_on >> 16,
@@ -170,7 +194,7 @@ pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, val: T) {
         0x1F801DFC => spu.reverb.input_volume.left = val,
         0x1F801DFE => spu.reverb.input_volume.right = val,
 
-        0x1F801DAA => spu.control = val,
+        0x1F801DAA => spu.control.0 = val,
 
         0x1F801D8C => {
             write_half::<LOW>(&mut spu.voice_key_off, val);

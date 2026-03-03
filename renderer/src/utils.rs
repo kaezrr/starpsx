@@ -1,5 +1,6 @@
 use crate::Renderer;
 use crate::vec2::Vec2;
+use num_enum::{FromPrimitive, IntoPrimitive};
 
 #[repr(C)]
 #[derive(Debug, Default, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -217,12 +218,14 @@ impl Clut {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, IntoPrimitive, FromPrimitive)]
+#[repr(u8)]
 pub enum PageColor {
     #[default]
-    Bit4,
-    Bit8,
-    Bit15,
+    Bit4 = 0,
+    Bit8 = 1,
+    #[num_enum(alternatives = [3])]
+    Bit15 = 2,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -237,12 +240,7 @@ impl Texture {
     pub fn new(data: u16, clut: Option<Clut>) -> Self {
         let base_x = ((data & 0xF) << 6).into();
         let base_y = (((data >> 4) & 1) << 8).into();
-        let depth = match (data >> 7) & 3 {
-            0 => PageColor::Bit4,
-            1 => PageColor::Bit8,
-            2 | 3 => PageColor::Bit15,
-            _ => unreachable!(),
-        };
+        let depth = PageColor::from(((data >> 7) & 3) as u8);
         Self {
             page_x: base_x,
             page_y: base_y,
@@ -329,28 +327,10 @@ impl DrawOptions<3> {
 }
 
 /// Display color bits per pixel
-#[derive(Default, Debug, Clone, Copy)]
+#[derive(Default, Debug, Clone, Copy, IntoPrimitive, FromPrimitive)]
+#[repr(u8)]
 pub enum DisplayDepth {
     #[default]
-    D15,
-    D24,
-}
-
-impl From<u8> for DisplayDepth {
-    fn from(v: u8) -> Self {
-        match v {
-            0 => Self::D15,
-            1 => Self::D24,
-            _ => unreachable!(),
-        }
-    }
-}
-
-impl From<DisplayDepth> for u8 {
-    fn from(v: DisplayDepth) -> Self {
-        match v {
-            DisplayDepth::D15 => 0,
-            DisplayDepth::D24 => 1,
-        }
-    }
+    D15 = 0,
+    D24 = 1,
 }

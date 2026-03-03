@@ -2575,6 +2575,7 @@ dependencies = [
  "bitfield",
  "bytemuck",
  "cue",
+ "num_enum",
  "starpsx-renderer",
  "tracing",
 ]
@@ -2584,6 +2585,7 @@ name = "starpsx-renderer"
 version = "0.1.0"
 dependencies = [
  "bytemuck",
+ "num_enum",
  "tracing",
 ]
 

@@ -1,114 +1,50 @@
+use num_enum::{FromPrimitive, IntoPrimitive};
 use starpsx_renderer::utils::{Clut, Texture};
 use starpsx_renderer::vec2::Vec2;
 
 use super::*;
 
 /// Texture color bits per pixel
+#[derive(IntoPrimitive, FromPrimitive)]
+#[repr(u8)]
 pub enum TextureDepth {
-    T4,
-    T8,
-    T15,
-}
-
-impl From<u8> for TextureDepth {
-    fn from(v: u8) -> Self {
-        match v {
-            0 => Self::T4,
-            1 => Self::T8,
-            2 => Self::T15,
-            _ => unreachable!(),
-        }
-    }
-}
-
-impl From<TextureDepth> for u8 {
-    fn from(v: TextureDepth) -> Self {
-        match v {
-            TextureDepth::T4 => 0,
-            TextureDepth::T8 => 1,
-            TextureDepth::T15 => 2,
-        }
-    }
+    #[default]
+    T4 = 0,
+    T8 = 1,
+    T15 = 2,
 }
 
 /// Video modes
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, IntoPrimitive, FromPrimitive)]
+#[repr(u8)]
 pub enum VMode {
-    Ntsc,
-    Pal,
-}
-
-impl From<u8> for VMode {
-    fn from(v: u8) -> Self {
-        match v {
-            0 => Self::Ntsc,
-            1 => Self::Pal,
-            _ => unreachable!(),
-        }
-    }
-}
-
-impl From<VMode> for u8 {
-    fn from(v: VMode) -> Self {
-        match v {
-            VMode::Ntsc => 0,
-            VMode::Pal => 1,
-        }
-    }
+    #[default]
+    Ntsc = 0,
+    Pal = 1,
 }
 
 /// Requested DMA direction
+#[derive(IntoPrimitive, FromPrimitive)]
+#[repr(u8)]
 pub enum DmaDirection {
-    Off,
-    Fifo,
-    CpuToGpu,
-    VRamToCpu,
-}
-
-impl From<u8> for DmaDirection {
-    fn from(v: u8) -> Self {
-        match v {
-            0 => Self::Off,
-            1 => Self::Fifo,
-            2 => Self::CpuToGpu,
-            3 => Self::VRamToCpu,
-            _ => unreachable!(),
-        }
-    }
-}
-
-impl From<DmaDirection> for u8 {
-    fn from(v: DmaDirection) -> Self {
-        match v {
-            DmaDirection::Off => 0,
-            DmaDirection::Fifo => 1,
-            DmaDirection::CpuToGpu => 2,
-            DmaDirection::VRamToCpu => 3,
-        }
-    }
+    #[default]
+    Off = 0,
+    Fifo = 1,
+    CpuToGpu = 2,
+    VRamToCpu = 3,
 }
 
 /// Video output horizontal resolution
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, IntoPrimitive, FromPrimitive)]
+#[repr(u8)]
 pub enum HorizontalRes {
-    X256,
-    X320,
-    X368,
-    X512,
-    X640,
-}
-
-impl From<u8> for HorizontalRes {
-    fn from(v: u8) -> Self {
-        match v {
-            0 => Self::X256,
-            1 => Self::X320,
-            2 => Self::X512,
-            3 => Self::X640,
-            4..=7 => Self::X368,
-            _ => unreachable!(),
-        }
-    }
+    #[default]
+    X256 = 0,
+    X320 = 1,
+    X512 = 2,
+    X640 = 3,
+    #[num_enum(alternatives = [5, 6, 7])]
+    X368 = 4,
 }
 
 impl HorizontalRes {
@@ -124,29 +60,12 @@ impl HorizontalRes {
 }
 
 /// Video output vertical resolution
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, IntoPrimitive, FromPrimitive)]
+#[repr(u8)]
 pub enum VerticalRes {
-    Y240,
-    Y480,
-}
-
-impl From<u8> for VerticalRes {
-    fn from(v: u8) -> Self {
-        match v {
-            0 => Self::Y240,
-            1 => Self::Y480,
-            _ => unreachable!(),
-        }
-    }
-}
-
-impl From<VerticalRes> for u8 {
-    fn from(v: VerticalRes) -> Self {
-        match v {
-            VerticalRes::Y240 => 0,
-            VerticalRes::Y480 => 1,
-        }
-    }
+    #[default]
+    Y240 = 0,
+    Y480 = 1,
 }
 
 impl VerticalRes {
