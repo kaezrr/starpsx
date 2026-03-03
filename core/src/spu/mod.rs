@@ -172,10 +172,38 @@ pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, val: T) {
 
         0x1F801DAA => spu.control = val,
 
-        0x1F801D8C => write_half::<LOW>(&mut spu.voice_key_off, val),
-        0x1F801D8E => write_half::<HIGH>(&mut spu.voice_key_off, val),
-        0x1F801D88 => write_half::<LOW>(&mut spu.voice_key_on, val),
-        0x1F801D8A => write_half::<HIGH>(&mut spu.voice_key_on, val),
+        0x1F801D8C => {
+            write_half::<LOW>(&mut spu.voice_key_off, val);
+            // for i in 0..16 {
+            //     if spu.voice_key_off & (1 << i) != 0 {
+            //         spu.voices[i].key_off();
+            //     }
+            // }
+        }
+        0x1F801D8E => {
+            write_half::<HIGH>(&mut spu.voice_key_off, val);
+            // for i in 16..24 {
+            //     if spu.voice_key_off & (1 << i) != 0 {
+            //         spu.voices[i].key_off();
+            //     }
+            // }
+        }
+        0x1F801D88 => {
+            write_half::<LOW>(&mut spu.voice_key_on, val);
+            // for i in 0..16 {
+            //     if spu.voice_key_on & (1 << i) != 0 {
+            //         spu.voices[i].key_on();
+            //     }
+            // }
+        }
+        0x1F801D8A => {
+            write_half::<HIGH>(&mut spu.voice_key_on, val);
+            // for i in 16..24 {
+            //     if spu.voice_key_on & (1 << i) != 0 {
+            //         spu.voices[i].key_on();
+            //     }
+            // }
+        }
 
         0x1F801D90 => write_half::<LOW>(&mut spu.voice_pitch_enable, val),
         0x1F801D92 => write_half::<HIGH>(&mut spu.voice_pitch_enable, val),
@@ -204,7 +232,8 @@ pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, val: T) {
             let bytes = val.to_le_bytes();
             let addr = spu.current_address;
 
-            spu.sound_ram[addr..addr + 2].copy_from_slice(&bytes);
+            spu.sound_ram[addr] = bytes[0];
+            spu.sound_ram[addr + 1] = bytes[1];
             spu.current_address += 2;
         }
 
@@ -219,13 +248,14 @@ pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, val: T) {
                 0x00 => voice.volume.left = val,
                 0x02 => voice.volume.right = val,
                 0x04 => voice.sample_rate = val,
-                0x06 => voice.start_address = val,
+
+                0x06 => voice.start_address = (val as u32) << 3,
+                0x0E => voice.repeat_address = (val as u32) << 3,
 
                 0x08 => write_half::<LOW>(&mut voice.adsr, val),
                 0x0A => write_half::<HIGH>(&mut voice.adsr, val),
 
                 0x0C => voice.adsr_volume = val,
-                0x0E => voice.repeat_address = val,
 
                 x => unimplemented!("spu voice reg write {x}"),
             }
@@ -252,8 +282,19 @@ struct Voice {
     adsr: u32,
     adsr_volume: u16,
 
-    start_address: u16,
-    repeat_address: u16,
+    start_address: u32,
+    current_address: u32,
+    repeat_address: u32,
+
+    pitch_counter: u16,
+
+    decode_buffer: [i16; 28],
+    current_buffer_idx: u8,
+
+    keyed_on: bool,
+
+    current_sample: i16,
+    previous_sample: i16,
 }
 
 #[derive(Default)]

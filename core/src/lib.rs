@@ -60,6 +60,7 @@ pub struct System {
 
     // RGBA frame buffer
     pub produced_frame_buffer: Option<FrameBuffer>,
+    pub produced_audio_buffer: Vec<i16>,
 }
 
 impl System {
@@ -86,6 +87,7 @@ impl System {
             sio1: Sio1 {}, // Does nothing
 
             produced_frame_buffer: None,
+            produced_audio_buffer: Vec::with_capacity(44100 * 2 / 60), // 44.1Khz stereo buffer
         };
 
         // Load game or exe
@@ -121,6 +123,8 @@ impl System {
 
         psx.scheduler
             .schedule(Event::HBlankEnd, LINE_DURATION, Some(LINE_DURATION));
+
+        psx.scheduler.schedule(Event::SpuTick, 768, Some(768));
 
         Ok(psx)
     }
@@ -214,6 +218,9 @@ impl System {
                 Event::SerialSend => Sio0::process_serial_send(self),
                 Event::CdromResultIrq(x) => CdRom::handle_response(self, x),
                 Event::DsrOff => self.sio0.turn_off_dsr(),
+                Event::SpuTick => {
+                    self.produced_audio_buffer.push(0);
+                }
             }
         }
 

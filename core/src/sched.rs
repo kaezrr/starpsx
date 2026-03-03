@@ -18,6 +18,7 @@ pub enum Event {
     CdromResultIrq(ResponseType),
     SerialSend,
     DsrOff,
+    SpuTick,
 }
 
 pub struct Task {
