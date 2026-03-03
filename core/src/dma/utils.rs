@@ -20,8 +20,8 @@ pub enum Step {
 #[repr(u8)]
 pub enum Sync {
     #[default]
-    Manual = 0,
-    Request = 1,
+    Burst = 0,
+    Slice = 1,
     LinkedList = 2,
 }
 

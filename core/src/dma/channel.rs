@@ -2,14 +2,11 @@ use super::utils::{Direction, Step, Sync};
 
 bitfield::bitfield! {
     pub struct Control(u32);
-    enable, set_enable : 24;
-    trigger, set_trigger: 28;
+    enabled, set_enabled : 24;
+    forced, set_forced: 28;
     pub u8, into Direction, dir, _ : 0, 0;
     pub u8, into Step, step, _ : 1, 1;
     pub u8, into Sync, sync, _ : 10, 9;
-    chop, _ : 2;
-    chop_dma_size, _: 18, 16;
-    chop_cpu_size, _: 22, 20;
 }
 
 bitfield::bitfield! {
@@ -34,11 +31,7 @@ impl Channel {
     }
 
     pub fn active(&self) -> bool {
-        let trigger = match self.ctl.sync() {
-            Sync::Manual => self.ctl.trigger(),
-            _ => true,
-        };
-        self.ctl.enable() && trigger
+        self.ctl.enabled()
     }
 
     /// Get DMA transfer size in words
@@ -47,15 +40,15 @@ impl Channel {
         let bc = self.block_ctl.block_count();
 
         match self.ctl.sync() {
-            Sync::Manual => Some(bs),
-            Sync::Request => Some(bc * bs),
+            Sync::Burst => Some(bs),
+            Sync::Slice => Some(bc * bs),
             Sync::LinkedList => None,
         }
     }
 
     /// Set the channel status to "completed" state
     pub fn done(&mut self) {
-        self.ctl.set_enable(false);
-        self.ctl.set_trigger(false);
+        self.ctl.set_enabled(false);
+        self.ctl.set_forced(false);
     }
 }

@@ -20,6 +20,16 @@ bitfield::bitfield! {
     master_irq, set_master_irq : 31;
 }
 
+struct Control(u32);
+
+impl Control {
+    fn master_enable(&self, port: Port) -> bool {
+        let idx = port as u32;
+        let bit = idx * 4 + 3;
+        (self.0 >> bit) & 1 == 1
+    }
+}
+
 // Ignoring 0-6 channel irq setting, all irqs happen on completion for now
 impl Interrupt {
     fn master_flag(&self) -> bool {
@@ -53,7 +63,7 @@ impl Interrupt {
 }
 
 pub struct DMAController {
-    control: u32,
+    control: Control,
     interrupt: Interrupt,
     pub channels: [Channel; 8],
 }
@@ -61,7 +71,7 @@ pub struct DMAController {
 impl Default for DMAController {
     fn default() -> Self {
         DMAController {
-            control: 0x07654321,
+            control: Control(0x07654321),
             interrupt: Interrupt(0),
             channels: from_fn(|_| Channel::new()),
         }
@@ -119,7 +129,7 @@ impl DMAController {
 
         let mut addr = base;
 
-        trace!(target:"dma", ?port, addr, "dma block transfer");
+        trace!(target:"dma", ?port, addr, size, "dma block transfer");
 
         for s in (0..size).rev() {
             let cur_addr = addr & 0x1FFFFC;
@@ -192,7 +202,7 @@ pub fn read<T: ByteAddressable>(system: &mut System, addr: u32) -> T {
         (0..=6, 0) => dma.get_channel(major).base,
         (0..=6, 4) => dma.get_channel(major).block_ctl.0,
         (0..=6, 8) => dma.get_channel(major).ctl.0,
-        (7, 0) => dma.control,
+        (7, 0) => dma.control.0,
         (7, 4) => dma.interrupt.0,
         _ => unimplemented!("DMA read {offs:x}"),
     };
@@ -211,14 +221,14 @@ pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, data: T) {
         (0..=6, 0) => dma.get_mut_channel(major).base = data.to_u32() & 0xFFFFFF,
         (0..=6, 4) => dma.get_mut_channel(major).block_ctl.0 = data.to_u32(),
         (0..=6, 8) => dma.get_mut_channel(major).ctl.0 = data.to_u32(),
-        (7, 0) => dma.control = data.to_u32(),
+        (7, 0) => dma.control.0 = data.to_u32(),
         (7, 4) => dma.write_dicr(data),
         _ => unimplemented!("DMA write {offs:x} = {data:x}"),
     }
 
     if let 0..=6 = major {
         let port = Port::from(major);
-        if dma.channels[port as usize].active() {
+        if dma.channels[port as usize].active() && dma.control.master_enable(port) {
             DMAController::do_dma(system, port);
         }
     }
