@@ -1,82 +1,46 @@
-#[derive(PartialEq, Clone, Copy, Debug)]
+use num_enum::{FromPrimitive, IntoPrimitive};
+
+#[derive(PartialEq, Clone, Copy, Debug, FromPrimitive, IntoPrimitive)]
+#[repr(u8)]
 pub enum Direction {
-    ToRam,
-    FromRam,
+    #[default]
+    ToRam = 0,
+    FromRam = 1,
 }
 
-impl From<u8> for Direction {
-    fn from(v: u8) -> Self {
-        match v {
-            0 => Self::ToRam,
-            1 => Self::FromRam,
-            _ => unreachable!(),
-        }
-    }
-}
-
-#[derive(PartialEq, Clone, Copy)]
+#[derive(PartialEq, Clone, Copy, FromPrimitive, IntoPrimitive)]
+#[repr(u8)]
 pub enum Step {
-    Increment,
-    Decrement,
+    #[default]
+    Increment = 0,
+    Decrement = 1,
 }
 
-impl From<u8> for Step {
-    fn from(v: u8) -> Self {
-        match v {
-            0 => Self::Increment,
-            1 => Self::Decrement,
-            _ => unreachable!(),
-        }
-    }
-}
-
-#[derive(PartialEq, Clone, Copy)]
+#[derive(PartialEq, Clone, Copy, FromPrimitive, IntoPrimitive)]
+#[repr(u8)]
 pub enum Sync {
-    Manual,
-    Request,
-    LinkedList,
+    #[default]
+    Manual = 0,
+    Request = 1,
+    LinkedList = 2,
 }
 
-impl From<u8> for Sync {
-    fn from(v: u8) -> Self {
-        match v {
-            0 => Self::Manual,
-            1 => Self::Request,
-            2 => Self::LinkedList,
-            _ => unreachable!("Unknown sync mode {v}"),
-        }
-    }
-}
-
-#[derive(PartialEq, Clone, Copy, Debug)]
+#[derive(PartialEq, Clone, Copy, Debug, FromPrimitive, IntoPrimitive)]
+#[repr(u32)]
 pub enum Port {
     // Macroblock decoder input
-    MdecIn,
+    #[default]
+    MdecIn = 0,
     // Macroblock decoder output
-    MdecOut,
+    MdecOut = 1,
     // Graphics Processing Unit
-    Gpu,
+    Gpu = 2,
     // CD-ROM Drive
-    CdRom,
+    CdRom = 3,
     // Sound Processing Unit
-    Spu,
+    Spu = 4,
     // Extension Port
-    Pio,
+    Pio = 5,
     // Clear ordering table
-    Otc,
-}
-
-impl From<u32> for Port {
-    fn from(index: u32) -> Self {
-        match index {
-            0 => Port::MdecIn,
-            1 => Port::MdecOut,
-            2 => Port::Gpu,
-            3 => Port::CdRom,
-            4 => Port::Spu,
-            5 => Port::Pio,
-            6 => Port::Otc,
-            _ => unreachable!("Unknown port {index}"),
-        }
-    }
+    Otc = 6,
 }
