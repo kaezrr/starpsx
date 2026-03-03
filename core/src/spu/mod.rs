@@ -12,18 +12,12 @@ pub const PADDR_START: u32 = 0x1F801C00;
 pub const PADDR_END: u32 = 0x1F801E7F;
 
 bitfield::bitfield! {
-    struct Status(u16);
-}
-
-bitfield::bitfield! {
     struct Control(u16);
-    set_enable, enable: 15;
-    set_mute, mute: 14;
-    from into RamMode, _, ram_mode: 5, 4;
+    u8, from into RamMode, ram_mode, _: 5, 4;
 }
 
-#[derive(FromPrimitive, IntoPrimitive)]
-#[repr(u16)]
+#[derive(FromPrimitive, IntoPrimitive, Debug)]
+#[repr(u8)]
 enum RamMode {
     #[default]
     Stop = 0,
@@ -46,11 +40,11 @@ pub struct Spu {
     voices: [Voice; 24],
     reverb: Reverb,
 
+    data_transfer_control: u16,
     data_transfer_address: u16,
     current_address: usize,
 
     control: Control,
-    status: Status,
 
     sound_ram: Box<[u8; 0x80000]>,
 }
@@ -72,14 +66,41 @@ impl Default for Spu {
 
             reverb: Reverb::default(),
 
+            data_transfer_control: 0,
             data_transfer_address: 0,
             current_address: 0,
 
             control: Control(0),
-            status: Status(0),
 
             sound_ram: Box::new([0; 0x80000]),
         }
+    }
+}
+
+impl Spu {
+    pub fn dma_read(&mut self) -> u32 {
+        let addr = self.current_address;
+        let bytes = [
+            self.sound_ram[addr],
+            self.sound_ram[addr + 1],
+            self.sound_ram[addr + 2],
+            self.sound_ram[addr + 3],
+        ];
+
+        self.current_address += 4;
+        u32::from_le_bytes(bytes)
+    }
+
+    pub fn dma_write(&mut self, data: u32) {
+        let bytes = data.to_le_bytes();
+        let addr = self.current_address;
+
+        self.sound_ram[addr] = bytes[0];
+        self.sound_ram[addr + 1] = bytes[1];
+        self.sound_ram[addr + 2] = bytes[2];
+        self.sound_ram[addr + 3] = bytes[3];
+
+        self.current_address += 4;
     }
 }
 
@@ -89,10 +110,11 @@ pub fn read<T: ByteAddressable>(system: &System, addr: u32) -> T {
     let spu = &system.spu;
 
     let data = match addr {
-        0x1F801DB8 => spu.volume.left as u32,
+        0x1F801DB8 => spu.volume.left.into(),
 
-        0x1F801DAE => spu.status.0 as u32,
-        0x1F801DAA => spu.control.0 as u32,
+        0x1F801DAE => (spu.control.0 & 0x3F).into(),
+
+        0x1F801DAA => spu.control.0.into(), // Status register
 
         0x1F801D88 => spu.voice_key_on,
         0x1F801D8A => spu.voice_key_on >> 16,
@@ -100,8 +122,8 @@ pub fn read<T: ByteAddressable>(system: &System, addr: u32) -> T {
         0x1F801D8C => spu.voice_key_off,
         0x1F801D8E => spu.voice_key_off >> 16,
 
-        0x1F801DA6 => spu.data_transfer_address as u32,
-        0x1F801DAC => 0x0004, // RAM data tranfer control
+        0x1F801DA6 => spu.data_transfer_address.into(),
+        0x1F801DAC => spu.data_transfer_control.into(),
 
         0x1F801C00..=0x1F801D7F => {
             let offset = addr - 0x1F801C00;
@@ -111,7 +133,7 @@ pub fn read<T: ByteAddressable>(system: &System, addr: u32) -> T {
             let voice = &spu.voices[idx];
 
             match reg {
-                0x0C => voice.adsr_volume as u32,
+                0x0C => voice.adsr_volume.into(),
 
                 x => unimplemented!("spu voice reg read {x}"),
             }
@@ -126,7 +148,7 @@ pub fn read<T: ByteAddressable>(system: &System, addr: u32) -> T {
 pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, val: T) {
     // To make generics more readable
     const HIGH: bool = true;
-    const LOW: bool = true;
+    const LOW: bool = false;
 
     debug!("spu write addr={addr:08x}, data={:08x}", val.to_u32());
     debug_assert_ne!(T::LEN, 1);
@@ -244,11 +266,11 @@ pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, val: T) {
         0x1F801DB4 => spu.external_volume.left = val,
         0x1F801DB6 => spu.external_volume.right = val,
 
-        0x1F801DAC => assert_eq!(val, 0x0004, "Sound RAM Data Control is {val:x} != 0x0004"),
+        0x1F801DAC => spu.data_transfer_control = val, // Should be 0x0004
 
         0x1F801DA6 => {
             spu.data_transfer_address = val;
-            spu.current_address = spu.data_transfer_address as usize * 8;
+            spu.current_address = (spu.data_transfer_address as usize) << 3;
         }
 
         // Transfer half word to ram

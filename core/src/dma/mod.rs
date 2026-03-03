@@ -8,7 +8,7 @@ use tracing::trace;
 use utils::{Direction, Port, Step, Sync};
 
 use crate::mem::ByteAddressable;
-use crate::{System, cdrom, spu};
+use crate::{System, cdrom};
 
 bitfield::bitfield! {
     #[derive(Copy, Clone)]
@@ -132,6 +132,7 @@ impl DMAController {
                         },
                         Port::Gpu => system.gpu.read_reg(0x1F801810), // READ register
                         Port::CdRom => cdrom::read(system, 0x1F801802), // RDDATA register
+                        Port::Spu => system.spu.dma_read(),
                         _ => todo!("DMA source {port:?}"),
                     };
                     system.ram.write::<u32>(cur_addr, src_word);
@@ -140,7 +141,7 @@ impl DMAController {
                     let src_word = system.ram.read::<u32>(cur_addr);
                     match port {
                         Port::Gpu => system.gpu.gp0(src_word),
-                        Port::Spu => spu::write(system, 0x1F801DA8, src_word), // Sound RAM data port
+                        Port::Spu => system.spu.dma_write(src_word),
                         _ => todo!("DMA destination {port:?}"),
                     }
                 }
