@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
-use std::sync::mpsc::{Receiver, SyncSender};
+use std::sync::mpsc::{Receiver, Sender, SyncSender};
 use std::time::{Duration, Instant};
 
 use anyhow::anyhow;
@@ -35,6 +35,7 @@ pub struct Emulator {
 
     system: starpsx_core::System,
     audio_stream: Stream,
+    audio_tx: Sender<i16>,
 
     breakpoints: HashSet<u32>,
 
@@ -61,9 +62,6 @@ impl Emulator {
 
         show_vram: bool,
     ) -> anyhow::Result<Self> {
-        let system = Emulator::build_core(&bios_path, &file_path)?;
-        let breakpoints = HashSet::new();
-
         // Build audio stream
         const STREAM_CONFIG: StreamConfig = StreamConfig {
             channels: 2,
@@ -75,10 +73,23 @@ impl Emulator {
             .default_output_device()
             .ok_or(anyhow!("no output device available"))?;
 
-        let err_fn = |err| error!("an error occurred on the output audio stream: {err}");
+        let (audio_tx, audio_rx) = std::sync::mpsc::channel::<i16>();
 
-        let audio_stream =
-            device.build_output_stream(&STREAM_CONFIG, write_sine_wave, err_fn, None)?;
+        let audio_stream = device.build_output_stream(
+            &STREAM_CONFIG,
+            move |data: &mut [i16], _: &cpal::OutputCallbackInfo| {
+                for sample in data.iter_mut() {
+                    *sample = audio_rx.try_recv().unwrap_or(0);
+                }
+            },
+            move |err| {
+                error!("an error occurred on the output audio stream: {err}");
+            },
+            None,
+        )?;
+
+        let system = Emulator::build_core(&bios_path, &file_path)?;
+        let breakpoints = HashSet::new();
 
         Ok(Self {
             ui_ctx,
@@ -87,6 +98,7 @@ impl Emulator {
 
             system,
             audio_stream,
+            audio_tx,
 
             breakpoints,
 
@@ -192,7 +204,7 @@ impl Emulator {
                             continue;
                         }
 
-                        if let Some(fb) = self.system.step_instruction(self.show_vram) {
+                        if let Some(fb) = self.system.step_instruction(self.show_vram, None) {
                             self.send_frame_buffer(fb);
                         }
                         self.send_debug_snapshot();
@@ -220,7 +232,7 @@ impl Emulator {
             let vram = self.show_vram;
 
             let frame_opt = if self.breakpoints.is_empty() {
-                Some(self.system.run_frame(vram))
+                Some(self.system.run_frame(vram, &self.audio_tx))
             } else {
                 self.system.run_breakpoint(&self.breakpoints, vram)
             };
@@ -288,33 +300,5 @@ pub fn parse_runnable(path: PathBuf) -> anyhow::Result<RunnablePath> {
         Some("bin") => Ok(RunnablePath::Bin(path)),
         Some("cue") => Ok(RunnablePath::Cue(path)),
         _ => Err(anyhow!("unsupported file format")),
-    }
-}
-
-fn write_sine_wave(data: &mut [i16], _: &cpal::OutputCallbackInfo) {
-    // Persistent counter to track our position across callback buffers
-    static SAMPLE_CLOCK: AtomicU32 = AtomicU32::new(0);
-
-    // --- Hardcoded Parameters ---
-    let frequency = 440.0; // A4 note (Hz)
-    let sample_rate = 44100.0;
-    let amplitude = 16384.0; // 50% volume (Sine waves are quieter than Square)
-
-    // Process in chunks of 2 for Stereo [Left, Right]
-    for frame in data.chunks_mut(2) {
-        // Get current global sample index and increment it
-        let i = SAMPLE_CLOCK.fetch_add(1, Ordering::Relaxed) as f32;
-
-        // Calculate the angle in radians
-        // 2.0 * PI * freq * (index / sample_rate)
-        let angle = 2.0 * std::f32::consts::PI * frequency * (i / sample_rate);
-
-        // Generate the sample and cast to i16
-        let value = (amplitude * angle.sin()) as i16;
-
-        if frame.len() >= 2 {
-            frame[0] = value;
-            frame[1] = value;
-        }
     }
 }

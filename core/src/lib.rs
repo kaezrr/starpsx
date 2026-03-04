@@ -11,6 +11,7 @@ mod spu;
 mod timers;
 
 use std::collections::HashSet;
+use std::sync::mpsc::Sender;
 
 use cdrom::{CdImage, CdRom};
 use consts::{HBLANK_DURATION, LINE_DURATION};
@@ -60,7 +61,6 @@ pub struct System {
 
     // RGBA frame buffer
     pub produced_frame_buffer: Option<FrameBuffer>,
-    pub produced_audio_buffer: Vec<i16>,
 }
 
 impl System {
@@ -87,7 +87,6 @@ impl System {
             sio1: Sio1 {}, // Does nothing
 
             produced_frame_buffer: None,
-            produced_audio_buffer: Vec::with_capacity(44100 * 2 / 60), // 44.1Khz stereo buffer
         };
 
         // Load game or exe
@@ -129,7 +128,7 @@ impl System {
         Ok(psx)
     }
 
-    pub fn sideload_exe(&mut self, exe: Vec<u8>) {
+    fn sideload_exe(&mut self, exe: Vec<u8>) {
         while self.cpu.pc != 0x80030000 {
             Cpu::run_next_instruction(self);
             self.check_for_tty_output();
@@ -206,7 +205,11 @@ impl System {
         SystemSnapshot { cpu, ins }
     }
 
-    pub fn step_instruction(&mut self, show_vram: bool) -> Option<FrameBuffer> {
+    pub fn step_instruction(
+        &mut self,
+        show_vram: bool,
+        audio_tx: Option<&Sender<i16>>,
+    ) -> Option<FrameBuffer> {
         if let Some(event) = self.scheduler.get_next_event() {
             match event {
                 // Frame completes just before entering vsync
@@ -219,7 +222,11 @@ impl System {
                 Event::CdromResultIrq(x) => CdRom::handle_response(self, x),
                 Event::DsrOff => self.sio0.turn_off_dsr(),
                 Event::SpuTick => {
-                    self.produced_audio_buffer.push(0);
+                    let [left, right] = self.spu.tick();
+                    if let Some(audio_channel) = audio_tx {
+                        let _ = audio_channel.send(left);
+                        let _ = audio_channel.send(right);
+                    }
                 }
             }
         }
@@ -233,9 +240,9 @@ impl System {
     }
 
     // Run emulator for one frame and return the generated frame
-    pub fn run_frame(&mut self, show_vram: bool) -> FrameBuffer {
+    pub fn run_frame(&mut self, show_vram: bool, audio_tx: &Sender<i16>) -> FrameBuffer {
         loop {
-            match self.step_instruction(show_vram) {
+            match self.step_instruction(show_vram, Some(audio_tx)) {
                 Some(fb) => break fb,
                 None => continue,
             }
@@ -253,15 +260,11 @@ impl System {
                 return None;
             }
 
-            match self.step_instruction(show_vram) {
+            match self.step_instruction(show_vram, None) {
                 Some(fb) => break Some(fb),
                 None => continue,
             }
         }
-    }
-
-    pub fn print_pc(&self) {
-        info!("pc={:08x}", self.cpu.pc);
     }
 }
 
