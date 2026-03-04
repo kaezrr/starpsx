@@ -6,10 +6,12 @@ use std::sync::mpsc::{Receiver, SyncSender};
 use std::time::{Duration, Instant};
 
 use anyhow::anyhow;
+use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+use cpal::{Stream, StreamConfig, default_host};
 use eframe::egui;
 use starpsx_core::RunType;
 use starpsx_renderer::FrameBuffer;
-use tracing::{info, warn};
+use tracing::{error, info, warn};
 
 use crate::config::RunnablePath;
 use crate::debugger::snapshot::DebugSnapshot;
@@ -29,15 +31,15 @@ pub enum UiCommand {
 pub struct Emulator {
     ui_ctx: egui::Context,
     channels: UiChannels,
+    shared_state: Arc<SharedState>,
 
     system: starpsx_core::System,
-    shared_state: Arc<SharedState>,
+    audio_stream: Stream,
 
     breakpoints: HashSet<u32>,
 
     bios_path: PathBuf,
     file_path: Option<RunnablePath>,
-
     show_vram: bool,
 }
 
@@ -59,17 +61,37 @@ impl Emulator {
 
         show_vram: bool,
     ) -> anyhow::Result<Self> {
+        let system = Emulator::build_core(&bios_path, &file_path)?;
+        let breakpoints = HashSet::new();
+
+        // Build audio stream
+        const STREAM_CONFIG: StreamConfig = StreamConfig {
+            channels: 2,
+            sample_rate: 44100,
+            buffer_size: cpal::BufferSize::Default,
+        };
+
+        let device = default_host()
+            .default_output_device()
+            .ok_or(anyhow!("no output device available"))?;
+
+        let err_fn = |err| error!("an error occurred on the output audio stream: {err}");
+
+        let audio_stream =
+            device.build_output_stream(&STREAM_CONFIG, write_sine_wave, err_fn, None)?;
+
         Ok(Self {
             ui_ctx,
             channels,
             shared_state,
 
-            system: Emulator::build_core(&bios_path, &file_path)?,
+            system,
+            audio_stream,
+
+            breakpoints,
 
             bios_path,
             file_path,
-
-            breakpoints: HashSet::new(),
             show_vram,
         })
     }
@@ -95,7 +117,7 @@ impl Emulator {
         starpsx_core::System::build(bios, run_type)
     }
 
-    pub fn run(mut self) {
+    pub fn run(self) {
         std::thread::spawn(move || self.main_loop());
         info!("emulator thread started...");
     }
@@ -125,8 +147,10 @@ impl Emulator {
         self.ui_ctx.request_repaint();
     }
 
-    fn main_loop(&mut self) {
+    fn main_loop(mut self) {
         const FRAME_TIME: Duration = Duration::from_nanos(16_666_667);
+
+        let mut last_paused = true;
 
         'emulator: loop {
             // Read events from ui thread
@@ -176,7 +200,18 @@ impl Emulator {
                 }
             }
 
-            if self.shared_state.is_paused() {
+            let paused = self.shared_state.is_paused();
+
+            if paused != last_paused {
+                if paused {
+                    self.audio_stream.pause().unwrap();
+                } else {
+                    self.audio_stream.play().unwrap();
+                }
+                last_paused = paused;
+            }
+
+            if paused {
                 std::thread::sleep(Duration::from_millis(16));
                 continue;
             }
@@ -253,5 +288,33 @@ pub fn parse_runnable(path: PathBuf) -> anyhow::Result<RunnablePath> {
         Some("bin") => Ok(RunnablePath::Bin(path)),
         Some("cue") => Ok(RunnablePath::Cue(path)),
         _ => Err(anyhow!("unsupported file format")),
+    }
+}
+
+fn write_sine_wave(data: &mut [i16], _: &cpal::OutputCallbackInfo) {
+    // Persistent counter to track our position across callback buffers
+    static SAMPLE_CLOCK: AtomicU32 = AtomicU32::new(0);
+
+    // --- Hardcoded Parameters ---
+    let frequency = 440.0; // A4 note (Hz)
+    let sample_rate = 44100.0;
+    let amplitude = 16384.0; // 50% volume (Sine waves are quieter than Square)
+
+    // Process in chunks of 2 for Stereo [Left, Right]
+    for frame in data.chunks_mut(2) {
+        // Get current global sample index and increment it
+        let i = SAMPLE_CLOCK.fetch_add(1, Ordering::Relaxed) as f32;
+
+        // Calculate the angle in radians
+        // 2.0 * PI * freq * (index / sample_rate)
+        let angle = 2.0 * std::f32::consts::PI * frequency * (i / sample_rate);
+
+        // Generate the sample and cast to i16
+        let value = (amplitude * angle.sin()) as i16;
+
+        if frame.len() >= 2 {
+            frame[0] = value;
+            frame[1] = value;
+        }
     }
 }
