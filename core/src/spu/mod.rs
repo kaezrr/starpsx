@@ -1,11 +1,11 @@
 mod utils;
 
 use num_enum::{FromPrimitive, IntoPrimitive};
-use tracing::debug;
+use tracing::trace;
 
 use crate::System;
 use crate::mem::ByteAddressable;
-use crate::spu::utils::decode_adpcm_block;
+use crate::spu::utils::GAUSSIAN_TABLE;
 
 use utils::write_half;
 
@@ -110,23 +110,25 @@ impl Spu {
             voice.tick(self.sound_ram.as_slice());
         }
 
-        let mut mixed_samples = [0_i32, 0_i32];
+        let (mut left, mut right) = (0, 0);
         for voice in &self.voices {
             if !voice.keyed_on {
                 continue;
             }
 
-            let v_samples = voice.get_samples();
-            mixed_samples[0] += v_samples[0] as i32;
-            mixed_samples[1] += v_samples[1] as i32;
+            left += i32::from(voice.current_sample / 4);
+            right += i32::from(voice.current_sample / 4);
         }
 
-        mixed_samples.map(|x| x.clamp(-0x8000, 0x7FFF) as i16)
+        [
+            left.clamp(-0x8000, 0x7FFF) as i16,
+            right.clamp(-0x8000, 0x7FFF) as i16,
+        ]
     }
 }
 
 pub fn read<T: ByteAddressable>(system: &System, addr: u32) -> T {
-    debug!("spu read addr={addr:08x}");
+    trace!("spu read addr={addr:08x}");
 
     let spu = &system.spu;
 
@@ -171,7 +173,7 @@ pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, val: T) {
     const HIGH: bool = true;
     const LOW: bool = false;
 
-    debug!("spu write addr={addr:08x}, data={:08x}", val.to_u32());
+    trace!("spu write addr={addr:08x}, data={:08x}", val.to_u32());
     debug_assert_ne!(T::LEN, 1);
 
     if T::LEN == 4 {
@@ -244,7 +246,6 @@ pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, val: T) {
             for i in 0..16 {
                 if spu.voice_key_off & (1 << i) != 0 {
                     spu.voices[i].key_off();
-                    eprintln!("OFF VOICE {i}");
                 }
             }
         }
@@ -253,7 +254,6 @@ pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, val: T) {
             for i in 16..24 {
                 if spu.voice_key_off & (1 << i) != 0 {
                     spu.voices[i].key_off();
-                    eprintln!("OFF VOICE {i}");
                 }
             }
         }
@@ -262,10 +262,6 @@ pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, val: T) {
             for i in 0..16 {
                 if spu.voice_key_on & (1 << i) != 0 {
                     spu.voices[i].key_on(spu.sound_ram.as_slice());
-                    eprintln!(
-                        "ON VOICE {i} start: {:x} repeat: {:x}",
-                        spu.voices[i].start_address, spu.voices[i].repeat_address,
-                    )
                 }
             }
         }
@@ -274,10 +270,6 @@ pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, val: T) {
             for i in 16..24 {
                 if spu.voice_key_on & (1 << i) != 0 {
                     spu.voices[i].key_on(spu.sound_ram.as_slice());
-                    eprintln!(
-                        "ON VOICE {i} start: {:x} repeat: {:x}",
-                        spu.voices[i].start_address, spu.voices[i].repeat_address,
-                    )
                 }
             }
         }
@@ -370,8 +362,10 @@ struct Voice {
 
     keyed_on: bool,
 
+    adpcm_older_sample: i16,
+    adpcm_old_sample: i16,
+
     current_sample: i16,
-    previous_sample: i16,
 }
 
 impl Voice {
@@ -401,24 +395,37 @@ impl Voice {
             }
         }
 
-        self.previous_sample = self.current_sample;
+        // let interpolation_idx = ((self.pitch_counter >> 4) & 0xFF) as usize;
+        //
+        // let samples = [
+        //     self.decode_buffer[self.current_buffer_idx - 3], // current sample
+        //     self.decode_buffer[self.current_buffer_idx - 2], // current sample
+        //     self.decode_buffer[self.current_buffer_idx - 1], // current sample
+        //     self.decode_buffer[self.current_buffer_idx],     // current sample
+        // ]
+        // .map(i32::from);
+        //
+        // let g_weights = [
+        //     GAUSSIAN_TABLE[0x0FF - interpolation_idx],
+        //     GAUSSIAN_TABLE[0x1FF - interpolation_idx],
+        //     GAUSSIAN_TABLE[0x100 + interpolation_idx],
+        //     GAUSSIAN_TABLE[interpolation_idx],
+        // ];
+        //
+        // let mut interpolated: i32 = 0;
+        // for i in 0..4 {
+        //     interpolated += (samples[i] * g_weights[i]) >> 15;
+        // }
+
         self.current_sample = self.decode_buffer[self.current_buffer_idx];
     }
 
-    /// L-R sample at 44100hz
-    fn get_samples(&self) -> [i16; 2] {
-        [self.current_sample, self.previous_sample]
-    }
-
     fn decode_next_block(&mut self, sound_ram: &[u8]) {
-        let block = &sound_ram[self.current_address..self.current_address + 16];
+        let block = &sound_ram[self.current_address..self.current_address + 16]
+            .try_into()
+            .unwrap();
 
-        decode_adpcm_block(
-            block.try_into().unwrap(),
-            &mut self.decode_buffer,
-            &mut self.current_sample,
-            &mut self.previous_sample,
-        );
+        self.decode_adpcm_block(block);
 
         let loop_end = block[1] & 1 != 0;
         let loop_repeat = block[1] & (1 << 1) != 0;
@@ -437,6 +444,39 @@ impl Voice {
             }
         } else {
             self.current_address += 16;
+        }
+    }
+
+    fn decode_adpcm_block(&mut self, block: &[u8; 16]) {
+        let shift = block[0] & 0x0F;
+        let shift = if shift > 12 { 9 } else { shift };
+
+        let filter = ((block[0] >> 4) & 0x07).min(4);
+
+        for sample_idx in 0..28 {
+            let sample_byte = block[2 + sample_idx / 2];
+            let sample_nibble = (sample_byte >> (4 * (sample_idx % 2))) & 0x0F;
+
+            let raw_sample: i32 = (((sample_nibble as i8) << 4) >> 4).into();
+
+            let shifted_sample = raw_sample << (12 - shift);
+
+            let old = i32::from(self.adpcm_old_sample);
+            let older = i32::from(self.adpcm_older_sample);
+            let filtered_sample = match filter {
+                0 => shifted_sample,
+                1 => shifted_sample + (60 * old + 32) / 64,
+                2 => shifted_sample + (115 * old - 52 * older + 32) / 64,
+                3 => shifted_sample + (98 * old - 55 * older + 32) / 64,
+                4 => shifted_sample + (122 * old - 60 * older + 32) / 64,
+                _ => unreachable!("filter was clamped to 0..=4"),
+            };
+
+            let clamped_sample = filtered_sample.clamp(-0x8000, 0x7FFF) as i16;
+            self.decode_buffer[sample_idx] = clamped_sample;
+
+            self.adpcm_older_sample = self.adpcm_old_sample;
+            self.adpcm_old_sample = clamped_sample;
         }
     }
 }
