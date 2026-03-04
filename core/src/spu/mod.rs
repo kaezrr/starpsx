@@ -5,6 +5,7 @@ use tracing::debug;
 
 use crate::System;
 use crate::mem::ByteAddressable;
+use crate::spu::utils::decode_adpcm_block;
 
 use utils::write_half;
 
@@ -104,14 +105,18 @@ impl Spu {
     }
 
     pub fn tick(&mut self) -> [i16; 2] {
-        let mut mixed_samples = [0_i32, 0_i32];
+        // tick each voice
+        for voice in self.voices.iter_mut() {
+            voice.tick(self.sound_ram.as_slice());
+        }
 
-        for v in &mut self.voices {
-            if !v.keyed_on {
+        let mut mixed_samples = [0_i32, 0_i32];
+        for voice in &self.voices {
+            if !voice.keyed_on {
                 continue;
             }
 
-            let v_samples = v.tick();
+            let v_samples = voice.get_samples();
             mixed_samples[0] += v_samples[0] as i32;
             mixed_samples[1] += v_samples[1] as i32;
         }
@@ -256,12 +261,10 @@ pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, val: T) {
             write_half::<LOW>(&mut spu.voice_key_on, val);
             for i in 0..16 {
                 if spu.voice_key_on & (1 << i) != 0 {
-                    spu.voices[i].key_on();
+                    spu.voices[i].key_on(spu.sound_ram.as_slice());
                     eprintln!(
-                        "ON VOICE {i} start: {:x} repeat: {:x} sample: {}",
-                        spu.voices[i].start_address,
-                        spu.voices[i].repeat_address,
-                        pitch_to_hz(spu.voices[i].sample_rate)
+                        "ON VOICE {i} start: {:x} repeat: {:x}",
+                        spu.voices[i].start_address, spu.voices[i].repeat_address,
                     )
                 }
             }
@@ -270,12 +273,10 @@ pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, val: T) {
             write_half::<HIGH>(&mut spu.voice_key_on, val);
             for i in 16..24 {
                 if spu.voice_key_on & (1 << i) != 0 {
-                    spu.voices[i].key_on();
+                    spu.voices[i].key_on(spu.sound_ram.as_slice());
                     eprintln!(
-                        "ON VOICE {i} start: {:x} repeat: {:x} sample: {}",
-                        spu.voices[i].start_address,
-                        spu.voices[i].repeat_address,
-                        pitch_to_hz(spu.voices[i].sample_rate)
+                        "ON VOICE {i} start: {:x} repeat: {:x}",
+                        spu.voices[i].start_address, spu.voices[i].repeat_address,
                     )
                 }
             }
@@ -360,46 +361,83 @@ struct Voice {
 
     start_address: u16,
     repeat_address: u16,
+    current_address: usize,
 
     pitch_counter: u16,
 
     decode_buffer: [i16; 28],
-    current_buffer_idx: u8,
+    current_buffer_idx: usize,
 
     keyed_on: bool,
 
     current_sample: i16,
     previous_sample: i16,
-
-    counter: usize,
 }
 
 impl Voice {
-    fn key_on(&mut self) {
+    fn key_on(&mut self, sound_ram: &[u8]) {
         self.keyed_on = true;
-        self.counter = 0;
+
+        self.current_address = (self.start_address << 3) as usize;
+        self.pitch_counter = 0;
+        self.decode_next_block(sound_ram)
     }
 
     fn key_off(&mut self) {
         self.keyed_on = false;
     }
 
+    fn tick(&mut self, sound_ram: &[u8]) {
+        let pitch_counter_step = self.sample_rate.min(0x4000);
+        self.pitch_counter += pitch_counter_step;
+
+        while self.pitch_counter >= 0x1000 {
+            self.pitch_counter -= 0x1000;
+            self.current_buffer_idx += 1;
+
+            if self.current_buffer_idx == 28 {
+                self.current_buffer_idx = 0;
+                self.decode_next_block(sound_ram);
+            }
+        }
+
+        self.previous_sample = self.current_sample;
+        self.current_sample = self.decode_buffer[self.current_buffer_idx];
+    }
+
     /// L-R sample at 44100hz
-    fn tick(&mut self) -> [i16; 2] {
-        // --- Hardcoded Parameters ---
-        let frequency = 440.0; // A4 note (Hz)
-        let sample_rate = 44100.0;
-        let amplitude = 16384.0; // Half of i16 max (32767) for clarity
+    fn get_samples(&self) -> [i16; 2] {
+        [self.current_sample, self.previous_sample]
+    }
 
-        let current_sample = self.counter as f32;
-        self.counter += 1;
+    fn decode_next_block(&mut self, sound_ram: &[u8]) {
+        let block = &sound_ram[self.current_address..self.current_address + 16];
 
-        // Calculate the sine value:
-        // sin(2 * PI * freq * (sample_index / sample_rate))
-        let angle = 2.0 * std::f32::consts::PI * frequency * (current_sample / sample_rate);
-        let sample = (amplitude * angle.sin()) as i16;
+        decode_adpcm_block(
+            block.try_into().unwrap(),
+            &mut self.decode_buffer,
+            &mut self.current_sample,
+            &mut self.previous_sample,
+        );
 
-        [sample, sample]
+        let loop_end = block[1] & 1 != 0;
+        let loop_repeat = block[1] & (1 << 1) != 0;
+        let loop_start = block[1] & (1 << 2) != 0;
+
+        if loop_start {
+            self.repeat_address = (self.current_address >> 3) as u16;
+        }
+
+        if loop_end {
+            self.current_address = (self.repeat_address << 3) as usize;
+
+            if !loop_repeat {
+                // self.envelope.volume = 0;
+                // self.envelope.key_off();
+            }
+        } else {
+            self.current_address += 16;
+        }
     }
 }
 
@@ -420,13 +458,4 @@ struct Reverb {
     comb_address: [Volume; 4],
 
     input_volume: Volume,
-}
-
-fn pitch_to_hz(pitch: u16) -> f32 {
-    if pitch == 0 {
-        return 0.0;
-    }
-
-    let pitch = pitch.min(0x4000) as f32;
-    pitch / 4096.0 * 44100.0
 }
