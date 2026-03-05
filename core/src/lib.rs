@@ -222,10 +222,11 @@ impl System {
                 Event::CdromResultIrq(x) => CdRom::handle_response(self, x),
                 Event::DsrOff => self.sio0.turn_off_dsr(),
                 Event::SpuTick => {
-                    let [left, right] = self.spu.tick();
+                    let (sample_l, sample_r) = self.spu.tick();
+
                     if let Some(audio_channel) = audio_tx {
-                        let _ = audio_channel.send(left);
-                        let _ = audio_channel.send(right);
+                        let _ = audio_channel.send(sample_l);
+                        let _ = audio_channel.send(sample_r);
                     }
                 }
             }

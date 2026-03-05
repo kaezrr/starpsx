@@ -1,13 +1,15 @@
+mod adsr;
 mod utils;
+mod voice;
 
 use num_enum::{FromPrimitive, IntoPrimitive};
 use tracing::trace;
 
 use crate::System;
 use crate::mem::ByteAddressable;
-use crate::spu::utils::GAUSSIAN_TABLE;
 
-use utils::write_half;
+use utils::{GAUSSIAN_TABLE, write_half};
+use voice::Voice;
 
 pub const PADDR_START: u32 = 0x1F801C00;
 pub const PADDR_END: u32 = 0x1F801E7F;
@@ -104,26 +106,25 @@ impl Spu {
         self.current_address += 4;
     }
 
-    pub fn tick(&mut self) -> [i16; 2] {
-        // tick each voice
+    pub fn tick(&mut self) -> (i16, i16) {
+        let mut mixed_l = 0_i32;
+        let mut mixed_r = 0_i32;
+
         for voice in self.voices.iter_mut() {
-            voice.tick(self.sound_ram.as_slice());
+            let samples = voice.tick(self.sound_ram.as_slice());
+            mixed_l += i32::from(samples.0);
+            mixed_r += i32::from(samples.1);
         }
 
-        let (mut left, mut right) = (0, 0);
-        for voice in &self.voices {
-            if !voice.keyed_on {
-                continue;
-            }
+        // Clamp the sums to 16-bit
+        let clamped_l = mixed_l.clamp(-0x8000, 0x7FFF) as i16;
+        let clamped_r = mixed_r.clamp(-0x8000, 0x7FFF) as i16;
 
-            left += i32::from(voice.output_sample / 4);
-            right += i32::from(voice.output_sample / 4);
-        }
+        // Apply main volume
+        let output_l = apply_volume(clamped_l, self.volume.l);
+        let output_r = apply_volume(clamped_r, self.volume.r);
 
-        [
-            left.clamp(-0x8000, 0x7FFF) as i16,
-            right.clamp(-0x8000, 0x7FFF) as i16,
-        ]
+        (output_l, output_r)
     }
 }
 
@@ -133,7 +134,8 @@ pub fn read<T: ByteAddressable>(system: &System, addr: u32) -> T {
     let spu = &system.spu;
 
     let data = match addr {
-        0x1F801DB8 => spu.volume.left.into(),
+        0x1F801DB8 => spu.volume.l as u32,
+        0x1F801DBA => spu.volume.r as u32,
 
         0x1F801DAE => (spu.control.0 & 0x3F).into(),
 
@@ -159,10 +161,10 @@ pub fn read<T: ByteAddressable>(system: &System, addr: u32) -> T {
             let voice = &spu.voices[idx];
 
             match reg {
-                0x0C => voice.adsr_volume.into(),
+                0x0C => voice.envelope.level as u32,
 
-                0x08 => voice.adsr,
-                0x0A => voice.adsr >> 16,
+                0x08 => voice.envelope.adsr_register.0,
+                0x0A => voice.envelope.adsr_register.0 >> 16,
 
                 x => unimplemented!("spu voice reg read {x}"),
             }
@@ -197,11 +199,11 @@ pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, val: T) {
     let val = val.to_u16();
 
     match addr {
-        0x1F801D80 => spu.volume.left = val,
-        0x1F801D82 => spu.volume.right = val,
+        0x1F801D80 => spu.volume.l = val as i16,
+        0x1F801D82 => spu.volume.r = val as i16,
 
-        0x1F801D84 => spu.reverb.output_volume.left = val,
-        0x1F801D86 => spu.reverb.output_volume.right = val,
+        0x1F801D84 => spu.reverb.output_volume.l = val as i16,
+        0x1F801D86 => spu.reverb.output_volume.r = val as i16,
         0x1F801DA2 => spu.reverb.base = val,
 
         0x1F801DC0 => spu.reverb.apf_offset[0] = val,
@@ -210,40 +212,40 @@ pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, val: T) {
         0x1F801DD0 => spu.reverb.apf_volume[0] = val,
         0x1F801DD2 => spu.reverb.apf_volume[1] = val,
 
-        0x1F801DF4 => spu.reverb.apf_address[0].left = val,
-        0x1F801DF6 => spu.reverb.apf_address[0].right = val,
-        0x1F801DF8 => spu.reverb.apf_address[1].left = val,
-        0x1F801DFA => spu.reverb.apf_address[1].right = val,
+        0x1F801DF4 => spu.reverb.apf_address[0].l = val as i16,
+        0x1F801DF6 => spu.reverb.apf_address[0].r = val as i16,
+        0x1F801DF8 => spu.reverb.apf_address[1].l = val as i16,
+        0x1F801DFA => spu.reverb.apf_address[1].r = val as i16,
 
         0x1F801DC4 => spu.reverb.reflection_volume[0] = val,
         0x1F801DCE => spu.reverb.reflection_volume[1] = val,
 
-        0x1F801DD4 => spu.reverb.same_side_reflect_addr[0].left = val,
-        0x1F801DD6 => spu.reverb.same_side_reflect_addr[0].right = val,
-        0x1F801DE0 => spu.reverb.same_side_reflect_addr[1].left = val,
-        0x1F801DE2 => spu.reverb.same_side_reflect_addr[1].right = val,
+        0x1F801DD4 => spu.reverb.same_side_reflect_addr[0].l = val as i16,
+        0x1F801DD6 => spu.reverb.same_side_reflect_addr[0].r = val as i16,
+        0x1F801DE0 => spu.reverb.same_side_reflect_addr[1].l = val as i16,
+        0x1F801DE2 => spu.reverb.same_side_reflect_addr[1].r = val as i16,
 
-        0x1F801DE4 => spu.reverb.diff_side_reflect_addr[0].left = val,
-        0x1F801DE6 => spu.reverb.diff_side_reflect_addr[0].right = val,
-        0x1F801DF0 => spu.reverb.diff_side_reflect_addr[1].left = val,
-        0x1F801DF2 => spu.reverb.diff_side_reflect_addr[1].right = val,
+        0x1F801DE4 => spu.reverb.diff_side_reflect_addr[0].l = val as i16,
+        0x1F801DE6 => spu.reverb.diff_side_reflect_addr[0].r = val as i16,
+        0x1F801DF0 => spu.reverb.diff_side_reflect_addr[1].l = val as i16,
+        0x1F801DF2 => spu.reverb.diff_side_reflect_addr[1].r = val as i16,
 
         0x1F801DC6 => spu.reverb.comb_volume[0] = val,
         0x1F801DC8 => spu.reverb.comb_volume[1] = val,
         0x1F801DCA => spu.reverb.comb_volume[2] = val,
         0x1F801DCC => spu.reverb.comb_volume[3] = val,
 
-        0x1F801DD8 => spu.reverb.comb_address[0].left = val,
-        0x1F801DDA => spu.reverb.comb_address[0].right = val,
-        0x1F801DDC => spu.reverb.comb_address[1].left = val,
-        0x1F801DDE => spu.reverb.comb_address[1].right = val,
-        0x1F801DE8 => spu.reverb.comb_address[2].left = val,
-        0x1F801DEA => spu.reverb.comb_address[2].right = val,
-        0x1F801DEC => spu.reverb.comb_address[3].left = val,
-        0x1F801DEE => spu.reverb.comb_address[3].right = val,
+        0x1F801DD8 => spu.reverb.comb_address[0].l = val as i16,
+        0x1F801DDA => spu.reverb.comb_address[0].r = val as i16,
+        0x1F801DDC => spu.reverb.comb_address[1].l = val as i16,
+        0x1F801DDE => spu.reverb.comb_address[1].r = val as i16,
+        0x1F801DE8 => spu.reverb.comb_address[2].l = val as i16,
+        0x1F801DEA => spu.reverb.comb_address[2].r = val as i16,
+        0x1F801DEC => spu.reverb.comb_address[3].l = val as i16,
+        0x1F801DEE => spu.reverb.comb_address[3].r = val as i16,
 
-        0x1F801DFC => spu.reverb.input_volume.left = val,
-        0x1F801DFE => spu.reverb.input_volume.right = val,
+        0x1F801DFC => spu.reverb.input_volume.l = val as i16,
+        0x1F801DFE => spu.reverb.input_volume.r = val as i16,
 
         0x1F801DAA => spu.control.0 = val,
 
@@ -289,11 +291,11 @@ pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, val: T) {
         0x1F801D98 => write_half::<LOW>(&mut spu.voice_echo_on, val),
         0x1F801D9A => write_half::<HIGH>(&mut spu.voice_echo_on, val),
 
-        0x1F801DB0 => spu.cd_volume.left = val,
-        0x1F801DB2 => spu.cd_volume.right = val,
+        0x1F801DB0 => spu.cd_volume.l = val as i16,
+        0x1F801DB2 => spu.cd_volume.r = val as i16,
 
-        0x1F801DB4 => spu.external_volume.left = val,
-        0x1F801DB6 => spu.external_volume.right = val,
+        0x1F801DB4 => spu.external_volume.l = val as i16,
+        0x1F801DB6 => spu.external_volume.r = val as i16,
 
         0x1F801DAC => spu.data_transfer_control = val, // Should be 0x0004
 
@@ -320,17 +322,17 @@ pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, val: T) {
             let voice = &mut spu.voices[idx];
 
             match reg {
-                0x00 => voice.volume.left = val,
-                0x02 => voice.volume.right = val,
+                0x00 => voice.volume.l = val as i16,
+                0x02 => voice.volume.r = val as i16,
                 0x04 => voice.sample_rate = val,
 
                 0x06 => voice.start_address = val,
                 0x0E => voice.repeat_address = val,
 
-                0x08 => write_half::<LOW>(&mut voice.adsr, val),
-                0x0A => write_half::<HIGH>(&mut voice.adsr, val),
+                0x08 => write_half::<LOW>(&mut voice.envelope.adsr_register.0, val),
+                0x0A => write_half::<HIGH>(&mut voice.envelope.adsr_register.0, val),
 
-                0x0C => voice.adsr_volume = val,
+                0x0C => voice.envelope.level = val as i16,
 
                 x => unimplemented!("spu voice reg write {x}"),
             }
@@ -345,145 +347,12 @@ pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, val: T) {
 
 #[derive(Clone, Copy, Default, Debug)]
 struct Volume {
-    left: u16,
-    right: u16,
+    l: i16,
+    r: i16,
 }
 
-#[derive(Default, Debug)]
-struct Voice {
-    volume: Volume,
-    sample_rate: u16,
-
-    adsr: u32,
-    adsr_volume: u16,
-
-    start_address: u16,
-    repeat_address: u16,
-    current_address: usize,
-
-    pitch_counter: u16,
-
-    decode_buffer: [i16; 28],
-    current_buffer_idx: usize,
-
-    keyed_on: bool,
-
-    adpcm_older_sample: i16,
-    adpcm_old_sample: i16,
-
-    oldest_sample: i16,
-    older_sample: i16,
-    old_sample: i16,
-    current_sample: i16,
-
-    output_sample: i16,
-}
-
-impl Voice {
-    fn key_on(&mut self, sound_ram: &[u8]) {
-        self.keyed_on = true;
-
-        self.current_address = (self.start_address << 3) as usize;
-        self.pitch_counter = 0;
-        self.decode_next_block(sound_ram)
-    }
-
-    fn key_off(&mut self) {
-        self.keyed_on = false;
-    }
-
-    fn tick(&mut self, sound_ram: &[u8]) {
-        let pitch_counter_step = self.sample_rate.min(0x4000);
-        self.pitch_counter += pitch_counter_step;
-
-        while self.pitch_counter >= 0x1000 {
-            self.pitch_counter -= 0x1000;
-            self.current_buffer_idx += 1;
-
-            if self.current_buffer_idx == 28 {
-                self.current_buffer_idx = 0;
-                self.decode_next_block(sound_ram);
-            }
-        }
-
-        // Shift the 4-sample window forward
-        self.oldest_sample = self.older_sample;
-        self.older_sample = self.old_sample;
-        self.old_sample = self.current_sample;
-        self.current_sample = self.decode_buffer[self.current_buffer_idx];
-
-        // i = bit 4-11 of the pitch counter (8-bit index)
-        let i = ((self.pitch_counter >> 4) & 0xFF) as usize;
-
-        // Apply the Gaussian interpolation
-        let mut interpolated: i32;
-        interpolated = (GAUSSIAN_TABLE[0x0FF - i] * self.oldest_sample as i32) >> 15;
-        interpolated += (GAUSSIAN_TABLE[0x1FF - i] * self.older_sample as i32) >> 15;
-        interpolated += (GAUSSIAN_TABLE[0x100 + i] * self.old_sample as i32) >> 15;
-        interpolated += (GAUSSIAN_TABLE[i] * self.current_sample as i32) >> 15;
-
-        self.output_sample = interpolated as i16;
-    }
-
-    fn decode_next_block(&mut self, sound_ram: &[u8]) {
-        let block = &sound_ram[self.current_address..self.current_address + 16]
-            .try_into()
-            .unwrap();
-
-        self.decode_adpcm_block(block);
-
-        let loop_end = block[1] & 1 != 0;
-        let loop_repeat = block[1] & (1 << 1) != 0;
-        let loop_start = block[1] & (1 << 2) != 0;
-
-        if loop_start {
-            self.repeat_address = (self.current_address >> 3) as u16;
-        }
-
-        if loop_end {
-            self.current_address = (self.repeat_address << 3) as usize;
-
-            if !loop_repeat {
-                // self.envelope.volume = 0;
-                // self.envelope.key_off();
-            }
-        } else {
-            self.current_address += 16;
-        }
-    }
-
-    fn decode_adpcm_block(&mut self, block: &[u8; 16]) {
-        let shift = block[0] & 0x0F;
-        let shift = if shift > 12 { 9 } else { shift };
-
-        let filter = ((block[0] >> 4) & 0x07).min(4);
-
-        for sample_idx in 0..28 {
-            let sample_byte = block[2 + sample_idx / 2];
-            let sample_nibble = (sample_byte >> (4 * (sample_idx % 2))) & 0x0F;
-
-            let raw_sample: i32 = (((sample_nibble as i8) << 4) >> 4).into();
-
-            let shifted_sample = raw_sample << (12 - shift);
-
-            let old = i32::from(self.adpcm_old_sample);
-            let older = i32::from(self.adpcm_older_sample);
-            let filtered_sample = match filter {
-                0 => shifted_sample,
-                1 => shifted_sample + (60 * old + 32) / 64,
-                2 => shifted_sample + (115 * old - 52 * older + 32) / 64,
-                3 => shifted_sample + (98 * old - 55 * older + 32) / 64,
-                4 => shifted_sample + (122 * old - 60 * older + 32) / 64,
-                _ => unreachable!("filter was clamped to 0..=4"),
-            };
-
-            let clamped_sample = filtered_sample.clamp(-0x8000, 0x7FFF) as i16;
-            self.decode_buffer[sample_idx] = clamped_sample;
-
-            self.adpcm_older_sample = self.adpcm_old_sample;
-            self.adpcm_old_sample = clamped_sample;
-        }
-    }
+fn apply_volume(sample: i16, volume: i16) -> i16 {
+    ((i32::from(sample) * i32::from(volume)) >> 15) as i16
 }
 
 #[derive(Default)]
