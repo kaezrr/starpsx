@@ -143,7 +143,10 @@ pub fn read<T: ByteAddressable>(system: &System, addr: u32) -> T {
     let spu = &system.spu;
 
     let data = match addr {
-        0x1F801DB8 => spu.main_volume.l.volume() as u32,
+        0x1F801D80 => spu.main_volume.l.register.0 as u32,
+        0x1F801D82 => spu.main_volume.r.register.0 as u32,
+
+        0x1F801DB8 => spu.main_volume.l.volume() as u32, // current volume
         0x1F801DBA => spu.main_volume.r.volume() as u32,
 
         0x1F801DAE => (spu.control.0 & 0x3F).into(),

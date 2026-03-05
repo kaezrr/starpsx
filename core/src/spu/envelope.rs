@@ -206,9 +206,10 @@ enum Mode {
 
 #[derive(Default)]
 pub struct SweepVolume {
+    pub register: VolumeRegister,
+
     level: i16,
     counter: u32,
-    register: VolumeRegister,
 }
 
 impl SweepVolume {
@@ -226,7 +227,7 @@ impl SweepVolume {
 
 bitfield::bitfield! {
     #[derive(Default)]
-    struct VolumeRegister(u16);
+    pub struct VolumeRegister(u16);
     u8, into Mode, mode, _ : 15, 15;
     i16, volume, _ : 14, 0;
 
