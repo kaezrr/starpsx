@@ -116,8 +116,8 @@ impl Spu {
                 continue;
             }
 
-            left += i32::from(voice.current_sample / 4);
-            right += i32::from(voice.current_sample / 4);
+            left += i32::from(voice.output_sample / 4);
+            right += i32::from(voice.output_sample / 4);
         }
 
         [
@@ -365,7 +365,12 @@ struct Voice {
     adpcm_older_sample: i16,
     adpcm_old_sample: i16,
 
+    oldest_sample: i16,
+    older_sample: i16,
+    old_sample: i16,
     current_sample: i16,
+
+    output_sample: i16,
 }
 
 impl Voice {
@@ -395,29 +400,23 @@ impl Voice {
             }
         }
 
-        // let interpolation_idx = ((self.pitch_counter >> 4) & 0xFF) as usize;
-        //
-        // let samples = [
-        //     self.decode_buffer[self.current_buffer_idx - 3], // current sample
-        //     self.decode_buffer[self.current_buffer_idx - 2], // current sample
-        //     self.decode_buffer[self.current_buffer_idx - 1], // current sample
-        //     self.decode_buffer[self.current_buffer_idx],     // current sample
-        // ]
-        // .map(i32::from);
-        //
-        // let g_weights = [
-        //     GAUSSIAN_TABLE[0x0FF - interpolation_idx],
-        //     GAUSSIAN_TABLE[0x1FF - interpolation_idx],
-        //     GAUSSIAN_TABLE[0x100 + interpolation_idx],
-        //     GAUSSIAN_TABLE[interpolation_idx],
-        // ];
-        //
-        // let mut interpolated: i32 = 0;
-        // for i in 0..4 {
-        //     interpolated += (samples[i] * g_weights[i]) >> 15;
-        // }
-
+        // Shift the 4-sample window forward
+        self.oldest_sample = self.older_sample;
+        self.older_sample = self.old_sample;
+        self.old_sample = self.current_sample;
         self.current_sample = self.decode_buffer[self.current_buffer_idx];
+
+        // i = bit 4-11 of the pitch counter (8-bit index)
+        let i = ((self.pitch_counter >> 4) & 0xFF) as usize;
+
+        // Apply the Gaussian interpolation
+        let mut interpolated: i32;
+        interpolated = (GAUSSIAN_TABLE[0x0FF - i] * self.oldest_sample as i32) >> 15;
+        interpolated += (GAUSSIAN_TABLE[0x1FF - i] * self.older_sample as i32) >> 15;
+        interpolated += (GAUSSIAN_TABLE[0x100 + i] * self.old_sample as i32) >> 15;
+        interpolated += (GAUSSIAN_TABLE[i] * self.current_sample as i32) >> 15;
+
+        self.output_sample = interpolated as i16;
     }
 
     fn decode_next_block(&mut self, sound_ram: &[u8]) {
