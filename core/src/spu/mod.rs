@@ -16,6 +16,8 @@ pub const PADDR_END: u32 = 0x1F801E7F;
 
 bitfield::bitfield! {
     struct Control(u16);
+    enabled, _ : 15;
+    unmuted, _ : 14;
     u8, from into RamMode, ram_mode, _: 5, 4;
 }
 
@@ -107,6 +109,10 @@ impl Spu {
     }
 
     pub fn tick(&mut self) -> (i16, i16) {
+        if !self.control.enabled() {
+            return (0, 0);
+        }
+
         let mut mixed_l = 0_i32;
         let mut mixed_r = 0_i32;
 
@@ -114,6 +120,10 @@ impl Spu {
             let samples = voice.tick(self.sound_ram.as_slice());
             mixed_l += i32::from(samples.0);
             mixed_r += i32::from(samples.1);
+        }
+
+        if !self.control.unmuted() {
+            return (0, 0);
         }
 
         // Clamp the sums to 16-bit
