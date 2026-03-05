@@ -27,3 +27,4 @@ tracing-appender = "0.2.4"
 tracing-subscriber = { version = "0.3.22", features = ["env-filter", "registry"] }
 anyhow = "1.0.102"
 cpal = "0.17.3"
+ringbuf = "0.4.8"

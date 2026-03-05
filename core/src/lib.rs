@@ -11,7 +11,6 @@ mod spu;
 mod timers;
 
 use std::collections::HashSet;
-use std::sync::mpsc::Sender;
 
 use cdrom::{CdImage, CdRom};
 use consts::{HBLANK_DURATION, LINE_DURATION};
@@ -22,6 +21,8 @@ use irq::InterruptController;
 use mem::bios::Bios;
 use mem::ram::Ram;
 use mem::scratch::Scratch;
+use ringbuf::HeapProd;
+use ringbuf::traits::Producer;
 use sched::{Event, EventScheduler};
 use sio::Sio0;
 pub use sio::gamepad;
@@ -31,6 +32,8 @@ use tracing::info;
 
 use crate::sio::Sio1;
 use crate::spu::Spu;
+
+pub const AUDIO_CHUNK_SIZE: usize = 1024;
 
 pub enum RunType {
     Disk(cue::CdDisk),
@@ -61,10 +64,17 @@ pub struct System {
 
     // RGBA frame buffer
     pub produced_frame_buffer: Option<FrameBuffer>,
+
+    audio_buffer: Vec<[i16; 2]>,
+    audio_producer: HeapProd<i16>,
 }
 
 impl System {
-    pub fn build(bios: Vec<u8>, runnable: Option<RunType>) -> anyhow::Result<Self> {
+    pub fn build(
+        bios: Vec<u8>,
+        runnable: Option<RunType>,
+        audio_producer: HeapProd<i16>,
+    ) -> anyhow::Result<Self> {
         let mut psx = System {
             cpu: Cpu::default(),
             gpu: Gpu::default(),
@@ -87,6 +97,9 @@ impl System {
             sio1: Sio1 {}, // Does nothing
 
             produced_frame_buffer: None,
+
+            audio_buffer: Vec::new(),
+            audio_producer,
         };
 
         // Load game or exe
@@ -205,11 +218,7 @@ impl System {
         SystemSnapshot { cpu, ins }
     }
 
-    pub fn step_instruction(
-        &mut self,
-        show_vram: bool,
-        audio_tx: Option<&Sender<i16>>,
-    ) -> Option<FrameBuffer> {
+    pub fn step_instruction(&mut self, show_vram: bool) -> Option<FrameBuffer> {
         if let Some(event) = self.scheduler.get_next_event() {
             match event {
                 // Frame completes just before entering vsync
@@ -222,11 +231,15 @@ impl System {
                 Event::CdromResultIrq(x) => CdRom::handle_response(self, x),
                 Event::DsrOff => self.sio0.turn_off_dsr(),
                 Event::SpuTick => {
-                    let (sample_l, sample_r) = self.spu.tick();
+                    if let Some([sample_l, sample_r]) = self.spu.tick() {
+                        self.audio_buffer.push([sample_l, sample_r]);
 
-                    if let Some(audio_channel) = audio_tx {
-                        let _ = audio_channel.send(sample_l);
-                        let _ = audio_channel.send(sample_r);
+                        if self.audio_buffer.len() >= AUDIO_CHUNK_SIZE {
+                            for [l, r] in self.audio_buffer.drain(..) {
+                                let _ = self.audio_producer.try_push(l);
+                                let _ = self.audio_producer.try_push(r);
+                            }
+                        }
                     }
                 }
             }
@@ -241,9 +254,9 @@ impl System {
     }
 
     // Run emulator for one frame and return the generated frame
-    pub fn run_frame(&mut self, show_vram: bool, audio_tx: &Sender<i16>) -> FrameBuffer {
+    pub fn run_frame(&mut self, show_vram: bool) -> FrameBuffer {
         loop {
-            match self.step_instruction(show_vram, Some(audio_tx)) {
+            match self.step_instruction(show_vram) {
                 Some(fb) => break fb,
                 None => continue,
             }
@@ -261,7 +274,7 @@ impl System {
                 return None;
             }
 
-            match self.step_instruction(show_vram, None) {
+            match self.step_instruction(show_vram) {
                 Some(fb) => break Some(fb),
                 None => continue,
             }

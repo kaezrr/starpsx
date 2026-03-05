@@ -11,6 +11,7 @@ use tracing::{error, info, warn};
 use crate::input;
 use crate::input::{Action, PhysicalInput};
 
+#[derive(Clone)]
 pub enum RunnablePath {
     Exe(PathBuf),
     Bin(PathBuf),

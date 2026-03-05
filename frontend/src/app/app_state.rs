@@ -45,8 +45,4 @@ impl AppState {
     pub fn shutdown(self) {
         self.debugger.sync_send(UiCommand::Shutdown);
     }
-
-    pub fn restart(&self) {
-        self.debugger.sync_send(UiCommand::Restart);
-    }
 }

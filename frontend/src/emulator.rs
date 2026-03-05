@@ -1,14 +1,16 @@
 use std::collections::HashSet;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
-use std::sync::mpsc::{Receiver, Sender, SyncSender};
+use std::sync::mpsc::{Receiver, SyncSender};
 use std::time::{Duration, Instant};
 
 use anyhow::anyhow;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{Stream, StreamConfig, default_host};
 use eframe::egui;
+use ringbuf::HeapRb;
+use ringbuf::traits::{Consumer, Split};
 use starpsx_core::RunType;
 use starpsx_renderer::FrameBuffer;
 use tracing::{error, info, warn};
@@ -17,10 +19,11 @@ use crate::config::RunnablePath;
 use crate::debugger::snapshot::DebugSnapshot;
 use crate::input::GamepadState;
 
+const RING_BUFFER_SIZE: usize = starpsx_core::AUDIO_CHUNK_SIZE * 4;
+
 pub enum UiCommand {
     NewInputState(GamepadState),
     SetVramDisplay(bool),
-    Restart,
     Shutdown,
 
     DebugSetBreakpoint(u32, bool),
@@ -32,15 +35,9 @@ pub struct Emulator {
     ui_ctx: egui::Context,
     channels: UiChannels,
     shared_state: Arc<SharedState>,
-
     system: starpsx_core::System,
     audio_stream: Stream,
-    audio_tx: Sender<i16>,
-
     breakpoints: HashSet<u32>,
-
-    bios_path: PathBuf,
-    file_path: Option<RunnablePath>,
     show_vram: bool,
 }
 
@@ -73,13 +70,16 @@ impl Emulator {
             .default_output_device()
             .ok_or(anyhow!("no output device available"))?;
 
-        let (audio_tx, audio_rx) = std::sync::mpsc::channel::<i16>();
+        let rb = HeapRb::<i16>::new(RING_BUFFER_SIZE);
+        let (audio_tx, mut audio_rx) = rb.split();
 
+        let mut last_sample = 0;
         let audio_stream = device.build_output_stream(
             &STREAM_CONFIG,
             move |data: &mut [i16], _: &cpal::OutputCallbackInfo| {
                 for sample in data.iter_mut() {
-                    *sample = audio_rx.try_recv().unwrap_or(0);
+                    *sample = audio_rx.try_pop().unwrap_or(last_sample);
+                    last_sample = *sample;
                 }
             },
             move |err| {
@@ -88,32 +88,7 @@ impl Emulator {
             None,
         )?;
 
-        let system = Emulator::build_core(&bios_path, &file_path)?;
-        let breakpoints = HashSet::new();
-
-        Ok(Self {
-            ui_ctx,
-            channels,
-            shared_state,
-
-            system,
-            audio_stream,
-            audio_tx,
-
-            breakpoints,
-
-            bios_path,
-            file_path,
-            show_vram,
-        })
-    }
-
-    pub fn build_core(
-        bios_path: &Path,
-        file_path: &Option<RunnablePath>,
-    ) -> anyhow::Result<starpsx_core::System> {
         let bios = std::fs::read(bios_path)?;
-
         let run_type = file_path
             .as_ref()
             .map(|run_type| -> anyhow::Result<RunType> {
@@ -126,7 +101,18 @@ impl Emulator {
             })
             .transpose()?;
 
-        starpsx_core::System::build(bios, run_type)
+        let system = starpsx_core::System::build(bios, run_type, audio_tx)?;
+        let breakpoints = HashSet::new();
+
+        Ok(Self {
+            ui_ctx,
+            channels,
+            shared_state,
+            system,
+            audio_stream,
+            breakpoints,
+            show_vram,
+        })
     }
 
     pub fn run(self) {
@@ -176,13 +162,6 @@ impl Emulator {
                         self.show_vram = show_vram;
                     }
 
-                    UiCommand::Restart => {
-                        self.system =
-                            Emulator::build_core(&self.bios_path, &self.file_path).unwrap();
-                        self.shared_state.resume();
-                        info!("emulator thread restarted...");
-                    }
-
                     UiCommand::Shutdown => {
                         break 'emulator;
                     }
@@ -204,7 +183,7 @@ impl Emulator {
                             continue;
                         }
 
-                        if let Some(fb) = self.system.step_instruction(self.show_vram, None) {
+                        if let Some(fb) = self.system.step_instruction(self.show_vram) {
                             self.send_frame_buffer(fb);
                         }
                         self.send_debug_snapshot();
@@ -232,7 +211,7 @@ impl Emulator {
             let vram = self.show_vram;
 
             let frame_opt = if self.breakpoints.is_empty() {
-                Some(self.system.run_frame(vram, &self.audio_tx))
+                Some(self.system.run_frame(vram))
             } else {
                 self.system.run_breakpoint(&self.breakpoints, vram)
             };
@@ -301,4 +280,47 @@ pub fn parse_runnable(path: PathBuf) -> anyhow::Result<RunnablePath> {
         Some("cue") => Ok(RunnablePath::Cue(path)),
         _ => Err(anyhow!("unsupported file format")),
     }
+}
+
+use std::fs::File;
+use std::io::Write;
+
+fn write_wav(samples: &[[i16; 2]]) -> std::io::Result<()> {
+    let mut file = File::create("./stuff/test.wav")?;
+
+    let channels = 2u16;
+    let bits_per_sample = 16u16;
+    let sample_rate = 44100;
+
+    let byte_rate = sample_rate * channels as u32 * bits_per_sample as u32 / 8;
+    let block_align = channels * bits_per_sample / 8;
+
+    let data_size = (samples.len() * 4) as u32;
+    let file_size = 36 + data_size;
+
+    // RIFF header
+    file.write_all(b"RIFF")?;
+    file.write_all(&file_size.to_le_bytes())?;
+    file.write_all(b"WAVE")?;
+
+    // fmt chunk
+    file.write_all(b"fmt ")?;
+    file.write_all(&16u32.to_le_bytes())?;
+    file.write_all(&1u16.to_le_bytes())?; // PCM
+    file.write_all(&channels.to_le_bytes())?;
+    file.write_all(&sample_rate.to_le_bytes())?;
+    file.write_all(&byte_rate.to_le_bytes())?;
+    file.write_all(&block_align.to_le_bytes())?;
+    file.write_all(&bits_per_sample.to_le_bytes())?;
+
+    // data chunk
+    file.write_all(b"data")?;
+    file.write_all(&data_size.to_le_bytes())?;
+
+    for [l, r] in samples {
+        file.write_all(&l.to_le_bytes())?;
+        file.write_all(&r.to_le_bytes())?;
+    }
+
+    Ok(())
 }

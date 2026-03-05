@@ -71,15 +71,18 @@ pub fn show_top_menu(app: &mut Application, ctx: &egui::Context) {
                     }
 
                     if ui.button("Restart").clicked() {
-                        emu.restart();
+                        emu.shutdown();
+                        app.start_emulator(app.last_runnable.clone()).unwrap();
+                        return;
                     }
 
                     if ui.button("Stop").clicked() {
                         emu.shutdown();
                         ctx.send_viewport_cmd(egui::ViewportCommand::Title("StarPSX".to_string()));
-                    } else {
-                        app.app_state = Some(emu);
+                        return;
                     }
+
+                    app.app_state = Some(emu);
                 }
 
                 if ui.button("Exit").clicked() {

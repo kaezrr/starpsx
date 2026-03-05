@@ -107,9 +107,9 @@ impl Spu {
         self.current_address += 4;
     }
 
-    pub fn tick(&mut self) -> (i16, i16) {
+    pub fn tick(&mut self) -> Option<[i16; 2]> {
         if !self.control.enabled() {
-            return (0, 0);
+            return None;
         }
 
         let mut mixed_l = 0_i32;
@@ -117,12 +117,12 @@ impl Spu {
 
         for voice in self.voices.iter_mut() {
             let samples = voice.tick(self.sound_ram.as_slice());
-            mixed_l += i32::from(samples.0);
-            mixed_r += i32::from(samples.1);
+            mixed_l += i32::from(samples[0]);
+            mixed_r += i32::from(samples[1]);
         }
 
         if !self.control.unmuted() {
-            return (0, 0);
+            return Some([0, 0]);
         }
 
         // Clamp the sums to 16-bit
@@ -133,7 +133,7 @@ impl Spu {
         let output_l = apply_volume(clamped_l, self.main_volume.l.volume());
         let output_r = apply_volume(clamped_r, self.main_volume.r.volume());
 
-        (output_l, output_r)
+        Some([output_l, output_r])
     }
 }
 

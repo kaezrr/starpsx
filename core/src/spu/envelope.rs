@@ -188,6 +188,7 @@ bitfield::bitfield! {
     u8, release_shift, _: 20, 16;
 }
 
+#[expect(unused)]
 #[derive(Default, PartialEq, Clone, Copy, FromPrimitive)]
 #[repr(u8)]
 enum SweepPhase {
@@ -209,6 +210,7 @@ pub struct SweepVolume {
     pub register: VolumeRegister,
 
     level: i16,
+    #[expect(unused)]
     counter: u32,
 }
 
