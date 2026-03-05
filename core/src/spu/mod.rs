@@ -1,4 +1,4 @@
-mod adsr;
+mod envelope;
 mod utils;
 mod voice;
 

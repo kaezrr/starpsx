@@ -1,4 +1,4 @@
-use super::adsr::AdsrEnvelope;
+use super::envelope::AdsrEnvelope;
 use super::*;
 
 #[derive(Default)]
