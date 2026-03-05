@@ -91,7 +91,7 @@ impl Voice {
             self.current_address = (self.repeat_address << 3) as usize;
 
             if !loop_repeat {
-                self.envelope.level = 0;
+                self.envelope.set_volume(0);
                 self.envelope.key_off();
             }
         } else {
@@ -133,10 +133,10 @@ impl Voice {
     }
 
     fn apply_voice_volume(&self, adpcm_sample: i16) -> (i16, i16) {
-        let envelope_sample = apply_volume(adpcm_sample, self.envelope.level);
+        let envelope_sample = apply_volume(adpcm_sample, self.envelope.volume());
 
-        let output_l = apply_volume(envelope_sample, self.volume.l);
-        let output_r = apply_volume(envelope_sample, self.volume.r);
+        let output_l = apply_volume(envelope_sample, self.volume.l.volume());
+        let output_r = apply_volume(envelope_sample, self.volume.r.volume());
 
         (output_l, output_r)
     }

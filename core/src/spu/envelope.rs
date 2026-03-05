@@ -30,14 +30,22 @@ const ENVELOPE_COUNTER_MAX: u32 = 0x8000;
 
 #[derive(Default)]
 pub struct AdsrEnvelope {
-    pub level: i16,
-    pub adsr_register: AdsrRegister,
+    pub register: AdsrRegister,
 
+    level: i16,
     phase: AdsrPhase,
     counter: u32,
 }
 
 impl AdsrEnvelope {
+    pub fn volume(&self) -> i16 {
+        self.level
+    }
+
+    pub fn set_volume(&mut self, v: i16) {
+        self.level = v;
+    }
+
     pub fn key_on(&mut self) {
         self.level = 0;
         self.counter = 0;
@@ -119,7 +127,7 @@ impl AdsrEnvelope {
             }
             AdsrPhase::Decay
                 if i32::from(self.level)
-                    <= i32::from((self.adsr_register.sustain_level_raw() as u16 + 1) * 0x800) =>
+                    <= i32::from((self.register.sustain_level_raw() + 1) * 0x800) =>
             {
                 self.phase = AdsrPhase::Sustain;
             }
@@ -133,7 +141,7 @@ impl AdsrEnvelope {
 
     /// Return (direction, rate, shift, step) for current phase
     fn phase_params(&self) -> (Direction, ChangeRate, u8, u8) {
-        let reg = &self.adsr_register;
+        let reg = &self.register;
         match self.phase {
             AdsrPhase::Attack => (
                 Direction::Increasing,
@@ -178,4 +186,53 @@ bitfield::bitfield! {
     u8, sustain_step, _: 23, 22;
     u8, into ChangeRate, release_mode, _: 21, 21;
     u8, release_shift, _: 20, 16;
+}
+
+#[derive(Default, PartialEq, Clone, Copy, FromPrimitive)]
+#[repr(u8)]
+enum SweepPhase {
+    #[default]
+    Positive = 0,
+    Negative = 1,
+}
+
+#[derive(Default, PartialEq, Clone, Copy, FromPrimitive, Debug)]
+#[repr(u8)]
+enum Mode {
+    #[default]
+    Fixed = 0,
+    Sweep = 1,
+}
+
+#[derive(Default)]
+pub struct SweepVolume {
+    level: i16,
+    counter: u32,
+    register: VolumeRegister,
+}
+
+impl SweepVolume {
+    pub fn volume(&self) -> i16 {
+        self.level
+    }
+
+    pub fn set_volume(&mut self, v: u16) {
+        self.register.0 = v;
+        self.level = ((self.register.volume() << 1) >> 1) * 2;
+
+        debug_assert_eq!(self.register.mode(), Mode::Fixed);
+    }
+}
+
+bitfield::bitfield! {
+    #[derive(Default)]
+    struct VolumeRegister(u16);
+    u8, into Mode, mode, _ : 15, 15;
+    i16, volume, _ : 14, 0;
+
+    u8, into ChangeRate, sweep_mode, _: 14, 14;
+    u8, into Direction, sweep_direction, _: 13, 13;
+    u8, into SweepPhase, sweep_phase, _: 12, 12;
+    u8, sweep_shift, _ : 6, 2;
+    u8, sweep_step, _ : 1, 0;
 }
