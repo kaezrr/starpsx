@@ -108,6 +108,7 @@ impl Debugger {
             ui.horizontal(|ui| {
                 ui.selectable_value(&mut self.state_view, StateView::Cpu, "CPU");
                 ui.selectable_value(&mut self.state_view, StateView::Spu, "SPU");
+                ui.selectable_value(&mut self.state_view, StateView::Gpu, "GPU");
             });
 
             ui.separator();
@@ -115,6 +116,7 @@ impl Debugger {
             match self.state_view {
                 StateView::Cpu => self.cpu_register_view(ui),
                 StateView::Spu => self.spu_state_view(ui),
+                StateView::Gpu => self.gpu_state_view(ui),
             }
         });
     }
@@ -330,6 +332,104 @@ impl Debugger {
                     });
                     row.col(|ui| {
                         ui.label(mono(format!("{:.1}%", v.adsr_volume)));
+                    });
+                });
+            });
+    }
+
+    fn gpu_state_view(&self, ui: &mut egui::Ui) {
+        let Some(ref snapshot) = self.curr_snapshot else {
+            return;
+        };
+        let gpu = &snapshot.gpu;
+
+        let bool_str = |b: bool| if b { "Yes" } else { "No" };
+        let coord = |p: (i32, i32)| format!("({}, {})", p.0, p.1);
+
+        let rows: Vec<(&str, String)> = vec![
+            // Display
+            ("", "Display".into()),
+            (
+                "Video Mode",
+                match gpu.vmode {
+                    starpsx_core::VMode::Ntsc => "NTSC".into(),
+                    starpsx_core::VMode::Pal => "PAL".into(),
+                },
+            ),
+            ("Display Depth", format!("{:?}", gpu.display_depth)),
+            ("Display Disabled", bool_str(gpu.display_disabled).into()),
+            ("Interlaced", bool_str(gpu.interlaced).into()),
+            ("VRAM Start", coord(gpu.display_vram_start)),
+            (
+                "Display Size",
+                format!("{}x{}", gpu.display_width, gpu.display_height),
+            ),
+            ("Hor Range", format!("{}", gpu.display_hor_range)),
+            ("Ver Range", format!("{}", gpu.display_ver_range)),
+            // Drawing Area
+            ("", "Drawing Area".into()),
+            ("Top Left", coord(gpu.drawing_area_top_left)),
+            ("Bottom Right", coord(gpu.drawing_area_bottom_right)),
+            ("Offset", coord(gpu.drawing_area_offset)),
+            // Texturing
+            ("", "Texturing".into()),
+            ("Dithering", bool_str(gpu.dithering).into()),
+            (
+                "Semi-Transparency",
+                format!(
+                    "({:.2}, {:.2})",
+                    gpu.transparency_weights.0, gpu.transparency_weights.1
+                ),
+            ),
+            ("Tex Window Mask", coord(gpu.texture_window_mask)),
+            ("Tex Window Offset", coord(gpu.texture_window_offset)),
+            // Masking
+            ("", "Masking".into()),
+            (
+                "Preserve Masked",
+                bool_str(gpu.preserve_masked_pixels).into(),
+            ),
+            (
+                "Force Set Mask Bit",
+                bool_str(gpu.force_set_masked_bit).into(),
+            ),
+            // Counters
+            ("", "Counters".into()),
+            ("Frame", format!("{}", gpu.frame_counter)),
+            ("Line", format!("{}", gpu.line_counter)),
+        ];
+
+        egui_extras::TableBuilder::new(ui)
+            .id_salt("gpu_state")
+            .striped(true)
+            .resizable(false)
+            .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
+            .column(Column::remainder())
+            .column(Column::remainder())
+            .header(20.0, |mut header| {
+                header.col(|ui| {
+                    ui.strong("Property");
+                });
+                header.col(|ui| {
+                    ui.strong("Value");
+                });
+            })
+            .body(|body| {
+                body.rows(20.0, rows.len(), |mut row| {
+                    let (label, value) = &rows[row.index()];
+                    let is_section = label.is_empty();
+
+                    row.col(|ui| {
+                        if is_section {
+                            ui.strong(value.as_str());
+                        } else {
+                            ui.label(*label);
+                        }
+                    });
+                    row.col(|ui| {
+                        if !is_section {
+                            ui.monospace(value.as_str());
+                        }
                     });
                 });
             });
@@ -552,6 +652,7 @@ enum StateView {
     #[default]
     Cpu,
     Spu,
+    Gpu,
 }
 
 struct Breakpoint {

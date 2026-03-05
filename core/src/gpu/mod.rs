@@ -116,6 +116,36 @@ bitfield::bitfield! {
     display_off, _ : 0;
 }
 
+pub struct Snapshot {
+    pub vmode: VMode,
+    pub display_depth: DisplayDepth,
+    pub display_disabled: bool,
+
+    pub drawing_area_top_left: (i32, i32),
+    pub drawing_area_bottom_right: (i32, i32),
+    pub drawing_area_offset: (i32, i32),
+
+    pub dithering: bool,
+    pub transparency_weights: (f64, f64),
+
+    pub texture_window_mask: (i32, i32),
+    pub texture_window_offset: (i32, i32),
+
+    pub display_vram_start: (i32, i32),
+    pub display_width: u16,
+    pub display_height: u16,
+    pub display_hor_range: u16,
+    pub display_ver_range: u16,
+
+    pub preserve_masked_pixels: bool,
+    pub force_set_masked_bit: bool,
+
+    pub interlaced: bool,
+
+    pub frame_counter: u32,
+    pub line_counter: u32,
+}
+
 pub const PADDR_START: u32 = 0x1F801810;
 pub const PADDR_END: u32 = 0x1F801817;
 
@@ -150,6 +180,42 @@ const QUAD: bool = true;
 const TRI: bool = false;
 
 impl Gpu {
+    pub fn snapshot(&self) -> Snapshot {
+        let ctx = &self.renderer.ctx;
+        Snapshot {
+            vmode: self.gpu_stat.vmode(),
+            display_depth: ctx.display_depth,
+            display_disabled: ctx.display_disabled,
+
+            drawing_area_top_left: (ctx.drawing_area_top_left.x, ctx.drawing_area_top_left.y),
+            drawing_area_bottom_right: (
+                ctx.drawing_area_bottom_right.x,
+                ctx.drawing_area_bottom_right.y,
+            ),
+            drawing_area_offset: (ctx.drawing_area_offset.x, ctx.drawing_area_offset.y),
+
+            dithering: ctx.dithering,
+            transparency_weights: ctx.transparency_weights,
+
+            texture_window_mask: (ctx.texture_window_mask.x, ctx.texture_window_mask.y),
+            texture_window_offset: (ctx.texture_window_offset.x, ctx.texture_window_offset.y),
+
+            display_vram_start: (ctx.display_vram_start.x, ctx.display_vram_start.y),
+            display_width: ctx.display_width,
+            display_height: ctx.display_height,
+            display_hor_range: ctx.display_hor_range,
+            display_ver_range: ctx.display_ver_range,
+
+            preserve_masked_pixels: ctx.preserve_masked_pixels,
+            force_set_masked_bit: ctx.force_set_masked_bit,
+
+            interlaced: ctx.interlaced,
+
+            frame_counter: ctx.frame_counter,
+            line_counter: ctx.line_counter,
+        }
+    }
+
     pub fn enter_vsync(&mut self) {
         self.renderer.ctx.frame_counter += 1;
         self.in_vsync = false;

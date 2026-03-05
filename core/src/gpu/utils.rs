@@ -15,7 +15,7 @@ pub enum TextureDepth {
 }
 
 /// Video modes
-#[derive(Debug, PartialEq, IntoPrimitive, FromPrimitive)]
+#[derive(Debug, Clone, Copy, PartialEq, IntoPrimitive, FromPrimitive)]
 #[repr(u8)]
 pub enum VMode {
     #[default]

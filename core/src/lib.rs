@@ -17,6 +17,7 @@ use consts::{HBLANK_DURATION, LINE_DURATION};
 use cpu::Cpu;
 use dma::DMAController;
 use gpu::Gpu;
+pub use gpu::{Snapshot as GpuSnapshot, VMode};
 use irq::InterruptController;
 use mem::bios::Bios;
 use mem::ram::Ram;
@@ -217,8 +218,9 @@ impl System {
         });
 
         let spu = self.spu.snapshot();
+        let gpu = self.gpu.snapshot();
 
-        SystemSnapshot { cpu, ins, spu }
+        SystemSnapshot { cpu, ins, spu, gpu }
     }
 
     pub fn step_instruction(&mut self, show_vram: bool) -> Option<FrameBuffer> {
@@ -288,6 +290,7 @@ impl System {
 pub struct SystemSnapshot {
     pub cpu: cpu::Snapshot,
     pub spu: spu::Snapshot,
+    pub gpu: gpu::Snapshot,
 
     /// cpu.pc +- 100
     pub ins: [(u32, u32); 200],
