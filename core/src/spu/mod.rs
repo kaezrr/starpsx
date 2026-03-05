@@ -148,6 +148,9 @@ pub fn read<T: ByteAddressable>(system: &System, addr: u32) -> T {
         0x1F801DA6 => spu.data_transfer_address.into(),
         0x1F801DAC => spu.data_transfer_control.into(),
 
+        0x1F801D98 => spu.voice_echo_on,
+        0x1F801D9A => spu.voice_echo_on >> 16,
+
         0x1F801C00..=0x1F801D7F => {
             let offset = addr - 0x1F801C00;
             let idx = (offset / 0x10) as usize;
@@ -157,6 +160,9 @@ pub fn read<T: ByteAddressable>(system: &System, addr: u32) -> T {
 
             match reg {
                 0x0C => voice.adsr_volume.into(),
+
+                0x08 => voice.adsr,
+                0x0A => voice.adsr >> 16,
 
                 x => unimplemented!("spu voice reg read {x}"),
             }
