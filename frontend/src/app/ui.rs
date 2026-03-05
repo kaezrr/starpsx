@@ -71,9 +71,7 @@ pub fn show_top_menu(app: &mut Application, ctx: &egui::Context) {
                     }
 
                     if ui.button("Restart").clicked() {
-                        emu.shutdown();
-                        app.start_emulator(app.last_runnable.clone()).unwrap();
-                        return;
+                        emu.restart();
                     }
 
                     if ui.button("Stop").clicked() {

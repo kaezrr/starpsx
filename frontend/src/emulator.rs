@@ -25,6 +25,7 @@ pub enum UiCommand {
     NewInputState(GamepadState),
     SetVramDisplay(bool),
     Shutdown,
+    Restart,
 
     DebugSetBreakpoint(u32, bool),
     DebugStep,
@@ -39,6 +40,8 @@ pub struct Emulator {
     audio_stream: Stream,
     breakpoints: HashSet<u32>,
     show_vram: bool,
+    bios_path: PathBuf,
+    file_path: Option<RunnablePath>,
 }
 
 pub struct UiChannels {
@@ -59,7 +62,27 @@ impl Emulator {
 
         show_vram: bool,
     ) -> anyhow::Result<Self> {
-        // Build audio stream
+        let (system, audio_stream) = Self::build_system(&bios_path, file_path.as_ref())?;
+        let breakpoints = HashSet::new();
+
+        Ok(Self {
+            ui_ctx,
+            channels,
+            shared_state,
+            system,
+            audio_stream,
+            breakpoints,
+            show_vram,
+            bios_path,
+            file_path,
+        })
+    }
+
+
+    fn build_system(
+        bios_path: &PathBuf,
+        file_path: Option<&RunnablePath>,
+    ) -> anyhow::Result<(starpsx_core::System, Stream)> {
         const STREAM_CONFIG: StreamConfig = StreamConfig {
             channels: 2,
             sample_rate: 44100,
@@ -90,7 +113,6 @@ impl Emulator {
 
         let bios = std::fs::read(bios_path)?;
         let run_type = file_path
-            .as_ref()
             .map(|run_type| -> anyhow::Result<RunType> {
                 let bytes = match run_type {
                     RunnablePath::Exe(path) => RunType::Executable(std::fs::read(path)?),
@@ -102,17 +124,14 @@ impl Emulator {
             .transpose()?;
 
         let system = starpsx_core::System::build(bios, run_type, audio_tx)?;
-        let breakpoints = HashSet::new();
+        Ok((system, audio_stream))
+    }
 
-        Ok(Self {
-            ui_ctx,
-            channels,
-            shared_state,
-            system,
-            audio_stream,
-            breakpoints,
-            show_vram,
-        })
+    fn rebuild_system(&mut self) -> anyhow::Result<()> {
+        let (system, audio_stream) = Self::build_system(&self.bios_path, self.file_path.as_ref())?;
+        self.system = system;
+        self.audio_stream = audio_stream;
+        Ok(())
     }
 
     pub fn run(self) {
@@ -158,6 +177,13 @@ impl Emulator {
                     UiCommand::Shutdown => {
                         break 'emulator;
                     }
+
+                    // should restart the emulator with the same bios and game (if any).
+                    // should do this by just rebuild the system and replacing it.
+                    UiCommand::Restart => match self.rebuild_system() {
+                        Ok(()) => info!("emulator restarted"),
+                        Err(e) => error!("failed to restart emulator: {e}"),
+                    },
 
                     UiCommand::DebugRequestState => {
                         self.send_debug_snapshot();

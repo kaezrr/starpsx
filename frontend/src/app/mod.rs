@@ -18,9 +18,9 @@ use crate::app::app_state::AppState;
 use crate::app::util::{MetricsSnapshot, PendingDialog};
 use crate::config::{self, LaunchConfig, RunnablePath};
 use crate::debugger::Debugger;
-use starpsx_core::SystemSnapshot;
 use crate::emulator::{self, SharedState, UiChannels, UiCommand};
 use crate::input::{self, ActionValue, PhysicalInput};
+use starpsx_core::SystemSnapshot;
 
 pub struct Application {
     gamepad: gilrs::Gilrs,
@@ -42,7 +42,6 @@ pub struct Application {
     previous_pause: bool,
 
     pending_dialog: Option<PendingDialog>,
-    last_runnable: Option<RunnablePath>,
 }
 
 impl eframe::App for Application {
@@ -158,7 +157,6 @@ impl Application {
             previous_pause: false,
 
             pending_dialog: None,
-            last_runnable: None,
         };
 
         if launch_config.auto_run {
@@ -339,8 +337,7 @@ impl Application {
         let runnable = emulator::parse_runnable(path)?;
         let file_prefix = runnable.file_prefix();
 
-        self.last_runnable = Some(runnable);
-        self.start_emulator(self.last_runnable.clone())?;
+        self.start_emulator(Some(runnable))?;
 
         ctx.send_viewport_cmd(ViewportCommand::Title(
             "StarPSX - ".to_string() + &file_prefix,
