@@ -16,8 +16,8 @@ use starpsx_renderer::FrameBuffer;
 use tracing::{error, info, warn};
 
 use crate::config::RunnablePath;
-use crate::debugger::snapshot::DebugSnapshot;
 use crate::input::GamepadState;
+use starpsx_core::SystemSnapshot;
 
 const RING_BUFFER_SIZE: usize = starpsx_core::AUDIO_CHUNK_SIZE * 4;
 
@@ -44,7 +44,7 @@ pub struct Emulator {
 pub struct UiChannels {
     pub frame_tx: SyncSender<FrameBuffer>,
     pub input_rx: Receiver<UiCommand>,
-    pub snapshot_tx: SyncSender<DebugSnapshot>,
+    pub snapshot_tx: SyncSender<SystemSnapshot>,
 }
 
 impl Emulator {
@@ -121,14 +121,7 @@ impl Emulator {
     }
 
     fn send_debug_snapshot(&self) {
-        let system_snapshot = self.system.snapshot();
-        let _ = self.channels.snapshot_tx.try_send(DebugSnapshot {
-            pc: system_snapshot.cpu.pc,
-            lo: system_snapshot.cpu.lo,
-            hi: system_snapshot.cpu.hi,
-            cpu_regs: system_snapshot.cpu.regs,
-            instructions: system_snapshot.ins,
-        });
+        let _ = self.channels.snapshot_tx.try_send(self.system.snapshot());
         self.ui_ctx.request_repaint();
     }
 
@@ -285,6 +278,7 @@ pub fn parse_runnable(path: PathBuf) -> anyhow::Result<RunnablePath> {
 use std::fs::File;
 use std::io::Write;
 
+#[expect(unused)]
 fn write_wav(samples: &[[i16; 2]]) -> std::io::Result<()> {
     let mut file = File::create("./stuff/test.wav")?;
 

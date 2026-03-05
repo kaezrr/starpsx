@@ -1,3 +1,5 @@
+use std::fmt;
+
 use num_enum::FromPrimitive;
 
 #[derive(Default, PartialEq, Clone, Copy, FromPrimitive)]
@@ -17,13 +19,25 @@ enum ChangeRate {
 }
 
 #[derive(Default, PartialEq, Clone, Copy)]
-enum AdsrPhase {
+pub enum AdsrPhase {
     #[default]
     Off,
     Attack,
     Decay,
     Sustain,
     Release,
+}
+
+impl fmt::Display for AdsrPhase {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            AdsrPhase::Off => write!(f, "Off"),
+            AdsrPhase::Attack => write!(f, "Attack"),
+            AdsrPhase::Decay => write!(f, "Decay"),
+            AdsrPhase::Sustain => write!(f, "Sustain"),
+            AdsrPhase::Release => write!(f, "Release"),
+        }
+    }
 }
 
 const ENVELOPE_COUNTER_MAX: u32 = 0x8000;
@@ -40,6 +54,10 @@ pub struct AdsrEnvelope {
 impl AdsrEnvelope {
     pub fn volume(&self) -> i16 {
         self.level
+    }
+
+    pub fn phase(&self) -> AdsrPhase {
+        self.phase
     }
 
     pub fn set_volume(&mut self, v: i16) {

@@ -26,6 +26,7 @@ use ringbuf::traits::Producer;
 use sched::{Event, EventScheduler};
 use sio::Sio0;
 pub use sio::gamepad;
+pub use spu::{AdsrPhase, Snapshot as SpuSnapshot, VoiceSnapshot};
 use starpsx_renderer::FrameBuffer;
 use timers::Timers;
 use tracing::info;
@@ -215,7 +216,9 @@ impl System {
             (addr, inst)
         });
 
-        SystemSnapshot { cpu, ins }
+        let spu = self.spu.snapshot();
+
+        SystemSnapshot { cpu, ins, spu }
     }
 
     pub fn step_instruction(&mut self, show_vram: bool) -> Option<FrameBuffer> {
@@ -284,6 +287,7 @@ impl System {
 
 pub struct SystemSnapshot {
     pub cpu: cpu::Snapshot,
+    pub spu: spu::Snapshot,
 
     /// cpu.pc +- 100
     pub ins: [(u32, u32); 200],

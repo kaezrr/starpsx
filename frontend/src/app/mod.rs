@@ -18,7 +18,7 @@ use crate::app::app_state::AppState;
 use crate::app::util::{MetricsSnapshot, PendingDialog};
 use crate::config::{self, LaunchConfig, RunnablePath};
 use crate::debugger::Debugger;
-use crate::debugger::snapshot::DebugSnapshot;
+use starpsx_core::SystemSnapshot;
 use crate::emulator::{self, SharedState, UiChannels, UiCommand};
 use crate::input::{self, ActionValue, PhysicalInput};
 
@@ -287,7 +287,7 @@ impl Application {
         // Message channels for thread communication
         let (frame_tx, frame_rx) = std::sync::mpsc::sync_channel::<FrameBuffer>(1);
         let (input_tx, input_rx) = std::sync::mpsc::sync_channel::<UiCommand>(2);
-        let (snapshot_tx, snapshot_rx) = std::sync::mpsc::sync_channel::<DebugSnapshot>(1);
+        let (snapshot_tx, snapshot_rx) = std::sync::mpsc::sync_channel::<SystemSnapshot>(1);
 
         let shared_state = Arc::new(SharedState::default());
 
