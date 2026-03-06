@@ -17,3 +17,5 @@ logs/
 
 stuff/
 .cargo/
+
+profile.json.gz
