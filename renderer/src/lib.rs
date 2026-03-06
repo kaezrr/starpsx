@@ -1,7 +1,7 @@
 pub mod utils;
 pub mod vec2;
 
-use crate::utils::{Clut, Color, ColorOptions, DrawContext, RectTextureOptions};
+use crate::utils::{Color, ColorOptions, DrawContext, RectTextureOptions, TextureOptions};
 use crate::utils::{DrawOptions, interpolate_color, interpolate_uv};
 use crate::vec2::{Vec2, compute_barycentric_coords, needs_vertex_reordering, point_in_triangle};
 
@@ -385,7 +385,7 @@ impl Renderer {
 
         if needs_vertex_reordering(&t) {
             t.swap(0, 1);
-            options.swap_first_two_vertex();
+            options.color.swap_first_two_vertex();
         }
 
         let min_x = std::cmp::min(t[0].x, std::cmp::min(t[1].x, t[2].x));
@@ -405,33 +405,14 @@ impl Renderer {
                     continue;
                 }
 
-                let weights = options
-                    .needs_weights()
-                    .then(|| compute_barycentric_coords(t, p));
-
                 let mut color = match options.color {
                     ColorOptions::Mono(color) => color,
-                    ColorOptions::Shaded(colors) => interpolate_color(weights.unwrap(), colors),
+                    ColorOptions::Shaded(colors) => {
+                        interpolate_color(compute_barycentric_coords(t, p), colors)
+                    }
                 };
 
-                if let Some((texture, blended, uvs)) = options.textured {
-                    let uv = interpolate_uv(weights.unwrap(), uvs);
-                    let texel = texture.get_texel(self, uv);
-                    // Fully black texels are ignored
-                    if texel == 0 {
-                        continue;
-                    }
-                    let mut tex_color = Color::new_5bit(texel);
-                    if blended {
-                        tex_color.blend(color);
-                    }
-                    color = tex_color;
-
-                    if options.transparent && (texel >> 15) & 1 == 1 {
-                        let old = self.vram_read(x as usize, y as usize);
-                        color.blend_screen(Color::new_5bit(old), self.ctx.transparency_weights);
-                    }
-                } else if options.transparent {
+                if options.transparent {
                     let old = self.vram_read(x as usize, y as usize);
                     color.blend_screen(Color::new_5bit(old), self.ctx.transparency_weights);
                 }
@@ -443,12 +424,76 @@ impl Renderer {
                 self.vram_write(
                     x as usize,
                     y as usize,
-                    color.to_5bit(
-                        self.ctx
-                            .force_set_masked_bit
-                            .then_some(true)
-                            .or_else(|| options.textured.is_none().then_some(false)),
-                    ),
+                    color.to_5bit(Some(self.ctx.force_set_masked_bit)),
+                );
+            }
+        }
+    }
+
+    pub fn draw_triangle_textured(
+        &mut self,
+        mut t: [Vec2; 3],
+        mut options: DrawOptions<3>,
+        mut tex: TextureOptions,
+    ) {
+        t.iter_mut()
+            .for_each(|v| *v += self.ctx.drawing_area_offset);
+
+        if needs_vertex_reordering(&t) {
+            t.swap(0, 1);
+            options.color.swap_first_two_vertex();
+            tex.uvs.swap(0, 1);
+        }
+
+        let min_x = std::cmp::min(t[0].x, std::cmp::min(t[1].x, t[2].x));
+        let min_y = std::cmp::min(t[0].y, std::cmp::min(t[1].y, t[2].y));
+        let max_x = std::cmp::max(t[0].x, std::cmp::max(t[1].x, t[2].x));
+        let max_y = std::cmp::max(t[0].y, std::cmp::max(t[1].y, t[2].y));
+
+        let min_x = std::cmp::max(min_x, self.ctx.drawing_area_top_left.x);
+        let min_y = std::cmp::max(min_y, self.ctx.drawing_area_top_left.y);
+        let max_x = std::cmp::min(max_x, self.ctx.drawing_area_bottom_right.x);
+        let max_y = std::cmp::min(max_y, self.ctx.drawing_area_bottom_right.y);
+
+        for x in min_x..=max_x {
+            for y in min_y..=max_y {
+                let p = Vec2::new(x, y);
+                if !point_in_triangle(t, p) {
+                    continue;
+                }
+
+                let weights = compute_barycentric_coords(t, p);
+
+                let mut color = match options.color {
+                    ColorOptions::Mono(color) => color,
+                    ColorOptions::Shaded(colors) => interpolate_color(weights, colors),
+                };
+
+                let uv = interpolate_uv(weights, tex.uvs);
+                let texel = tex.texture.get_texel(self, uv);
+                // Fully black texels are ignored
+                if texel == 0 {
+                    continue;
+                }
+                let mut tex_color = Color::new_5bit(texel);
+                if tex.blended {
+                    tex_color.blend(color);
+                }
+                color = tex_color;
+
+                if options.transparent && (texel >> 15) & 1 == 1 {
+                    let old = self.vram_read(x as usize, y as usize);
+                    color.blend_screen(Color::new_5bit(old), self.ctx.transparency_weights);
+                }
+
+                if self.ctx.dithering {
+                    color.apply_dithering(p);
+                }
+
+                self.vram_write(
+                    x as usize,
+                    y as usize,
+                    color.to_5bit(self.ctx.force_set_masked_bit.then_some(true)),
                 );
             }
         }

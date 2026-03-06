@@ -1,6 +1,6 @@
 use super::utils::{parse_clut_uv, parse_page_uv, parse_uv, parse_xy};
 use super::*;
-use starpsx_renderer::utils::{RectTextureOptions, Texture};
+use starpsx_renderer::utils::{RectTextureOptions, Texture, TextureOptions};
 use starpsx_renderer::{
     utils::{Color, ColorOptions, DrawOptions},
     vec2::Vec2,
@@ -190,7 +190,6 @@ impl Gpu {
             DrawOptions {
                 color: ColorOptions::Mono(color),
                 transparent: SEMI_TRANS,
-                textured: None,
             },
         );
 
@@ -201,7 +200,6 @@ impl Gpu {
                 DrawOptions {
                     color: ColorOptions::Mono(color),
                     transparent: SEMI_TRANS,
-                    textured: None,
                 },
             );
         }
@@ -226,7 +224,6 @@ impl Gpu {
             DrawOptions {
                 color: ColorOptions::Shaded([c0, c1, c2]),
                 transparent: SEMI_TRANS,
-                textured: None,
             },
         );
 
@@ -238,7 +235,6 @@ impl Gpu {
                 DrawOptions {
                     color: ColorOptions::Shaded([c1, c2, c3]),
                     transparent: SEMI_TRANS,
-                    textured: None,
                 },
             );
         }
@@ -263,24 +259,32 @@ impl Gpu {
         // for some goddamn reason this also updates the global texture
         self.renderer.ctx.rect_texture = texture;
 
-        self.renderer.draw_triangle(
+        self.renderer.draw_triangle_textured(
             [v0, v1, v2],
             DrawOptions {
                 color: ColorOptions::Mono(color),
                 transparent: SEMI_TRANS,
-                textured: Some((texture, BLEND, [uv0, uv1, uv2])),
+            },
+            TextureOptions {
+                texture,
+                blended: BLEND,
+                uvs: [uv0, uv1, uv2],
             },
         );
 
         if QUAD {
             let v3 = parse_xy(params[7].0);
             let uv3 = parse_uv(params[8].0);
-            self.renderer.draw_triangle(
+            self.renderer.draw_triangle_textured(
                 [v1, v2, v3],
                 DrawOptions {
                     color: ColorOptions::Mono(color),
                     transparent: SEMI_TRANS,
-                    textured: Some((texture, BLEND, [uv1, uv2, uv3])),
+                },
+                TextureOptions {
+                    texture,
+                    blended: BLEND,
+                    uvs: [uv1, uv2, uv3],
                 },
             );
         }
@@ -304,12 +308,16 @@ impl Gpu {
         let (texture, uv1) = parse_page_uv(params[5].0, clut);
         let uv2 = parse_uv(params[8].0);
 
-        self.renderer.draw_triangle(
+        self.renderer.draw_triangle_textured(
             [v0, v1, v2],
             DrawOptions {
                 color: ColorOptions::Shaded([c0, c1, c2]),
                 transparent: SEMI_TRANS,
-                textured: Some((texture, BLEND, [uv0, uv1, uv2])),
+            },
+            TextureOptions {
+                texture,
+                blended: BLEND,
+                uvs: [uv0, uv1, uv2],
             },
         );
 
@@ -317,12 +325,16 @@ impl Gpu {
             let c3 = Color::new_5bit(params[9].0);
             let v3 = parse_xy(params[10].0);
             let uv3 = parse_uv(params[11].0);
-            self.renderer.draw_triangle(
+            self.renderer.draw_triangle_textured(
                 [v1, v2, v3],
                 DrawOptions {
                     color: ColorOptions::Shaded([c1, c2, c3]),
                     transparent: SEMI_TRANS,
-                    textured: Some((texture, BLEND, [uv1, uv2, uv3])),
+                },
+                TextureOptions {
+                    texture,
+                    blended: BLEND,
+                    uvs: [uv1, uv2, uv3],
                 },
             );
         }
@@ -343,7 +355,6 @@ impl Gpu {
             DrawOptions {
                 color: ColorOptions::Mono(color),
                 transparent: SEMI_TRANS,
-                textured: None,
             },
         );
         GP0State::AwaitCommand
@@ -364,7 +375,6 @@ impl Gpu {
             DrawOptions {
                 color: ColorOptions::Shaded([c0, c1]),
                 transparent: SEMI_TRANS,
-                textured: None,
             },
         );
         GP0State::AwaitCommand
@@ -384,7 +394,6 @@ impl Gpu {
                 DrawOptions {
                     color: ColorOptions::Mono(color),
                     transparent: SEMI_TRANS,
-                    textured: None,
                 },
             );
         }
@@ -405,7 +414,6 @@ impl Gpu {
                 DrawOptions {
                     color: ColorOptions::Shaded([colors[i - 1], colors[i]]),
                     transparent: SEMI_TRANS,
-                    textured: None,
                 },
             );
         }
