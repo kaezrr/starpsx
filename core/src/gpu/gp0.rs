@@ -419,7 +419,7 @@ impl Gpu {
         let color = Color::new_8bit(params[0].0);
         let v = parse_xy(params[1].0);
         self.renderer
-            .draw_rectangle_mono::<SEMI_TRANS>(v, SIDE, SIDE, color, None);
+            .draw_rectangle_mono::<SEMI_TRANS>(v, Vec2::new(SIDE, SIDE), color, None);
         GP0State::AwaitCommand
     }
 
@@ -433,8 +433,7 @@ impl Gpu {
 
         self.renderer.draw_rectangle_mono::<SEMI_TRANS>(
             v,
-            SIDE,
-            SIDE,
+            Vec2::new(SIDE, SIDE),
             color,
             Some((clut, BLEND, uv)),
         );
@@ -448,13 +447,10 @@ impl Gpu {
     ) -> GP0State {
         let color = Color::new_8bit(params[0].0);
         let v = parse_xy(params[1].0);
-        let Vec2 {
-            x: width,
-            y: height,
-        } = parse_xy(params[2].0);
+        let side = parse_xy(params[2].0);
 
         self.renderer
-            .draw_rectangle_mono::<SEMI_TRANS>(v, width, height, color, None);
+            .draw_rectangle_mono::<SEMI_TRANS>(v, side, color, None);
 
         GP0State::AwaitCommand
     }
@@ -466,18 +462,10 @@ impl Gpu {
         let color = Color::new_8bit(params[0].0);
         let v = parse_xy(params[1].0);
         let (clut, uv) = parse_clut_uv(params[2].0);
-        let Vec2 {
-            x: width,
-            y: height,
-        } = parse_xy(params[3].0);
+        let side = parse_xy(params[3].0);
 
-        self.renderer.draw_rectangle_mono::<SEMI_TRANS>(
-            v,
-            width,
-            height,
-            color,
-            Some((clut, BLEND, uv)),
-        );
+        self.renderer
+            .draw_rectangle_mono::<SEMI_TRANS>(v, side, color, Some((clut, BLEND, uv)));
 
         GP0State::AwaitCommand
     }

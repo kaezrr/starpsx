@@ -244,8 +244,7 @@ impl Renderer {
     pub fn draw_rectangle_mono<const SEMI_TRANS: bool>(
         &mut self,
         mut r: Vec2,
-        side_x: i32,
-        side_y: i32,
+        side: Vec2,
         color: Color,
         textured: Option<(Clut, bool, Vec2)>,
     ) {
@@ -253,8 +252,8 @@ impl Renderer {
 
         let min_x = r.x;
         let min_y = r.y;
-        let max_x = r.x + side_x - 1;
-        let max_y = r.y + side_y - 1;
+        let max_x = r.x + side.x - 1;
+        let max_y = r.y + side.y - 1;
 
         let min_x = std::cmp::max(min_x, self.ctx.drawing_area_top_left.x);
         let min_y = std::cmp::max(min_y, self.ctx.drawing_area_top_left.y);
