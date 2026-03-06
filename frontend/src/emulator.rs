@@ -19,7 +19,7 @@ use crate::config::RunnablePath;
 use crate::input::GamepadState;
 use starpsx_core::SystemSnapshot;
 
-pub const RING_BUFFER_SIZE: usize = 44100 * 200 / 1000; // 8820, ~200ms
+pub const RING_BUFFER_SIZE: usize = 8192;
 
 pub enum UiCommand {
     NewInputState(GamepadState),
