@@ -3,7 +3,6 @@ pub mod utils;
 
 use std::array::from_fn;
 
-use crate::cdrom;
 use crate::{System, mem::ByteAddressable};
 use channel::Channel;
 use tracing::trace;
@@ -129,8 +128,8 @@ impl DMAController {
                             0 => 0xFFFFFF,
                             _ => addr.wrapping_sub(4) & 0x1FFFFF,
                         },
-                        Port::Gpu => system.gpu.read_reg(0x1F801810), // READ register
-                        Port::CdRom => cdrom::read(system, 0x1F801802), // RDDATA register
+                        Port::Gpu => system.gpu.read(),
+                        Port::CdRom => system.cdrom.read_rddata::<u32>(),
                         _ => todo!("DMA source {port:?}"),
                     };
                     system.ram.write::<u32>(cur_addr, src_word);

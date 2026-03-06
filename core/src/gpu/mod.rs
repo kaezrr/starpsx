@@ -220,7 +220,7 @@ impl Gpu {
         ret.0
     }
 
-    fn read(&mut self) -> u32 {
+    pub fn read(&mut self) -> u32 {
         if let GP0State::CopyFromVram(fields) = self.gp0_state {
             self.gp0_state = self.process_vram_to_cpu_copy(fields);
         }

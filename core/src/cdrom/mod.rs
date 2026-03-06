@@ -61,7 +61,7 @@ impl CdRom {
         self.address.0
     }
 
-    fn read_rddata<T: ByteAddressable>(&mut self) -> u32 {
+    pub fn read_rddata<T: ByteAddressable>(&mut self) -> u32 {
         let mut bytes = [0u8; 4];
 
         (0..T::LEN).for_each(|i| {
