@@ -35,8 +35,6 @@ use tracing::info;
 use crate::sio::Sio1;
 use crate::spu::Spu;
 
-pub const AUDIO_CHUNK_SIZE: usize = 1024;
-
 pub enum RunType {
     Disk(cue::CdDisk),
     Binary(Vec<u8>),
@@ -67,7 +65,6 @@ pub struct System {
     // RGBA frame buffer
     pub produced_frame_buffer: Option<FrameBuffer>,
 
-    audio_buffer: Vec<[i16; 2]>,
     audio_producer: HeapProd<[i16; 2]>,
 }
 
@@ -100,7 +97,6 @@ impl System {
 
             produced_frame_buffer: None,
 
-            audio_buffer: Vec::new(),
             audio_producer,
         };
 
@@ -236,14 +232,8 @@ impl System {
                 Event::CdromResultIrq(x) => CdRom::handle_response(self, x),
                 Event::DsrOff => self.sio0.turn_off_dsr(),
                 Event::SpuTick => {
-                    if let Some([sample_l, sample_r]) = self.spu.tick() {
-                        self.audio_buffer.push([sample_l, sample_r]);
-
-                        if self.audio_buffer.len() >= AUDIO_CHUNK_SIZE {
-                            for samples in self.audio_buffer.drain(..) {
-                                let _ = self.audio_producer.try_push(samples);
-                            }
-                        }
+                    if let Some(samples) = self.spu.tick() {
+                        let _ = self.audio_producer.try_push(samples);
                     }
                 }
             }

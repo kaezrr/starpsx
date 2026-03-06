@@ -10,7 +10,7 @@ use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{Stream, StreamConfig, default_host};
 use eframe::egui;
 use ringbuf::HeapRb;
-use ringbuf::traits::{Consumer, Split};
+use ringbuf::traits::{Consumer, Producer, Split};
 use starpsx_core::RunType;
 use starpsx_renderer::FrameBuffer;
 use tracing::{error, info, warn};
@@ -19,7 +19,7 @@ use crate::config::RunnablePath;
 use crate::input::GamepadState;
 use starpsx_core::SystemSnapshot;
 
-const RING_BUFFER_SIZE: usize = starpsx_core::AUDIO_CHUNK_SIZE * 8;
+pub const RING_BUFFER_SIZE: usize = 44100 * 200 / 1000; // 8820, ~200ms
 
 pub enum UiCommand {
     NewInputState(GamepadState),
@@ -84,8 +84,8 @@ impl Emulator {
     ) -> anyhow::Result<(starpsx_core::System, Stream)> {
         const STREAM_CONFIG: StreamConfig = StreamConfig {
             channels: 2,
-            sample_rate: 44100,
-            buffer_size: cpal::BufferSize::Default,
+            sample_rate: 44100_u32,
+            buffer_size: cpal::BufferSize::Fixed(1024),
         };
 
         let device = default_host()
@@ -93,7 +93,12 @@ impl Emulator {
             .ok_or(anyhow!("no output device available"))?;
 
         let rb = HeapRb::<[i16; 2]>::new(RING_BUFFER_SIZE);
-        let (audio_tx, mut audio_rx) = rb.split();
+        let (mut audio_tx, mut audio_rx) = rb.split();
+
+        // Prefill silence
+        for _ in 0..(RING_BUFFER_SIZE / 2) {
+            let _ = audio_tx.try_push([0, 0]);
+        }
 
         let audio_stream = device.build_output_stream(
             &STREAM_CONFIG,
@@ -106,7 +111,6 @@ impl Emulator {
                 }
 
                 for sample in chunks.into_remainder() {
-                    warn!("audio samples len is odd");
                     *sample = 0;
                 }
             },
@@ -304,48 +308,4 @@ pub fn parse_runnable(path: PathBuf) -> anyhow::Result<RunnablePath> {
         Some("cue") => Ok(RunnablePath::Cue(path)),
         _ => Err(anyhow!("unsupported file format")),
     }
-}
-
-use std::fs::File;
-use std::io::Write;
-
-#[expect(unused)]
-fn write_wav(samples: &[[i16; 2]]) -> std::io::Result<()> {
-    let mut file = File::create("./stuff/test.wav")?;
-
-    let channels = 2u16;
-    let bits_per_sample = 16u16;
-    let sample_rate = 44100;
-
-    let byte_rate = sample_rate * channels as u32 * bits_per_sample as u32 / 8;
-    let block_align = channels * bits_per_sample / 8;
-
-    let data_size = (samples.len() * 4) as u32;
-    let file_size = 36 + data_size;
-
-    // RIFF header
-    file.write_all(b"RIFF")?;
-    file.write_all(&file_size.to_le_bytes())?;
-    file.write_all(b"WAVE")?;
-
-    // fmt chunk
-    file.write_all(b"fmt ")?;
-    file.write_all(&16u32.to_le_bytes())?;
-    file.write_all(&1u16.to_le_bytes())?; // PCM
-    file.write_all(&channels.to_le_bytes())?;
-    file.write_all(&sample_rate.to_le_bytes())?;
-    file.write_all(&byte_rate.to_le_bytes())?;
-    file.write_all(&block_align.to_le_bytes())?;
-    file.write_all(&bits_per_sample.to_le_bytes())?;
-
-    // data chunk
-    file.write_all(b"data")?;
-    file.write_all(&data_size.to_le_bytes())?;
-
-    for [l, r] in samples {
-        file.write_all(&l.to_le_bytes())?;
-        file.write_all(&r.to_le_bytes())?;
-    }
-
-    Ok(())
 }
