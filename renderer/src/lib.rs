@@ -89,21 +89,15 @@ impl Renderer {
         self.vram[index] = data | (self.ctx.force_set_masked_bit as u16) << 15;
     }
 
-    // Should be affected by mask bit, fix in the future
-    pub fn vram_self_copy(
-        &mut self,
-        src_x: usize,
-        src_y: usize,
-        dst_x: usize,
-        dst_y: usize,
-        width: usize,
-        height: usize,
-    ) {
+    pub fn vram_self_copy(&mut self, src: Vec2, dst: Vec2, size: Vec2) {
+        let width = size.x as usize;
+        let height = size.y as usize;
+
         for y in 0..height {
-            let src_row_start = (src_y + y) * VRAM_WIDTH + src_x;
-            let dst_row_start = (dst_y + y) * VRAM_WIDTH + dst_x;
-            self.vram
-                .copy_within(src_row_start..src_row_start + width, dst_row_start);
+            for x in 0..width {
+                let pixel = self.vram_read(src.x as usize + x, src.y as usize + y);
+                self.vram_write(dst.x as usize + x, dst.y as usize + y, pixel);
+            }
         }
     }
 

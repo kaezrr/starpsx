@@ -167,21 +167,11 @@ impl Gpu {
     }
 
     pub fn gp0_vram_to_vram_blit(&mut self, params: ArrayVec<Command, 16>) -> GP0State {
-        let Vec2 { x: src_x, y: src_y } = parse_xy(params[1].0);
-        let Vec2 { x: dst_x, y: dst_y } = parse_xy(params[2].0);
-        let Vec2 {
-            x: width,
-            y: height,
-        } = parse_xy(params[3].0);
+        let src = parse_xy(params[1].0);
+        let dst = parse_xy(params[2].0);
+        let size = parse_xy(params[3].0);
 
-        self.renderer.vram_self_copy(
-            src_x as usize,
-            src_y as usize,
-            dst_x as usize,
-            dst_y as usize,
-            width as usize,
-            height as usize,
-        );
+        self.renderer.vram_self_copy(src, dst, size);
         GP0State::AwaitCommand
     }
 
