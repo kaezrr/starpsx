@@ -169,26 +169,20 @@ impl Emulator {
             // Read events from ui thread
             while let Ok(command) = self.channels.input_rx.try_recv() {
                 match command {
+                    UiCommand::SetVramDisplay(show_vram) => self.show_vram = show_vram,
+
+                    UiCommand::Shutdown => break 'emulator,
+
+                    UiCommand::DebugRequestState => self.send_debug_snapshot(),
+
                     UiCommand::NewInputState(gamepad_state) => {
                         self.update_core_gamepad(gamepad_state)
-                    }
-
-                    UiCommand::SetVramDisplay(show_vram) => {
-                        self.show_vram = show_vram;
-                    }
-
-                    UiCommand::Shutdown => {
-                        break 'emulator;
                     }
 
                     UiCommand::Restart => match self.rebuild_system() {
                         Ok(()) => info!("emulator restarted"),
                         Err(e) => error!("failed to restart emulator: {e}"),
                     },
-
-                    UiCommand::DebugRequestState => {
-                        self.send_debug_snapshot();
-                    }
 
                     UiCommand::DebugSetBreakpoint(address, enabled) => {
                         match enabled {
