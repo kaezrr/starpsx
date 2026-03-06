@@ -178,7 +178,7 @@ pub fn show_info_modal(show_modal: &mut bool, ctx: &egui::Context) {
     }
 }
 
-pub fn show_performance_panel(app: &Application, ctx: &egui::Context) {
+pub fn show_performance_panel(app: &mut Application, ctx: &egui::Context) {
     egui::TopBottomPanel::bottom("bottom_panel").show(ctx, |ui| {
         let m = app.get_metrics();
         ui.horizontal(|ui| {

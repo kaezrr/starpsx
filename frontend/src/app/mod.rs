@@ -6,7 +6,7 @@ use anyhow::anyhow;
 use std::path::PathBuf;
 use std::sync::{Arc, mpsc::TryRecvError};
 use std::task::{Context, Poll, Waker};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use eframe::egui::ViewportCommand;
 use eframe::egui::{self, Color32, ColorImage, vec2};
@@ -42,6 +42,9 @@ pub struct Application {
     previous_pause: bool,
 
     pending_dialog: Option<PendingDialog>,
+
+    last_metrics_update: std::time::Instant,
+    displayed_metrics: MetricsSnapshot,
 }
 
 impl eframe::App for Application {
@@ -157,6 +160,9 @@ impl Application {
             previous_pause: false,
 
             pending_dialog: None,
+
+            displayed_metrics: MetricsSnapshot::default(),
+            last_metrics_update: Instant::now(),
         };
 
         if launch_config.auto_run {
@@ -250,18 +256,20 @@ impl Application {
         changed
     }
 
-    fn get_metrics(&self) -> MetricsSnapshot {
-        if let Some(ref emu) = self.app_state {
-            let (frame_ms, core_ms) = emu.debugger.load_metrics();
-            MetricsSnapshot {
-                fps: (1.0 / frame_ms).round() as u32,
-                core_fps: (1.0 / core_ms).round() as u32,
-                core_ms: core_ms * 1000.0,
-                last_frame_data: emu.last_frame_state,
+    fn get_metrics(&mut self) -> &MetricsSnapshot {
+        if self.last_metrics_update.elapsed() >= std::time::Duration::from_millis(200) {
+            if let Some(ref emu) = self.app_state {
+                let (frame_ms, core_ms) = emu.debugger.load_metrics();
+                self.displayed_metrics = MetricsSnapshot {
+                    fps: (1.0 / frame_ms).round() as u32,
+                    core_fps: (1.0 / core_ms).round() as u32,
+                    core_ms: core_ms * 1000.0,
+                    last_frame_data: emu.last_frame_state,
+                };
             }
-        } else {
-            MetricsSnapshot::default()
+            self.last_metrics_update = std::time::Instant::now();
         }
+        &self.displayed_metrics
     }
 
     fn is_paused(&self) -> bool {
