@@ -6,8 +6,8 @@ pub struct Voice {
     pub volume: Volume,
     pub sample_rate: u16,
 
-    pub start_address: u16,
-    pub repeat_address: u16,
+    pub start_address: u32,
+    pub repeat_address: u32,
     pub current_address: usize,
 
     pub pitch_counter: u16,
@@ -23,19 +23,30 @@ pub struct Voice {
     older_sample: i16,
     old_sample: i16,
     current_sample: i16,
+
+    loop_index_force: bool,
 }
 
 impl Voice {
     pub fn key_on(&mut self, sound_ram: &[u8]) {
         self.envelope.key_on();
 
-        self.current_address = (self.start_address << 3) as usize;
+        self.current_address = self.start_address as usize;
+
         self.pitch_counter = 0;
+        self.current_buffer_idx = 0;
+        self.loop_index_force = false;
+
         self.decode_next_block(sound_ram)
     }
 
     pub fn key_off(&mut self) {
         self.envelope.key_off();
+    }
+
+    pub fn set_repeat_address(&mut self, addr: u16) {
+        self.repeat_address = u32::from(addr) * 8;
+        self.loop_index_force = true;
     }
 
     pub fn tick(&mut self, sound_ram: &[u8]) -> [i16; 2] {
@@ -83,12 +94,12 @@ impl Voice {
         let loop_repeat = block[1] & (1 << 1) != 0;
         let loop_start = block[1] & (1 << 2) != 0;
 
-        if loop_start {
-            self.repeat_address = (self.current_address >> 3) as u16;
+        if loop_start && !self.loop_index_force {
+            self.repeat_address = self.current_address as u32;
         }
 
         if loop_end {
-            self.current_address = (self.repeat_address << 3) as usize;
+            self.current_address = self.repeat_address as usize;
 
             if !loop_repeat {
                 self.envelope.set_volume(0);

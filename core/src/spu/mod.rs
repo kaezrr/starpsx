@@ -91,8 +91,8 @@ impl Spu {
             voices: std::array::from_fn(|i| {
                 let v = &self.voices[i];
                 VoiceSnapshot {
-                    start_address: v.start_address,
-                    repeat_address: v.repeat_address,
+                    start_address: (v.start_address >> 3) as u16,
+                    repeat_address: (v.repeat_address >> 3) as u16,
                     current_address: v.current_address >> 3,
                     sample_rate: sample_rate_to_hz(v.sample_rate),
                     volume_left: i16_volume_to_percent(v.volume.l.volume()),
@@ -335,7 +335,7 @@ pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, val: T) {
 
         0x1F801DA6 => {
             spu.data_transfer_address = val;
-            spu.current_address = (spu.data_transfer_address as usize) << 3;
+            spu.current_address = usize::from(val) * 8;
         }
 
         // Transfer half word to ram
@@ -360,8 +360,8 @@ pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, val: T) {
                 0x02 => voice.volume.r.set_volume(val),
                 0x04 => voice.sample_rate = val,
 
-                0x06 => voice.start_address = val,
-                0x0E => voice.repeat_address = val,
+                0x06 => voice.start_address = u32::from(val) * 8,
+                0x0E => voice.set_repeat_address(val),
 
                 0x08 => write_half::<LOW>(&mut voice.envelope.register.0, val),
                 0x0A => write_half::<HIGH>(&mut voice.envelope.register.0, val),
