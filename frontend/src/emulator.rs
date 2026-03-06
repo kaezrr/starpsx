@@ -103,15 +103,9 @@ impl Emulator {
         let audio_stream = device.build_output_stream(
             &STREAM_CONFIG,
             move |data: &mut [i16], _: &cpal::OutputCallbackInfo| {
-                let mut chunks = data.chunks_exact_mut(2);
-
-                for frame in &mut chunks {
+                for frame in data.chunks_exact_mut(2) {
                     let frame_out = audio_rx.try_pop().unwrap_or([0, 0]);
                     frame.copy_from_slice(&frame_out);
-                }
-
-                for sample in chunks.into_remainder() {
-                    *sample = 0;
                 }
             },
             move |err| {
@@ -187,8 +181,6 @@ impl Emulator {
                         break 'emulator;
                     }
 
-                    // should restart the emulator with the same bios and game (if any).
-                    // should do this by just rebuild the system and replacing it.
                     UiCommand::Restart => match self.rebuild_system() {
                         Ok(()) => info!("emulator restarted"),
                         Err(e) => error!("failed to restart emulator: {e}"),

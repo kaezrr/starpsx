@@ -232,9 +232,8 @@ impl System {
                 Event::CdromResultIrq(x) => CdRom::handle_response(self, x),
                 Event::DsrOff => self.sio0.turn_off_dsr(),
                 Event::SpuTick => {
-                    if let Some(samples) = self.spu.tick() {
-                        let _ = self.audio_producer.try_push(samples);
-                    }
+                    let samples = self.spu.tick().unwrap_or([0, 0]);
+                    let _ = self.audio_producer.try_push(samples);
                 }
             }
         }
