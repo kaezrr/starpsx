@@ -1,6 +1,6 @@
 use super::utils::{parse_clut_uv, parse_page_uv, parse_uv, parse_xy};
 use super::*;
-use starpsx_renderer::utils::Texture;
+use starpsx_renderer::utils::{RectTextureOptions, Texture};
 use starpsx_renderer::{
     utils::{Color, ColorOptions, DrawOptions},
     vec2::Vec2,
@@ -419,7 +419,7 @@ impl Gpu {
         let color = Color::new_8bit(params[0].0);
         let v = parse_xy(params[1].0);
         self.renderer
-            .draw_rectangle_mono::<SEMI_TRANS>(v, Vec2::new(SIDE, SIDE), color, None);
+            .draw_rectangle::<SEMI_TRANS>(v, Vec2::new(SIDE, SIDE), color);
         GP0State::AwaitCommand
     }
 
@@ -431,11 +431,15 @@ impl Gpu {
         let v = parse_xy(params[1].0);
         let (clut, uv) = parse_clut_uv(params[2].0);
 
-        self.renderer.draw_rectangle_mono::<SEMI_TRANS>(
+        self.renderer.draw_rectangle_textured::<SEMI_TRANS>(
             v,
             Vec2::new(SIDE, SIDE),
             color,
-            Some((clut, BLEND, uv)),
+            RectTextureOptions {
+                clut,
+                blended: BLEND,
+                uv,
+            },
         );
 
         GP0State::AwaitCommand
@@ -449,8 +453,7 @@ impl Gpu {
         let v = parse_xy(params[1].0);
         let side = parse_xy(params[2].0);
 
-        self.renderer
-            .draw_rectangle_mono::<SEMI_TRANS>(v, side, color, None);
+        self.renderer.draw_rectangle::<SEMI_TRANS>(v, side, color);
 
         GP0State::AwaitCommand
     }
@@ -464,8 +467,16 @@ impl Gpu {
         let (clut, uv) = parse_clut_uv(params[2].0);
         let side = parse_xy(params[3].0);
 
-        self.renderer
-            .draw_rectangle_mono::<SEMI_TRANS>(v, side, color, Some((clut, BLEND, uv)));
+        self.renderer.draw_rectangle_textured::<SEMI_TRANS>(
+            v,
+            side,
+            color,
+            RectTextureOptions {
+                clut,
+                blended: BLEND,
+                uv,
+            },
+        );
 
         GP0State::AwaitCommand
     }

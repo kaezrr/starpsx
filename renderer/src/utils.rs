@@ -312,6 +312,18 @@ pub struct DrawOptions<const SIZE: usize> {
     pub textured: Option<(Texture, bool, [Vec2; 3])>,
 }
 
+pub struct TextureOptions {
+    pub texture: Texture,
+    pub blended: bool,
+    pub uvs: [Vec2; 3],
+}
+
+pub struct RectTextureOptions {
+    pub clut: Clut,
+    pub blended: bool,
+    pub uv: Vec2,
+}
+
 impl DrawOptions<3> {
     pub fn swap_first_two_vertex(&mut self) {
         if let ColorOptions::Shaded(ref mut x) = self.color {
