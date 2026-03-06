@@ -3,12 +3,10 @@ pub mod utils;
 
 use std::array::from_fn;
 
+use crate::{System, mem::ByteAddressable};
 use channel::Channel;
 use tracing::trace;
 use utils::{Direction, Port, Step, Sync};
-
-use crate::mem::ByteAddressable;
-use crate::{System, cdrom};
 
 bitfield::bitfield! {
     #[derive(Copy, Clone)]
@@ -140,8 +138,8 @@ impl DMAController {
                             0 => 0xFFFFFF,
                             _ => addr.wrapping_sub(4) & 0x1FFFFF,
                         },
-                        Port::Gpu => system.gpu.read_reg(0x1F801810), // READ register
-                        Port::CdRom => cdrom::read(system, 0x1F801802), // RDDATA register
+                        Port::Gpu => system.gpu.read(),
+                        Port::CdRom => system.cdrom.read_rddata::<u32>(),
                         Port::Spu => system.spu.dma_read(),
                         _ => todo!("DMA source {port:?}"),
                     };
