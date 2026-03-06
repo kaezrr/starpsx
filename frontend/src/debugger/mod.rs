@@ -66,6 +66,10 @@ impl Debugger {
         };
     }
 
+    pub fn restart(&self) {
+        self.sync_send(UiCommand::Restart);
+    }
+
     pub fn load_metrics(&self) -> (f32, f32) {
         self.shared_state.load()
     }
@@ -319,7 +323,7 @@ impl Debugger {
                         ui.label(mono(format!("0x{:04X}", v.repeat_address)));
                     });
                     row.col(|ui| {
-                        ui.label(mono(format!("0x{:05X}", v.current_address)));
+                        ui.label(mono(format!("0x{:04X}", v.current_address)));
                     });
                     row.col(|ui| {
                         ui.label(mono(format!("{:.1}", v.sample_rate)));
@@ -442,10 +446,15 @@ impl Debugger {
         let is_paused = self.shared_state.is_paused();
         ui.vertical(|ui| {
             ui.horizontal(|ui| {
+                if ui.button("Restart").clicked() {
+                    self.restart();
+                }
+
                 let label = if is_paused { "Resume" } else { "Pause" };
                 if ui.button(label).clicked() {
                     self.toggle_pause();
                 }
+
                 ui.add_enabled_ui(is_paused, |ui| {
                     if ui.button("Step").clicked() {
                         self.sync_send(UiCommand::DebugStep);

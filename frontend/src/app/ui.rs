@@ -71,7 +71,7 @@ pub fn show_top_menu(app: &mut Application, ctx: &egui::Context) {
                     }
 
                     if ui.button("Restart").clicked() {
-                        emu.restart();
+                        emu.debugger.restart();
                     }
 
                     if ui.button("Stop").clicked() {

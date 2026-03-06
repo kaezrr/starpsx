@@ -93,7 +93,7 @@ impl Spu {
                 VoiceSnapshot {
                     start_address: v.start_address,
                     repeat_address: v.repeat_address,
-                    current_address: v.current_address,
+                    current_address: v.current_address >> 3,
                     sample_rate: sample_rate_to_hz(v.sample_rate),
                     volume_left: i16_volume_to_percent(v.volume.l.volume()),
                     volume_right: i16_volume_to_percent(v.volume.r.volume()),
