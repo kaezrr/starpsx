@@ -19,7 +19,7 @@ use crate::config::RunnablePath;
 use crate::input::GamepadState;
 use starpsx_core::SystemSnapshot;
 
-const RING_BUFFER_SIZE: usize = starpsx_core::AUDIO_CHUNK_SIZE * 4;
+const RING_BUFFER_SIZE: usize = starpsx_core::AUDIO_CHUNK_SIZE * 8;
 
 pub enum UiCommand {
     NewInputState(GamepadState),
@@ -78,7 +78,6 @@ impl Emulator {
         })
     }
 
-
     fn build_system(
         bios_path: &PathBuf,
         file_path: Option<&RunnablePath>,
@@ -93,16 +92,22 @@ impl Emulator {
             .default_output_device()
             .ok_or(anyhow!("no output device available"))?;
 
-        let rb = HeapRb::<i16>::new(RING_BUFFER_SIZE);
+        let rb = HeapRb::<[i16; 2]>::new(RING_BUFFER_SIZE);
         let (audio_tx, mut audio_rx) = rb.split();
 
-        let mut last_sample = 0;
         let audio_stream = device.build_output_stream(
             &STREAM_CONFIG,
             move |data: &mut [i16], _: &cpal::OutputCallbackInfo| {
-                for sample in data.iter_mut() {
-                    *sample = audio_rx.try_pop().unwrap_or(last_sample);
-                    last_sample = *sample;
+                let mut chunks = data.chunks_exact_mut(2);
+
+                for frame in &mut chunks {
+                    let frame_out = audio_rx.try_pop().unwrap_or([0, 0]);
+                    frame.copy_from_slice(&frame_out);
+                }
+
+                for sample in chunks.into_remainder() {
+                    warn!("audio samples len is odd");
+                    *sample = 0;
                 }
             },
             move |err| {

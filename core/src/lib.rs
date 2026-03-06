@@ -68,14 +68,14 @@ pub struct System {
     pub produced_frame_buffer: Option<FrameBuffer>,
 
     audio_buffer: Vec<[i16; 2]>,
-    audio_producer: HeapProd<i16>,
+    audio_producer: HeapProd<[i16; 2]>,
 }
 
 impl System {
     pub fn build(
         bios: Vec<u8>,
         runnable: Option<RunType>,
-        audio_producer: HeapProd<i16>,
+        audio_producer: HeapProd<[i16; 2]>,
     ) -> anyhow::Result<Self> {
         let mut psx = System {
             cpu: Cpu::default(),
@@ -240,9 +240,8 @@ impl System {
                         self.audio_buffer.push([sample_l, sample_r]);
 
                         if self.audio_buffer.len() >= AUDIO_CHUNK_SIZE {
-                            for [l, r] in self.audio_buffer.drain(..) {
-                                let _ = self.audio_producer.try_push(l);
-                                let _ = self.audio_producer.try_push(r);
+                            for samples in self.audio_buffer.drain(..) {
+                                let _ = self.audio_producer.try_push(samples);
                             }
                         }
                     }
