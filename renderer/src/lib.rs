@@ -1,10 +1,9 @@
 pub mod utils;
 pub mod vec2;
 
-use crate::utils::{
-    Clut, Color, ColorOptions, DrawContext, DrawOptions, interpolate_color, interpolate_uv,
-};
-use crate::vec2::{Vec2, compute_barycentric_coords, needs_vertex_reordering, point_in_triangle};
+use crate::utils::{Color, ColorOptions, DrawContext, RectTextureOptions, TextureOptions};
+use crate::utils::{DrawOptions, interpolate_color, interpolate_uv};
+use crate::vec2::{Vec2, edge_function, is_top_left, needs_vertex_reordering};
 
 const VRAM_WIDTH: usize = 1024;
 const VRAM_HEIGHT: usize = 512;
@@ -90,21 +89,15 @@ impl Renderer {
         self.vram[index] = data | (self.ctx.force_set_masked_bit as u16) << 15;
     }
 
-    // Should be affected by mask bit, fix in the future
-    pub fn vram_self_copy(
-        &mut self,
-        src_x: usize,
-        src_y: usize,
-        dst_x: usize,
-        dst_y: usize,
-        width: usize,
-        height: usize,
-    ) {
+    pub fn vram_self_copy(&mut self, src: Vec2, dst: Vec2, size: Vec2) {
+        let width = size.x as usize;
+        let height = size.y as usize;
+
         for y in 0..height {
-            let src_row_start = (src_y + y) * VRAM_WIDTH + src_x;
-            let dst_row_start = (dst_y + y) * VRAM_WIDTH + dst_x;
-            self.vram
-                .copy_within(src_row_start..src_row_start + width, dst_row_start);
+            for x in 0..width {
+                let pixel = self.vram_read(src.x as usize + x, src.y as usize + y);
+                self.vram_write(dst.x as usize + x, dst.y as usize + y, pixel);
+            }
         }
     }
 
@@ -247,70 +240,69 @@ impl Renderer {
         }
     }
 
-    // BEWARE OF OFF BY ONE ERRORS!!!
-    pub fn draw_rectangle_mono<const SEMI_TRANS: bool>(
+    pub fn draw_rectangle<const SEMI_TRANS: bool>(
         &mut self,
         mut r: Vec2,
-        side_x: i32,
-        side_y: i32,
+        side: Vec2,
         color: Color,
-        textured: Option<(Clut, bool, Vec2)>,
     ) {
         r += self.ctx.drawing_area_offset;
+        let min_x = std::cmp::max(r.x, self.ctx.drawing_area_top_left.x);
+        let min_y = std::cmp::max(r.y, self.ctx.drawing_area_top_left.y);
+        let max_x = std::cmp::min(r.x + side.x - 1, self.ctx.drawing_area_bottom_right.x);
+        let max_y = std::cmp::min(r.y + side.y - 1, self.ctx.drawing_area_bottom_right.y);
 
-        let min_x = r.x;
-        let min_y = r.y;
-        let max_x = r.x + side_x - 1;
-        let max_y = r.y + side_y - 1;
-
-        let min_x = std::cmp::max(min_x, self.ctx.drawing_area_top_left.x);
-        let min_y = std::cmp::max(min_y, self.ctx.drawing_area_top_left.y);
-        let max_x = std::cmp::min(max_x, self.ctx.drawing_area_bottom_right.x);
-        let max_y = std::cmp::min(max_y, self.ctx.drawing_area_bottom_right.y);
-
-        if let Some((clut, _, _)) = textured {
-            self.ctx.rect_texture.set_clut(clut);
-        }
-
-        for x in min_x..=max_x {
-            for y in min_y..=max_y {
+        for y in min_y..=max_y {
+            for x in min_x..=max_x {
                 let mut color = color;
-
-                if let Some((_, blended, start_uv)) = textured {
-                    let uv = start_uv + Vec2::new(x, y) - r;
-                    let texel = self.ctx.rect_texture.get_texel(self, uv);
-                    // Fully black texels are ignored
-                    if texel == 0 {
-                        continue;
-                    }
-                    let mut tex_color = Color::new_5bit(texel);
-                    if blended {
-                        tex_color.blend(color);
-                    }
-                    color = tex_color;
-                    if SEMI_TRANS && (texel >> 15) & 1 == 1 {
-                        let old = self.vram_read(x as usize, y as usize);
-                        color.blend_screen(Color::new_5bit(old), self.ctx.transparency_weights);
-                    }
-                } else if SEMI_TRANS {
+                if SEMI_TRANS {
                     let old = self.vram_read(x as usize, y as usize);
                     color.blend_screen(Color::new_5bit(old), self.ctx.transparency_weights);
                 }
-
                 self.vram_write(
                     x as usize,
                     y as usize,
-                    color.to_5bit(
-                        self.ctx
-                            .force_set_masked_bit
-                            .then_some(true)
-                            .or_else(|| textured.is_none().then_some(false)),
-                    ),
+                    color.to_5bit(Some(self.ctx.force_set_masked_bit)),
                 );
             }
         }
     }
 
+    pub fn draw_rectangle_textured<const SEMI_TRANS: bool>(
+        &mut self,
+        mut r: Vec2,
+        side: Vec2,
+        color: Color,
+        tex: RectTextureOptions,
+    ) {
+        r += self.ctx.drawing_area_offset;
+        let min_x = std::cmp::max(r.x, self.ctx.drawing_area_top_left.x);
+        let min_y = std::cmp::max(r.y, self.ctx.drawing_area_top_left.y);
+        let max_x = std::cmp::min(r.x + side.x - 1, self.ctx.drawing_area_bottom_right.x);
+        let max_y = std::cmp::min(r.y + side.y - 1, self.ctx.drawing_area_bottom_right.y);
+
+        self.ctx.rect_texture.set_clut(tex.clut);
+
+        for y in min_y..=max_y {
+            for x in min_x..=max_x {
+                let uv = tex.uv + Vec2::new(x, y) - r;
+                let texel = self.ctx.rect_texture.get_texel(self, uv);
+                if texel == 0 {
+                    continue;
+                }
+                let mut tex_color = Color::new_5bit(texel);
+                if tex.blended {
+                    tex_color.blend(color);
+                }
+                if SEMI_TRANS && (texel >> 15) & 1 == 1 {
+                    let old = self.vram_read(x as usize, y as usize);
+                    tex_color.blend_screen(Color::new_5bit(old), self.ctx.transparency_weights);
+                }
+                let mask = self.ctx.force_set_masked_bit.then_some(true);
+                self.vram_write(x as usize, y as usize, tex_color.to_5bit(mask));
+            }
+        }
+    }
     pub fn draw_line(&mut self, mut l: [Vec2; 2], options: DrawOptions<2>) {
         l.iter_mut()
             .for_each(|v| *v += self.ctx.drawing_area_offset);
@@ -393,7 +385,7 @@ impl Renderer {
 
         if needs_vertex_reordering(&t) {
             t.swap(0, 1);
-            options.swap_first_two_vertex();
+            options.color.swap_first_two_vertex();
         }
 
         let min_x = std::cmp::min(t[0].x, std::cmp::min(t[1].x, t[2].x));
@@ -406,59 +398,159 @@ impl Renderer {
         let max_x = std::cmp::min(max_x, self.ctx.drawing_area_bottom_right.x);
         let max_y = std::cmp::min(max_y, self.ctx.drawing_area_bottom_right.y);
 
-        for x in min_x..=max_x {
-            for y in min_y..=max_y {
-                let p = Vec2::new(x, y);
-                if !point_in_triangle(t, p) {
-                    continue;
-                }
+        let start = Vec2::new(min_x, min_y);
+        let (mut e1_row, a1, b1) = edge_function(start, t[0], t[1]);
+        let (mut e2_row, a2, b2) = edge_function(start, t[1], t[2]);
+        let (mut e3_row, a3, b3) = edge_function(start, t[2], t[0]);
 
-                let weights = options
-                    .needs_weights()
-                    .then(|| compute_barycentric_coords(t, p));
+        let tl1 = is_top_left(t[0], t[1]);
+        let tl2 = is_top_left(t[1], t[2]);
+        let tl3 = is_top_left(t[2], t[0]);
 
-                let mut color = match options.color {
-                    ColorOptions::Mono(color) => color,
-                    ColorOptions::Shaded(colors) => interpolate_color(weights.unwrap(), colors),
+        for y in min_y..=max_y {
+            let mut e1 = e1_row;
+            let mut e2 = e2_row;
+            let mut e3 = e3_row;
+
+            for x in min_x..=max_x {
+                let is_inside = {
+                    let a = e1 > 0 || (e1 == 0 && tl1);
+                    let b = e2 > 0 || (e2 == 0 && tl2);
+                    let c = e3 > 0 || (e3 == 0 && tl3);
+                    a && b && c
                 };
 
-                if let Some((texture, blended, uvs)) = options.textured {
-                    let uv = interpolate_uv(weights.unwrap(), uvs);
-                    let texel = texture.get_texel(self, uv);
+                if is_inside {
+                    let p = Vec2::new(x, y);
+                    let mut color = match options.color {
+                        ColorOptions::Mono(color) => color,
+                        ColorOptions::Shaded(colors) => {
+                            let sum = (e1 + e2 + e3) as f64;
+                            let weights = [e2 as f64 / sum, e3 as f64 / sum, e1 as f64 / sum];
+                            interpolate_color(weights, colors)
+                        }
+                    };
+
+                    if options.transparent {
+                        let old = self.vram_read(x as usize, y as usize);
+                        color.blend_screen(Color::new_5bit(old), self.ctx.transparency_weights);
+                    }
+
+                    if self.ctx.dithering {
+                        color.apply_dithering(p);
+                    }
+
+                    self.vram_write(
+                        x as usize,
+                        y as usize,
+                        color.to_5bit(Some(self.ctx.force_set_masked_bit)),
+                    );
+                }
+
+                e1 += a1;
+                e2 += a2;
+                e3 += a3;
+            }
+
+            e1_row += b1;
+            e2_row += b2;
+            e3_row += b3;
+        }
+    }
+
+    pub fn draw_triangle_textured(
+        &mut self,
+        mut t: [Vec2; 3],
+        mut options: DrawOptions<3>,
+        mut tex: TextureOptions,
+    ) {
+        t.iter_mut()
+            .for_each(|v| *v += self.ctx.drawing_area_offset);
+
+        if needs_vertex_reordering(&t) {
+            t.swap(0, 1);
+            options.color.swap_first_two_vertex();
+            tex.uvs.swap(0, 1);
+        }
+
+        let min_x = std::cmp::min(t[0].x, std::cmp::min(t[1].x, t[2].x));
+        let min_y = std::cmp::min(t[0].y, std::cmp::min(t[1].y, t[2].y));
+        let max_x = std::cmp::max(t[0].x, std::cmp::max(t[1].x, t[2].x));
+        let max_y = std::cmp::max(t[0].y, std::cmp::max(t[1].y, t[2].y));
+
+        let min_x = std::cmp::max(min_x, self.ctx.drawing_area_top_left.x);
+        let min_y = std::cmp::max(min_y, self.ctx.drawing_area_top_left.y);
+        let max_x = std::cmp::min(max_x, self.ctx.drawing_area_bottom_right.x);
+        let max_y = std::cmp::min(max_y, self.ctx.drawing_area_bottom_right.y);
+
+        let start = Vec2::new(min_x, min_y);
+        let (mut e1_row, a1, b1) = edge_function(start, t[0], t[1]);
+        let (mut e2_row, a2, b2) = edge_function(start, t[1], t[2]);
+        let (mut e3_row, a3, b3) = edge_function(start, t[2], t[0]);
+
+        let tl1 = is_top_left(t[0], t[1]);
+        let tl2 = is_top_left(t[1], t[2]);
+        let tl3 = is_top_left(t[2], t[0]);
+
+        for y in min_y..=max_y {
+            let mut e1 = e1_row;
+            let mut e2 = e2_row;
+            let mut e3 = e3_row;
+
+            for x in min_x..=max_x {
+                let is_inside = {
+                    let a = e1 > 0 || (e1 == 0 && tl1);
+                    let b = e2 > 0 || (e2 == 0 && tl2);
+                    let c = e3 > 0 || (e3 == 0 && tl3);
+                    a && b && c
+                };
+
+                if is_inside {
+                    let p = Vec2::new(x, y);
+                    let sum = (e1 + e2 + e3) as f64;
+                    let weights = [e2 as f64 / sum, e3 as f64 / sum, e1 as f64 / sum];
+
+                    let uv = interpolate_uv(weights, tex.uvs);
+                    let texel = tex.texture.get_texel(self, uv);
                     // Fully black texels are ignored
                     if texel == 0 {
+                        e1 += a1;
+                        e2 += a2;
+                        e3 += a3;
                         continue;
                     }
-                    let mut tex_color = Color::new_5bit(texel);
-                    if blended {
-                        tex_color.blend(color);
+
+                    let mut color = Color::new_5bit(texel);
+                    if tex.blended {
+                        color.blend(match options.color {
+                            ColorOptions::Mono(color) => color,
+                            ColorOptions::Shaded(colors) => interpolate_color(weights, colors),
+                        });
                     }
-                    color = tex_color;
 
                     if options.transparent && (texel >> 15) & 1 == 1 {
                         let old = self.vram_read(x as usize, y as usize);
                         color.blend_screen(Color::new_5bit(old), self.ctx.transparency_weights);
                     }
-                } else if options.transparent {
-                    let old = self.vram_read(x as usize, y as usize);
-                    color.blend_screen(Color::new_5bit(old), self.ctx.transparency_weights);
+
+                    if self.ctx.dithering {
+                        color.apply_dithering(p);
+                    }
+
+                    self.vram_write(
+                        x as usize,
+                        y as usize,
+                        color.to_5bit(self.ctx.force_set_masked_bit.then_some(true)),
+                    );
                 }
 
-                if self.ctx.dithering {
-                    color.apply_dithering(p);
-                }
-
-                self.vram_write(
-                    x as usize,
-                    y as usize,
-                    color.to_5bit(
-                        self.ctx
-                            .force_set_masked_bit
-                            .then_some(true)
-                            .or_else(|| options.textured.is_none().then_some(false)),
-                    ),
-                );
+                e1 += a1;
+                e2 += a2;
+                e3 += a3;
             }
+            e1_row += b1;
+            e2_row += b2;
+            e3_row += b3;
         }
     }
 }
