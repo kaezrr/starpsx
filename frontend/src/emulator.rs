@@ -155,54 +155,56 @@ impl Emulator {
     }
 
     fn send_frame_buffer(&mut self, buffer: FrameBuffer) {
-        // Non blocking send
-        let _ = self.channels.frame_tx.try_send(buffer);
-        self.ui_ctx.request_repaint();
+        if self.channels.frame_tx.try_send(buffer).is_ok() {
+            self.ui_ctx.request_repaint();
+        }
+    }
+
+    /// Process pending UI commands. Returns `true` if shutdown was requested.
+    fn process_commands(&mut self) -> bool {
+        while let Ok(command) = self.channels.input_rx.try_recv() {
+            match command {
+                UiCommand::SetVramDisplay(show_vram) => self.show_vram = show_vram,
+                UiCommand::Shutdown => return true,
+                UiCommand::DebugRequestState => self.send_debug_snapshot(),
+                UiCommand::NewInputState(state) => self.update_core_gamepad(state),
+
+                UiCommand::Restart => match self.rebuild_system() {
+                    Ok(()) => info!("emulator restarted"),
+                    Err(e) => error!("failed to restart emulator: {e}"),
+                },
+
+                UiCommand::DebugSetBreakpoint(address, enabled) => {
+                    if enabled {
+                        self.breakpoints.insert(address);
+                    } else {
+                        self.breakpoints.remove(&address);
+                    }
+                }
+
+                UiCommand::DebugStep => {
+                    if !self.shared_state.is_paused() {
+                        warn!("trying to step while emulator is unpaused");
+                        continue;
+                    }
+
+                    if let Some(fb) = self.system.step_instruction(self.show_vram) {
+                        self.send_frame_buffer(fb);
+                    }
+                    self.send_debug_snapshot();
+                }
+            }
+        }
+        false
     }
 
     fn main_loop(mut self) {
         const FRAME_TIME: Duration = Duration::from_nanos(16_666_667);
-
         let mut last_paused = true;
 
-        'emulator: loop {
-            // Read events from ui thread
-            while let Ok(command) = self.channels.input_rx.try_recv() {
-                match command {
-                    UiCommand::SetVramDisplay(show_vram) => self.show_vram = show_vram,
-
-                    UiCommand::Shutdown => break 'emulator,
-
-                    UiCommand::DebugRequestState => self.send_debug_snapshot(),
-
-                    UiCommand::NewInputState(gamepad_state) => {
-                        self.update_core_gamepad(gamepad_state)
-                    }
-
-                    UiCommand::Restart => match self.rebuild_system() {
-                        Ok(()) => info!("emulator restarted"),
-                        Err(e) => error!("failed to restart emulator: {e}"),
-                    },
-
-                    UiCommand::DebugSetBreakpoint(address, enabled) => {
-                        match enabled {
-                            true => self.breakpoints.insert(address),
-                            false => self.breakpoints.remove(&address),
-                        };
-                    }
-
-                    UiCommand::DebugStep => {
-                        if !self.shared_state.is_paused() {
-                            warn!("trying to step while emulator is unpaused");
-                            continue;
-                        }
-
-                        if let Some(fb) = self.system.step_instruction(self.show_vram) {
-                            self.send_frame_buffer(fb);
-                        }
-                        self.send_debug_snapshot();
-                    }
-                }
+        loop {
+            if self.process_commands() {
+                break;
             }
 
             let paused = self.shared_state.is_paused();
@@ -221,34 +223,35 @@ impl Emulator {
                 continue;
             }
 
-            let now = Instant::now();
-            let vram = self.show_vram;
+            let frame_start = Instant::now();
 
-            let frame_opt = if self.breakpoints.is_empty() {
-                Some(self.system.run_frame(vram))
+            let frame = if self.breakpoints.is_empty() {
+                Some(self.system.run_frame(self.show_vram))
             } else {
-                self.system.run_breakpoint(&self.breakpoints, vram)
+                self.system
+                    .run_breakpoint(&self.breakpoints, self.show_vram)
             };
 
-            let core_time = now.elapsed();
+            let core_time = frame_start.elapsed();
 
-            if let Some(buffer) = frame_opt {
-                self.send_frame_buffer(buffer);
-            } else {
-                self.shared_state.pause();
-                self.send_debug_snapshot();
-                continue;
+            match frame {
+                Some(buffer) => self.send_frame_buffer(buffer),
+                None => {
+                    self.shared_state.pause();
+                    self.send_debug_snapshot();
+                    continue;
+                }
             }
 
-            if let Some(sleep_dur) = FRAME_TIME.checked_sub(core_time) {
-                std::thread::sleep(sleep_dur);
+            if let Some(remaining) = FRAME_TIME.checked_sub(frame_start.elapsed()) {
+                std::thread::sleep(remaining);
             }
 
-            let core_time = core_time.as_secs_f32();
-            let frame_time = now.elapsed().as_secs_f32();
-
-            self.shared_state.store(frame_time, core_time);
+            let total_time = frame_start.elapsed();
+            self.shared_state
+                .store(total_time.as_secs_f32(), core_time.as_secs_f32());
         }
+
         info!("emulator thread stopped!");
     }
 }
