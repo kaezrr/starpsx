@@ -54,11 +54,7 @@ pub fn edge_function(p: Vec2, p0: Vec2, p1: Vec2) -> (i32, i32, i32) {
 
 // Test that vertices v0, v1, v2 are in clockwise order
 pub fn needs_vertex_reordering(t: &[Vec2; 3]) -> bool {
-    signed_area(t[0], t[1], t[2]) > 0
-}
-
-fn signed_area(a: Vec2, b: Vec2, p: Vec2) -> i32 {
-    (p.x - a.x) * (b.y - a.y) - (b.x - a.x) * (p.y - a.y)
+    ((t[2].x - t[0].x) * (t[1].y - t[0].y) - (t[1].x - t[0].x) * (t[2].y - t[0].y)) > 0
 }
 
 // Test if edge AB is a top or left edge
