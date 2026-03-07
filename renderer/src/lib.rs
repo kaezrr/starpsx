@@ -232,8 +232,8 @@ impl Renderer {
         let max_x = (r.x + side_x - 1) as usize;
         let max_y = (r.y + side_y - 1) as usize;
 
-        for x in min_x..=max_x {
-            for y in min_y..=max_y {
+        for x in min_x..max_x + 1 {
+            for y in min_y..max_y + 1 {
                 let index = VRAM_WIDTH * y + x;
                 self.vram[index] = color.to_5bit(None);
             }
@@ -261,8 +261,8 @@ impl Renderer {
             return;
         }
 
-        for y in min_y..=max_y {
-            for x in min_x..=max_x {
+        for y in min_y..max_y + 1 {
+            for x in min_x..max_x + 1 {
                 let mut color = color;
                 if SEMI_TRANS {
                     let old = self.vram_read(x as usize, y as usize);
@@ -301,8 +301,8 @@ impl Renderer {
 
         self.ctx.rect_texture.set_clut(tex.clut);
 
-        for y in min_y..=max_y {
-            for x in min_x..=max_x {
+        for y in min_y..max_y + 1 {
+            for x in min_x..max_x + 1 {
                 let uv = tex.uv + Vec2::new(x, y) - r;
                 let texel = self.ctx.rect_texture.get_texel(self, uv);
                 if texel == 0 {
@@ -431,12 +431,12 @@ impl Renderer {
         let tl2 = is_top_left(t[1], t[2]);
         let tl3 = is_top_left(t[2], t[0]);
 
-        for y in min_y..=max_y {
+        for y in min_y..max_y + 1 {
             let mut e1 = e1_row;
             let mut e2 = e2_row;
             let mut e3 = e3_row;
 
-            for x in min_x..=max_x {
+            for x in min_x..max_x + 1 {
                 let is_inside = {
                     let a = e1 > 0 || (e1 == 0 && tl1);
                     let b = e2 > 0 || (e2 == 0 && tl2);
@@ -518,12 +518,12 @@ impl Renderer {
         let tl2 = is_top_left(t[1], t[2]);
         let tl3 = is_top_left(t[2], t[0]);
 
-        for y in min_y..=max_y {
+        for y in min_y..max_y + 1 {
             let mut e1 = e1_row;
             let mut e2 = e2_row;
             let mut e3 = e3_row;
 
-            for x in min_x..=max_x {
+            for x in min_x..max_x + 1 {
                 let is_inside = {
                     let a = e1 > 0 || (e1 == 0 && tl1);
                     let b = e2 > 0 || (e2 == 0 && tl2);
