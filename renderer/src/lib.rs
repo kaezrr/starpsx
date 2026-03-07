@@ -247,10 +247,19 @@ impl Renderer {
         color: Color,
     ) {
         r += self.ctx.drawing_area_offset;
-        let min_x = std::cmp::max(r.x, self.ctx.drawing_area_top_left.x);
-        let min_y = std::cmp::max(r.y, self.ctx.drawing_area_top_left.y);
-        let max_x = std::cmp::min(r.x + side.x - 1, self.ctx.drawing_area_bottom_right.x);
-        let max_y = std::cmp::min(r.y + side.y - 1, self.ctx.drawing_area_bottom_right.y);
+        let min_x = r.x.max(self.ctx.drawing_area_top_left.x);
+        let min_y = r.y.max(self.ctx.drawing_area_top_left.y);
+        let max_x = (r.x + side.x - 1).min(self.ctx.drawing_area_bottom_right.x);
+        let max_y = (r.y + side.y - 1).min(self.ctx.drawing_area_bottom_right.y);
+
+        // Out of screen
+        if max_x < self.ctx.drawing_area_top_left.x
+            || min_x > self.ctx.drawing_area_bottom_right.x
+            || max_y < self.ctx.drawing_area_top_left.y
+            || min_y > self.ctx.drawing_area_bottom_right.y
+        {
+            return;
+        }
 
         for y in min_y..=max_y {
             for x in min_x..=max_x {
@@ -276,10 +285,19 @@ impl Renderer {
         tex: RectTextureOptions,
     ) {
         r += self.ctx.drawing_area_offset;
-        let min_x = std::cmp::max(r.x, self.ctx.drawing_area_top_left.x);
-        let min_y = std::cmp::max(r.y, self.ctx.drawing_area_top_left.y);
-        let max_x = std::cmp::min(r.x + side.x - 1, self.ctx.drawing_area_bottom_right.x);
-        let max_y = std::cmp::min(r.y + side.y - 1, self.ctx.drawing_area_bottom_right.y);
+        let min_x = r.x.max(self.ctx.drawing_area_top_left.x);
+        let min_y = r.y.max(self.ctx.drawing_area_top_left.y);
+        let max_x = (r.x + side.x - 1).min(self.ctx.drawing_area_bottom_right.x);
+        let max_y = (r.y + side.y - 1).min(self.ctx.drawing_area_bottom_right.y);
+
+        // Out of screen
+        if max_x < self.ctx.drawing_area_top_left.x
+            || min_x > self.ctx.drawing_area_bottom_right.x
+            || max_y < self.ctx.drawing_area_top_left.y
+            || min_y > self.ctx.drawing_area_bottom_right.y
+        {
+            return;
+        }
 
         self.ctx.rect_texture.set_clut(tex.clut);
 
@@ -388,15 +406,24 @@ impl Renderer {
             options.color.swap_first_two_vertex();
         }
 
-        let min_x = std::cmp::min(t[0].x, std::cmp::min(t[1].x, t[2].x));
-        let min_y = std::cmp::min(t[0].y, std::cmp::min(t[1].y, t[2].y));
-        let max_x = std::cmp::max(t[0].x, std::cmp::max(t[1].x, t[2].x));
-        let max_y = std::cmp::max(t[0].y, std::cmp::max(t[1].y, t[2].y));
+        let min_x = t[0].x.min(t[1].x).min(t[2].x);
+        let min_y = t[0].y.min(t[1].y).min(t[2].y);
+        let max_x = t[0].x.max(t[1].x).max(t[2].x);
+        let max_y = t[0].y.max(t[1].y).max(t[2].y);
 
-        let min_x = std::cmp::max(min_x, self.ctx.drawing_area_top_left.x) as usize;
-        let min_y = std::cmp::max(min_y, self.ctx.drawing_area_top_left.y) as usize;
-        let max_x = std::cmp::min(max_x, self.ctx.drawing_area_bottom_right.x) as usize;
-        let max_y = std::cmp::min(max_y, self.ctx.drawing_area_bottom_right.y) as usize;
+        // Out of screen
+        if max_x < self.ctx.drawing_area_top_left.x
+            || min_x > self.ctx.drawing_area_bottom_right.x
+            || max_y < self.ctx.drawing_area_top_left.y
+            || min_y > self.ctx.drawing_area_bottom_right.y
+        {
+            return;
+        }
+
+        let min_x = min_x.max(self.ctx.drawing_area_top_left.x) as usize;
+        let min_y = min_y.max(self.ctx.drawing_area_top_left.y) as usize;
+        let max_x = max_x.min(self.ctx.drawing_area_bottom_right.x) as usize;
+        let max_y = max_y.min(self.ctx.drawing_area_bottom_right.y) as usize;
 
         let start = Vec2::new(min_x as i32, min_y as i32);
         let (mut e1_row, a1, b1) = edge_function(start, t[0], t[1]);
@@ -466,15 +493,24 @@ impl Renderer {
             tex.uvs.swap(0, 1);
         }
 
-        let min_x = std::cmp::min(t[0].x, std::cmp::min(t[1].x, t[2].x));
-        let min_y = std::cmp::min(t[0].y, std::cmp::min(t[1].y, t[2].y));
-        let max_x = std::cmp::max(t[0].x, std::cmp::max(t[1].x, t[2].x));
-        let max_y = std::cmp::max(t[0].y, std::cmp::max(t[1].y, t[2].y));
+        let min_x = t[0].x.min(t[1].x).min(t[2].x);
+        let min_y = t[0].y.min(t[1].y).min(t[2].y);
+        let max_x = t[0].x.max(t[1].x).max(t[2].x);
+        let max_y = t[0].y.max(t[1].y).max(t[2].y);
 
-        let min_x = std::cmp::max(min_x, self.ctx.drawing_area_top_left.x) as usize;
-        let min_y = std::cmp::max(min_y, self.ctx.drawing_area_top_left.y) as usize;
-        let max_x = std::cmp::min(max_x, self.ctx.drawing_area_bottom_right.x) as usize;
-        let max_y = std::cmp::min(max_y, self.ctx.drawing_area_bottom_right.y) as usize;
+        // Out of screen
+        if max_x < self.ctx.drawing_area_top_left.x
+            || min_x > self.ctx.drawing_area_bottom_right.x
+            || max_y < self.ctx.drawing_area_top_left.y
+            || min_y > self.ctx.drawing_area_bottom_right.y
+        {
+            return;
+        }
+
+        let min_x = min_x.max(self.ctx.drawing_area_top_left.x) as usize;
+        let min_y = min_y.max(self.ctx.drawing_area_top_left.y) as usize;
+        let max_x = max_x.min(self.ctx.drawing_area_bottom_right.x) as usize;
+        let max_y = max_y.min(self.ctx.drawing_area_bottom_right.y) as usize;
 
         let start = Vec2::new(min_x as i32, min_y as i32);
         let (mut e1_row, a1, b1) = edge_function(start, t[0], t[1]);
