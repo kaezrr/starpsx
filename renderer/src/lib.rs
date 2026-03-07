@@ -252,8 +252,8 @@ impl Renderer {
         let max_x = std::cmp::min(r.x + side.x - 1, self.ctx.drawing_area_bottom_right.x);
         let max_y = std::cmp::min(r.y + side.y - 1, self.ctx.drawing_area_bottom_right.y);
 
-        for x in min_x..=max_x {
-            for y in min_y..=max_y {
+        for y in min_y..=max_y {
+            for x in min_x..=max_x {
                 let mut color = color;
                 if SEMI_TRANS {
                     let old = self.vram_read(x as usize, y as usize);
@@ -283,8 +283,8 @@ impl Renderer {
 
         self.ctx.rect_texture.set_clut(tex.clut);
 
-        for x in min_x..=max_x {
-            for y in min_y..=max_y {
+        for y in min_y..=max_y {
+            for x in min_x..=max_x {
                 let uv = tex.uv + Vec2::new(x, y) - r;
                 let texel = self.ctx.rect_texture.get_texel(self, uv);
                 if texel == 0 {
@@ -398,8 +398,8 @@ impl Renderer {
         let max_x = std::cmp::min(max_x, self.ctx.drawing_area_bottom_right.x);
         let max_y = std::cmp::min(max_y, self.ctx.drawing_area_bottom_right.y);
 
-        for x in min_x..=max_x {
-            for y in min_y..=max_y {
+        for y in min_y..=max_y {
+            for x in min_x..=max_x {
                 let p = Vec2::new(x, y);
                 if !point_in_triangle(t, p) {
                     continue;
@@ -455,8 +455,8 @@ impl Renderer {
         let max_x = std::cmp::min(max_x, self.ctx.drawing_area_bottom_right.x);
         let max_y = std::cmp::min(max_y, self.ctx.drawing_area_bottom_right.y);
 
-        for x in min_x..=max_x {
-            for y in min_y..=max_y {
+        for y in min_y..=max_y {
+            for x in min_x..=max_x {
                 let p = Vec2::new(x, y);
                 if !point_in_triangle(t, p) {
                     continue;
