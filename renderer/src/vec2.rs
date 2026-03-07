@@ -35,13 +35,8 @@ impl Sub for Vec2 {
 }
 
 impl Vec2 {
-    pub fn new(x: i32, y: i32) -> Self {
+    pub const fn new(x: i32, y: i32) -> Self {
         Self { x, y }
-    }
-
-    // ZERO vector
-    pub fn zero() -> Self {
-        Self { x: 0, y: 0 }
     }
 
     // Dot product with another vector
@@ -50,33 +45,30 @@ impl Vec2 {
     }
 }
 
-// Test that vertices v0, v1, v2 are in clockwise order
-pub fn needs_vertex_reordering(t: &[Vec2; 3]) -> bool {
-    signed_area(t[0], t[1], t[2]) < 0
+/// Edge function = ax + by + c
+/// (= 0) if P is on edge
+/// (> 0) if P is on the same side of the edge normal
+/// (< 0) if P is on the opposite side of the edge normal
+/// Return edge value, coefficient a and coefficient b
+pub fn edge_function(p: Vec2, p0: Vec2, p1: Vec2) -> (i32, i32, i32) {
+    let a = p0.y - p1.y;
+    let b = p1.x - p0.x;
+    let e = b * (p.y - p0.y) + a * (p.x - p0.x);
+    (e, a, b)
 }
 
-// Signed area of the triangle a b p in clockwise order
+// Test that vertices v0, v1, v2 are in clockwise order
+pub fn needs_vertex_reordering(t: &[Vec2; 3]) -> bool {
+    signed_area(t[0], t[1], t[2]) > 0
+}
+
 fn signed_area(a: Vec2, b: Vec2, p: Vec2) -> i32 {
-    let ap = p - a;
-    let ab = b - a;
-    ap.x * ab.y - ab.x * ap.y
+    (p.x - a.x) * (b.y - a.y) - (b.x - a.x) * (p.y - a.y)
 }
 
 // Test if edge AB is a top or left edge
-fn is_top_left(a: Vec2, b: Vec2) -> bool {
+pub fn is_top_left(a: Vec2, b: Vec2) -> bool {
     if a.y == b.y { a.x > b.x } else { a.y < b.y }
-}
-
-// Test if a point is inside triangle ABC
-pub fn point_in_triangle(t: [Vec2; 3], p: Vec2) -> bool {
-    let edges = [
-        (signed_area(t[0], t[1], p), is_top_left(t[0], t[1])), // AB
-        (signed_area(t[1], t[2], p), is_top_left(t[1], t[2])), // BC
-        (signed_area(t[2], t[0], p), is_top_left(t[2], t[0])), // CA
-    ];
-    edges
-        .into_iter()
-        .all(|(area, top_left)| area > 0 || (area == 0 && top_left))
 }
 
 pub fn compute_barycentric_coords(t: [Vec2; 3], p: Vec2) -> [f64; 3] {
