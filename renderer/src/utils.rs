@@ -104,15 +104,18 @@ impl Color {
         self.b = ((self.b as i32 * poly.b as i32) >> 7).min(255) as u8;
     }
 
-    pub fn lerp(a: Color, b: Color, t: f64) -> Self {
-        let a = (f64::from(a.r), f64::from(a.g), f64::from(a.b));
-        let b = (f64::from(b.r), f64::from(b.g), f64::from(b.b));
+    pub fn lerp(a: Color, b: Color, num: i32, denom: i32) -> Self {
+        let inv = denom - num;
+        let red = (a.r as i32 * inv + b.r as i32 * num) / denom;
+        let green = (a.g as i32 * inv + b.g as i32 * num) / denom;
+        let blue = (a.b as i32 * inv + b.b as i32 * num) / denom;
 
-        let r = (a.0 * (1.0 - t) + b.0 * t).round() as u8;
-        let g = (a.1 * (1.0 - t) + b.1 * t).round() as u8;
-        let b = (a.2 * (1.0 - t) + b.2 * t).round() as u8;
-
-        Self { r, g, b, mask: 0 }
+        Self {
+            r: red as u8,
+            g: green as u8,
+            b: blue as u8,
+            mask: 0,
+        }
     }
 }
 

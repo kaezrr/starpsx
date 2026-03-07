@@ -325,22 +325,19 @@ impl Renderer {
         l.iter_mut()
             .for_each(|v| *v += self.ctx.drawing_area_offset);
 
-        let (x0, x1) = (l[0].x, l[1].x);
-        let (y0, y1) = (l[0].y, l[1].y);
-
-        let x0 = x0.clamp(
+        let x0 = l[0].x.clamp(
             self.ctx.drawing_area_top_left.x,
             self.ctx.drawing_area_bottom_right.x,
         );
-        let x1 = x1.clamp(
+        let x1 = l[1].x.clamp(
             self.ctx.drawing_area_top_left.x,
             self.ctx.drawing_area_bottom_right.x,
         );
-        let y0 = y0.clamp(
+        let y0 = l[0].y.clamp(
             self.ctx.drawing_area_top_left.y,
             self.ctx.drawing_area_bottom_right.y,
         );
-        let y1 = y1.clamp(
+        let y1 = l[1].y.clamp(
             self.ctx.drawing_area_top_left.y,
             self.ctx.drawing_area_bottom_right.y,
         );
@@ -359,12 +356,12 @@ impl Renderer {
             let mut color = match options.color {
                 ColorOptions::Mono(color) => color,
                 ColorOptions::Shaded(colors) => {
-                    let t = if dx >= -dy {
-                        f64::from(x - x0) / f64::from(dx)
+                    let (num, denom) = if dx >= -dy {
+                        ((x - x0).abs(), dx)
                     } else {
-                        f64::from(y - y0) / f64::from(-dy)
+                        ((y - y0).abs(), -dy)
                     };
-                    Color::lerp(colors[0], colors[1], t.abs())
+                    Color::lerp(colors[0], colors[1], num, denom)
                 }
             };
 
