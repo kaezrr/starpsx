@@ -63,5 +63,5 @@ fn signed_area(a: Vec2, b: Vec2, p: Vec2) -> i32 {
 
 // Test if edge AB is a top or left edge
 pub fn is_top_left(a: Vec2, b: Vec2) -> bool {
-    if a.y == b.y { a.x > b.x } else { a.y < b.y }
+    if a.y == b.y { a.x < b.x } else { a.y > b.y }
 }
