@@ -90,22 +90,18 @@ impl Color {
         self.b = self.b.saturating_add_signed(offset);
     }
 
-    pub fn blend_screen(&mut self, back: Color, weights: (f64, f64)) {
-        let b = (f64::from(back.r), f64::from(back.g), f64::from(back.b));
-        let f = (f64::from(self.r), f64::from(self.g), f64::from(self.b));
-
-        self.r = (b.0 * weights.0 + f.0 * weights.1).round() as u8;
-        self.g = (b.1 * weights.0 + f.1 * weights.1).round() as u8;
-        self.b = (b.2 * weights.0 + f.2 * weights.1).round() as u8;
+    // weights is a 30.2 fixed point number
+    pub fn blend_screen(&mut self, back: Color, weights: (i32, i32)) {
+        let (w0, w1) = weights;
+        self.r = ((back.r as i32 * w0 + self.r as i32 * w1) >> 2).clamp(0, 255) as u8;
+        self.g = ((back.g as i32 * w0 + self.g as i32 * w1) >> 2).clamp(0, 255) as u8;
+        self.b = ((back.b as i32 * w0 + self.b as i32 * w1) >> 2).clamp(0, 255) as u8;
     }
 
     pub fn blend(&mut self, poly: Color) {
-        let b = (f64::from(poly.r), f64::from(poly.g), f64::from(poly.b));
-        let f = (f64::from(self.r), f64::from(self.g), f64::from(self.b));
-
-        self.r = ((b.0 * f.0) / 128.0).round() as u8;
-        self.g = ((b.1 * f.1) / 128.0).round() as u8;
-        self.b = ((b.2 * f.2) / 128.0).round() as u8;
+        self.r = ((self.r as i32 * poly.r as i32) >> 7).min(255) as u8;
+        self.g = ((self.g as i32 * poly.g as i32) >> 7).min(255) as u8;
+        self.b = ((self.b as i32 * poly.b as i32) >> 7).min(255) as u8;
     }
 
     pub fn lerp(a: Color, b: Color, t: f64) -> Self {
@@ -143,7 +139,7 @@ pub struct DrawContext {
     pub drawing_area_offset: Vec2,
 
     pub dithering: bool,
-    pub transparency_weights: (f64, f64),
+    pub transparency_weights: (i32, i32),
 
     pub texture_window_mask: Vec2,
     pub texture_window_offset: Vec2,

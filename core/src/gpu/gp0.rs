@@ -33,10 +33,10 @@ impl Gpu {
         ctx.rect_texture = Texture::new(cmd.0 as u16, None);
         ctx.dithering = self.gpu_stat.dithering();
         ctx.transparency_weights = match self.gpu_stat.semi_transparency() {
-            0 => (0.5, 0.5),
-            1 => (1.0, 1.0),
-            2 => (1.0, -1.0),
-            3 => (1.0, 0.25),
+            0 => (2, 2),  //0.5, 0.5,
+            1 => (4, 4),  //1.0, 1.0,
+            2 => (4, -4), //1.0, -1.0,
+            3 => (4, 1),  //1.0, 0.25,
             _ => unreachable!("2 bit value cant reach here"),
         };
 
