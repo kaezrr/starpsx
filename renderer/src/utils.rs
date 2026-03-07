@@ -82,8 +82,8 @@ impl Color {
         m << 15 | b << 10 | g << 5 | r
     }
 
-    pub fn apply_dithering(&mut self, p: Vec2) {
-        let offset = DITHER_TABLE[(p.y & 3) as usize][(p.x & 3) as usize];
+    pub fn apply_dithering(&mut self, x: usize, y: usize) {
+        let offset = DITHER_TABLE[y & 3][x & 3];
 
         self.r = self.r.saturating_add_signed(offset);
         self.g = self.g.saturating_add_signed(offset);
@@ -176,24 +176,28 @@ impl DrawContext {
     }
 }
 
-pub fn interpolate_color(weights: [f64; 3], colors: [Color; 3]) -> Color {
-    let colr = colors.map(|color| f64::from(color.r));
-    let colg = colors.map(|color| f64::from(color.g));
-    let colb = colors.map(|color| f64::from(color.b));
+pub fn interpolate_color(weights: [i32; 3], sum: i32, colors: [Color; 3]) -> Color {
+    let [w0, w1, w2] = weights;
+    let [c0, c1, c2] = colors;
 
-    let r = (weights[0] * colr[0] + weights[1] * colr[1] + weights[2] * colr[2]).round() as u8;
-    let g = (weights[0] * colg[0] + weights[1] * colg[1] + weights[2] * colg[2]).round() as u8;
-    let b = (weights[0] * colb[0] + weights[1] * colb[1] + weights[2] * colb[2]).round() as u8;
+    let r = (w0 * c0.r as i32 + w1 * c1.r as i32 + w2 * c2.r as i32) / sum;
+    let g = (w0 * c0.g as i32 + w1 * c1.g as i32 + w2 * c2.g as i32) / sum;
+    let b = (w0 * c0.b as i32 + w1 * c1.b as i32 + w2 * c2.b as i32) / sum;
 
-    Color { r, g, b, mask: 0 }
+    Color {
+        r: r as u8,
+        g: g as u8,
+        b: b as u8,
+        mask: 0,
+    }
 }
 
-pub fn interpolate_uv(weights: [f64; 3], uvs: [Vec2; 3]) -> Vec2 {
-    let us = uvs.map(|uv| f64::from(uv.x));
-    let vs = uvs.map(|uv| f64::from(uv.y));
+pub fn interpolate_uv(weights: [i32; 3], sum: i32, uvs: [Vec2; 3]) -> Vec2 {
+    let [w0, w1, w2] = weights;
+    let [uv0, uv1, uv2] = uvs;
 
-    let x = (weights[0] * us[0] + weights[1] * us[1] + weights[2] * us[2]).round() as i32;
-    let y = (weights[0] * vs[0] + weights[1] * vs[1] + weights[2] * vs[2]).round() as i32;
+    let x = (w0 * uv0.x + w1 * uv1.x + w2 * uv2.x) / sum;
+    let y = (w0 * uv0.y + w1 * uv1.y + w2 * uv2.y) / sum;
 
     Vec2 { x, y }
 }

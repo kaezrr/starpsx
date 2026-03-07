@@ -393,12 +393,12 @@ impl Renderer {
         let max_x = std::cmp::max(t[0].x, std::cmp::max(t[1].x, t[2].x));
         let max_y = std::cmp::max(t[0].y, std::cmp::max(t[1].y, t[2].y));
 
-        let min_x = std::cmp::max(min_x, self.ctx.drawing_area_top_left.x);
-        let min_y = std::cmp::max(min_y, self.ctx.drawing_area_top_left.y);
-        let max_x = std::cmp::min(max_x, self.ctx.drawing_area_bottom_right.x);
-        let max_y = std::cmp::min(max_y, self.ctx.drawing_area_bottom_right.y);
+        let min_x = std::cmp::max(min_x, self.ctx.drawing_area_top_left.x) as usize;
+        let min_y = std::cmp::max(min_y, self.ctx.drawing_area_top_left.y) as usize;
+        let max_x = std::cmp::min(max_x, self.ctx.drawing_area_bottom_right.x) as usize;
+        let max_y = std::cmp::min(max_y, self.ctx.drawing_area_bottom_right.y) as usize;
 
-        let start = Vec2::new(min_x, min_y);
+        let start = Vec2::new(min_x as i32, min_y as i32);
         let (mut e1_row, a1, b1) = edge_function(start, t[0], t[1]);
         let (mut e2_row, a2, b2) = edge_function(start, t[1], t[2]);
         let (mut e3_row, a3, b3) = edge_function(start, t[2], t[0]);
@@ -421,30 +421,23 @@ impl Renderer {
                 };
 
                 if is_inside {
-                    let p = Vec2::new(x, y);
                     let mut color = match options.color {
                         ColorOptions::Mono(color) => color,
                         ColorOptions::Shaded(colors) => {
-                            let sum = (e1 + e2 + e3) as f64;
-                            let weights = [e2 as f64 / sum, e3 as f64 / sum, e1 as f64 / sum];
-                            interpolate_color(weights, colors)
+                            interpolate_color([e2, e3, e1], e1 + e2 + e3, colors)
                         }
                     };
 
                     if options.transparent {
-                        let old = self.vram_read(x as usize, y as usize);
+                        let old = self.vram_read(x, y);
                         color.blend_screen(Color::new_5bit(old), self.ctx.transparency_weights);
                     }
 
                     if self.ctx.dithering {
-                        color.apply_dithering(p);
+                        color.apply_dithering(x, y);
                     }
 
-                    self.vram_write(
-                        x as usize,
-                        y as usize,
-                        color.to_5bit(Some(self.ctx.force_set_masked_bit)),
-                    );
+                    self.vram_write(x, y, color.to_5bit(Some(self.ctx.force_set_masked_bit)));
                 }
 
                 e1 += a1;
@@ -478,12 +471,12 @@ impl Renderer {
         let max_x = std::cmp::max(t[0].x, std::cmp::max(t[1].x, t[2].x));
         let max_y = std::cmp::max(t[0].y, std::cmp::max(t[1].y, t[2].y));
 
-        let min_x = std::cmp::max(min_x, self.ctx.drawing_area_top_left.x);
-        let min_y = std::cmp::max(min_y, self.ctx.drawing_area_top_left.y);
-        let max_x = std::cmp::min(max_x, self.ctx.drawing_area_bottom_right.x);
-        let max_y = std::cmp::min(max_y, self.ctx.drawing_area_bottom_right.y);
+        let min_x = std::cmp::max(min_x, self.ctx.drawing_area_top_left.x) as usize;
+        let min_y = std::cmp::max(min_y, self.ctx.drawing_area_top_left.y) as usize;
+        let max_x = std::cmp::min(max_x, self.ctx.drawing_area_bottom_right.x) as usize;
+        let max_y = std::cmp::min(max_y, self.ctx.drawing_area_bottom_right.y) as usize;
 
-        let start = Vec2::new(min_x, min_y);
+        let start = Vec2::new(min_x as i32, min_y as i32);
         let (mut e1_row, a1, b1) = edge_function(start, t[0], t[1]);
         let (mut e2_row, a2, b2) = edge_function(start, t[1], t[2]);
         let (mut e3_row, a3, b3) = edge_function(start, t[2], t[0]);
@@ -506,11 +499,10 @@ impl Renderer {
                 };
 
                 if is_inside {
-                    let p = Vec2::new(x, y);
-                    let sum = (e1 + e2 + e3) as f64;
-                    let weights = [e2 as f64 / sum, e3 as f64 / sum, e1 as f64 / sum];
+                    let sum = e1 + e2 + e3;
+                    let weights = [e2, e3, e1];
 
-                    let uv = interpolate_uv(weights, tex.uvs);
+                    let uv = interpolate_uv(weights, sum, tex.uvs);
                     let texel = tex.texture.get_texel(self, uv);
                     // Fully black texels are ignored
                     if texel == 0 {
@@ -524,22 +516,22 @@ impl Renderer {
                     if tex.blended {
                         color.blend(match options.color {
                             ColorOptions::Mono(color) => color,
-                            ColorOptions::Shaded(colors) => interpolate_color(weights, colors),
+                            ColorOptions::Shaded(colors) => interpolate_color(weights, sum, colors),
                         });
                     }
 
                     if options.transparent && (texel >> 15) & 1 == 1 {
-                        let old = self.vram_read(x as usize, y as usize);
+                        let old = self.vram_read(x, y);
                         color.blend_screen(Color::new_5bit(old), self.ctx.transparency_weights);
                     }
 
                     if self.ctx.dithering {
-                        color.apply_dithering(p);
+                        color.apply_dithering(x, y);
                     }
 
                     self.vram_write(
-                        x as usize,
-                        y as usize,
+                        x,
+                        y,
                         color.to_5bit(self.ctx.force_set_masked_bit.then_some(true)),
                     );
                 }
