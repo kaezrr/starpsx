@@ -3,7 +3,7 @@ mod utils;
 mod voice;
 
 use num_enum::{FromPrimitive, IntoPrimitive};
-use tracing::trace;
+use tracing::{debug, trace};
 
 use crate::mem::ByteAddressable;
 use crate::{System, spu::envelope::SweepVolume};
@@ -195,13 +195,25 @@ pub fn read<T: ByteAddressable>(system: &System, addr: u32) -> T {
             let voice = &spu.voices[idx];
 
             match reg {
-                0x0C => voice.envelope.volume() as u32,
+                0x00 => voice.volume.l.register.0 as u32,
+                0x02 => voice.volume.r.register.0 as u32,
+                0x04 => voice.sample_rate as u32,
+
+                0x06 => voice.start_address / 8,
+                0x0E => voice.repeat_address / 8,
 
                 0x08 => voice.envelope.register.0,
                 0x0A => voice.envelope.register.0 >> 16,
 
+                0x0C => voice.envelope.volume() as u32,
+
                 x => unimplemented!("spu voice reg read {x}"),
             }
+        }
+
+        0x1F801E00..=0x1F801E7F => {
+            debug!(target: "spu", "spu reading from unknown register");
+            0
         }
 
         x => unimplemented!("spu read {x:8X}, width={}", T::LEN * 8),
@@ -374,6 +386,10 @@ pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, val: T) {
 
         0x1F801D9C => {} // voice status (read only)
         0x1F801D9E => {} // voice status (read only)
+
+        0x1F801E00..=0x1F801E7F => {
+            debug!(target: "spu", "spu writing to unknown register");
+        }
 
         x => unimplemented!("spu write {x:8X}"),
     }

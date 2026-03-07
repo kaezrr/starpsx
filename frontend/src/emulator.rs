@@ -85,7 +85,7 @@ impl Emulator {
         const STREAM_CONFIG: StreamConfig = StreamConfig {
             channels: 2,
             sample_rate: 44100_u32,
-            buffer_size: cpal::BufferSize::Fixed(1024),
+            buffer_size: cpal::BufferSize::Default,
         };
 
         let device = default_host()
@@ -96,7 +96,7 @@ impl Emulator {
         let (mut audio_tx, mut audio_rx) = rb.split();
 
         // Prefill silence
-        for _ in 0..(RING_BUFFER_SIZE / 2) {
+        for _ in 0..(RING_BUFFER_SIZE) {
             let _ = audio_tx.try_push([0, 0]);
         }
 
