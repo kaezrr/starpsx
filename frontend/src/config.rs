@@ -1,15 +1,21 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
+use std::path::PathBuf;
 
 use anyhow::anyhow;
 use clap::Parser;
 use eframe::egui::Key as EKey;
-use gilrs::{Axis as GAxis, Button as GButton};
-use serde::{Deserialize, Serialize};
+use gilrs::Axis as GAxis;
+use gilrs::Button as GButton;
+use serde::Deserialize;
+use serde::Serialize;
 use starpsx_core::gamepad;
-use tracing::{error, info, warn};
+use tracing::error;
+use tracing::info;
+use tracing::warn;
 
 use crate::input;
-use crate::input::{Action, PhysicalInput};
+use crate::input::Action;
+use crate::input::PhysicalInput;
 
 #[derive(Clone)]
 pub enum RunnablePath {

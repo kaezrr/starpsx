@@ -1,13 +1,16 @@
-use starpsx_renderer::utils::{Color, ColorOptions, DrawOptions, Texture};
+use starpsx_renderer::utils::Color;
+use starpsx_renderer::utils::ColorOptions;
+use starpsx_renderer::utils::DrawOptions;
+use starpsx_renderer::utils::RectTextureOptions;
+use starpsx_renderer::utils::Texture;
+use starpsx_renderer::utils::TextureOptions;
 use starpsx_renderer::vec2::Vec2;
 
-use super::utils::{parse_clut_uv, parse_page_uv, parse_uv, parse_xy};
+use super::utils::parse_clut_uv;
+use super::utils::parse_page_uv;
+use super::utils::parse_uv;
+use super::utils::parse_xy;
 use super::*;
-use starpsx_renderer::utils::{RectTextureOptions, Texture, TextureOptions};
-use starpsx_renderer::{
-    utils::{Color, ColorOptions, DrawOptions},
-    vec2::Vec2,
-};
 
 impl Gpu {
     pub fn gp0_nop(&mut self, _params: ArrayVec<Command, 16>) -> GP0State {

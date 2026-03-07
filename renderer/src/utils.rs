@@ -1,6 +1,8 @@
+use num_enum::FromPrimitive;
+use num_enum::IntoPrimitive;
+
 use crate::Renderer;
 use crate::vec2::Vec2;
-use num_enum::{FromPrimitive, IntoPrimitive};
 
 #[repr(C)]
 #[derive(Debug, Default, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]

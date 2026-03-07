@@ -5,10 +5,16 @@ mod utils;
 use arrayvec::ArrayVec;
 use starpsx_renderer::Renderer;
 use starpsx_renderer::utils::DisplayDepth;
-pub use utils::{
-    CommandArguments, CommandFn, DmaDirection, GP0State, HorizontalRes, PolyLineArguments,
-    TextureDepth, VMode, VerticalRes, VramCopyFields,
-};
+pub use utils::CommandArguments;
+pub use utils::CommandFn;
+pub use utils::DmaDirection;
+pub use utils::GP0State;
+pub use utils::HorizontalRes;
+pub use utils::PolyLineArguments;
+pub use utils::TextureDepth;
+pub use utils::VMode;
+pub use utils::VerticalRes;
+pub use utils::VramCopyFields;
 
 use crate::System;
 use crate::gpu::utils::PolyLineFn;

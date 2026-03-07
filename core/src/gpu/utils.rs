@@ -1,5 +1,7 @@
-use num_enum::{FromPrimitive, IntoPrimitive};
-use starpsx_renderer::utils::{Clut, Texture};
+use num_enum::FromPrimitive;
+use num_enum::IntoPrimitive;
+use starpsx_renderer::utils::Clut;
+use starpsx_renderer::utils::Texture;
 use starpsx_renderer::vec2::Vec2;
 
 use super::*;

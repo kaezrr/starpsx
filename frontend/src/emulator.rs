@@ -1,23 +1,35 @@
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
-use std::sync::mpsc::{Receiver, SyncSender};
-use std::time::{Duration, Instant};
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::AtomicU32;
+use std::sync::atomic::Ordering;
+use std::sync::mpsc::Receiver;
+use std::sync::mpsc::SyncSender;
+use std::time::Duration;
+use std::time::Instant;
 
 use anyhow::anyhow;
-use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use cpal::{Stream, StreamConfig, default_host};
+use cpal::Stream;
+use cpal::StreamConfig;
+use cpal::default_host;
+use cpal::traits::DeviceTrait;
+use cpal::traits::HostTrait;
+use cpal::traits::StreamTrait;
 use eframe::egui;
 use ringbuf::HeapRb;
-use ringbuf::traits::{Consumer, Producer, Split};
+use ringbuf::traits::Consumer;
+use ringbuf::traits::Producer;
+use ringbuf::traits::Split;
 use starpsx_core::RunType;
+use starpsx_core::SystemSnapshot;
 use starpsx_renderer::FrameBuffer;
-use tracing::{error, info, warn};
+use tracing::error;
+use tracing::info;
+use tracing::warn;
 
 use crate::config::RunnablePath;
 use crate::input::GamepadState;
-use starpsx_core::SystemSnapshot;
 
 pub const RING_BUFFER_SIZE: usize = 8192;
 

@@ -5,22 +5,39 @@ mod util;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::mpsc::TryRecvError;
-use std::task::{Context, Poll, Waker};
-use std::time::{Duration, Instant};
+use std::task::Context;
+use std::task::Poll;
+use std::task::Waker;
+use std::time::Duration;
+use std::time::Instant;
 
 use anyhow::anyhow;
-use eframe::egui::{self, Color32, ColorImage, ViewportCommand, vec2};
+use eframe::egui::Color32;
+use eframe::egui::ColorImage;
+use eframe::egui::ViewportCommand;
+use eframe::egui::vec2;
+use eframe::egui::{self};
 use egui_notify::Toasts;
+use starpsx_core::SystemSnapshot;
 use starpsx_renderer::FrameBuffer;
-use tracing::{error, info, trace};
+use tracing::error;
+use tracing::info;
+use tracing::trace;
 
 use crate::app::app_state::AppState;
-use crate::app::util::{MetricsSnapshot, PendingDialog};
-use crate::config::{self, LaunchConfig, RunnablePath};
+use crate::app::util::MetricsSnapshot;
+use crate::app::util::PendingDialog;
+use crate::config::LaunchConfig;
+use crate::config::RunnablePath;
+use crate::config::{self};
 use crate::debugger::Debugger;
-use crate::emulator::{self, SharedState, UiChannels, UiCommand};
-use crate::input::{self, ActionValue, PhysicalInput};
-use starpsx_core::SystemSnapshot;
+use crate::emulator::SharedState;
+use crate::emulator::UiChannels;
+use crate::emulator::UiCommand;
+use crate::emulator::{self};
+use crate::input::ActionValue;
+use crate::input::PhysicalInput;
+use crate::input::{self};
 
 pub struct Application {
     gamepad: gilrs::Gilrs,

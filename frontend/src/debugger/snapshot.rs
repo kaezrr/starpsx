@@ -1,6 +1,7 @@
 use starpsx_core::SystemSnapshot;
 
-use crate::debugger::disasm::{self, DisasmLine};
+use crate::debugger::disasm::DisasmLine;
+use crate::debugger::disasm::{self};
 
 pub fn get_cpu_state(snapshot: &SystemSnapshot) -> [(&str, u32); 35] {
     std::array::from_fn(|i| match i {

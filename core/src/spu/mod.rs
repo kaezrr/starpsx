@@ -2,14 +2,17 @@ mod envelope;
 mod utils;
 mod voice;
 
-use num_enum::{FromPrimitive, IntoPrimitive};
-use tracing::{debug, trace};
-
-use crate::mem::ByteAddressable;
-use crate::{System, spu::envelope::SweepVolume};
-
-use utils::{GAUSSIAN_TABLE, write_half};
+use num_enum::FromPrimitive;
+use num_enum::IntoPrimitive;
+use tracing::debug;
+use tracing::trace;
+use utils::GAUSSIAN_TABLE;
+use utils::write_half;
 use voice::Voice;
+
+use crate::System;
+use crate::mem::ByteAddressable;
+use crate::spu::envelope::SweepVolume;
 
 pub const PADDR_START: u32 = 0x1F801C00;
 pub const PADDR_END: u32 = 0x1F801E7F;

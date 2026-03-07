@@ -1,4 +1,5 @@
-use num_enum::{FromPrimitive, IntoPrimitive};
+use num_enum::FromPrimitive;
+use num_enum::IntoPrimitive;
 
 #[derive(PartialEq, Clone, Copy, Debug, FromPrimitive, IntoPrimitive)]
 #[repr(u8)]

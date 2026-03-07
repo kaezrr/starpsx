@@ -1,6 +1,7 @@
 use std::sync::mpsc::Receiver;
 
-use eframe::egui::{self, TextureOptions};
+use eframe::egui::TextureOptions;
+use eframe::egui::{self};
 use starpsx_renderer::FrameBuffer;
 
 use crate::debugger::Debugger;

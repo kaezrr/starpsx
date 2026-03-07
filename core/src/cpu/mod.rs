@@ -5,7 +5,8 @@ pub mod utils;
 
 use cop0::Cop0;
 use tracing::error;
-use utils::{Exception, Instruction};
+use utils::Exception;
+use utils::Instruction;
 
 use crate::System;
 use crate::cpu::gte::GTEngine;
