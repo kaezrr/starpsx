@@ -3,9 +3,7 @@ pub mod vec2;
 
 use crate::utils::{Color, ColorOptions, DrawContext, RectTextureOptions, TextureOptions};
 use crate::utils::{DrawOptions, interpolate_color, interpolate_uv};
-use crate::vec2::{
-    Vec2, compute_barycentric_coords, edge_function, is_top_left, needs_vertex_reordering,
-};
+use crate::vec2::{Vec2, edge_function, is_top_left, needs_vertex_reordering};
 
 const VRAM_WIDTH: usize = 1024;
 const VRAM_HEIGHT: usize = 512;
@@ -427,7 +425,9 @@ impl Renderer {
                     let mut color = match options.color {
                         ColorOptions::Mono(color) => color,
                         ColorOptions::Shaded(colors) => {
-                            interpolate_color(compute_barycentric_coords(t, p), colors)
+                            let sum = (e1 + e2 + e3) as f64;
+                            let weights = [e2 as f64 / sum, e3 as f64 / sum, e1 as f64 / sum];
+                            interpolate_color(weights, colors)
                         }
                     };
 
@@ -507,12 +507,8 @@ impl Renderer {
 
                 if is_inside {
                     let p = Vec2::new(x, y);
-                    let weights = compute_barycentric_coords(t, p);
-
-                    let mut color = match options.color {
-                        ColorOptions::Mono(color) => color,
-                        ColorOptions::Shaded(colors) => interpolate_color(weights, colors),
-                    };
+                    let sum = (e1 + e2 + e3) as f64;
+                    let weights = [e2 as f64 / sum, e3 as f64 / sum, e1 as f64 / sum];
 
                     let uv = interpolate_uv(weights, tex.uvs);
                     let texel = tex.texture.get_texel(self, uv);
@@ -523,11 +519,14 @@ impl Renderer {
                         e3 += a3;
                         continue;
                     }
-                    let mut tex_color = Color::new_5bit(texel);
+
+                    let mut color = Color::new_5bit(texel);
                     if tex.blended {
-                        tex_color.blend(color);
+                        color.blend(match options.color {
+                            ColorOptions::Mono(color) => color,
+                            ColorOptions::Shaded(colors) => interpolate_color(weights, colors),
+                        });
                     }
-                    color = tex_color;
 
                     if options.transparent && (texel >> 15) & 1 == 1 {
                         let old = self.vram_read(x as usize, y as usize);
