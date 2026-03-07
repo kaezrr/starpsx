@@ -257,7 +257,7 @@ impl Application {
     }
 
     fn get_metrics(&mut self) -> &MetricsSnapshot {
-        if self.last_metrics_update.elapsed() >= std::time::Duration::from_millis(200) {
+        if self.last_metrics_update.elapsed() >= std::time::Duration::from_millis(100) {
             if let Some(ref emu) = self.app_state {
                 let (frame_ms, core_ms) = emu.debugger.load_metrics();
                 self.displayed_metrics = MetricsSnapshot {
