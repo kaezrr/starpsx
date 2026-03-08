@@ -16,7 +16,6 @@ use cpal::default_host;
 use cpal::traits::DeviceTrait;
 use cpal::traits::HostTrait;
 use cpal::traits::StreamTrait;
-use eframe::egui;
 use ringbuf::HeapRb;
 use ringbuf::traits::Consumer;
 use ringbuf::traits::Producer;
@@ -36,8 +35,9 @@ pub const RING_BUFFER_SIZE: usize = 8192;
 pub enum UiCommand {
     NewInputState(GamepadState),
     SetVramDisplay(bool),
-    Shutdown,
+    SetSpeed(bool),
     Restart,
+    Shutdown,
 
     DebugSetBreakpoint(u32, bool),
     DebugStep,
@@ -45,15 +45,15 @@ pub enum UiCommand {
 }
 
 pub struct Emulator {
-    ui_ctx: egui::Context,
     channels: UiChannels,
     shared_state: Arc<SharedState>,
     system: starpsx_core::System,
     audio_stream: Stream,
     breakpoints: HashSet<u32>,
-    show_vram: bool,
     bios_path: PathBuf,
     file_path: Option<RunnablePath>,
+    show_vram: bool,
+    full_speed: bool,
 }
 
 pub struct UiChannels {
@@ -64,8 +64,6 @@ pub struct UiChannels {
 
 impl Emulator {
     pub fn build(
-        ui_ctx: egui::Context,
-
         channels: UiChannels,
         shared_state: Arc<SharedState>,
 
@@ -73,12 +71,12 @@ impl Emulator {
         file_path: Option<RunnablePath>,
 
         show_vram: bool,
+        full_speed: bool,
     ) -> anyhow::Result<Self> {
         let (system, audio_stream) = Self::build_system(&bios_path, file_path.as_ref())?;
         let breakpoints = HashSet::new();
 
         Ok(Self {
-            ui_ctx,
             channels,
             shared_state,
             system,
@@ -87,6 +85,7 @@ impl Emulator {
             show_vram,
             bios_path,
             file_path,
+            full_speed,
         })
     }
 
@@ -156,7 +155,6 @@ impl Emulator {
 
     fn send_debug_snapshot(&self) {
         let _ = self.channels.snapshot_tx.try_send(self.system.snapshot());
-        self.ui_ctx.request_repaint();
     }
 
     fn update_core_gamepad(&mut self, new_state: GamepadState) {
@@ -167,9 +165,8 @@ impl Emulator {
     }
 
     fn send_frame_buffer(&mut self, buffer: FrameBuffer) {
-        if self.channels.frame_tx.try_send(buffer).is_ok() {
-            self.ui_ctx.request_repaint();
-        }
+        // Non blocking send
+        let _ = self.channels.frame_tx.try_send(buffer);
     }
 
     /// Process pending UI commands. Returns `true` if shutdown was requested.
@@ -180,6 +177,7 @@ impl Emulator {
                 UiCommand::Shutdown => return true,
                 UiCommand::DebugRequestState => self.send_debug_snapshot(),
                 UiCommand::NewInputState(state) => self.update_core_gamepad(state),
+                UiCommand::SetSpeed(value) => self.full_speed = value,
 
                 UiCommand::Restart => match self.rebuild_system() {
                     Ok(()) => info!("emulator restarted"),
@@ -255,8 +253,10 @@ impl Emulator {
                 }
             }
 
-            if let Some(remaining) = FRAME_TIME.checked_sub(frame_start.elapsed()) {
-                std::thread::sleep(remaining);
+            if !self.full_speed
+                && let Some(sleep_dur) = FRAME_TIME.checked_sub(core_time)
+            {
+                spin_sleep::sleep(sleep_dur);
             }
 
             let total_time = frame_start.elapsed();
