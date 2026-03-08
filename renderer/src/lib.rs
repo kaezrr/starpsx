@@ -81,11 +81,11 @@ impl Renderer {
     }
 
     pub fn vram_write(&mut self, x: usize, y: usize, data: u16) {
-        if self.ctx.preserve_masked_pixels && (self.vram_read(x, y) & 0x8000) != 0 {
+        let index = VRAM_WIDTH * y + x;
+        if self.ctx.preserve_masked_pixels && (self.vram[index] & 0x8000) != 0 {
             return;
         }
 
-        let index = VRAM_WIDTH * y + x;
         self.vram[index] = data | (self.ctx.force_set_masked_bit as u16) << 15;
     }
 
