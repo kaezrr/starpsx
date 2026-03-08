@@ -90,7 +90,7 @@ impl Debugger {
             self.pc_changed = true;
         }
 
-        egui::SidePanel::right("debug_right")
+        egui::SidePanel::left("debug_view")
             .width_range(500.0..=800.0)
             .show(ctx, |ui| {
                 ui.vertical(|ui| {
