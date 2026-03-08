@@ -51,6 +51,10 @@ pub struct Args {
     #[arg(short, long)]
     debugger_view: bool,
 
+    /// Run emulator at full speed
+    #[arg(short, long)]
+    full_speed: bool,
+
     /// File to start the emulator with
     #[arg(value_name = "FILE")]
     file: Option<PathBuf>,
@@ -61,6 +65,7 @@ pub struct LaunchConfig {
     pub runnable_path: Option<PathBuf>,
     pub auto_run: bool,
     pub config_path: PathBuf,
+    pub full_speed: bool,
 }
 
 impl LaunchConfig {
@@ -87,8 +92,9 @@ impl LaunchConfig {
         Ok(Self {
             app_config,
             runnable_path,
-            auto_run: args.auto_run,
             config_path,
+            auto_run: args.auto_run,
+            full_speed: args.full_speed,
         })
     }
 }
