@@ -2,7 +2,6 @@ pub mod utils;
 pub mod vec2;
 
 use utils::{Color, DrawContext, RectTextureOptions, TextureOptions};
-use utils::{interpolate_color, interpolate_uv};
 use vec2::{Vec2, edge_function, is_top_left, needs_vertex_reordering};
 
 const VRAM_WIDTH: usize = 1024;
@@ -429,7 +428,17 @@ impl Renderer {
                 } else {
                     ((y - y0).abs(), -dy)
                 };
-                Color::lerp(shaded[0], shaded[1], num, denom)
+                let inv = denom - num;
+                let red = (shaded[0].r as i32 * inv + shaded[1].r as i32 * num) / denom;
+                let green = (shaded[0].g as i32 * inv + shaded[1].g as i32 * num) / denom;
+                let blue = (shaded[0].b as i32 * inv + shaded[1].b as i32 * num) / denom;
+
+                Color {
+                    r: red as u8,
+                    g: green as u8,
+                    b: blue as u8,
+                    mask: 0,
+                }
             };
 
             if SEMI_TRANS {
@@ -572,14 +581,38 @@ impl Renderer {
         let bias2 = !is_top_left(t[1], t[2]) as i32;
         let bias3 = !is_top_left(t[2], t[0]) as i32;
 
+        let [c0, c1, c2] = shaded;
+
+        let r_dx = a2 * c0.r as i32 + a3 * c1.r as i32 + a1 * c2.r as i32;
+        let g_dx = a2 * c0.g as i32 + a3 * c1.g as i32 + a1 * c2.g as i32;
+        let b_dx = a2 * c0.b as i32 + a3 * c1.b as i32 + a1 * c2.b as i32;
+
+        let r_dy = b2 * c0.r as i32 + b3 * c1.r as i32 + b1 * c2.r as i32;
+        let g_dy = b2 * c0.g as i32 + b3 * c1.g as i32 + b1 * c2.g as i32;
+        let b_dy = b2 * c0.b as i32 + b3 * c1.b as i32 + b1 * c2.b as i32;
+
+        let mut r_row = e2_row * c0.r as i32 + e3_row * c1.r as i32 + e1_row * c2.r as i32;
+        let mut g_row = e2_row * c0.g as i32 + e3_row * c1.g as i32 + e1_row * c2.g as i32;
+        let mut b_row = e2_row * c0.b as i32 + e3_row * c1.b as i32 + e1_row * c2.b as i32;
+
+        let sum = e1_row + e2_row + e3_row;
+
         for y in min_y..max_y + 1 {
             let mut e1 = e1_row;
             let mut e2 = e2_row;
             let mut e3 = e3_row;
+            let mut r_num = r_row;
+            let mut g_num = g_row;
+            let mut b_num = b_row;
 
             for x in min_x..max_x + 1 {
                 if e1 >= bias1 && e2 >= bias2 && e3 >= bias3 {
-                    let mut color = interpolate_color([e2, e3, e1], e1 + e2 + e3, shaded);
+                    let mut color = Color {
+                        r: (r_num / sum) as u8,
+                        g: (g_num / sum) as u8,
+                        b: (b_num / sum) as u8,
+                        mask: 0,
+                    };
 
                     if SEMI_TRANS {
                         let old = self.vram_read(x, y);
@@ -596,11 +629,17 @@ impl Renderer {
                 e1 += a1;
                 e2 += a2;
                 e3 += a3;
+                r_num += r_dx;
+                g_num += g_dx;
+                b_num += b_dx;
             }
 
             e1_row += b1;
             e2_row += b2;
             e3_row += b3;
+            r_row += r_dy;
+            g_row += g_dy;
+            b_row += b_dy;
         }
     }
 
@@ -647,18 +686,35 @@ impl Renderer {
         let bias2 = !is_top_left(t[1], t[2]) as i32;
         let bias3 = !is_top_left(t[2], t[0]) as i32;
 
+        let [uv0, uv1, uv2] = tex.uvs;
+
+        let u_dx = a2 * uv0.x + a3 * uv1.x + a1 * uv2.x;
+        let v_dx = a2 * uv0.y + a3 * uv1.y + a1 * uv2.y;
+        let u_dy = b2 * uv0.x + b3 * uv1.x + b1 * uv2.x;
+        let v_dy = b2 * uv0.y + b3 * uv1.y + b1 * uv2.y;
+
+        let mut u_row = e2_row * uv0.x + e3_row * uv1.x + e1_row * uv2.x;
+        let mut v_row = e2_row * uv0.y + e3_row * uv1.y + e1_row * uv2.y;
+
+        let sum = e1_row + e2_row + e3_row;
+
         for y in min_y..max_y + 1 {
             let mut e1 = e1_row;
             let mut e2 = e2_row;
             let mut e3 = e3_row;
+            let mut u_num = u_row;
+            let mut v_num = v_row;
 
             for x in min_x..max_x + 1 {
                 if e1 >= bias1 && e2 >= bias2 && e3 >= bias3 {
-                    let sum = e1 + e2 + e3;
-                    let weights = [e2, e3, e1];
+                    let texel = tex.texture.get_texel(
+                        self,
+                        Vec2 {
+                            x: u_num / sum,
+                            y: v_num / sum,
+                        },
+                    );
 
-                    let uv = interpolate_uv(weights, sum, tex.uvs);
-                    let texel = tex.texture.get_texel(self, uv);
                     // Fully black texels are ignored
                     if texel != 0 {
                         let mut color = Color::new_5bit(texel);
@@ -686,10 +742,15 @@ impl Renderer {
                 e1 += a1;
                 e2 += a2;
                 e3 += a3;
+                u_num += u_dx;
+                v_num += v_dx;
             }
+
             e1_row += b1;
             e2_row += b2;
             e3_row += b3;
+            u_row += u_dy;
+            v_row += v_dy;
         }
     }
 
@@ -737,23 +798,61 @@ impl Renderer {
         let bias2 = !is_top_left(t[1], t[2]) as i32;
         let bias3 = !is_top_left(t[2], t[0]) as i32;
 
+        let [c0, c1, c2] = shaded;
+
+        let r_dx = a2 * c0.r as i32 + a3 * c1.r as i32 + a1 * c2.r as i32;
+        let g_dx = a2 * c0.g as i32 + a3 * c1.g as i32 + a1 * c2.g as i32;
+        let b_dx = a2 * c0.b as i32 + a3 * c1.b as i32 + a1 * c2.b as i32;
+
+        let r_dy = b2 * c0.r as i32 + b3 * c1.r as i32 + b1 * c2.r as i32;
+        let g_dy = b2 * c0.g as i32 + b3 * c1.g as i32 + b1 * c2.g as i32;
+        let b_dy = b2 * c0.b as i32 + b3 * c1.b as i32 + b1 * c2.b as i32;
+
+        let mut r_row = e2_row * c0.r as i32 + e3_row * c1.r as i32 + e1_row * c2.r as i32;
+        let mut g_row = e2_row * c0.g as i32 + e3_row * c1.g as i32 + e1_row * c2.g as i32;
+        let mut b_row = e2_row * c0.b as i32 + e3_row * c1.b as i32 + e1_row * c2.b as i32;
+
+        let [uv0, uv1, uv2] = tex.uvs;
+
+        let u_dx = a2 * uv0.x + a3 * uv1.x + a1 * uv2.x;
+        let v_dx = a2 * uv0.y + a3 * uv1.y + a1 * uv2.y;
+        let u_dy = b2 * uv0.x + b3 * uv1.x + b1 * uv2.x;
+        let v_dy = b2 * uv0.y + b3 * uv1.y + b1 * uv2.y;
+
+        let mut u_row = e2_row * uv0.x + e3_row * uv1.x + e1_row * uv2.x;
+        let mut v_row = e2_row * uv0.y + e3_row * uv1.y + e1_row * uv2.y;
+
+        let sum = e1_row + e2_row + e3_row;
+
         for y in min_y..max_y + 1 {
             let mut e1 = e1_row;
             let mut e2 = e2_row;
             let mut e3 = e3_row;
+            let mut r_num = r_row;
+            let mut g_num = g_row;
+            let mut b_num = b_row;
+            let mut u_num = u_row;
+            let mut v_num = v_row;
 
             for x in min_x..max_x + 1 {
                 if e1 >= bias1 && e2 >= bias2 && e3 >= bias3 {
-                    let sum = e1 + e2 + e3;
-                    let weights = [e2, e3, e1];
-
-                    let uv = interpolate_uv(weights, sum, tex.uvs);
-                    let texel = tex.texture.get_texel(self, uv);
+                    let texel = tex.texture.get_texel(
+                        self,
+                        Vec2 {
+                            x: u_num / sum,
+                            y: v_num / sum,
+                        },
+                    );
                     // Fully black texels are ignored
                     if texel != 0 {
                         let mut color = Color::new_5bit(texel);
                         if BLEND {
-                            color.blend(interpolate_color(weights, sum, shaded));
+                            color.blend(Color {
+                                r: (r_num / sum) as u8,
+                                g: (g_num / sum) as u8,
+                                b: (b_num / sum) as u8,
+                                mask: 0,
+                            });
                         }
 
                         if SEMI_TRANS && (texel >> 15) & 1 == 1 {
@@ -776,10 +875,20 @@ impl Renderer {
                 e1 += a1;
                 e2 += a2;
                 e3 += a3;
+                r_num += r_dx;
+                g_num += g_dx;
+                b_num += b_dx;
+                u_num += u_dx;
+                v_num += v_dx;
             }
             e1_row += b1;
             e2_row += b2;
             e3_row += b3;
+            r_row += r_dy;
+            g_row += g_dy;
+            b_row += b_dy;
+            u_row += u_dy;
+            v_row += v_dy;
         }
     }
 }

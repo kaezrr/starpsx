@@ -6,7 +6,7 @@ pub struct Color {
     pub r: u8,
     pub g: u8,
     pub b: u8,
-    mask: u8,
+    pub mask: u8,
 }
 
 const DITHER_TABLE: [[i8; 4]; 4] = [
@@ -103,20 +103,6 @@ impl Color {
         self.g = ((self.g as i32 * poly.g as i32) >> 7).min(255) as u8;
         self.b = ((self.b as i32 * poly.b as i32) >> 7).min(255) as u8;
     }
-
-    pub fn lerp(a: Color, b: Color, num: i32, denom: i32) -> Self {
-        let inv = denom - num;
-        let red = (a.r as i32 * inv + b.r as i32 * num) / denom;
-        let green = (a.g as i32 * inv + b.g as i32 * num) / denom;
-        let blue = (a.b as i32 * inv + b.b as i32 * num) / denom;
-
-        Self {
-            r: red as u8,
-            g: green as u8,
-            b: blue as u8,
-            mask: 0,
-        }
-    }
 }
 
 const FIVE_BIT_TO_8BIT: [u8; 32] = {
@@ -173,32 +159,6 @@ impl DrawContext {
     pub fn reset(&mut self) {
         *self = Self::default();
     }
-}
-
-pub fn interpolate_color(weights: [i32; 3], sum: i32, colors: [Color; 3]) -> Color {
-    let [w0, w1, w2] = weights;
-    let [c0, c1, c2] = colors;
-
-    let r = (w0 * c0.r as i32 + w1 * c1.r as i32 + w2 * c2.r as i32) / sum;
-    let g = (w0 * c0.g as i32 + w1 * c1.g as i32 + w2 * c2.g as i32) / sum;
-    let b = (w0 * c0.b as i32 + w1 * c1.b as i32 + w2 * c2.b as i32) / sum;
-
-    Color {
-        r: r as u8,
-        g: g as u8,
-        b: b as u8,
-        mask: 0,
-    }
-}
-
-pub fn interpolate_uv(weights: [i32; 3], sum: i32, uvs: [Vec2; 3]) -> Vec2 {
-    let [w0, w1, w2] = weights;
-    let [uv0, uv1, uv2] = uvs;
-
-    let x = (w0 * uv0.x + w1 * uv1.x + w2 * uv2.x) / sum;
-    let y = (w0 * uv0.y + w1 * uv1.y + w2 * uv2.y) / sum;
-
-    Vec2 { x, y }
 }
 
 #[derive(Debug, Clone, Copy)]
