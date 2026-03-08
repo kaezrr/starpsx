@@ -435,9 +435,9 @@ impl Renderer {
         let (mut e2_row, a2, b2) = edge_function(start, t[1], t[2]);
         let (mut e3_row, a3, b3) = edge_function(start, t[2], t[0]);
 
-        let tl1 = is_top_left(t[0], t[1]);
-        let tl2 = is_top_left(t[1], t[2]);
-        let tl3 = is_top_left(t[2], t[0]);
+        let bias1 = !is_top_left(t[0], t[1]) as i32;
+        let bias2 = !is_top_left(t[1], t[2]) as i32;
+        let bias3 = !is_top_left(t[2], t[0]) as i32;
 
         for y in min_y..max_y + 1 {
             let mut e1 = e1_row;
@@ -445,14 +445,7 @@ impl Renderer {
             let mut e3 = e3_row;
 
             for x in min_x..max_x + 1 {
-                let is_inside = {
-                    let a = e1 > 0 || (e1 == 0 && tl1);
-                    let b = e2 > 0 || (e2 == 0 && tl2);
-                    let c = e3 > 0 || (e3 == 0 && tl3);
-                    a && b && c
-                };
-
-                if is_inside {
+                if e1 >= bias1 && e2 >= bias2 && e3 >= bias3 {
                     let mut color = match options.color {
                         ColorOptions::Mono(color) => color,
                         ColorOptions::Shaded(colors) => {
@@ -523,9 +516,9 @@ impl Renderer {
         let (mut e2_row, a2, b2) = edge_function(start, t[1], t[2]);
         let (mut e3_row, a3, b3) = edge_function(start, t[2], t[0]);
 
-        let tl1 = is_top_left(t[0], t[1]);
-        let tl2 = is_top_left(t[1], t[2]);
-        let tl3 = is_top_left(t[2], t[0]);
+        let bias1 = !is_top_left(t[0], t[1]) as i32;
+        let bias2 = !is_top_left(t[1], t[2]) as i32;
+        let bias3 = !is_top_left(t[2], t[0]) as i32;
 
         for y in min_y..max_y + 1 {
             let mut e1 = e1_row;
@@ -533,14 +526,7 @@ impl Renderer {
             let mut e3 = e3_row;
 
             for x in min_x..max_x + 1 {
-                let is_inside = {
-                    let a = e1 > 0 || (e1 == 0 && tl1);
-                    let b = e2 > 0 || (e2 == 0 && tl2);
-                    let c = e3 > 0 || (e3 == 0 && tl3);
-                    a && b && c
-                };
-
-                if is_inside {
+                if e1 >= bias1 && e2 >= bias2 && e3 >= bias3 {
                     let sum = e1 + e2 + e3;
                     let weights = [e2, e3, e1];
 
