@@ -42,7 +42,7 @@ impl Channel {
         let bc = self.block_ctl.block_count();
 
         match self.ctl.sync() {
-            Sync::Burst => Some(bs),
+            Sync::Burst => Some(if bs == 0 { 0x10000 } else { bs }),
             Sync::Slice => Some(bc * bs),
             Sync::LinkedList => None,
         }
