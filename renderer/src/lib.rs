@@ -277,7 +277,7 @@ impl Renderer {
         }
     }
 
-    pub fn draw_rectangle_textured<const SEMI_TRANS: bool>(
+    pub fn draw_rectangle_textured<const SEMI_TRANS: bool, const BLEND: bool>(
         &mut self,
         mut r: Vec2,
         side: Vec2,
@@ -308,10 +308,12 @@ impl Renderer {
                 if texel == 0 {
                     continue;
                 }
+
                 let mut tex_color = Color::new_5bit(texel);
-                if tex.blended {
+                if BLEND {
                     tex_color.blend(color);
                 }
+
                 if SEMI_TRANS && (texel >> 15) & 1 == 1 {
                     let old = self.vram_read(x as usize, y as usize);
                     tex_color.blend_screen(Color::new_5bit(old), self.ctx.transparency_weights);
@@ -321,9 +323,10 @@ impl Renderer {
             }
         }
     }
-    pub fn draw_line(&mut self, mut l: [Vec2; 2], options: DrawOptions<2>) {
-        l.iter_mut()
-            .for_each(|v| *v += self.ctx.drawing_area_offset);
+
+    pub fn draw_line<const SEMI_TRANS: bool>(&mut self, mut l: [Vec2; 2], options: DrawOptions<2>) {
+        l[0] += self.ctx.drawing_area_offset;
+        l[1] += self.ctx.drawing_area_offset;
 
         let x0 = l[0].x.clamp(
             self.ctx.drawing_area_top_left.x,
@@ -365,7 +368,7 @@ impl Renderer {
                 }
             };
 
-            if options.transparent {
+            if SEMI_TRANS {
                 let old = self.vram_read(x as usize, y as usize);
                 color.blend_screen(Color::new_5bit(old), self.ctx.transparency_weights);
             }
@@ -394,9 +397,14 @@ impl Renderer {
         }
     }
 
-    pub fn draw_triangle(&mut self, mut t: [Vec2; 3], mut options: DrawOptions<3>) {
-        t.iter_mut()
-            .for_each(|v| *v += self.ctx.drawing_area_offset);
+    pub fn draw_triangle<const SEMI_TRANS: bool>(
+        &mut self,
+        mut t: [Vec2; 3],
+        mut options: DrawOptions<3>,
+    ) {
+        t[0] += self.ctx.drawing_area_offset;
+        t[1] += self.ctx.drawing_area_offset;
+        t[2] += self.ctx.drawing_area_offset;
 
         if needs_vertex_reordering(&t) {
             t.swap(0, 1);
@@ -452,7 +460,7 @@ impl Renderer {
                         }
                     };
 
-                    if options.transparent {
+                    if SEMI_TRANS {
                         let old = self.vram_read(x, y);
                         color.blend_screen(Color::new_5bit(old), self.ctx.transparency_weights);
                     }
@@ -475,14 +483,15 @@ impl Renderer {
         }
     }
 
-    pub fn draw_triangle_textured(
+    pub fn draw_triangle_textured<const SEMI_TRANS: bool, const BLEND: bool>(
         &mut self,
         mut t: [Vec2; 3],
         mut options: DrawOptions<3>,
         mut tex: TextureOptions,
     ) {
-        t.iter_mut()
-            .for_each(|v| *v += self.ctx.drawing_area_offset);
+        t[0] += self.ctx.drawing_area_offset;
+        t[1] += self.ctx.drawing_area_offset;
+        t[2] += self.ctx.drawing_area_offset;
 
         if needs_vertex_reordering(&t) {
             t.swap(0, 1);
@@ -546,14 +555,14 @@ impl Renderer {
                     }
 
                     let mut color = Color::new_5bit(texel);
-                    if tex.blended {
+                    if BLEND {
                         color.blend(match options.color {
                             ColorOptions::Mono(color) => color,
                             ColorOptions::Shaded(colors) => interpolate_color(weights, sum, colors),
                         });
                     }
 
-                    if options.transparent && (texel >> 15) & 1 == 1 {
+                    if SEMI_TRANS && (texel >> 15) & 1 == 1 {
                         let old = self.vram_read(x, y);
                         color.blend_screen(Color::new_5bit(old), self.ctx.transparency_weights);
                     }

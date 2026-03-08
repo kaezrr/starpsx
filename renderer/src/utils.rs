@@ -317,18 +317,15 @@ impl ColorOptions<3> {
 
 pub struct DrawOptions<const SIZE: usize> {
     pub color: ColorOptions<SIZE>,
-    pub transparent: bool,
 }
 
 pub struct TextureOptions {
     pub texture: Texture,
-    pub blended: bool,
     pub uvs: [Vec2; 3],
 }
 
 pub struct RectTextureOptions {
     pub clut: Clut,
-    pub blended: bool,
     pub uv: Vec2,
 }
 
