@@ -57,6 +57,7 @@ pub struct Application {
     bios_modal_open: bool,
 
     previous_pause: bool,
+    full_speed: bool,
 
     pending_dialog: Option<PendingDialog>,
 
@@ -152,6 +153,7 @@ impl eframe::App for Application {
         }
 
         self.toasts.show(ctx);
+        ctx.request_repaint();
     }
 }
 
@@ -175,6 +177,7 @@ impl Application {
             bios_modal_open: false,
 
             previous_pause: false,
+            full_speed: launch_config.full_speed,
 
             pending_dialog: None,
 
@@ -316,7 +319,6 @@ impl Application {
 
         // Build emulator from the provided configuration
         let emulator = emulator::Emulator::build(
-            self.egui_ctx.clone(),
             UiChannels {
                 frame_tx,
                 input_rx,
@@ -326,6 +328,7 @@ impl Application {
             bios_path.clone(),
             runnable_path,
             self.app_config.display_vram,
+            self.full_speed,
         )?;
 
         self.app_state = Some(AppState {
@@ -373,14 +376,12 @@ impl Application {
 
     fn toggle_vram_display(&mut self) {
         if let Some(ref mut state) = self.app_state {
-            state.set_vram_display(!self.app_config.display_vram);
+            state.set_vram_display(self.app_config.display_vram);
         }
-        self.app_config.display_vram = !self.app_config.display_vram;
         self.app_config.save_to_file(&self.config_path);
     }
 
     fn toggle_debugger_view(&mut self) {
-        self.app_config.debugger_view = !self.app_config.debugger_view;
         self.app_config.save_to_file(&self.config_path);
     }
 

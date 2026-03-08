@@ -95,26 +95,28 @@ pub fn show_top_menu(app: &mut Application, ctx: &egui::Context) {
                 if ui.button("Keybinds").clicked() {
                     app.keybinds_table_open = true;
                 }
+
+                if !ui.toggle_value(&mut app.full_speed, "Full Speed").clicked() {
+                    return;
+                }
+
+                if let Some(ref mut app_state) = app.app_state {
+                    app_state.set_speed(app.full_speed);
+                }
             });
 
             ui.menu_button("Debug", |ui| {
-                let label = if app.app_config.debugger_view {
-                    "Close Debugger View"
-                } else {
-                    "Open Debugger View"
-                };
-
-                if ui.button(label).clicked() {
+                if ui
+                    .checkbox(&mut app.app_config.debugger_view, "Debugger Open")
+                    .clicked()
+                {
                     app.toggle_debugger_view();
                 }
 
-                let label = if app.vram_display_on() {
-                    "Hide VRAM"
-                } else {
-                    "Show VRAM"
-                };
-
-                if ui.button(label).clicked() {
+                if ui
+                    .checkbox(&mut app.app_config.display_vram, "Show VRAM")
+                    .clicked()
+                {
                     app.toggle_vram_display();
                 }
             });

@@ -47,6 +47,10 @@ impl AppState {
         self.debugger.sync_send(UiCommand::Shutdown);
     }
 
+    pub fn set_speed(&self, val: bool) {
+        self.debugger.sync_send(UiCommand::SetSpeed(val));
+    }
+
     pub fn restart(&self) {
         self.debugger.sync_send(UiCommand::Restart);
     }

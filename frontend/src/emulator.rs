@@ -24,6 +24,7 @@ use crate::input::GamepadState;
 pub enum UiCommand {
     NewInputState(GamepadState),
     SetVramDisplay(bool),
+    SetSpeed(bool),
     Restart,
     Shutdown,
 
@@ -33,7 +34,6 @@ pub enum UiCommand {
 }
 
 pub struct Emulator {
-    ui_ctx: egui::Context,
     channels: UiChannels,
 
     system: starpsx_core::System,
@@ -45,6 +45,7 @@ pub struct Emulator {
     file_path: Option<RunnablePath>,
 
     show_vram: bool,
+    full_speed: bool,
 }
 
 pub struct UiChannels {
@@ -55,8 +56,6 @@ pub struct UiChannels {
 
 impl Emulator {
     pub fn build(
-        ui_ctx: egui::Context,
-
         channels: UiChannels,
         shared_state: Arc<SharedState>,
 
@@ -64,9 +63,9 @@ impl Emulator {
         file_path: Option<RunnablePath>,
 
         show_vram: bool,
+        full_speed: bool,
     ) -> anyhow::Result<Self> {
         Ok(Self {
-            ui_ctx,
             channels,
             shared_state,
 
@@ -76,7 +75,9 @@ impl Emulator {
             file_path,
 
             breakpoints: HashSet::new(),
+
             show_vram,
+            full_speed,
         })
     }
 
@@ -115,7 +116,6 @@ impl Emulator {
             cpu_regs: system_snapshot.cpu.regs,
             instructions: system_snapshot.ins,
         });
-        self.ui_ctx.request_repaint();
     }
 
     fn update_core_gamepad(&mut self, new_state: GamepadState) {
@@ -128,7 +128,6 @@ impl Emulator {
     fn send_frame_buffer(&mut self, buffer: FrameBuffer) {
         // Non blocking send
         let _ = self.channels.frame_tx.try_send(buffer);
-        self.ui_ctx.request_repaint();
     }
 
     fn main_loop(&mut self) {
@@ -138,12 +137,13 @@ impl Emulator {
             // Read events from ui thread
             while let Ok(command) = self.channels.input_rx.try_recv() {
                 match command {
+                    UiCommand::SetSpeed(value) => self.full_speed = value,
+                    UiCommand::SetVramDisplay(show_vram) => self.show_vram = show_vram,
+                    UiCommand::DebugRequestState => self.send_debug_snapshot(),
+                    UiCommand::Shutdown => break 'emulator,
+
                     UiCommand::NewInputState(gamepad_state) => {
                         self.update_core_gamepad(gamepad_state)
-                    }
-
-                    UiCommand::SetVramDisplay(show_vram) => {
-                        self.show_vram = show_vram;
                     }
 
                     UiCommand::Restart => {
@@ -153,21 +153,12 @@ impl Emulator {
                         info!("emulator thread restarted...");
                     }
 
-                    UiCommand::Shutdown => {
-                        break 'emulator;
-                    }
-
-                    UiCommand::DebugRequestState => {
-                        self.send_debug_snapshot();
-                    }
-
                     UiCommand::DebugSetBreakpoint(address, enabled) => {
                         match enabled {
                             true => self.breakpoints.insert(address),
                             false => self.breakpoints.remove(&address),
                         };
                     }
-
                     UiCommand::DebugStep => {
                         if !self.shared_state.is_paused() {
                             warn!("trying to step while emulator is unpaused");
@@ -206,8 +197,10 @@ impl Emulator {
                 continue;
             }
 
-            if let Some(sleep_dur) = FRAME_TIME.checked_sub(core_time) {
-                std::thread::sleep(sleep_dur);
+            if !self.full_speed
+                && let Some(sleep_dur) = FRAME_TIME.checked_sub(core_time)
+            {
+                spin_sleep::sleep(sleep_dur);
             }
 
             let core_time = core_time.as_secs_f32();
