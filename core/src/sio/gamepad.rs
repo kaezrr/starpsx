@@ -1,6 +1,6 @@
 pub struct Gamepad {
-    state: GamepadState,
-    mode: GamepadMode,
+    state: State,
+    mode: Mode,
 
     digital_switches: u16,
     joystick_axes: [u8; 4],
@@ -22,25 +22,25 @@ impl Default for Gamepad {
 impl Gamepad {
     pub fn send_and_receive_byte(&mut self, data: u8) -> u8 {
         let received = match self.state {
-            GamepadState::Init => 0xFF,
+            State::Init => 0xFF,
 
             // Gamepad ID: 0x5A73 -> dualshock (analog pad)
-            GamepadState::IdLow => self.mode.id()[0],
-            GamepadState::IdHigh => self.mode.id()[1],
+            State::IdLow => self.mode.id()[0],
+            State::IdHigh => self.mode.id()[1],
 
             // Gamepad switches state
-            GamepadState::SwitchLow => self.digital_switches as u8,
-            GamepadState::SwitchHigh => (self.digital_switches >> 8) as u8,
+            State::SwitchLow => self.digital_switches as u8,
+            State::SwitchHigh => (self.digital_switches >> 8) as u8,
 
-            GamepadState::AnalogInput0 => self.joystick_axes[Axis::RightX as usize],
-            GamepadState::AnalogInput1 => self.joystick_axes[Axis::RightY as usize],
-            GamepadState::AnalogInput2 => self.joystick_axes[Axis::LeftX as usize],
-            GamepadState::AnalogInput3 => self.joystick_axes[Axis::LeftY as usize],
+            State::AnalogInput0 => self.joystick_axes[Axis::RightX as usize],
+            State::AnalogInput1 => self.joystick_axes[Axis::RightY as usize],
+            State::AnalogInput2 => self.joystick_axes[Axis::LeftX as usize],
+            State::AnalogInput3 => self.joystick_axes[Axis::LeftY as usize],
         };
 
         if let Some(state) = self.mode.next(self.state, data) {
             self.state = state;
-            self.in_ack = !matches!(self.state, GamepadState::Init);
+            self.in_ack = self.state != State::Init;
             received
         } else {
             // invalid comm sequence
@@ -50,7 +50,7 @@ impl Gamepad {
     }
 
     pub fn reset(&mut self) {
-        self.state = GamepadState::Init;
+        self.state = State::Init;
         self.in_ack = false;
     }
 
@@ -76,8 +76,8 @@ impl Gamepad {
 }
 
 #[repr(C)]
-#[derive(Debug, Default, Clone, Copy)]
-enum GamepadState {
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
+enum State {
     #[default]
     Init,
     IdLow,
@@ -91,70 +91,70 @@ enum GamepadState {
 }
 
 #[derive(Debug, Default, Clone, Copy)]
-enum GamepadMode {
+enum Mode {
     #[default]
     Digital,
     Analog,
 }
 
-impl GamepadMode {
+impl Mode {
     // valid next gamepad comm sequences alongside an optional check byte
-    const GAMEPAD_DIGITAL_STATES: [(GamepadState, Option<u8>); 5] = [
-        (GamepadState::Init, None),
-        (GamepadState::IdLow, Some(0x01)),
-        (GamepadState::IdHigh, Some(0x42)),
-        (GamepadState::SwitchLow, Some(0x00)),
-        (GamepadState::SwitchHigh, None),
+    const GAMEPAD_DIGITAL_STATES: [(State, Option<u8>); 5] = [
+        (State::Init, None),
+        (State::IdLow, Some(0x01)),
+        (State::IdHigh, Some(0x42)),
+        (State::SwitchLow, Some(0x00)),
+        (State::SwitchHigh, None),
     ];
 
-    const GAMEPAD_ANALOG_STATES: [(GamepadState, Option<u8>); 9] = [
-        (GamepadState::Init, Some(0x00)),
-        (GamepadState::IdLow, Some(0x01)),
-        (GamepadState::IdHigh, Some(0x42)),
-        (GamepadState::SwitchLow, Some(0x00)),
-        (GamepadState::SwitchHigh, None),
-        (GamepadState::AnalogInput0, None),
-        (GamepadState::AnalogInput1, Some(0x00)),
-        (GamepadState::AnalogInput2, Some(0x00)),
-        (GamepadState::AnalogInput3, Some(0x00)),
+    const GAMEPAD_ANALOG_STATES: [(State, Option<u8>); 9] = [
+        (State::Init, Some(0x00)),
+        (State::IdLow, Some(0x01)),
+        (State::IdHigh, Some(0x42)),
+        (State::SwitchLow, Some(0x00)),
+        (State::SwitchHigh, None),
+        (State::AnalogInput0, None),
+        (State::AnalogInput1, Some(0x00)),
+        (State::AnalogInput2, Some(0x00)),
+        (State::AnalogInput3, Some(0x00)),
     ];
 
     fn id(&self) -> [u8; 2] {
         match self {
-            GamepadMode::Digital => 0x5A41_u16.to_le_bytes(),
-            GamepadMode::Analog => 0x5A73_u16.to_le_bytes(),
+            Mode::Digital => 0x5A41_u16.to_le_bytes(),
+            Mode::Analog => 0x5A73_u16.to_le_bytes(),
         }
     }
 
     fn set(&mut self, in_analog: bool) {
         *self = match in_analog {
-            false => GamepadMode::Digital,
-            true => GamepadMode::Analog,
+            false => Mode::Digital,
+            true => Mode::Analog,
         };
     }
 
     fn get(&self) -> bool {
         match self {
-            GamepadMode::Digital => false,
-            GamepadMode::Analog => true,
+            Mode::Digital => false,
+            Mode::Analog => true,
         }
     }
 
-    fn states_table(&self) -> &'static [(GamepadState, Option<u8>)] {
+    fn states_table(&self) -> &'static [(State, Option<u8>)] {
         match self {
-            GamepadMode::Digital => &GamepadMode::GAMEPAD_DIGITAL_STATES,
-            GamepadMode::Analog => &GamepadMode::GAMEPAD_ANALOG_STATES,
+            Mode::Digital => &Mode::GAMEPAD_DIGITAL_STATES,
+            Mode::Analog => &Mode::GAMEPAD_ANALOG_STATES,
         }
     }
 
-    fn next(&self, current_state: GamepadState, received_byte: u8) -> Option<GamepadState> {
+    fn next(&self, current_state: State, received_byte: u8) -> Option<State> {
         let idx = current_state as usize;
         let states_table = self.states_table();
 
         let (next_state, check_byte) = states_table[(idx + 1) % states_table.len()];
 
         // TAP byte should be zero, multiplayer mode not supported
-        if matches!(next_state, GamepadState::SwitchLow) {
+        if matches!(next_state, State::SwitchLow) {
             assert_eq!(received_byte, check_byte.unwrap())
         }
 
