@@ -2,13 +2,9 @@ pub mod utils;
 pub mod vec2;
 
 use crate::utils::Color;
-use crate::utils::ColorOptions;
 use crate::utils::DrawContext;
-use crate::utils::DrawOptions;
 use crate::utils::RectTextureOptions;
 use crate::utils::TextureOptions;
-use crate::utils::interpolate_color;
-use crate::utils::interpolate_uv;
 use crate::vec2::Vec2;
 use crate::vec2::edge_function;
 use crate::vec2::is_top_left;
@@ -90,11 +86,11 @@ impl Renderer {
     }
 
     pub fn vram_write(&mut self, x: usize, y: usize, data: u16) {
-        if self.ctx.preserve_masked_pixels && (self.vram_read(x, y) & 0x8000) != 0 {
+        let index = VRAM_WIDTH * y + x;
+        if self.ctx.preserve_masked_pixels && (self.vram[index] & 0x8000) != 0 {
             return;
         }
 
-        let index = VRAM_WIDTH * y + x;
         self.vram[index] = data | (self.ctx.force_set_masked_bit as u16) << 15;
     }
 
@@ -241,8 +237,8 @@ impl Renderer {
         let max_x = (r.x + side_x - 1).min(0x3FF) as usize;
         let max_y = (r.y + side_y - 1).min(0x1FF) as usize;
 
-        for x in min_x..=max_x {
-            for y in min_y..=max_y {
+        for x in min_x..max_x + 1 {
+            for y in min_y..max_y + 1 {
                 let index = VRAM_WIDTH * y + x;
                 self.vram[index] = color.to_5bit(None);
             }
@@ -256,13 +252,22 @@ impl Renderer {
         color: Color,
     ) {
         r += self.ctx.drawing_area_offset;
-        let min_x = std::cmp::max(r.x, self.ctx.drawing_area_top_left.x);
-        let min_y = std::cmp::max(r.y, self.ctx.drawing_area_top_left.y);
-        let max_x = std::cmp::min(r.x + side.x - 1, self.ctx.drawing_area_bottom_right.x);
-        let max_y = std::cmp::min(r.y + side.y - 1, self.ctx.drawing_area_bottom_right.y);
+        let min_x = r.x.max(self.ctx.drawing_area_top_left.x);
+        let min_y = r.y.max(self.ctx.drawing_area_top_left.y);
+        let max_x = (r.x + side.x - 1).min(self.ctx.drawing_area_bottom_right.x);
+        let max_y = (r.y + side.y - 1).min(self.ctx.drawing_area_bottom_right.y);
 
-        for y in min_y..=max_y {
-            for x in min_x..=max_x {
+        // Out of screen
+        if max_x < self.ctx.drawing_area_top_left.x
+            || min_x > self.ctx.drawing_area_bottom_right.x
+            || max_y < self.ctx.drawing_area_top_left.y
+            || min_y > self.ctx.drawing_area_bottom_right.y
+        {
+            return;
+        }
+
+        for y in min_y..max_y + 1 {
+            for x in min_x..max_x + 1 {
                 let mut color = color;
                 if SEMI_TRANS {
                     let old = self.vram_read(x as usize, y as usize);
@@ -277,7 +282,7 @@ impl Renderer {
         }
     }
 
-    pub fn draw_rectangle_textured<const SEMI_TRANS: bool>(
+    pub fn draw_rectangle_textured<const SEMI_TRANS: bool, const BLEND: bool>(
         &mut self,
         mut r: Vec2,
         side: Vec2,
@@ -285,25 +290,36 @@ impl Renderer {
         tex: RectTextureOptions,
     ) {
         r += self.ctx.drawing_area_offset;
-        let min_x = std::cmp::max(r.x, self.ctx.drawing_area_top_left.x);
-        let min_y = std::cmp::max(r.y, self.ctx.drawing_area_top_left.y);
-        let max_x = std::cmp::min(r.x + side.x - 1, self.ctx.drawing_area_bottom_right.x);
-        let max_y = std::cmp::min(r.y + side.y - 1, self.ctx.drawing_area_bottom_right.y);
+        let min_x = r.x.max(self.ctx.drawing_area_top_left.x);
+        let min_y = r.y.max(self.ctx.drawing_area_top_left.y);
+        let max_x = (r.x + side.x - 1).min(self.ctx.drawing_area_bottom_right.x);
+        let max_y = (r.y + side.y - 1).min(self.ctx.drawing_area_bottom_right.y);
+
+        // Out of screen
+        if max_x < self.ctx.drawing_area_top_left.x
+            || min_x > self.ctx.drawing_area_bottom_right.x
+            || max_y < self.ctx.drawing_area_top_left.y
+            || min_y > self.ctx.drawing_area_bottom_right.y
+        {
+            return;
+        }
 
         self.ctx.rect_texture.set_clut(tex.clut);
 
-        for y in min_y..=max_y {
-            for x in min_x..=max_x {
+        for y in min_y..max_y + 1 {
+            for x in min_x..max_x + 1 {
                 let uv = tex.uv + Vec2::new(x, y) - r;
                 let texel = self.ctx.rect_texture.get_texel(self, uv);
                 if texel == 0 {
                     continue;
                 }
+
                 let mut tex_color = Color::new_5bit(texel);
-                if tex.blended {
+                if BLEND {
                     tex_color.blend(color);
                 }
-                if SEMI_TRANS && (texel >> 15) & 1 == 1 {
+
+                if SEMI_TRANS && (texel & 0x8000) != 0 {
                     let old = self.vram_read(x as usize, y as usize);
                     tex_color.blend_screen(Color::new_5bit(old), self.ctx.transparency_weights);
                 }
@@ -312,26 +328,24 @@ impl Renderer {
             }
         }
     }
-    pub fn draw_line(&mut self, mut l: [Vec2; 2], options: DrawOptions<2>) {
-        l.iter_mut()
-            .for_each(|v| *v += self.ctx.drawing_area_offset);
 
-        let (x0, x1) = (l[0].x, l[1].x);
-        let (y0, y1) = (l[0].y, l[1].y);
+    pub fn draw_line<const SEMI_TRANS: bool>(&mut self, mut l: [Vec2; 2], mono: Color) {
+        l[0] += self.ctx.drawing_area_offset;
+        l[1] += self.ctx.drawing_area_offset;
 
-        let x0 = x0.clamp(
+        let x0 = l[0].x.clamp(
             self.ctx.drawing_area_top_left.x,
             self.ctx.drawing_area_bottom_right.x,
         );
-        let x1 = x1.clamp(
+        let x1 = l[1].x.clamp(
             self.ctx.drawing_area_top_left.x,
             self.ctx.drawing_area_bottom_right.x,
         );
-        let y0 = y0.clamp(
+        let y0 = l[0].y.clamp(
             self.ctx.drawing_area_top_left.y,
             self.ctx.drawing_area_bottom_right.y,
         );
-        let y1 = y1.clamp(
+        let y1 = l[1].y.clamp(
             self.ctx.drawing_area_top_left.y,
             self.ctx.drawing_area_bottom_right.y,
         );
@@ -347,19 +361,9 @@ impl Renderer {
         let mut y = y0;
 
         loop {
-            let mut color = match options.color {
-                ColorOptions::Mono(color) => color,
-                ColorOptions::Shaded(colors) => {
-                    let t = if dx >= -dy {
-                        f64::from(x - x0) / f64::from(dx)
-                    } else {
-                        f64::from(y - y0) / f64::from(-dy)
-                    };
-                    Color::lerp(colors[0], colors[1], t.abs())
-                }
-            };
+            let mut color = mono;
 
-            if options.transparent {
+            if SEMI_TRANS {
                 let old = self.vram_read(x as usize, y as usize);
                 color.blend_screen(Color::new_5bit(old), self.ctx.transparency_weights);
             }
@@ -388,72 +392,146 @@ impl Renderer {
         }
     }
 
-    pub fn draw_triangle(&mut self, mut t: [Vec2; 3], mut options: DrawOptions<3>) {
-        t.iter_mut()
-            .for_each(|v| *v += self.ctx.drawing_area_offset);
+    pub fn draw_line_shaded<const SEMI_TRANS: bool>(
+        &mut self,
+        mut l: [Vec2; 2],
+        shaded: [Color; 2],
+    ) {
+        l[0] += self.ctx.drawing_area_offset;
+        l[1] += self.ctx.drawing_area_offset;
+
+        let x0 = l[0].x.clamp(
+            self.ctx.drawing_area_top_left.x,
+            self.ctx.drawing_area_bottom_right.x,
+        );
+        let x1 = l[1].x.clamp(
+            self.ctx.drawing_area_top_left.x,
+            self.ctx.drawing_area_bottom_right.x,
+        );
+        let y0 = l[0].y.clamp(
+            self.ctx.drawing_area_top_left.y,
+            self.ctx.drawing_area_bottom_right.y,
+        );
+        let y1 = l[1].y.clamp(
+            self.ctx.drawing_area_top_left.y,
+            self.ctx.drawing_area_bottom_right.y,
+        );
+
+        let dx = (x1 - x0).abs();
+        let dy = -(y1 - y0).abs();
+
+        let sx = if x0 < x1 { 1 } else { -1 };
+        let sy = if y0 < y1 { 1 } else { -1 };
+
+        let mut err = dx + dy;
+        let mut x = x0;
+        let mut y = y0;
+
+        loop {
+            let mut color = {
+                let (num, denom) = if dx >= -dy {
+                    ((x - x0).abs(), dx)
+                } else {
+                    ((y - y0).abs(), -dy)
+                };
+                let inv = denom - num;
+                let red = (shaded[0].r as i32 * inv + shaded[1].r as i32 * num) / denom;
+                let green = (shaded[0].g as i32 * inv + shaded[1].g as i32 * num) / denom;
+                let blue = (shaded[0].b as i32 * inv + shaded[1].b as i32 * num) / denom;
+
+                Color {
+                    r: red as u8,
+                    g: green as u8,
+                    b: blue as u8,
+                    mask: 0,
+                }
+            };
+
+            if SEMI_TRANS {
+                let old = self.vram_read(x as usize, y as usize);
+                color.blend_screen(Color::new_5bit(old), self.ctx.transparency_weights);
+            }
+
+            self.vram_write(
+                x as usize,
+                y as usize,
+                color.to_5bit(Some(self.ctx.force_set_masked_bit)),
+            );
+
+            let e2 = 2 * err;
+            if e2 >= dy {
+                if x == x1 {
+                    break;
+                }
+                err += dy;
+                x += sx;
+            }
+            if e2 <= dx {
+                if y == y1 {
+                    break;
+                }
+                err += dx;
+                y += sy;
+            }
+        }
+    }
+
+    pub fn draw_triangle<const SEMI_TRANS: bool>(&mut self, mut t: [Vec2; 3], mono: Color) {
+        t[0] += self.ctx.drawing_area_offset;
+        t[1] += self.ctx.drawing_area_offset;
+        t[2] += self.ctx.drawing_area_offset;
 
         if needs_vertex_reordering(&t) {
             t.swap(0, 1);
-            options.color.swap_first_two_vertex();
         }
 
-        let min_x = std::cmp::min(t[0].x, std::cmp::min(t[1].x, t[2].x));
-        let min_y = std::cmp::min(t[0].y, std::cmp::min(t[1].y, t[2].y));
-        let max_x = std::cmp::max(t[0].x, std::cmp::max(t[1].x, t[2].x));
-        let max_y = std::cmp::max(t[0].y, std::cmp::max(t[1].y, t[2].y));
+        let min_x = t[0].x.min(t[1].x).min(t[2].x);
+        let min_y = t[0].y.min(t[1].y).min(t[2].y);
+        let max_x = t[0].x.max(t[1].x).max(t[2].x);
+        let max_y = t[0].y.max(t[1].y).max(t[2].y);
 
-        let min_x = std::cmp::max(min_x, self.ctx.drawing_area_top_left.x);
-        let min_y = std::cmp::max(min_y, self.ctx.drawing_area_top_left.y);
-        let max_x = std::cmp::min(max_x, self.ctx.drawing_area_bottom_right.x);
-        let max_y = std::cmp::min(max_y, self.ctx.drawing_area_bottom_right.y);
+        // Out of screen
+        if max_x < self.ctx.drawing_area_top_left.x
+            || min_x > self.ctx.drawing_area_bottom_right.x
+            || max_y < self.ctx.drawing_area_top_left.y
+            || min_y > self.ctx.drawing_area_bottom_right.y
+        {
+            return;
+        }
 
-        let start = Vec2::new(min_x, min_y);
+        let min_x = min_x.max(self.ctx.drawing_area_top_left.x) as usize;
+        let min_y = min_y.max(self.ctx.drawing_area_top_left.y) as usize;
+        let max_x = max_x.min(self.ctx.drawing_area_bottom_right.x) as usize;
+        let max_y = max_y.min(self.ctx.drawing_area_bottom_right.y) as usize;
+
+        let start = Vec2::new(min_x as i32, min_y as i32);
         let (mut e1_row, a1, b1) = edge_function(start, t[0], t[1]);
         let (mut e2_row, a2, b2) = edge_function(start, t[1], t[2]);
         let (mut e3_row, a3, b3) = edge_function(start, t[2], t[0]);
 
-        let tl1 = is_top_left(t[0], t[1]);
-        let tl2 = is_top_left(t[1], t[2]);
-        let tl3 = is_top_left(t[2], t[0]);
+        let bias1 = !is_top_left(t[0], t[1]) as i32;
+        let bias2 = !is_top_left(t[1], t[2]) as i32;
+        let bias3 = !is_top_left(t[2], t[0]) as i32;
 
-        for y in min_y..=max_y {
+        for y in min_y..max_y + 1 {
             let mut e1 = e1_row;
             let mut e2 = e2_row;
             let mut e3 = e3_row;
 
-            for x in min_x..=max_x {
-                let is_inside = {
-                    let a = e1 > 0 || (e1 == 0 && tl1);
-                    let b = e2 > 0 || (e2 == 0 && tl2);
-                    let c = e3 > 0 || (e3 == 0 && tl3);
-                    a && b && c
-                };
+            for x in min_x..max_x + 1 {
+                if e1 >= bias1 && e2 >= bias2 && e3 >= bias3 {
+                    let mut color = mono;
 
-                if is_inside {
-                    let p = Vec2::new(x, y);
-                    let mut color = match options.color {
-                        ColorOptions::Mono(color) => color,
-                        ColorOptions::Shaded(colors) => {
-                            let sum = (e1 + e2 + e3) as f64;
-                            let weights = [e2 as f64 / sum, e3 as f64 / sum, e1 as f64 / sum];
-                            interpolate_color(weights, colors)
-                        }
-                    };
-
-                    if options.transparent {
-                        let old = self.vram_read(x as usize, y as usize);
+                    if SEMI_TRANS {
+                        let old = self.vram_read(x, y);
                         color.blend_screen(Color::new_5bit(old), self.ctx.transparency_weights);
                     }
 
                     if self.ctx.dithering {
-                        color.apply_dithering(p);
+                        color.apply_dithering(x, y);
                     }
 
-                    self.vram_write(
-                        x as usize,
-                        y as usize,
-                        color.to_5bit(Some(self.ctx.force_set_masked_bit)),
-                    );
+                    self.vram_write(x, y, color.to_5bit(Some(self.ctx.force_set_masked_bit)));
                 }
 
                 e1 += a1;
@@ -467,99 +545,356 @@ impl Renderer {
         }
     }
 
-    pub fn draw_triangle_textured(
+    pub fn draw_triangle_shaded<const SEMI_TRANS: bool>(
         &mut self,
         mut t: [Vec2; 3],
-        mut options: DrawOptions<3>,
-        mut tex: TextureOptions,
+        mut shaded: [Color; 3],
     ) {
-        t.iter_mut()
-            .for_each(|v| *v += self.ctx.drawing_area_offset);
+        t[0] += self.ctx.drawing_area_offset;
+        t[1] += self.ctx.drawing_area_offset;
+        t[2] += self.ctx.drawing_area_offset;
 
         if needs_vertex_reordering(&t) {
             t.swap(0, 1);
-            options.color.swap_first_two_vertex();
-            tex.uvs.swap(0, 1);
+            shaded.swap(0, 1);
         }
 
-        let min_x = std::cmp::min(t[0].x, std::cmp::min(t[1].x, t[2].x));
-        let min_y = std::cmp::min(t[0].y, std::cmp::min(t[1].y, t[2].y));
-        let max_x = std::cmp::max(t[0].x, std::cmp::max(t[1].x, t[2].x));
-        let max_y = std::cmp::max(t[0].y, std::cmp::max(t[1].y, t[2].y));
+        let min_x = t[0].x.min(t[1].x).min(t[2].x);
+        let min_y = t[0].y.min(t[1].y).min(t[2].y);
+        let max_x = t[0].x.max(t[1].x).max(t[2].x);
+        let max_y = t[0].y.max(t[1].y).max(t[2].y);
 
-        let min_x = std::cmp::max(min_x, self.ctx.drawing_area_top_left.x);
-        let min_y = std::cmp::max(min_y, self.ctx.drawing_area_top_left.y);
-        let max_x = std::cmp::min(max_x, self.ctx.drawing_area_bottom_right.x);
-        let max_y = std::cmp::min(max_y, self.ctx.drawing_area_bottom_right.y);
+        // Out of screen
+        if max_x < self.ctx.drawing_area_top_left.x
+            || min_x > self.ctx.drawing_area_bottom_right.x
+            || max_y < self.ctx.drawing_area_top_left.y
+            || min_y > self.ctx.drawing_area_bottom_right.y
+        {
+            return;
+        }
 
-        let start = Vec2::new(min_x, min_y);
+        let min_x = min_x.max(self.ctx.drawing_area_top_left.x) as usize;
+        let min_y = min_y.max(self.ctx.drawing_area_top_left.y) as usize;
+        let max_x = max_x.min(self.ctx.drawing_area_bottom_right.x) as usize;
+        let max_y = max_y.min(self.ctx.drawing_area_bottom_right.y) as usize;
+
+        let start = Vec2::new(min_x as i32, min_y as i32);
         let (mut e1_row, a1, b1) = edge_function(start, t[0], t[1]);
         let (mut e2_row, a2, b2) = edge_function(start, t[1], t[2]);
         let (mut e3_row, a3, b3) = edge_function(start, t[2], t[0]);
 
-        let tl1 = is_top_left(t[0], t[1]);
-        let tl2 = is_top_left(t[1], t[2]);
-        let tl3 = is_top_left(t[2], t[0]);
+        let bias1 = !is_top_left(t[0], t[1]) as i32;
+        let bias2 = !is_top_left(t[1], t[2]) as i32;
+        let bias3 = !is_top_left(t[2], t[0]) as i32;
 
-        for y in min_y..=max_y {
+        let [c0, c1, c2] = shaded;
+
+        let r_dx = a2 * c0.r as i32 + a3 * c1.r as i32 + a1 * c2.r as i32;
+        let g_dx = a2 * c0.g as i32 + a3 * c1.g as i32 + a1 * c2.g as i32;
+        let b_dx = a2 * c0.b as i32 + a3 * c1.b as i32 + a1 * c2.b as i32;
+
+        let r_dy = b2 * c0.r as i32 + b3 * c1.r as i32 + b1 * c2.r as i32;
+        let g_dy = b2 * c0.g as i32 + b3 * c1.g as i32 + b1 * c2.g as i32;
+        let b_dy = b2 * c0.b as i32 + b3 * c1.b as i32 + b1 * c2.b as i32;
+
+        let mut r_row = e2_row * c0.r as i32 + e3_row * c1.r as i32 + e1_row * c2.r as i32;
+        let mut g_row = e2_row * c0.g as i32 + e3_row * c1.g as i32 + e1_row * c2.g as i32;
+        let mut b_row = e2_row * c0.b as i32 + e3_row * c1.b as i32 + e1_row * c2.b as i32;
+
+        let sum = e1_row + e2_row + e3_row;
+
+        for y in min_y..max_y + 1 {
             let mut e1 = e1_row;
             let mut e2 = e2_row;
             let mut e3 = e3_row;
+            let mut r_num = r_row;
+            let mut g_num = g_row;
+            let mut b_num = b_row;
 
-            for x in min_x..=max_x {
-                let is_inside = {
-                    let a = e1 > 0 || (e1 == 0 && tl1);
-                    let b = e2 > 0 || (e2 == 0 && tl2);
-                    let c = e3 > 0 || (e3 == 0 && tl3);
-                    a && b && c
-                };
+            for x in min_x..max_x + 1 {
+                if e1 >= bias1 && e2 >= bias2 && e3 >= bias3 {
+                    let mut color = Color {
+                        r: (r_num / sum) as u8,
+                        g: (g_num / sum) as u8,
+                        b: (b_num / sum) as u8,
+                        mask: 0,
+                    };
 
-                if is_inside {
-                    let p = Vec2::new(x, y);
-                    let sum = (e1 + e2 + e3) as f64;
-                    let weights = [e2 as f64 / sum, e3 as f64 / sum, e1 as f64 / sum];
-
-                    let uv = interpolate_uv(weights, tex.uvs);
-                    let texel = tex.texture.get_texel(self, uv);
-                    // Fully black texels are ignored
-                    if texel == 0 {
-                        e1 += a1;
-                        e2 += a2;
-                        e3 += a3;
-                        continue;
-                    }
-
-                    let mut color = Color::new_5bit(texel);
-                    if tex.blended {
-                        color.blend(match options.color {
-                            ColorOptions::Mono(color) => color,
-                            ColorOptions::Shaded(colors) => interpolate_color(weights, colors),
-                        });
-                    }
-
-                    if options.transparent && (texel >> 15) & 1 == 1 {
-                        let old = self.vram_read(x as usize, y as usize);
+                    if SEMI_TRANS {
+                        let old = self.vram_read(x, y);
                         color.blend_screen(Color::new_5bit(old), self.ctx.transparency_weights);
                     }
 
                     if self.ctx.dithering {
-                        color.apply_dithering(p);
+                        color.apply_dithering(x, y);
                     }
 
-                    self.vram_write(
-                        x as usize,
-                        y as usize,
-                        color.to_5bit(self.ctx.force_set_masked_bit.then_some(true)),
-                    );
+                    self.vram_write(x, y, color.to_5bit(Some(self.ctx.force_set_masked_bit)));
                 }
 
                 e1 += a1;
                 e2 += a2;
                 e3 += a3;
+                r_num += r_dx;
+                g_num += g_dx;
+                b_num += b_dx;
+            }
+
+            e1_row += b1;
+            e2_row += b2;
+            e3_row += b3;
+            r_row += r_dy;
+            g_row += g_dy;
+            b_row += b_dy;
+        }
+    }
+
+    pub fn draw_triangle_textured<const SEMI_TRANS: bool, const BLEND: bool>(
+        &mut self,
+        mut t: [Vec2; 3],
+        mono: Color,
+        mut tex: TextureOptions,
+    ) {
+        t[0] += self.ctx.drawing_area_offset;
+        t[1] += self.ctx.drawing_area_offset;
+        t[2] += self.ctx.drawing_area_offset;
+
+        if needs_vertex_reordering(&t) {
+            t.swap(0, 1);
+            tex.uvs.swap(0, 1);
+        }
+
+        let min_x = t[0].x.min(t[1].x).min(t[2].x);
+        let min_y = t[0].y.min(t[1].y).min(t[2].y);
+        let max_x = t[0].x.max(t[1].x).max(t[2].x);
+        let max_y = t[0].y.max(t[1].y).max(t[2].y);
+
+        // Out of screen
+        if max_x < self.ctx.drawing_area_top_left.x
+            || min_x > self.ctx.drawing_area_bottom_right.x
+            || max_y < self.ctx.drawing_area_top_left.y
+            || min_y > self.ctx.drawing_area_bottom_right.y
+        {
+            return;
+        }
+
+        let min_x = min_x.max(self.ctx.drawing_area_top_left.x) as usize;
+        let min_y = min_y.max(self.ctx.drawing_area_top_left.y) as usize;
+        let max_x = max_x.min(self.ctx.drawing_area_bottom_right.x) as usize;
+        let max_y = max_y.min(self.ctx.drawing_area_bottom_right.y) as usize;
+
+        let start = Vec2::new(min_x as i32, min_y as i32);
+        let (mut e1_row, a1, b1) = edge_function(start, t[0], t[1]);
+        let (mut e2_row, a2, b2) = edge_function(start, t[1], t[2]);
+        let (mut e3_row, a3, b3) = edge_function(start, t[2], t[0]);
+
+        let bias1 = !is_top_left(t[0], t[1]) as i32;
+        let bias2 = !is_top_left(t[1], t[2]) as i32;
+        let bias3 = !is_top_left(t[2], t[0]) as i32;
+
+        let [uv0, uv1, uv2] = tex.uvs;
+
+        let u_dx = a2 * uv0.x + a3 * uv1.x + a1 * uv2.x;
+        let v_dx = a2 * uv0.y + a3 * uv1.y + a1 * uv2.y;
+        let u_dy = b2 * uv0.x + b3 * uv1.x + b1 * uv2.x;
+        let v_dy = b2 * uv0.y + b3 * uv1.y + b1 * uv2.y;
+
+        let mut u_row = e2_row * uv0.x + e3_row * uv1.x + e1_row * uv2.x;
+        let mut v_row = e2_row * uv0.y + e3_row * uv1.y + e1_row * uv2.y;
+
+        let sum = e1_row + e2_row + e3_row;
+
+        for y in min_y..max_y + 1 {
+            let mut e1 = e1_row;
+            let mut e2 = e2_row;
+            let mut e3 = e3_row;
+            let mut u_num = u_row;
+            let mut v_num = v_row;
+
+            for x in min_x..max_x + 1 {
+                if e1 >= bias1 && e2 >= bias2 && e3 >= bias3 {
+                    let texel = tex.texture.get_texel(
+                        self,
+                        Vec2 {
+                            x: u_num / sum,
+                            y: v_num / sum,
+                        },
+                    );
+
+                    // Fully black texels are ignored
+                    if texel != 0 {
+                        let mut color = Color::new_5bit(texel);
+                        if BLEND {
+                            color.blend(mono);
+                        }
+
+                        if SEMI_TRANS && (texel & 0x8000) != 0 {
+                            let old = self.vram_read(x, y);
+                            color.blend_screen(Color::new_5bit(old), self.ctx.transparency_weights);
+                        }
+
+                        if self.ctx.dithering {
+                            color.apply_dithering(x, y);
+                        }
+
+                        self.vram_write(
+                            x,
+                            y,
+                            color.to_5bit(self.ctx.force_set_masked_bit.then_some(true)),
+                        );
+                    }
+                }
+
+                e1 += a1;
+                e2 += a2;
+                e3 += a3;
+                u_num += u_dx;
+                v_num += v_dx;
+            }
+
+            e1_row += b1;
+            e2_row += b2;
+            e3_row += b3;
+            u_row += u_dy;
+            v_row += v_dy;
+        }
+    }
+
+    pub fn draw_triangle_textured_shaded<const SEMI_TRANS: bool, const BLEND: bool>(
+        &mut self,
+        mut t: [Vec2; 3],
+        mut shaded: [Color; 3],
+        mut tex: TextureOptions,
+    ) {
+        t[0] += self.ctx.drawing_area_offset;
+        t[1] += self.ctx.drawing_area_offset;
+        t[2] += self.ctx.drawing_area_offset;
+
+        if needs_vertex_reordering(&t) {
+            t.swap(0, 1);
+            shaded.swap(0, 1);
+            tex.uvs.swap(0, 1);
+        }
+
+        let min_x = t[0].x.min(t[1].x).min(t[2].x);
+        let min_y = t[0].y.min(t[1].y).min(t[2].y);
+        let max_x = t[0].x.max(t[1].x).max(t[2].x);
+        let max_y = t[0].y.max(t[1].y).max(t[2].y);
+
+        // Out of screen
+        if max_x < self.ctx.drawing_area_top_left.x
+            || min_x > self.ctx.drawing_area_bottom_right.x
+            || max_y < self.ctx.drawing_area_top_left.y
+            || min_y > self.ctx.drawing_area_bottom_right.y
+        {
+            return;
+        }
+
+        let min_x = min_x.max(self.ctx.drawing_area_top_left.x) as usize;
+        let min_y = min_y.max(self.ctx.drawing_area_top_left.y) as usize;
+        let max_x = max_x.min(self.ctx.drawing_area_bottom_right.x) as usize;
+        let max_y = max_y.min(self.ctx.drawing_area_bottom_right.y) as usize;
+
+        let start = Vec2::new(min_x as i32, min_y as i32);
+        let (mut e1_row, a1, b1) = edge_function(start, t[0], t[1]);
+        let (mut e2_row, a2, b2) = edge_function(start, t[1], t[2]);
+        let (mut e3_row, a3, b3) = edge_function(start, t[2], t[0]);
+
+        let bias1 = !is_top_left(t[0], t[1]) as i32;
+        let bias2 = !is_top_left(t[1], t[2]) as i32;
+        let bias3 = !is_top_left(t[2], t[0]) as i32;
+
+        let [c0, c1, c2] = shaded;
+
+        let r_dx = a2 * c0.r as i32 + a3 * c1.r as i32 + a1 * c2.r as i32;
+        let g_dx = a2 * c0.g as i32 + a3 * c1.g as i32 + a1 * c2.g as i32;
+        let b_dx = a2 * c0.b as i32 + a3 * c1.b as i32 + a1 * c2.b as i32;
+
+        let r_dy = b2 * c0.r as i32 + b3 * c1.r as i32 + b1 * c2.r as i32;
+        let g_dy = b2 * c0.g as i32 + b3 * c1.g as i32 + b1 * c2.g as i32;
+        let b_dy = b2 * c0.b as i32 + b3 * c1.b as i32 + b1 * c2.b as i32;
+
+        let mut r_row = e2_row * c0.r as i32 + e3_row * c1.r as i32 + e1_row * c2.r as i32;
+        let mut g_row = e2_row * c0.g as i32 + e3_row * c1.g as i32 + e1_row * c2.g as i32;
+        let mut b_row = e2_row * c0.b as i32 + e3_row * c1.b as i32 + e1_row * c2.b as i32;
+
+        let [uv0, uv1, uv2] = tex.uvs;
+
+        let u_dx = a2 * uv0.x + a3 * uv1.x + a1 * uv2.x;
+        let v_dx = a2 * uv0.y + a3 * uv1.y + a1 * uv2.y;
+        let u_dy = b2 * uv0.x + b3 * uv1.x + b1 * uv2.x;
+        let v_dy = b2 * uv0.y + b3 * uv1.y + b1 * uv2.y;
+
+        let mut u_row = e2_row * uv0.x + e3_row * uv1.x + e1_row * uv2.x;
+        let mut v_row = e2_row * uv0.y + e3_row * uv1.y + e1_row * uv2.y;
+
+        let sum = e1_row + e2_row + e3_row;
+
+        for y in min_y..max_y + 1 {
+            let mut e1 = e1_row;
+            let mut e2 = e2_row;
+            let mut e3 = e3_row;
+            let mut r_num = r_row;
+            let mut g_num = g_row;
+            let mut b_num = b_row;
+            let mut u_num = u_row;
+            let mut v_num = v_row;
+
+            for x in min_x..max_x + 1 {
+                if e1 >= bias1 && e2 >= bias2 && e3 >= bias3 {
+                    let texel = tex.texture.get_texel(
+                        self,
+                        Vec2 {
+                            x: u_num / sum,
+                            y: v_num / sum,
+                        },
+                    );
+                    // Fully black texels are ignored
+                    if texel != 0 {
+                        let mut color = Color::new_5bit(texel);
+                        if BLEND {
+                            color.blend(Color {
+                                r: (r_num / sum) as u8,
+                                g: (g_num / sum) as u8,
+                                b: (b_num / sum) as u8,
+                                mask: 0,
+                            });
+                        }
+
+                        if SEMI_TRANS && (texel >> 15) & 1 == 1 {
+                            let old = self.vram_read(x, y);
+                            color.blend_screen(Color::new_5bit(old), self.ctx.transparency_weights);
+                        }
+
+                        if self.ctx.dithering {
+                            color.apply_dithering(x, y);
+                        }
+
+                        self.vram_write(
+                            x,
+                            y,
+                            color.to_5bit(self.ctx.force_set_masked_bit.then_some(true)),
+                        );
+                    }
+                }
+
+                e1 += a1;
+                e2 += a2;
+                e3 += a3;
+                r_num += r_dx;
+                g_num += g_dx;
+                b_num += b_dx;
+                u_num += u_dx;
+                v_num += v_dx;
             }
             e1_row += b1;
             e2_row += b2;
             e3_row += b3;
+            r_row += r_dy;
+            g_row += g_dy;
+            b_row += b_dy;
+            u_row += u_dy;
+            v_row += v_dy;
         }
     }
 }

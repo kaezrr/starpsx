@@ -1,6 +1,4 @@
 use starpsx_renderer::utils::Color;
-use starpsx_renderer::utils::ColorOptions;
-use starpsx_renderer::utils::DrawOptions;
 use starpsx_renderer::utils::RectTextureOptions;
 use starpsx_renderer::utils::Texture;
 use starpsx_renderer::utils::TextureOptions;
@@ -39,10 +37,10 @@ impl Gpu {
         ctx.rect_texture = Texture::new(cmd.0 as u16, None);
         ctx.dithering = self.gpu_stat.dithering();
         ctx.transparency_weights = match self.gpu_stat.semi_transparency() {
-            0 => (0.5, 0.5),
-            1 => (1.0, 1.0),
-            2 => (1.0, -1.0),
-            3 => (1.0, 0.25),
+            0 => (2, 2),  //0.5, 0.5,
+            1 => (4, 4),  //1.0, 1.0,
+            2 => (4, -4), //1.0, -1.0,
+            3 => (4, 1),  //1.0, 0.25,
             _ => unreachable!("2 bit value cant reach here"),
         };
 
@@ -191,23 +189,13 @@ impl Gpu {
         let v1 = parse_xy(params[2].0);
         let v2 = parse_xy(params[3].0);
 
-        self.renderer.draw_triangle(
-            [v0, v1, v2],
-            DrawOptions {
-                color: ColorOptions::Mono(color),
-                transparent: SEMI_TRANS,
-            },
-        );
+        self.renderer
+            .draw_triangle::<SEMI_TRANS>([v0, v1, v2], color);
 
         if QUAD {
             let v3 = parse_xy(params[4].0);
-            self.renderer.draw_triangle(
-                [v1, v2, v3],
-                DrawOptions {
-                    color: ColorOptions::Mono(color),
-                    transparent: SEMI_TRANS,
-                },
-            );
+            self.renderer
+                .draw_triangle::<SEMI_TRANS>([v1, v2, v3], color);
         }
 
         GP0State::AwaitCommand
@@ -225,24 +213,14 @@ impl Gpu {
         let c1 = Color::new_5bit(params[2].0);
         let c2 = Color::new_5bit(params[4].0);
 
-        self.renderer.draw_triangle(
-            [v0, v1, v2],
-            DrawOptions {
-                color: ColorOptions::Shaded([c0, c1, c2]),
-                transparent: SEMI_TRANS,
-            },
-        );
+        self.renderer
+            .draw_triangle_shaded::<SEMI_TRANS>([v0, v1, v2], [c0, c1, c2]);
 
         if QUAD {
             let v3 = parse_xy(params[7].0);
             let c3 = Color::new_5bit(params[6].0);
-            self.renderer.draw_triangle(
-                [v1, v2, v3],
-                DrawOptions {
-                    color: ColorOptions::Shaded([c1, c2, c3]),
-                    transparent: SEMI_TRANS,
-                },
-            );
+            self.renderer
+                .draw_triangle_shaded::<SEMI_TRANS>([v1, v2, v3], [c1, c2, c3]);
         }
 
         GP0State::AwaitCommand
@@ -265,15 +243,11 @@ impl Gpu {
         // for some goddamn reason this also updates the global texture
         self.renderer.ctx.rect_texture = texture;
 
-        self.renderer.draw_triangle_textured(
+        self.renderer.draw_triangle_textured::<SEMI_TRANS, BLEND>(
             [v0, v1, v2],
-            DrawOptions {
-                color: ColorOptions::Mono(color),
-                transparent: SEMI_TRANS,
-            },
+            color,
             TextureOptions {
                 texture,
-                blended: BLEND,
                 uvs: [uv0, uv1, uv2],
             },
         );
@@ -281,15 +255,11 @@ impl Gpu {
         if QUAD {
             let v3 = parse_xy(params[7].0);
             let uv3 = parse_uv(params[8].0);
-            self.renderer.draw_triangle_textured(
+            self.renderer.draw_triangle_textured::<SEMI_TRANS, BLEND>(
                 [v1, v2, v3],
-                DrawOptions {
-                    color: ColorOptions::Mono(color),
-                    transparent: SEMI_TRANS,
-                },
+                color,
                 TextureOptions {
                     texture,
-                    blended: BLEND,
                     uvs: [uv1, uv2, uv3],
                 },
             );
@@ -314,35 +284,30 @@ impl Gpu {
         let (texture, uv1) = parse_page_uv(params[5].0, clut);
         let uv2 = parse_uv(params[8].0);
 
-        self.renderer.draw_triangle_textured(
-            [v0, v1, v2],
-            DrawOptions {
-                color: ColorOptions::Shaded([c0, c1, c2]),
-                transparent: SEMI_TRANS,
-            },
-            TextureOptions {
-                texture,
-                blended: BLEND,
-                uvs: [uv0, uv1, uv2],
-            },
-        );
+        self.renderer
+            .draw_triangle_textured_shaded::<SEMI_TRANS, BLEND>(
+                [v0, v1, v2],
+                [c0, c1, c2],
+                TextureOptions {
+                    texture,
+                    uvs: [uv0, uv1, uv2],
+                },
+            );
 
         if QUAD {
             let c3 = Color::new_5bit(params[9].0);
             let v3 = parse_xy(params[10].0);
             let uv3 = parse_uv(params[11].0);
-            self.renderer.draw_triangle_textured(
-                [v1, v2, v3],
-                DrawOptions {
-                    color: ColorOptions::Shaded([c1, c2, c3]),
-                    transparent: SEMI_TRANS,
-                },
-                TextureOptions {
-                    texture,
-                    blended: BLEND,
-                    uvs: [uv1, uv2, uv3],
-                },
-            );
+
+            self.renderer
+                .draw_triangle_textured_shaded::<SEMI_TRANS, BLEND>(
+                    [v1, v2, v3],
+                    [c1, c2, c3],
+                    TextureOptions {
+                        texture,
+                        uvs: [uv1, uv2, uv3],
+                    },
+                );
         }
 
         GP0State::AwaitCommand
@@ -356,13 +321,7 @@ impl Gpu {
         let v1 = parse_xy(params[2].0);
         let color = Color::new_5bit(params[0].0);
 
-        self.renderer.draw_line(
-            [v0, v1],
-            DrawOptions {
-                color: ColorOptions::Mono(color),
-                transparent: SEMI_TRANS,
-            },
-        );
+        self.renderer.draw_line::<SEMI_TRANS>([v0, v1], color);
         GP0State::AwaitCommand
     }
 
@@ -376,13 +335,8 @@ impl Gpu {
         let c0 = Color::new_5bit(params[0].0);
         let c1 = Color::new_5bit(params[2].0);
 
-        self.renderer.draw_line(
-            [v0, v1],
-            DrawOptions {
-                color: ColorOptions::Shaded([c0, c1]),
-                transparent: SEMI_TRANS,
-            },
-        );
+        self.renderer
+            .draw_line_shaded::<SEMI_TRANS>([v0, v1], [c0, c1]);
         GP0State::AwaitCommand
     }
 
@@ -395,13 +349,8 @@ impl Gpu {
         let color = Color::new_5bit(colors[0]);
 
         for i in 1..vertices.len() {
-            self.renderer.draw_line(
-                [vertices[i - 1], vertices[i]],
-                DrawOptions {
-                    color: ColorOptions::Mono(color),
-                    transparent: SEMI_TRANS,
-                },
-            );
+            self.renderer
+                .draw_line::<SEMI_TRANS>([vertices[i - 1], vertices[i]], color);
         }
         GP0State::AwaitCommand
     }
@@ -415,12 +364,9 @@ impl Gpu {
         let colors: Vec<Color> = colors.into_iter().map(Color::new_5bit).collect();
 
         for i in 1..vertices.len() {
-            self.renderer.draw_line(
+            self.renderer.draw_line_shaded::<SEMI_TRANS>(
                 [vertices[i - 1], vertices[i]],
-                DrawOptions {
-                    color: ColorOptions::Shaded([colors[i - 1], colors[i]]),
-                    transparent: SEMI_TRANS,
-                },
+                [colors[i - 1], colors[i]],
             );
         }
         GP0State::AwaitCommand
@@ -445,15 +391,11 @@ impl Gpu {
         let v = parse_xy(params[1].0);
         let (clut, uv) = parse_clut_uv(params[2].0);
 
-        self.renderer.draw_rectangle_textured::<SEMI_TRANS>(
+        self.renderer.draw_rectangle_textured::<SEMI_TRANS, BLEND>(
             v,
             Vec2::new(SIDE, SIDE),
             color,
-            RectTextureOptions {
-                clut,
-                blended: BLEND,
-                uv,
-            },
+            RectTextureOptions { clut, uv },
         );
 
         GP0State::AwaitCommand
@@ -481,15 +423,11 @@ impl Gpu {
         let (clut, uv) = parse_clut_uv(params[2].0);
         let side = parse_xy(params[3].0);
 
-        self.renderer.draw_rectangle_textured::<SEMI_TRANS>(
+        self.renderer.draw_rectangle_textured::<SEMI_TRANS, BLEND>(
             v,
             side,
             color,
-            RectTextureOptions {
-                clut,
-                blended: BLEND,
-                uv,
-            },
+            RectTextureOptions { clut, uv },
         );
 
         GP0State::AwaitCommand

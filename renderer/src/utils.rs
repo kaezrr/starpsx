@@ -10,7 +10,7 @@ pub struct Color {
     pub r: u8,
     pub g: u8,
     pub b: u8,
-    mask: u8,
+    pub mask: u8,
 }
 
 const DITHER_TABLE: [[i8; 4]; 4] = [
@@ -86,41 +86,26 @@ impl Color {
         m << 15 | b << 10 | g << 5 | r
     }
 
-    pub fn apply_dithering(&mut self, p: Vec2) {
-        let offset = DITHER_TABLE[(p.y & 3) as usize][(p.x & 3) as usize];
+    pub fn apply_dithering(&mut self, x: usize, y: usize) {
+        let offset = DITHER_TABLE[y & 3][x & 3];
 
         self.r = self.r.saturating_add_signed(offset);
         self.g = self.g.saturating_add_signed(offset);
         self.b = self.b.saturating_add_signed(offset);
     }
 
-    pub fn blend_screen(&mut self, back: Color, weights: (f64, f64)) {
-        let b = (f64::from(back.r), f64::from(back.g), f64::from(back.b));
-        let f = (f64::from(self.r), f64::from(self.g), f64::from(self.b));
-
-        self.r = (b.0 * weights.0 + f.0 * weights.1).round() as u8;
-        self.g = (b.1 * weights.0 + f.1 * weights.1).round() as u8;
-        self.b = (b.2 * weights.0 + f.2 * weights.1).round() as u8;
+    // weights is a 30.2 fixed point number
+    pub fn blend_screen(&mut self, back: Color, weights: (i32, i32)) {
+        let (w0, w1) = weights;
+        self.r = ((back.r as i32 * w0 + self.r as i32 * w1) >> 2).clamp(0, 255) as u8;
+        self.g = ((back.g as i32 * w0 + self.g as i32 * w1) >> 2).clamp(0, 255) as u8;
+        self.b = ((back.b as i32 * w0 + self.b as i32 * w1) >> 2).clamp(0, 255) as u8;
     }
 
     pub fn blend(&mut self, poly: Color) {
-        let b = (f64::from(poly.r), f64::from(poly.g), f64::from(poly.b));
-        let f = (f64::from(self.r), f64::from(self.g), f64::from(self.b));
-
-        self.r = ((b.0 * f.0) / 128.0).round() as u8;
-        self.g = ((b.1 * f.1) / 128.0).round() as u8;
-        self.b = ((b.2 * f.2) / 128.0).round() as u8;
-    }
-
-    pub fn lerp(a: Color, b: Color, t: f64) -> Self {
-        let a = (f64::from(a.r), f64::from(a.g), f64::from(a.b));
-        let b = (f64::from(b.r), f64::from(b.g), f64::from(b.b));
-
-        let r = (a.0 * (1.0 - t) + b.0 * t).round() as u8;
-        let g = (a.1 * (1.0 - t) + b.1 * t).round() as u8;
-        let b = (a.2 * (1.0 - t) + b.2 * t).round() as u8;
-
-        Self { r, g, b, mask: 0 }
+        self.r = ((self.r as i32 * poly.r as i32) >> 7).min(255) as u8;
+        self.g = ((self.g as i32 * poly.g as i32) >> 7).min(255) as u8;
+        self.b = ((self.b as i32 * poly.b as i32) >> 7).min(255) as u8;
     }
 }
 
@@ -147,7 +132,7 @@ pub struct DrawContext {
     pub drawing_area_offset: Vec2,
 
     pub dithering: bool,
-    pub transparency_weights: (f64, f64),
+    pub transparency_weights: (i32, i32),
 
     pub texture_window_mask: Vec2,
     pub texture_window_offset: Vec2,
@@ -178,28 +163,6 @@ impl DrawContext {
     pub fn reset(&mut self) {
         *self = Self::default();
     }
-}
-
-pub fn interpolate_color(weights: [f64; 3], colors: [Color; 3]) -> Color {
-    let colr = colors.map(|color| f64::from(color.r));
-    let colg = colors.map(|color| f64::from(color.g));
-    let colb = colors.map(|color| f64::from(color.b));
-
-    let r = (weights[0] * colr[0] + weights[1] * colr[1] + weights[2] * colr[2]).round() as u8;
-    let g = (weights[0] * colg[0] + weights[1] * colg[1] + weights[2] * colg[2]).round() as u8;
-    let b = (weights[0] * colb[0] + weights[1] * colb[1] + weights[2] * colb[2]).round() as u8;
-
-    Color { r, g, b, mask: 0 }
-}
-
-pub fn interpolate_uv(weights: [f64; 3], uvs: [Vec2; 3]) -> Vec2 {
-    let us = uvs.map(|uv| f64::from(uv.x));
-    let vs = uvs.map(|uv| f64::from(uv.y));
-
-    let x = (weights[0] * us[0] + weights[1] * us[1] + weights[2] * us[2]).round() as i32;
-    let y = (weights[0] * vs[0] + weights[1] * vs[1] + weights[2] * vs[2]).round() as i32;
-
-    Vec2 { x, y }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -300,33 +263,13 @@ impl Texture {
     }
 }
 
-pub enum ColorOptions<const SIZE: usize> {
-    Mono(Color),
-    Shaded([Color; SIZE]),
-}
-
-impl ColorOptions<3> {
-    pub fn swap_first_two_vertex(&mut self) {
-        if let ColorOptions::Shaded(x) = self {
-            x.swap(0, 1);
-        }
-    }
-}
-
-pub struct DrawOptions<const SIZE: usize> {
-    pub color: ColorOptions<SIZE>,
-    pub transparent: bool,
-}
-
 pub struct TextureOptions {
     pub texture: Texture,
-    pub blended: bool,
     pub uvs: [Vec2; 3],
 }
 
 pub struct RectTextureOptions {
     pub clut: Clut,
-    pub blended: bool,
     pub uv: Vec2,
 }
 
