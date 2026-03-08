@@ -90,19 +90,10 @@ impl Debugger {
             self.pc_changed = true;
         }
 
-        egui::SidePanel::left("debug_left")
-            .resizable(false)
-            .min_width(400.0)
-            .show(ctx, |ui| {
-                self.disassembly_view(ui);
-            });
-
         egui::SidePanel::right("debug_right")
-            .min_width(600.0)
+            .width_range(500.0..=800.0)
             .show(ctx, |ui| {
                 ui.vertical(|ui| {
-                    self.breakpoints_ui(ui);
-                    ui.separator();
                     self.components_state_view(ui);
                 });
             });
@@ -113,21 +104,64 @@ impl Debugger {
     }
 
     fn components_state_view(&mut self, ui: &mut egui::Ui) {
-        ui.vertical(|ui| {
-            ui.horizontal(|ui| {
-                ui.selectable_value(&mut self.state_view, StateView::Cpu, "CPU");
-                ui.selectable_value(&mut self.state_view, StateView::Spu, "SPU");
-                ui.selectable_value(&mut self.state_view, StateView::Gpu, "GPU");
+        let mut state_view = self.state_view;
+        egui::Sides::new().show(
+            ui,
+            |ui| {
+                ui.selectable_value(&mut state_view, StateView::Cpu, "CPU");
+                ui.selectable_value(&mut state_view, StateView::Spu, "SPU");
+                ui.selectable_value(&mut state_view, StateView::Gpu, "GPU");
+            },
+            |ui| {
+                let is_paused = self.shared_state.is_paused();
+                ui.add_enabled_ui(is_paused && self.state_view == StateView::Cpu, |ui| {
+                    if ui.button("Step").clicked() {
+                        self.sync_send(UiCommand::DebugStep);
+                    }
+                });
+
+                if ui.button("Restart").clicked() {
+                    self.restart();
+                }
+
+                let label = if is_paused { "Resume" } else { "Pause" };
+                if ui.button(label).clicked() {
+                    self.toggle_pause();
+                }
+            },
+        );
+
+        self.state_view = state_view;
+
+        ui.separator();
+
+        match self.state_view {
+            StateView::Cpu => self.cpu_state_view(ui),
+            StateView::Gpu => self.gpu_state_view(ui),
+            StateView::Spu => self.spu_state_view(ui),
+        }
+    }
+
+    fn cpu_state_view(&mut self, ui: &mut egui::Ui) {
+        egui::ScrollArea::vertical()
+            .id_salt("disassembly_scroll")
+            .max_height(ui.available_height() * 0.5)
+            .show(ui, |ui| {
+                self.disassembly_view(ui);
             });
 
-            ui.separator();
+        ui.separator();
 
-            match self.state_view {
-                StateView::Cpu => self.cpu_register_view(ui),
-                StateView::Spu => self.spu_state_view(ui),
-                StateView::Gpu => self.gpu_state_view(ui),
-            }
-        });
+        egui::ScrollArea::vertical()
+            .id_salt("registers_scroll")
+            .max_height(ui.available_height() - 220.0) // leave room for breakpoints
+            .show(ui, |ui| {
+                self.cpu_register_view(ui);
+            });
+
+        ui.separator();
+
+        self.breakpoints_ui(ui);
     }
 
     fn cpu_register_changed(&self, i: usize) -> bool {
@@ -450,24 +484,6 @@ impl Debugger {
         };
         let is_paused = self.shared_state.is_paused();
         ui.vertical(|ui| {
-            ui.horizontal(|ui| {
-                if ui.button("Restart").clicked() {
-                    self.restart();
-                }
-
-                let label = if is_paused { "Resume" } else { "Pause" };
-                if ui.button(label).clicked() {
-                    self.toggle_pause();
-                }
-
-                ui.add_enabled_ui(is_paused, |ui| {
-                    if ui.button("Step").clicked() {
-                        self.sync_send(UiCommand::DebugStep);
-                    }
-                });
-            });
-            ui.separator();
-
             // Define highlight color based on theme
             let item_spacing = ui.spacing().item_spacing;
             let pc_highlight = if ui.visuals().dark_mode {
@@ -661,7 +677,7 @@ fn monospace_hex_change(ui: &mut egui::Ui, val: u32) {
     );
 }
 
-#[derive(PartialEq, Default)]
+#[derive(PartialEq, Default, Clone, Copy)]
 enum StateView {
     #[default]
     Cpu,
