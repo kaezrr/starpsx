@@ -32,6 +32,7 @@ use timers::Timers;
 use tracing::info;
 
 use crate::sio::Sio1;
+use crate::sio::memory_card;
 use crate::spu::Spu;
 
 pub enum RunType {
@@ -85,8 +86,11 @@ impl System {
 
             cdrom: CdRom::default(),
             // Only 1 gamepad for now
-            sio0: Sio0::new([Some(gamepad::Gamepad::default()), None]),
-            sio1: Sio1 {}, // Does nothing
+            sio0: Sio0::new(
+                [Some(gamepad::Gamepad::default()), None],
+                [Some(memory_card::MemoryCard::default()), None],
+            ),
+            sio1: Sio1, // Does nothing
 
             produced_frame_buffer: None,
         };

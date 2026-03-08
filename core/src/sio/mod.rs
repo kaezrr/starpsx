@@ -1,5 +1,6 @@
 pub mod device_manager;
 pub mod gamepad;
+pub mod memory_card;
 
 use arrayvec::ArrayVec;
 
@@ -9,6 +10,7 @@ use crate::mem::ByteAddressable;
 use crate::sched::Event;
 use crate::sio::device_manager::DeviceManager;
 use crate::sio::gamepad::Gamepad;
+use crate::sio::memory_card::MemoryCard;
 
 pub const PADDR_START: u32 = 0x1F801040;
 pub const PADDR_END: u32 = 0x1F80105F;
@@ -94,7 +96,7 @@ impl SerialInterface for Sio0 {
 }
 
 impl Sio0 {
-    pub fn new(gamepads: [Option<Gamepad>; 2]) -> Self {
+    pub fn new(gamepads: [Option<Gamepad>; 2], memcards: [Option<MemoryCard>; 2]) -> Self {
         Self {
             transfer: None,
             received: ArrayVec::default(),
@@ -104,7 +106,7 @@ impl Sio0 {
             mode: 0,
             baud_timer_reload_value: 0,
 
-            device_manager: DeviceManager::new(gamepads),
+            device_manager: DeviceManager::new(gamepads, memcards),
         }
     }
 
