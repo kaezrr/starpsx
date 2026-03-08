@@ -302,23 +302,6 @@ impl Texture {
     }
 }
 
-pub enum ColorOptions<const SIZE: usize> {
-    Mono(Color),
-    Shaded([Color; SIZE]),
-}
-
-impl ColorOptions<3> {
-    pub fn swap_first_two_vertex(&mut self) {
-        if let ColorOptions::Shaded(x) = self {
-            x.swap(0, 1);
-        }
-    }
-}
-
-pub struct DrawOptions<const SIZE: usize> {
-    pub color: ColorOptions<SIZE>,
-}
-
 pub struct TextureOptions {
     pub texture: Texture,
     pub uvs: [Vec2; 3],

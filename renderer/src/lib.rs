@@ -1,9 +1,9 @@
 pub mod utils;
 pub mod vec2;
 
-use crate::utils::{Color, ColorOptions, DrawContext, RectTextureOptions, TextureOptions};
-use crate::utils::{DrawOptions, interpolate_color, interpolate_uv};
-use crate::vec2::{Vec2, edge_function, is_top_left, needs_vertex_reordering};
+use utils::{Color, DrawContext, RectTextureOptions, TextureOptions};
+use utils::{interpolate_color, interpolate_uv};
+use vec2::{Vec2, edge_function, is_top_left, needs_vertex_reordering};
 
 const VRAM_WIDTH: usize = 1024;
 const VRAM_HEIGHT: usize = 512;
@@ -314,7 +314,7 @@ impl Renderer {
                     tex_color.blend(color);
                 }
 
-                if SEMI_TRANS && (texel >> 15) & 1 == 1 {
+                if SEMI_TRANS && (texel & 0x8000) != 0 {
                     let old = self.vram_read(x as usize, y as usize);
                     tex_color.blend_screen(Color::new_5bit(old), self.ctx.transparency_weights);
                 }
@@ -324,7 +324,7 @@ impl Renderer {
         }
     }
 
-    pub fn draw_line<const SEMI_TRANS: bool>(&mut self, mut l: [Vec2; 2], options: DrawOptions<2>) {
+    pub fn draw_line<const SEMI_TRANS: bool>(&mut self, mut l: [Vec2; 2], mono: Color) {
         l[0] += self.ctx.drawing_area_offset;
         l[1] += self.ctx.drawing_area_offset;
 
@@ -356,16 +356,80 @@ impl Renderer {
         let mut y = y0;
 
         loop {
-            let mut color = match options.color {
-                ColorOptions::Mono(color) => color,
-                ColorOptions::Shaded(colors) => {
-                    let (num, denom) = if dx >= -dy {
-                        ((x - x0).abs(), dx)
-                    } else {
-                        ((y - y0).abs(), -dy)
-                    };
-                    Color::lerp(colors[0], colors[1], num, denom)
+            let mut color = mono;
+
+            if SEMI_TRANS {
+                let old = self.vram_read(x as usize, y as usize);
+                color.blend_screen(Color::new_5bit(old), self.ctx.transparency_weights);
+            }
+
+            self.vram_write(
+                x as usize,
+                y as usize,
+                color.to_5bit(Some(self.ctx.force_set_masked_bit)),
+            );
+
+            let e2 = 2 * err;
+            if e2 >= dy {
+                if x == x1 {
+                    break;
                 }
+                err += dy;
+                x += sx;
+            }
+            if e2 <= dx {
+                if y == y1 {
+                    break;
+                }
+                err += dx;
+                y += sy;
+            }
+        }
+    }
+
+    pub fn draw_line_shaded<const SEMI_TRANS: bool>(
+        &mut self,
+        mut l: [Vec2; 2],
+        shaded: [Color; 2],
+    ) {
+        l[0] += self.ctx.drawing_area_offset;
+        l[1] += self.ctx.drawing_area_offset;
+
+        let x0 = l[0].x.clamp(
+            self.ctx.drawing_area_top_left.x,
+            self.ctx.drawing_area_bottom_right.x,
+        );
+        let x1 = l[1].x.clamp(
+            self.ctx.drawing_area_top_left.x,
+            self.ctx.drawing_area_bottom_right.x,
+        );
+        let y0 = l[0].y.clamp(
+            self.ctx.drawing_area_top_left.y,
+            self.ctx.drawing_area_bottom_right.y,
+        );
+        let y1 = l[1].y.clamp(
+            self.ctx.drawing_area_top_left.y,
+            self.ctx.drawing_area_bottom_right.y,
+        );
+
+        let dx = (x1 - x0).abs();
+        let dy = -(y1 - y0).abs();
+
+        let sx = if x0 < x1 { 1 } else { -1 };
+        let sy = if y0 < y1 { 1 } else { -1 };
+
+        let mut err = dx + dy;
+        let mut x = x0;
+        let mut y = y0;
+
+        loop {
+            let mut color = {
+                let (num, denom) = if dx >= -dy {
+                    ((x - x0).abs(), dx)
+                } else {
+                    ((y - y0).abs(), -dy)
+                };
+                Color::lerp(shaded[0], shaded[1], num, denom)
             };
 
             if SEMI_TRANS {
@@ -397,18 +461,13 @@ impl Renderer {
         }
     }
 
-    pub fn draw_triangle<const SEMI_TRANS: bool>(
-        &mut self,
-        mut t: [Vec2; 3],
-        mut options: DrawOptions<3>,
-    ) {
+    pub fn draw_triangle<const SEMI_TRANS: bool>(&mut self, mut t: [Vec2; 3], mono: Color) {
         t[0] += self.ctx.drawing_area_offset;
         t[1] += self.ctx.drawing_area_offset;
         t[2] += self.ctx.drawing_area_offset;
 
         if needs_vertex_reordering(&t) {
             t.swap(0, 1);
-            options.color.swap_first_two_vertex();
         }
 
         let min_x = t[0].x.min(t[1].x).min(t[2].x);
@@ -446,12 +505,81 @@ impl Renderer {
 
             for x in min_x..max_x + 1 {
                 if e1 >= bias1 && e2 >= bias2 && e3 >= bias3 {
-                    let mut color = match options.color {
-                        ColorOptions::Mono(color) => color,
-                        ColorOptions::Shaded(colors) => {
-                            interpolate_color([e2, e3, e1], e1 + e2 + e3, colors)
-                        }
-                    };
+                    let mut color = mono;
+
+                    if SEMI_TRANS {
+                        let old = self.vram_read(x, y);
+                        color.blend_screen(Color::new_5bit(old), self.ctx.transparency_weights);
+                    }
+
+                    if self.ctx.dithering {
+                        color.apply_dithering(x, y);
+                    }
+
+                    self.vram_write(x, y, color.to_5bit(Some(self.ctx.force_set_masked_bit)));
+                }
+
+                e1 += a1;
+                e2 += a2;
+                e3 += a3;
+            }
+
+            e1_row += b1;
+            e2_row += b2;
+            e3_row += b3;
+        }
+    }
+
+    pub fn draw_triangle_shaded<const SEMI_TRANS: bool>(
+        &mut self,
+        mut t: [Vec2; 3],
+        mut shaded: [Color; 3],
+    ) {
+        t[0] += self.ctx.drawing_area_offset;
+        t[1] += self.ctx.drawing_area_offset;
+        t[2] += self.ctx.drawing_area_offset;
+
+        if needs_vertex_reordering(&t) {
+            t.swap(0, 1);
+            shaded.swap(0, 1);
+        }
+
+        let min_x = t[0].x.min(t[1].x).min(t[2].x);
+        let min_y = t[0].y.min(t[1].y).min(t[2].y);
+        let max_x = t[0].x.max(t[1].x).max(t[2].x);
+        let max_y = t[0].y.max(t[1].y).max(t[2].y);
+
+        // Out of screen
+        if max_x < self.ctx.drawing_area_top_left.x
+            || min_x > self.ctx.drawing_area_bottom_right.x
+            || max_y < self.ctx.drawing_area_top_left.y
+            || min_y > self.ctx.drawing_area_bottom_right.y
+        {
+            return;
+        }
+
+        let min_x = min_x.max(self.ctx.drawing_area_top_left.x) as usize;
+        let min_y = min_y.max(self.ctx.drawing_area_top_left.y) as usize;
+        let max_x = max_x.min(self.ctx.drawing_area_bottom_right.x) as usize;
+        let max_y = max_y.min(self.ctx.drawing_area_bottom_right.y) as usize;
+
+        let start = Vec2::new(min_x as i32, min_y as i32);
+        let (mut e1_row, a1, b1) = edge_function(start, t[0], t[1]);
+        let (mut e2_row, a2, b2) = edge_function(start, t[1], t[2]);
+        let (mut e3_row, a3, b3) = edge_function(start, t[2], t[0]);
+
+        let bias1 = !is_top_left(t[0], t[1]) as i32;
+        let bias2 = !is_top_left(t[1], t[2]) as i32;
+        let bias3 = !is_top_left(t[2], t[0]) as i32;
+
+        for y in min_y..max_y + 1 {
+            let mut e1 = e1_row;
+            let mut e2 = e2_row;
+            let mut e3 = e3_row;
+
+            for x in min_x..max_x + 1 {
+                if e1 >= bias1 && e2 >= bias2 && e3 >= bias3 {
+                    let mut color = interpolate_color([e2, e3, e1], e1 + e2 + e3, shaded);
 
                     if SEMI_TRANS {
                         let old = self.vram_read(x, y);
@@ -479,7 +607,7 @@ impl Renderer {
     pub fn draw_triangle_textured<const SEMI_TRANS: bool, const BLEND: bool>(
         &mut self,
         mut t: [Vec2; 3],
-        mut options: DrawOptions<3>,
+        mono: Color,
         mut tex: TextureOptions,
     ) {
         t[0] += self.ctx.drawing_area_offset;
@@ -488,7 +616,6 @@ impl Renderer {
 
         if needs_vertex_reordering(&t) {
             t.swap(0, 1);
-            options.color.swap_first_two_vertex();
             tex.uvs.swap(0, 1);
         }
 
@@ -533,35 +660,117 @@ impl Renderer {
                     let uv = interpolate_uv(weights, sum, tex.uvs);
                     let texel = tex.texture.get_texel(self, uv);
                     // Fully black texels are ignored
-                    if texel == 0 {
-                        e1 += a1;
-                        e2 += a2;
-                        e3 += a3;
-                        continue;
-                    }
+                    if texel != 0 {
+                        let mut color = Color::new_5bit(texel);
+                        if BLEND {
+                            color.blend(mono);
+                        }
 
-                    let mut color = Color::new_5bit(texel);
-                    if BLEND {
-                        color.blend(match options.color {
-                            ColorOptions::Mono(color) => color,
-                            ColorOptions::Shaded(colors) => interpolate_color(weights, sum, colors),
-                        });
-                    }
+                        if SEMI_TRANS && (texel & 0x8000) != 0 {
+                            let old = self.vram_read(x, y);
+                            color.blend_screen(Color::new_5bit(old), self.ctx.transparency_weights);
+                        }
 
-                    if SEMI_TRANS && (texel >> 15) & 1 == 1 {
-                        let old = self.vram_read(x, y);
-                        color.blend_screen(Color::new_5bit(old), self.ctx.transparency_weights);
-                    }
+                        if self.ctx.dithering {
+                            color.apply_dithering(x, y);
+                        }
 
-                    if self.ctx.dithering {
-                        color.apply_dithering(x, y);
+                        self.vram_write(
+                            x,
+                            y,
+                            color.to_5bit(self.ctx.force_set_masked_bit.then_some(true)),
+                        );
                     }
+                }
 
-                    self.vram_write(
-                        x,
-                        y,
-                        color.to_5bit(self.ctx.force_set_masked_bit.then_some(true)),
-                    );
+                e1 += a1;
+                e2 += a2;
+                e3 += a3;
+            }
+            e1_row += b1;
+            e2_row += b2;
+            e3_row += b3;
+        }
+    }
+
+    pub fn draw_triangle_textured_shaded<const SEMI_TRANS: bool, const BLEND: bool>(
+        &mut self,
+        mut t: [Vec2; 3],
+        mut shaded: [Color; 3],
+        mut tex: TextureOptions,
+    ) {
+        t[0] += self.ctx.drawing_area_offset;
+        t[1] += self.ctx.drawing_area_offset;
+        t[2] += self.ctx.drawing_area_offset;
+
+        if needs_vertex_reordering(&t) {
+            t.swap(0, 1);
+            shaded.swap(0, 1);
+            tex.uvs.swap(0, 1);
+        }
+
+        let min_x = t[0].x.min(t[1].x).min(t[2].x);
+        let min_y = t[0].y.min(t[1].y).min(t[2].y);
+        let max_x = t[0].x.max(t[1].x).max(t[2].x);
+        let max_y = t[0].y.max(t[1].y).max(t[2].y);
+
+        // Out of screen
+        if max_x < self.ctx.drawing_area_top_left.x
+            || min_x > self.ctx.drawing_area_bottom_right.x
+            || max_y < self.ctx.drawing_area_top_left.y
+            || min_y > self.ctx.drawing_area_bottom_right.y
+        {
+            return;
+        }
+
+        let min_x = min_x.max(self.ctx.drawing_area_top_left.x) as usize;
+        let min_y = min_y.max(self.ctx.drawing_area_top_left.y) as usize;
+        let max_x = max_x.min(self.ctx.drawing_area_bottom_right.x) as usize;
+        let max_y = max_y.min(self.ctx.drawing_area_bottom_right.y) as usize;
+
+        let start = Vec2::new(min_x as i32, min_y as i32);
+        let (mut e1_row, a1, b1) = edge_function(start, t[0], t[1]);
+        let (mut e2_row, a2, b2) = edge_function(start, t[1], t[2]);
+        let (mut e3_row, a3, b3) = edge_function(start, t[2], t[0]);
+
+        let bias1 = !is_top_left(t[0], t[1]) as i32;
+        let bias2 = !is_top_left(t[1], t[2]) as i32;
+        let bias3 = !is_top_left(t[2], t[0]) as i32;
+
+        for y in min_y..max_y + 1 {
+            let mut e1 = e1_row;
+            let mut e2 = e2_row;
+            let mut e3 = e3_row;
+
+            for x in min_x..max_x + 1 {
+                if e1 >= bias1 && e2 >= bias2 && e3 >= bias3 {
+                    let sum = e1 + e2 + e3;
+                    let weights = [e2, e3, e1];
+
+                    let uv = interpolate_uv(weights, sum, tex.uvs);
+                    let texel = tex.texture.get_texel(self, uv);
+                    // Fully black texels are ignored
+                    if texel != 0 {
+                        let mut color = Color::new_5bit(texel);
+                        if BLEND {
+                            color.blend(interpolate_color(weights, sum, shaded));
+                        }
+
+                        if SEMI_TRANS && (texel >> 15) & 1 == 1 {
+                            let old = self.vram_read(x, y);
+                            color.blend_screen(Color::new_5bit(old), self.ctx.transparency_weights);
+                        }
+
+                        if self.ctx.dithering {
+                            color.apply_dithering(x, y);
+                        }
+
+                        self.vram_write(
+                            x,
+                            y,
+                            color.to_5bit(self.ctx.force_set_masked_bit.then_some(true)),
+                        );
+                    }
                 }
 
                 e1 += a1;
