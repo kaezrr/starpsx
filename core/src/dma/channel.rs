@@ -49,7 +49,7 @@ impl Channel {
         let bc = self.block_ctl.block_count();
 
         match self.ctl.sync() {
-            Sync::Manual => Some(bs),
+            Sync::Manual => Some(if bs == 0 { 0x10000 } else { bs }),
             Sync::Request => Some(bc * bs),
             Sync::LinkedList => None,
         }
