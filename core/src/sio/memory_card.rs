@@ -1,20 +1,44 @@
 use tracing::debug;
 
-#[derive(Default)]
+const FRAME_SIZE: usize = 0x80;
+
 pub struct MemoryCard {
     in_ack: bool,
     state: State,
     command: Command,
-    state_idx: usize,
 
+    state_idx: usize,
     address: u16,
     checksum: u8,
-    byte_count: u32,
+
+    sector: [u8; 128],
+    bytes_left: usize,
+
+    format: &'static [u8; 0x20000],
+}
+
+impl Default for MemoryCard {
+    fn default() -> Self {
+        Self {
+            in_ack: false,
+            state: State::Init,
+            command: Command::Read,
+
+            state_idx: 0,
+            address: 0,
+            checksum: 0,
+
+            sector: [0; 128],
+            bytes_left: 0,
+
+            format: include_bytes!("blank.mcd"),
+        }
+    }
 }
 
 impl MemoryCard {
     pub fn send_and_receive_byte(&mut self, data: u8) -> u8 {
-        let send = match self.state {
+        let mut send = match self.state {
             State::Init => 0xFF,
             State::Flag => 0x08,
             State::CardId1 => 0x5A,
@@ -35,13 +59,25 @@ impl MemoryCard {
 
             State::SendLsb => {
                 self.address |= u16::from(data);
+                // Invalid sector address
+                if self.address > 0x3FF {
+                    self.reset();
+                    return 0xFF;
+                }
+
                 self.checksum ^= data;
                 0x00
             }
 
             State::RecvSector => {
-                debug!("stubbed receive sector, sending 0");
-                let byte = 0; // TODO: get this byte from a memcard file
+                // Acknowledgement
+                if data != 0 {
+                    self.reset();
+                    return 0xFF;
+                }
+
+                let byte = self.sector[128 - self.bytes_left];
+                self.bytes_left -= 1;
                 self.checksum ^= byte;
                 byte
             }
@@ -62,19 +98,20 @@ impl MemoryCard {
 
         debug!(state=?self.state, command=?self.command, "memcard recv={data:x} send={send:x}");
 
-        if self.byte_count > 0 {
-            self.byte_count -= 1;
+        if self.bytes_left > 0 {
             return send;
         }
 
         if let Some((next_state, next_idx)) = self.command.next(self.state, data, self.state_idx) {
-            if matches!(next_state, State::SendSector | State::RecvSector) {
-                self.byte_count = 127; // need to send or receive 127 bytes after this one
+            if matches!(next_state, State::RecvSector) {
+                self.load_sector();
+                self.bytes_left = 128;
             }
 
             self.state = next_state;
             self.state_idx = next_idx;
             self.in_ack = self.state != State::Init;
+
             send
         } else {
             self.reset();
@@ -89,8 +126,13 @@ impl MemoryCard {
     pub fn reset(&mut self) {
         self.in_ack = false;
         self.state = State::Init;
-        self.command = Command::GetId;
         self.state_idx = 0;
+    }
+
+    pub fn load_sector(&mut self) {
+        let address = (self.address as usize) * FRAME_SIZE;
+        self.sector
+            .copy_from_slice(&self.format[address..address + 128]);
     }
 }
 
@@ -172,8 +214,8 @@ impl Command {
     fn states_table(&self) -> &'static [(State, Option<u8>)] {
         match self {
             Command::Read => &Command::READ_STATES,
-            Command::Write => &Command::WRITE_STATES,
-            Command::GetId => &Command::GETID_STATES,
+            Command::Write => todo!("memory card write command"),
+            Command::GetId => todo!("memory card getid command"),
         }
     }
 
