@@ -8,6 +8,7 @@ use crate::app::Application;
 use crate::app::app_state::AppState;
 use crate::app::util::PendingDialog;
 use crate::config;
+use crate::config::MemoryCardType;
 
 pub fn show_central_panel(app: &AppState, ctx: &egui::Context, vram_open: bool) {
     egui::CentralPanel::default()
@@ -94,6 +95,10 @@ pub fn show_top_menu(app: &mut Application, ctx: &egui::Context) {
 
                 if ui.button("Keybinds").clicked() {
                     app.keybinds_table_open = true;
+                }
+
+                if ui.button("Memory Cards").clicked() {
+                    app.memory_cards_modal_open = true;
                 }
 
                 if !ui.toggle_value(&mut app.full_speed, "Full Speed").clicked() {
@@ -205,6 +210,103 @@ pub fn show_performance_panel(app: &mut Application, ctx: &egui::Context) {
             })
         })
     });
+}
+
+pub fn show_memory_cards_modal(app: &mut Application, ctx: &egui::Context) {
+    if !app.memory_cards_modal_open {
+        return;
+    }
+
+    let cards_dir = app.memory_cards_path.clone();
+
+    let modal = egui::Modal::new(egui::Id::new("MemoryCards")).show(ctx, |ui| {
+        ui.set_width(400.0);
+        ui.heading("Memory Cards");
+        ui.add_space(10.0);
+
+        ui.label("Memory cards location:");
+        ui.monospace(cards_dir.display().to_string());
+        ui.add_space(12.0);
+        ui.separator();
+        ui.add_space(12.0);
+
+        ui.label("Configuration:");
+        ui.add_space(6.0);
+
+        let before = app.app_config.memory_card_type;
+
+        egui::ComboBox::from_label("")
+            .selected_text(match app.app_config.memory_card_type {
+                MemoryCardType::PerTitle => "Separate per title",
+                MemoryCardType::Shared => "Shared",
+                MemoryCardType::None => "None",
+            })
+            .show_ui(ui, |ui| {
+                ui.selectable_value(
+                    &mut app.app_config.memory_card_type,
+                    MemoryCardType::PerTitle,
+                    "Separate per title",
+                );
+                ui.selectable_value(
+                    &mut app.app_config.memory_card_type,
+                    MemoryCardType::Shared,
+                    "Shared",
+                );
+                ui.selectable_value(
+                    &mut app.app_config.memory_card_type,
+                    MemoryCardType::None,
+                    "None",
+                );
+            });
+
+        ui.add_space(8.0);
+        match app.app_config.memory_card_type {
+            MemoryCardType::PerTitle => {
+                ui.colored_label(
+                    ui.visuals().widgets.inactive.fg_stroke.color,
+                    "A separate memory card will be used for each title.",
+                );
+            }
+            MemoryCardType::Shared => {
+                let shared_path = cards_dir.join("shared_card.mcd");
+                if shared_path.exists() {
+                    ui.colored_label(
+                        ui.visuals().widgets.inactive.fg_stroke.color,
+                        format!("Using {}", shared_path.display()),
+                    );
+                } else {
+                    ui.colored_label(
+                        ui.visuals().warn_fg_color,
+                        "shared_card.mcd not found! it will be created on next launch.",
+                    );
+                }
+            }
+            MemoryCardType::None => {
+                ui.colored_label(
+                    ui.visuals().warn_fg_color,
+                    "No memory card will be used. Save data will not be preserved.",
+                );
+            }
+        }
+
+        if app.app_config.memory_card_type != before {
+            app.app_config.save_to_file(&app.config_path);
+        }
+
+        ui.add_space(12.0);
+        ui.separator();
+        ui.add_space(12.0);
+
+        ui.vertical_centered(|ui| {
+            if ui.button("Close").clicked() {
+                ui.close();
+            }
+        })
+    });
+
+    if modal.should_close() {
+        app.memory_cards_modal_open = false;
+    }
 }
 
 pub fn show_bios_modal(app: &mut Application, ctx: &egui::Context) {

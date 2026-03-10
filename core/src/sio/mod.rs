@@ -1,14 +1,15 @@
 pub mod device_manager;
 pub mod gamepad;
+pub mod memory_card;
 
 use arrayvec::ArrayVec;
 
 use crate::System;
-use crate::consts;
 use crate::mem::ByteAddressable;
 use crate::sched::Event;
 use crate::sio::device_manager::DeviceManager;
 use crate::sio::gamepad::Gamepad;
+use crate::sio::memory_card::MemoryCard;
 
 pub const PADDR_START: u32 = 0x1F801040;
 pub const PADDR_END: u32 = 0x1F80105F;
@@ -53,7 +54,7 @@ pub struct Sio0 {
     mode: u32,
     baud_timer_reload_value: u16,
 
-    device_manager: DeviceManager,
+    pub device_manager: DeviceManager,
 }
 
 pub struct Sio1;
@@ -94,7 +95,7 @@ impl SerialInterface for Sio0 {
 }
 
 impl Sio0 {
-    pub fn new(gamepads: [Option<Gamepad>; 2]) -> Self {
+    pub fn new(gamepads: [Option<Gamepad>; 2], memcards: [Option<MemoryCard>; 2]) -> Self {
         Self {
             transfer: None,
             received: ArrayVec::default(),
@@ -104,7 +105,7 @@ impl Sio0 {
             mode: 0,
             baud_timer_reload_value: 0,
 
-            device_manager: DeviceManager::new(gamepads),
+            device_manager: DeviceManager::new(gamepads, memcards),
         }
     }
 
@@ -150,11 +151,12 @@ impl Sio0 {
             let sio = &mut system.sio0;
             sio.status.set_dsr_input_on(ack);
 
-            // 1088 cycles is the fixed baudrate delay for all games
             if sio.control.dsr_interrupt_enable() && sio.status.dsr_input_on() {
-                system
-                    .scheduler
-                    .schedule(Event::SerialSend, consts::BAUDRATE_TRANSFER_DELAY, None);
+                system.scheduler.schedule(
+                    Event::SerialSend,
+                    sio.baud_timer_reload_value as u64 * 8,
+                    None,
+                );
             }
 
             // Turn off ACK after 96 cycles
@@ -208,10 +210,6 @@ impl Sio0 {
         // Controller and Memory Card received byte interrupt
         system.irqctl.stat().set_ctl_mem(true);
         system.sio0.status.set_irq(true);
-    }
-
-    pub fn gamepad_port_0_mut(&mut self) -> &mut Gamepad {
-        self.device_manager.gamepad_port_0_mut()
     }
 }
 
