@@ -55,6 +55,7 @@ pub struct Application {
     keybinds_table_open: bool,
     info_modal_open: bool,
     bios_modal_open: bool,
+    memory_cards_modal_open: bool,
 
     previous_pause: bool,
     full_speed: bool,
@@ -91,6 +92,8 @@ impl eframe::App for Application {
         ui::show_info_modal(&mut self.info_modal_open, ctx);
 
         ui::show_bios_modal(self, ctx);
+
+        ui::show_memory_cards_modal(self, ctx);
 
         ui::show_performance_panel(self, ctx);
 
@@ -175,6 +178,7 @@ impl Application {
             keybinds_table_open: false,
             info_modal_open: false,
             bios_modal_open: false,
+            memory_cards_modal_open: false,
 
             previous_pause: false,
             full_speed: launch_config.full_speed,
@@ -297,10 +301,6 @@ impl Application {
             .as_ref()
             .map(|a| a.debugger.is_paused())
             .unwrap_or(false)
-    }
-
-    fn vram_display_on(&self) -> bool {
-        self.app_config.display_vram
     }
 
     fn start_emulator(&mut self, runnable_path: Option<RunnablePath>) -> anyhow::Result<()> {

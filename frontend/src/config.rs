@@ -99,12 +99,21 @@ impl LaunchConfig {
     }
 }
 
+#[derive(Default, Deserialize, Serialize, PartialEq, Clone, Copy)]
+pub enum MemoryCardType {
+    #[default]
+    PerTitle,
+    Shared,
+    None,
+}
+
 #[derive(Serialize, Deserialize, Default)]
 #[serde(default)]
 pub struct AppConfig {
     pub bios_path: Option<PathBuf>,
     pub display_vram: bool,
     pub debugger_view: bool,
+    pub memory_card_type: MemoryCardType,
 
     #[serde(skip)]
     pub keybinds: input::Bindings,
