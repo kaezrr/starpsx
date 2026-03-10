@@ -143,6 +143,7 @@ impl DMAController {
                     let src_word = system.ram.read::<u32>(cur_addr);
                     match port {
                         Port::Gpu => system.gpu.gp0(src_word),
+                        Port::MdecIn => system.mdec.command_or_param(src_word),
                         Port::Spu => trace!(target:"dma", "dma ignoring transfer from ram to spu"),
                         _ => todo!("DMA destination {port:?}"),
                     }
