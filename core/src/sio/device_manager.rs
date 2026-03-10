@@ -1,6 +1,5 @@
-use crate::sio::memory_card::MemoryCard;
-
 use super::*;
+use crate::sio::memory_card::MemoryCard;
 
 #[derive(Clone, Copy, PartialEq)]
 enum State {
@@ -10,9 +9,9 @@ enum State {
 }
 
 pub struct DeviceManager {
-    gamepads: [Option<Gamepad>; 2],
-    memcards: [Option<MemoryCard>; 2],
     current_state: State,
+    pub gamepads: [Option<Gamepad>; 2],
+    pub memcards: [Option<MemoryCard>; 2],
 }
 
 impl DeviceManager {
@@ -50,10 +49,6 @@ impl DeviceManager {
 
         sio.device_manager.current_state = next_state;
         (byte, next_state != State::None)
-    }
-
-    pub fn gamepad_port_0_mut(&mut self) -> &mut Gamepad {
-        self.gamepads[0].as_mut().unwrap()
     }
 
     fn process_memcard_communication(&mut self, port: usize, data: u8) -> (u8, State) {

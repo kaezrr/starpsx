@@ -317,6 +317,21 @@ impl Application {
 
         let shared_state = Arc::new(SharedState::default());
 
+        let memory_card = {
+            let memcards_dir = dirs::data_local_dir()
+                .unwrap_or_else(|| PathBuf::from("."))
+                .join("StarPSX")
+                .join("memory_cards");
+
+            match self.app_config.memory_card_type {
+                config::MemoryCardType::PerTitle => runnable_path
+                    .as_ref()
+                    .map(|f| memcards_dir.join(f.file_prefix()).with_extension("mcd")),
+                config::MemoryCardType::Shared => Some(memcards_dir.join("shared_card.mcd")),
+                config::MemoryCardType::None => None,
+            }
+        };
+
         // Build emulator from the provided configuration
         let emulator = emulator::Emulator::build(
             UiChannels {
@@ -327,6 +342,7 @@ impl Application {
             shared_state.clone(),
             bios_path.clone(),
             runnable_path,
+            memory_card,
             self.app_config.display_vram,
             self.full_speed,
         )?;

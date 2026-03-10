@@ -32,7 +32,8 @@ use timers::Timers;
 use tracing::info;
 
 use crate::sio::Sio1;
-use crate::sio::memory_card;
+use crate::sio::gamepad::Gamepad;
+use crate::sio::memory_card::MemoryCard;
 use crate::spu::Spu;
 
 pub enum RunType {
@@ -67,7 +68,11 @@ pub struct System {
 }
 
 impl System {
-    pub fn build(bios: Vec<u8>, runnable: Option<RunType>) -> anyhow::Result<Self> {
+    pub fn build(
+        bios: Vec<u8>,
+        runnable: Option<RunType>,
+        memory_card: Option<Box<[u8; 0x20000]>>,
+    ) -> anyhow::Result<Self> {
         let mut psx = System {
             cpu: Cpu::default(),
             gpu: Gpu::default(),
@@ -80,15 +85,15 @@ impl System {
             dma: DMAController::default(),
             timers: Timers::default(),
             irqctl: InterruptController::default(),
+            cdrom: CdRom::default(),
 
             tty: Vec::new(),
             scheduler: EventScheduler::default(),
 
-            cdrom: CdRom::default(),
-            // Only 1 gamepad for now
+            // Only 1 gamepad and memory card  for now
             sio0: Sio0::new(
-                [Some(gamepad::Gamepad::default()), None],
-                [Some(memory_card::MemoryCard::default()), None],
+                [Some(Gamepad::default()), None],
+                [memory_card.map(MemoryCard::from_bytes), None],
             ),
             sio1: Sio1, // Does nothing
 
@@ -192,8 +197,12 @@ impl System {
         }
     }
 
-    pub fn gamepad_mut(&mut self) -> &mut gamepad::Gamepad {
-        self.sio0.gamepad_port_0_mut()
+    pub fn gamepad_mut(&mut self) -> &mut Gamepad {
+        self.sio0.device_manager.gamepads[0].as_mut().unwrap()
+    }
+
+    pub fn memory_card(&mut self) -> Option<&mut MemoryCard> {
+        self.sio0.device_manager.memcards[0].as_mut()
     }
 
     pub fn snapshot(&self) -> SystemSnapshot {

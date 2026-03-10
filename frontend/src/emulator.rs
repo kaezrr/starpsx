@@ -11,7 +11,6 @@ use std::time::Duration;
 use std::time::Instant;
 
 use anyhow::anyhow;
-use eframe::egui;
 use starpsx_core::RunType;
 use starpsx_renderer::FrameBuffer;
 use tracing::info;
@@ -43,6 +42,7 @@ pub struct Emulator {
 
     bios_path: PathBuf,
     file_path: Option<RunnablePath>,
+    memory_card: Option<PathBuf>,
 
     show_vram: bool,
     full_speed: bool,
@@ -61,6 +61,7 @@ impl Emulator {
 
         bios_path: PathBuf,
         file_path: Option<RunnablePath>,
+        memory_card: Option<PathBuf>,
 
         show_vram: bool,
         full_speed: bool,
@@ -69,10 +70,11 @@ impl Emulator {
             channels,
             shared_state,
 
-            system: Emulator::build_core(&bios_path, &file_path)?,
+            system: Emulator::build_core(&bios_path, file_path.as_ref(), memory_card.as_deref())?,
 
             bios_path,
             file_path,
+            memory_card,
 
             breakpoints: HashSet::new(),
 
@@ -83,7 +85,8 @@ impl Emulator {
 
     pub fn build_core(
         bios_path: &Path,
-        file_path: &Option<RunnablePath>,
+        file_path: Option<&RunnablePath>,
+        memory_card: Option<&Path>,
     ) -> anyhow::Result<starpsx_core::System> {
         let bios = std::fs::read(bios_path)?;
 
@@ -99,7 +102,26 @@ impl Emulator {
             })
             .transpose()?;
 
-        starpsx_core::System::build(bios, run_type)
+        let memory_card = memory_card
+            .as_ref()
+            .map(|path| -> anyhow::Result<Box<[u8; 0x20000]>> {
+                let bytes = if path.exists() {
+                    let bytes = std::fs::read(path)?;
+                    bytes
+                        .try_into()
+                        .map_err(|_| anyhow::anyhow!("memory card is wrong size"))?
+                } else {
+                    std::fs::create_dir_all(path.parent().unwrap_or(Path::new(".")))?;
+                    let blank = Box::new(*include_bytes!("blank.mcd"));
+                    std::fs::write(path, blank.as_ref())?;
+                    blank
+                };
+                info!(?path, "Using memory card");
+                Ok(bytes)
+            })
+            .transpose()?;
+
+        starpsx_core::System::build(bios, run_type, memory_card)
     }
 
     pub fn run(mut self) {
@@ -116,6 +138,17 @@ impl Emulator {
             cpu_regs: system_snapshot.cpu.regs,
             instructions: system_snapshot.ins,
         });
+    }
+
+    fn save_memory_card_to_disk(&mut self) {
+        if let (Some(card), Some(path)) = (self.system.memory_card(), &self.memory_card)
+            && let Some(data) = card.dirty_data()
+        {
+            let tmp = path.with_extension("mcd.tmp");
+            if let Err(e) = std::fs::write(&tmp, data).and_then(|_| std::fs::rename(&tmp, path)) {
+                tracing::error!("failed to save memory card: {e}");
+            }
+        }
     }
 
     fn update_core_gamepad(&mut self, new_state: GamepadState) {
@@ -147,8 +180,12 @@ impl Emulator {
                     }
 
                     UiCommand::Restart => {
-                        self.system =
-                            Emulator::build_core(&self.bios_path, &self.file_path).unwrap();
+                        self.system = Emulator::build_core(
+                            &self.bios_path,
+                            self.file_path.as_ref(),
+                            self.memory_card.as_deref(),
+                        )
+                        .unwrap();
                         self.shared_state.resume();
                         info!("emulator thread restarted...");
                     }
@@ -182,7 +219,9 @@ impl Emulator {
             let vram = self.show_vram;
 
             let frame_opt = if self.breakpoints.is_empty() {
-                Some(self.system.run_frame(vram))
+                let fb = self.system.run_frame(vram);
+                self.save_memory_card_to_disk();
+                Some(fb)
             } else {
                 self.system.run_breakpoint(&self.breakpoints, vram)
             };

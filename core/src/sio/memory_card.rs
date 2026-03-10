@@ -1,4 +1,4 @@
-use tracing::{debug, trace, warn};
+use tracing::warn;
 
 const FRAME_SIZE: usize = 0x80;
 
@@ -11,17 +11,18 @@ pub struct MemoryCard {
     sector_number: u16,
     checksum: u8,
 
-    sector: [u8; 128],
+    sector_buffer: [u8; 128],
     bytes_left: usize,
 
     end_response: EndResponse,
     directory_not_read: bool,
 
-    format: Box<[u8; 0x20000]>,
+    data: Box<[u8; 0x20000]>,
+    is_dirty: bool,
 }
 
-impl Default for MemoryCard {
-    fn default() -> Self {
+impl MemoryCard {
+    pub fn from_bytes(data: Box<[u8; 0x20000]>) -> Self {
         Self {
             in_ack: false,
             state: State::Init,
@@ -31,18 +32,17 @@ impl Default for MemoryCard {
             sector_number: 0,
             checksum: 0,
 
-            sector: [0; 128],
+            sector_buffer: [0; 128],
             bytes_left: 0,
 
             end_response: EndResponse::Good,
             directory_not_read: true,
 
-            format: Box::new(*include_bytes!("blank.mcd")),
+            data,
+            is_dirty: false,
         }
     }
-}
 
-impl MemoryCard {
     pub fn send_and_receive_byte(&mut self, data: u8) -> u8 {
         let send = match self.state {
             State::Init => 0xFF,
@@ -69,7 +69,7 @@ impl MemoryCard {
 
                 if self.sector_number > 0x3FF {
                     warn!(
-                        "invalid sector address={:#x}, aborting transfer",
+                        "memory card invalid sector address={:#x}, aborting transfer",
                         self.sector_number
                     );
                     self.sector_number = 0xFFFF;
@@ -81,10 +81,10 @@ impl MemoryCard {
 
             State::RecvSector => {
                 if data != 0 {
-                    warn!("RecvSector: unexpected byte from host: {data:#x}");
+                    warn!("memory card RecvSector: unexpected byte from host: {data:#x}");
                 }
 
-                let byte = self.sector[128 - self.bytes_left];
+                let byte = self.sector_buffer[128 - self.bytes_left];
                 self.bytes_left -= 1;
                 self.checksum ^= byte;
 
@@ -96,7 +96,7 @@ impl MemoryCard {
             }
 
             State::SendSector => {
-                self.sector[128 - self.bytes_left] = data;
+                self.sector_buffer[128 - self.bytes_left] = data;
                 self.bytes_left -= 1;
                 self.checksum ^= data;
 
@@ -124,13 +124,9 @@ impl MemoryCard {
                     }
                     self.directory_not_read = false;
                 }
-
-                debug!(cmd=?self.command, sector=self.sector_number, "DONE!");
                 self.end_response as u8
             }
         };
-
-        trace!(state=?self.state, command=?self.command, "memcard recv={data:#x} send={send:#x}");
 
         if let Some((next_state, next_idx)) = self.command.next(self.state, data, self.state_idx) {
             if matches!(next_state, State::RecvSector) {
@@ -165,28 +161,37 @@ impl MemoryCard {
 
     pub fn load_sector(&mut self) {
         let address = (self.sector_number as usize) * FRAME_SIZE;
-        self.sector
-            .copy_from_slice(&self.format[address..address + 128]);
+        self.sector_buffer
+            .copy_from_slice(&self.data[address..address + 128]);
     }
 
     pub fn save_sector(&mut self) {
         let address = (self.sector_number as usize) * FRAME_SIZE;
-        self.format[address..address + 128].copy_from_slice(&self.sector);
+        self.data[address..address + 128].copy_from_slice(&self.sector_buffer);
+        self.is_dirty = true;
+    }
+
+    /// Get memory card data only if it was written to.
+    pub fn dirty_data(&mut self) -> Option<&[u8]> {
+        if !self.is_dirty {
+            return None;
+        }
+
+        self.is_dirty = false;
+        Some(self.data.as_slice())
     }
 }
 
-#[derive(Default, Clone, Copy)]
+#[derive(Clone, Copy)]
 #[repr(u8)]
 enum EndResponse {
-    #[default]
     Good = 0x47,
     BadChecksum = 0x4E,
     BadSector = 0xFF,
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 enum State {
-    #[default]
     Init,
     Flag,
     CardId1,
@@ -207,9 +212,8 @@ enum State {
     MemEnd,
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 enum Command {
-    #[default]
     Read,
     Write,
     GetId,

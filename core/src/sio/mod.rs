@@ -54,7 +54,7 @@ pub struct Sio0 {
     mode: u32,
     baud_timer_reload_value: u16,
 
-    device_manager: DeviceManager,
+    pub device_manager: DeviceManager,
 }
 
 pub struct Sio1;
@@ -210,10 +210,6 @@ impl Sio0 {
         // Controller and Memory Card received byte interrupt
         system.irqctl.stat().set_ctl_mem(true);
         system.sio0.status.set_irq(true);
-    }
-
-    pub fn gamepad_port_0_mut(&mut self) -> &mut Gamepad {
-        self.device_manager.gamepad_port_0_mut()
     }
 }
 
