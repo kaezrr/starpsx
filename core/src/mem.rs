@@ -9,6 +9,7 @@ use crate::cpu::utils::Exception;
 use crate::dma;
 use crate::gpu;
 use crate::irq;
+use crate::mdec;
 use crate::sio;
 use crate::spu;
 use crate::timers;
@@ -212,6 +213,8 @@ impl System {
 
             spu::PADDR_START..=spu::PADDR_END => spu::read(self, addr),
 
+            mdec::PADDR_START..=mdec::PADDR_END => mdec::read(self, addr),
+
             0x1F801000..=0x1F801023 => stubbed!("memctl", addr),
 
             0x1F801060..=0x1F801063 => T::from_u32(0xB88), // 2MB Ram Size
@@ -252,6 +255,8 @@ impl System {
             sio::PADDR_START..=sio::PADDR_END => sio::write(self, addr, data),
 
             spu::PADDR_START..=spu::PADDR_END => spu::write(self, addr, data),
+
+            mdec::PADDR_START..=mdec::PADDR_END => mdec::write(self, addr, data),
 
             0x1F801000..=0x1F801023 => {
                 trace!(target: "mem", region = "memctl", "stubbed write addr={:#08x}", addr)

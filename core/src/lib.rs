@@ -4,6 +4,7 @@ mod cpu;
 mod dma;
 mod gpu;
 mod irq;
+mod mdec;
 mod mem;
 mod sched;
 mod sio;
