@@ -139,6 +139,8 @@ fn try_to_keyword(s: &str) -> anyhow::Result<Token> {
         "TRACK" => Ok(Token::Track),
         "INDEX" => Ok(Token::Index),
         "AUDIO" => Ok(Token::Audio),
+        "FLAGS" => Ok(Token::Flags),
+        "DCP" => Ok(Token::Dcp),
         "MODE2/2352" => Ok(Token::Mode2_2352),
         word => anyhow::bail!("Invalid keyword: -{}-", word),
     }
@@ -163,6 +165,10 @@ pub enum Token {
 
     Newline,
     Eof,
+
+    // Random useless stuff
+    Flags,
+    Dcp,
 }
 
 fn to_sectors(minutes: usize, seconds: usize, frames: usize) -> usize {
