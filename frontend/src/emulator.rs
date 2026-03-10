@@ -10,7 +10,6 @@ use std::sync::mpsc::SyncSender;
 use std::time::Duration;
 use std::time::Instant;
 
-use anyhow::anyhow;
 use starpsx_core::RunType;
 use starpsx_renderer::FrameBuffer;
 use tracing::info;
@@ -111,7 +110,9 @@ impl Emulator {
                         .try_into()
                         .map_err(|_| anyhow::anyhow!("memory card is wrong size"))?
                 } else {
-                    std::fs::create_dir_all(path.parent().unwrap_or(Path::new(".")))?;
+                    if let Some(parent) = path.parent() {
+                        std::fs::create_dir_all(parent)?;
+                    }
                     let blank = Box::new(*include_bytes!("blank.mcd"));
                     std::fs::write(path, blank.as_ref())?;
                     blank
@@ -141,13 +142,23 @@ impl Emulator {
     }
 
     fn save_memory_card_to_disk(&mut self) {
-        if let (Some(card), Some(path)) = (self.system.memory_card(), &self.memory_card)
-            && let Some(data) = card.dirty_data()
+        let Some(path) = self.memory_card.as_ref() else {
+            return;
+        };
+
+        let Some(card) = self.system.memory_card() else {
+            return;
+        };
+
+        let Some(data) = card.dirty_data() else {
+            return;
+        };
+
+        let tmp_path = path.with_extension("mcd.tmp");
+        if let Err(err) =
+            std::fs::write(&tmp_path, data).and_then(|_| std::fs::rename(&tmp_path, path))
         {
-            let tmp = path.with_extension("mcd.tmp");
-            if let Err(e) = std::fs::write(&tmp, data).and_then(|_| std::fs::rename(&tmp, path)) {
-                tracing::error!("failed to save memory card: {e}");
-            }
+            tracing::error!("failed to save memory card: {err}");
         }
     }
 
@@ -290,6 +301,6 @@ pub fn parse_runnable(path: PathBuf) -> anyhow::Result<RunnablePath> {
         Some("exe") | Some("ps-exe") => Ok(RunnablePath::Exe(path)),
         Some("bin") => Ok(RunnablePath::Bin(path)),
         Some("cue") => Ok(RunnablePath::Cue(path)),
-        _ => Err(anyhow!("unsupported file format")),
+        _ => anyhow::bail!("unsupported file format"),
     }
 }

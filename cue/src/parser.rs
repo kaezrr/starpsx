@@ -25,20 +25,20 @@ impl CueParser {
     /// file -> "FILE" filename filetype "\n" track*
     fn parse_file(&mut self) -> anyhow::Result<File> {
         let Token::File = self.advance() else {
-            return Err(anyhow!("Expect 'FILE'."));
+            anyhow::bail!("Expect 'FILE'.");
         };
 
         let Token::String(name) = self.advance().clone() else {
-            return Err(anyhow!("Expect file path."));
+            anyhow::bail!("Expect file path.");
         };
 
         let file_type = match self.advance() {
             Token::Binary => FileType::Binary,
-            t => return Err(anyhow!("File type {t:?} not implemented.")),
+            t => anyhow::bail!("File type {t:?} not implemented."),
         };
 
         let Token::Newline = self.advance() else {
-            return Err(anyhow!("Expect newline after file."));
+            anyhow::bail!("Expect newline after file.");
         };
 
         let mut tracks = Vec::new();
@@ -57,21 +57,21 @@ impl CueParser {
     /// track -> "TRACK" tracknumber tracktype "\n" index*
     fn parse_track(&mut self) -> anyhow::Result<Track> {
         let Token::Track = self.advance() else {
-            return Err(anyhow!("Expect 'TRACK'."));
+            anyhow::bail!("Expect 'TRACK'.");
         };
 
         let &Token::Number(id) = self.advance() else {
-            return Err(anyhow!("Expect track id."));
+            anyhow::bail!("Expect track id.");
         };
 
         let track_type = match self.advance() {
             Token::Audio => TrackType::Audio,
             Token::Mode2_2352 => TrackType::Mode2_2352,
-            t => return Err(anyhow!("Track type {t:?} not implemented.")),
+            t => anyhow::bail!("Track type {t:?} not implemented."),
         };
 
         let Token::Newline = self.advance() else {
-            return Err(anyhow!("Expect newline after track."));
+            anyhow::bail!("Expect newline after track.");
         };
 
         let mut indexes = Vec::new();
@@ -90,19 +90,19 @@ impl CueParser {
     /// index -> "INDEX" indexnumber sector "\n"
     fn parse_index(&mut self) -> anyhow::Result<TrackIndex> {
         let Token::Index = self.advance() else {
-            return Err(anyhow!("Expect 'INDEX'."));
+            anyhow::bail!("Expect 'INDEX'.");
         };
 
         let &Token::Number(id) = self.advance() else {
-            return Err(anyhow!("Expect index number."));
+            anyhow::bail!("Expect index number.");
         };
 
         let &Token::CdTime(lba) = self.advance() else {
-            return Err(anyhow!("Expect track time."));
+            anyhow::bail!("Expect track time.");
         };
 
         let Token::Newline = self.advance() else {
-            return Err(anyhow!("Expect newline after index."));
+            anyhow::bail!("Expect newline after index.");
         };
 
         Ok(TrackIndex { id, lba })

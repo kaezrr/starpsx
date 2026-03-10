@@ -79,7 +79,7 @@ impl LaunchConfig {
             .join("config.toml");
 
         let memory_cards_path = dirs::data_local_dir()
-            .unwrap_or_else(|| PathBuf::from("."))
+            .ok_or_else(|| anyhow!("could not find local data directory"))?
             .join("StarPSX")
             .join("memory_cards");
 

@@ -42,7 +42,7 @@ impl Scanner {
 
             c if c.is_ascii_digit() => self.number_or_time()?,
 
-            c => return Err(anyhow!("Unexpected character '{}'", c)),
+            c => anyhow::bail!("Unexpected character '{}'", c),
         };
 
         self.tokens.push(token);
@@ -56,7 +56,7 @@ impl Scanner {
         }
 
         if self.is_at_end() {
-            return Err(anyhow!("Unterminated string"));
+            anyhow::bail!("Unterminated string");
         }
 
         self.advance();
@@ -95,7 +95,7 @@ impl Scanner {
             self.advance(); // consume ':'
 
             if !self.peek().is_ascii_digit() {
-                return Err(anyhow!("Invalid CD time format"));
+                anyhow::bail!("Invalid CD time format");
             }
 
             while self.peek().is_ascii_digit() {
@@ -140,7 +140,7 @@ fn try_to_keyword(s: &str) -> anyhow::Result<Token> {
         "INDEX" => Ok(Token::Index),
         "AUDIO" => Ok(Token::Audio),
         "MODE2/2352" => Ok(Token::Mode2_2352),
-        word => Err(anyhow!("Invalid keyword: -{}-", word)),
+        word => anyhow::bail!("Invalid keyword: -{}-", word),
     }
 }
 
