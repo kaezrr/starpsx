@@ -49,6 +49,7 @@ Options:
   -s, --show-vram      Display full VRAM
   -a, --auto-run       Skip GUI and auto-start the emulator
   -d, --debugger-view  Show debugger_view on startup
+  -f, --full-speed     Run emulator at full speed
   -h, --help           Print help
   -V, --version        Print version
 ```

@@ -54,7 +54,7 @@ impl CueParser {
         })
     }
 
-    /// track -> "TRACK" tracknumber tracktype "\n" index*
+    /// track -> "TRACK" tracknumber tracktype "\n" flags? index*
     fn parse_track(&mut self) -> anyhow::Result<Track> {
         let Token::Track = self.advance() else {
             anyhow::bail!("Expect 'TRACK'.");
@@ -76,6 +76,11 @@ impl CueParser {
 
         let mut indexes = Vec::new();
 
+        // Consume useless flags
+        if let Token::Flags = self.peek() {
+            self.parse_flags()?
+        }
+
         while let Token::Index = self.peek() {
             indexes.push(self.parse_index()?);
         }
@@ -85,6 +90,23 @@ impl CueParser {
             track_type,
             indexes,
         })
+    }
+
+    /// flags -> "FLAGS" "DCP" "\n"
+    fn parse_flags(&mut self) -> anyhow::Result<()> {
+        let Token::Flags = self.advance() else {
+            anyhow::bail!("Expect 'FLAGS'.");
+        };
+
+        let Token::Dcp = self.advance() else {
+            anyhow::bail!("Expect 'DCP'");
+        };
+
+        let Token::Newline = self.advance() else {
+            anyhow::bail!("Expect newline after flags.");
+        };
+
+        Ok(())
     }
 
     /// index -> "INDEX" indexnumber sector "\n"
