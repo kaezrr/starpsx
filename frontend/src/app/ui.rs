@@ -266,13 +266,51 @@ pub fn show_memory_cards_modal(app: &mut Application, ctx: &egui::Context) {
                     ui.visuals().widgets.inactive.fg_stroke.color,
                     "A separate memory card will be used for each title.",
                 );
+
+                let mut per_title_cards = std::fs::read_dir(&cards_dir)
+                    .ok()
+                    .into_iter()
+                    .flat_map(|entries| entries.filter_map(Result::ok))
+                    .map(|entry| entry.path())
+                    .filter(|path| {
+                        path.extension()
+                            .and_then(|ext| ext.to_str())
+                            .map(|ext| ext.eq_ignore_ascii_case("mcd"))
+                            .unwrap_or(false)
+                    })
+                    .filter(|path| {
+                        path.file_name()
+                            .and_then(|name| name.to_str())
+                            .map(|name| name != "shared_card.mcd")
+                            .unwrap_or(true)
+                    })
+                    .filter_map(|path| {
+                        path.file_name()
+                            .map(|name| name.to_string_lossy().into_owned())
+                    })
+                    .collect::<Vec<_>>();
+
+                per_title_cards.sort();
+
+                ui.add_space(6.0);
+                if per_title_cards.is_empty() {
+                    ui.colored_label(
+                        ui.visuals().warn_fg_color,
+                        "No per-title memory cards found.",
+                    );
+                } else {
+                    ui.label("Found memory cards:");
+                    for card_name in per_title_cards {
+                        ui.monospace(card_name);
+                    }
+                }
             }
             MemoryCardType::Shared => {
                 let shared_path = cards_dir.join("shared_card.mcd");
                 if shared_path.exists() {
                     ui.colored_label(
                         ui.visuals().widgets.inactive.fg_stroke.color,
-                        format!("Using {}", shared_path.display()),
+                        "shared_card.mcd found.",
                     );
                 } else {
                     ui.colored_label(
