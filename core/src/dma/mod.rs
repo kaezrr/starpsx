@@ -72,7 +72,7 @@ impl Default for DMAController {
 }
 
 pub const PADDR_START: u32 = 0x1F801080;
-pub const PADDR_END: u32 = 0x1F8010FF;
+pub const PADDR_END: u32 = 0x1F801100;
 
 impl DMAController {
     fn get_mut_channel(&mut self, x: u32) -> &mut Channel {

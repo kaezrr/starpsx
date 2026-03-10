@@ -12,7 +12,7 @@ use crate::sio::gamepad::Gamepad;
 use crate::sio::memory_card::MemoryCard;
 
 pub const PADDR_START: u32 = 0x1F801040;
-pub const PADDR_END: u32 = 0x1F80105F;
+pub const PADDR_END: u32 = 0x1F801060;
 
 bitfield::bitfield! {
     struct Status(u32);

@@ -74,7 +74,7 @@ pub mod bios {
 
     use super::*;
     pub const PADDR_START: u32 = 0x1FC00000;
-    pub const PADDR_END: u32 = 0x1FC7FFFF;
+    pub const PADDR_END: u32 = 0x1FC80000;
 
     pub struct Bios {
         bytes: Box<[u8; 512 * 1024]>,
@@ -99,7 +99,7 @@ pub mod bios {
 pub mod ram {
     use super::*;
     pub const PADDR_START: u32 = 0x00000000;
-    pub const PADDR_END: u32 = 0x001FFFFF;
+    pub const PADDR_END: u32 = 0x00200000;
 
     pub struct Ram {
         pub bytes: Box<[u8; 0x200000]>,
@@ -129,7 +129,7 @@ pub mod ram {
 pub mod scratch {
     use super::*;
     pub const PADDR_START: u32 = 0x1F800000;
-    pub const PADDR_END: u32 = 0x1F8003FF;
+    pub const PADDR_END: u32 = 0x1F800400;
 
     pub struct Scratch {
         bytes: Box<[u8; 0x400]>,
@@ -178,9 +178,9 @@ impl System {
         let addr = mask_region(addr);
 
         match addr {
-            ram::PADDR_START..=ram::PADDR_END => self.ram.read(addr),
-            bios::PADDR_START..=bios::PADDR_END => self.bios.read(addr),
-            scratch::PADDR_START..=scratch::PADDR_END => self.scratch.read(addr),
+            ram::PADDR_START..ram::PADDR_END => self.ram.read(addr),
+            bios::PADDR_START..bios::PADDR_END => self.bios.read(addr),
+            scratch::PADDR_START..scratch::PADDR_END => self.scratch.read(addr),
             _ => 0xFFFFFFFF,
         }
     }
@@ -193,37 +193,37 @@ impl System {
         let addr = mask_region(addr);
 
         let data = match addr {
-            ram::PADDR_START..=ram::PADDR_END => self.ram.read(addr),
+            ram::PADDR_START..ram::PADDR_END => self.ram.read(addr),
 
-            bios::PADDR_START..=bios::PADDR_END => self.bios.read(addr),
+            bios::PADDR_START..bios::PADDR_END => self.bios.read(addr),
 
-            scratch::PADDR_START..=scratch::PADDR_END => self.scratch.read(addr),
+            scratch::PADDR_START..scratch::PADDR_END => self.scratch.read(addr),
 
-            gpu::PADDR_START..=gpu::PADDR_END => gpu::read(self, addr),
+            gpu::PADDR_START..gpu::PADDR_END => gpu::read(self, addr),
 
-            dma::PADDR_START..=dma::PADDR_END => dma::read(self, addr),
+            dma::PADDR_START..dma::PADDR_END => dma::read(self, addr),
 
-            irq::PADDR_START..=irq::PADDR_END => irq::read(self, addr),
+            irq::PADDR_START..irq::PADDR_END => irq::read(self, addr),
 
-            timers::PADDR_START..=timers::PADDR_END => timers::read(self, addr),
+            timers::PADDR_START..timers::PADDR_END => timers::read(self, addr),
 
-            cdrom::PADDR_START..=cdrom::PADDR_END => cdrom::read(self, addr),
+            cdrom::PADDR_START..cdrom::PADDR_END => cdrom::read(self, addr),
 
-            sio::PADDR_START..=sio::PADDR_END => sio::read(self, addr),
+            sio::PADDR_START..sio::PADDR_END => sio::read(self, addr),
 
-            spu::PADDR_START..=spu::PADDR_END => spu::read(self, addr),
+            spu::PADDR_START..spu::PADDR_END => spu::read(self, addr),
 
-            mdec::PADDR_START..=mdec::PADDR_END => mdec::read(self, addr),
+            mdec::PADDR_START..mdec::PADDR_END => mdec::read(self, addr),
 
-            0x1F801000..=0x1F801023 => stubbed!("memctl", addr),
+            0x1F801000..0x1F801024 => stubbed!("memctl", addr),
 
-            0x1F801060..=0x1F801063 => T::from_u32(0xB88), // 2MB Ram Size
+            0x1F801060..0x1F801064 => T::from_u32(0xB88), // 2MB Ram Size
 
-            0xFFFE0130..=0xFFFE0133 => unimplemented!("read to cachectl"),
+            0xFFFE0130..0xFFFE0134 => unimplemented!("read to cachectl"),
 
-            0x1F000000..=0x1F0000FF => stubbed!("expansion1", addr),
+            0x1F000000..0x1F000100 => stubbed!("expansion1", addr),
 
-            0x1F802000..=0x1F802041 => unimplemented!("read to expansion2"),
+            0x1F802000..0x1F802042 => unimplemented!("read to expansion2"),
 
             _ => unimplemented!("read at {addr:#08X}"),
         };
@@ -238,39 +238,39 @@ impl System {
         let addr = mask_region(addr);
 
         match addr {
-            ram::PADDR_START..=ram::PADDR_END => self.ram.write(addr, data),
+            ram::PADDR_START..ram::PADDR_END => self.ram.write(addr, data),
 
-            scratch::PADDR_START..=scratch::PADDR_END => self.scratch.write(addr, data),
+            scratch::PADDR_START..scratch::PADDR_END => self.scratch.write(addr, data),
 
-            gpu::PADDR_START..=gpu::PADDR_END => gpu::write(self, addr, data),
+            gpu::PADDR_START..gpu::PADDR_END => gpu::write(self, addr, data),
 
-            dma::PADDR_START..=dma::PADDR_END => dma::write(self, addr, data),
+            dma::PADDR_START..dma::PADDR_END => dma::write(self, addr, data),
 
-            irq::PADDR_START..=irq::PADDR_END => irq::write(self, addr, data),
+            irq::PADDR_START..irq::PADDR_END => irq::write(self, addr, data),
 
-            timers::PADDR_START..=timers::PADDR_END => timers::write(self, addr, data),
+            timers::PADDR_START..timers::PADDR_END => timers::write(self, addr, data),
 
-            cdrom::PADDR_START..=cdrom::PADDR_END => cdrom::write(self, addr, data),
+            cdrom::PADDR_START..cdrom::PADDR_END => cdrom::write(self, addr, data),
 
-            sio::PADDR_START..=sio::PADDR_END => sio::write(self, addr, data),
+            sio::PADDR_START..sio::PADDR_END => sio::write(self, addr, data),
 
-            spu::PADDR_START..=spu::PADDR_END => spu::write(self, addr, data),
+            spu::PADDR_START..spu::PADDR_END => spu::write(self, addr, data),
 
-            mdec::PADDR_START..=mdec::PADDR_END => mdec::write(self, addr, data),
+            mdec::PADDR_START..mdec::PADDR_END => mdec::write(self, addr, data),
 
-            0x1F801000..=0x1F801023 => {
+            0x1F801000..0x1F801024 => {
                 trace!(target: "mem", region = "memctl", "stubbed write addr={:#08x}", addr)
             }
-            0x1F801060..=0x1F801063 => {
+            0x1F801060..0x1F801064 => {
                 trace!(target: "mem", region = "ramsize", "stubbed write addr={:#08x}", addr)
             }
-            0xFFFE0130..=0xFFFE0133 => {
+            0xFFFE0130..0xFFFE0134 => {
                 trace!(target: "mem", region = "cachectl", "stubbed write addr={:#08x}", addr)
             }
-            0x1F000000..=0x1F0000FF => {
+            0x1F000000..0x1F000100 => {
                 trace!(target: "mem", region = "expansion1", "stubbed write addr={:#08x}", addr)
             }
-            0x1F802000..=0x1F802041 => {
+            0x1F802000..0x1F802042 => {
                 trace!(target: "mem", region = "expansion2", "stubbed write addr={:#08x}", addr)
             }
             _ => unimplemented!("write at {addr:#08X}"),

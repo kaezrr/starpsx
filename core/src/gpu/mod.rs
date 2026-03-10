@@ -123,7 +123,7 @@ bitfield::bitfield! {
 }
 
 pub const PADDR_START: u32 = 0x1F801810;
-pub const PADDR_END: u32 = 0x1F801817;
+pub const PADDR_END: u32 = 0x1F801818;
 
 pub struct Gpu {
     pub renderer: Renderer,

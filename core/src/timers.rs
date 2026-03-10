@@ -8,7 +8,7 @@ use crate::sched::Event;
 use crate::sched::TimerInterrupt;
 
 pub const PADDR_START: u32 = 0x1F801100;
-pub const PADDR_END: u32 = 0x1F80112F;
+pub const PADDR_END: u32 = 0x1F801130;
 
 #[derive(Default)]
 pub struct Timers {
