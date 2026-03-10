@@ -5,7 +5,6 @@ pub mod memory_card;
 use arrayvec::ArrayVec;
 
 use crate::System;
-use crate::consts;
 use crate::mem::ByteAddressable;
 use crate::sched::Event;
 use crate::sio::device_manager::DeviceManager;
@@ -152,11 +151,12 @@ impl Sio0 {
             let sio = &mut system.sio0;
             sio.status.set_dsr_input_on(ack);
 
-            // 1088 cycles is the fixed baudrate delay for all games
             if sio.control.dsr_interrupt_enable() && sio.status.dsr_input_on() {
-                system
-                    .scheduler
-                    .schedule(Event::SerialSend, consts::BAUDRATE_TRANSFER_DELAY, None);
+                system.scheduler.schedule(
+                    Event::SerialSend,
+                    sio.baud_timer_reload_value as u64 * 8,
+                    None,
+                );
             }
 
             // Turn off ACK after 96 cycles

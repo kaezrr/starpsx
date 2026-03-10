@@ -1,4 +1,4 @@
-use tracing::debug;
+use tracing::{debug, trace, warn};
 
 const FRAME_SIZE: usize = 0x80;
 
@@ -8,13 +8,16 @@ pub struct MemoryCard {
     command: Command,
 
     state_idx: usize,
-    address: u16,
+    sector_number: u16,
     checksum: u8,
 
     sector: [u8; 128],
     bytes_left: usize,
 
-    format: &'static [u8; 0x20000],
+    end_response: EndResponse,
+    directory_not_read: bool,
+
+    format: Box<[u8; 0x20000]>,
 }
 
 impl Default for MemoryCard {
@@ -25,22 +28,24 @@ impl Default for MemoryCard {
             command: Command::Read,
 
             state_idx: 0,
-            address: 0,
+            sector_number: 0,
             checksum: 0,
 
             sector: [0; 128],
             bytes_left: 0,
 
-            format: include_bytes!("blank.mcd"),
+            end_response: EndResponse::Good,
+            directory_not_read: true,
+
+            format: Box::new(*include_bytes!("blank.mcd")),
         }
     }
 }
 
 impl MemoryCard {
     pub fn send_and_receive_byte(&mut self, data: u8) -> u8 {
-        let mut send = match self.state {
+        let send = match self.state {
             State::Init => 0xFF,
-            State::Flag => 0x08,
             State::CardId1 => 0x5A,
             State::CardId2 => 0x5D,
             State::CmdAck1 => 0x5C,
@@ -48,63 +53,92 @@ impl MemoryCard {
             State::Recv04h => 0x04,
             State::Recv00h => 0x00,
             State::Recv80h => 0x80,
-            State::AckMsb => (self.address >> 8) as u8,
-            State::AckLsb => (self.address & 0xFF) as u8,
+            State::AckMsb => (self.sector_number >> 8) as u8,
+            State::AckLsb => (self.sector_number & 0xFF) as u8,
+            State::Flag => (self.directory_not_read as u8) << 3,
 
             State::SendMsb => {
-                self.address |= u16::from(data) << 8;
+                self.sector_number = u16::from(data) << 8;
                 self.checksum = data;
                 0x00
             }
 
             State::SendLsb => {
-                self.address |= u16::from(data);
-                // Invalid sector address
-                if self.address > 0x3FF {
-                    self.reset();
-                    return 0xFF;
+                self.sector_number |= u16::from(data);
+                self.checksum ^= data;
+
+                if self.sector_number > 0x3FF {
+                    warn!(
+                        "invalid sector address={:#x}, aborting transfer",
+                        self.sector_number
+                    );
+                    self.sector_number = 0xFFFF;
+                    self.end_response = EndResponse::BadSector;
                 }
 
-                self.checksum ^= data;
                 0x00
             }
 
             State::RecvSector => {
-                // Acknowledgement
                 if data != 0 {
-                    self.reset();
-                    return 0xFF;
+                    warn!("RecvSector: unexpected byte from host: {data:#x}");
                 }
 
                 let byte = self.sector[128 - self.bytes_left];
                 self.bytes_left -= 1;
                 self.checksum ^= byte;
+
+                if self.bytes_left > 0 {
+                    return byte;
+                }
+
                 byte
             }
 
-            State::SendSector => todo!("memcard reply to sector data byte {data:#04x}"),
+            State::SendSector => {
+                self.sector[128 - self.bytes_left] = data;
+                self.bytes_left -= 1;
+                self.checksum ^= data;
+
+                if self.bytes_left > 0 {
+                    return 0;
+                }
+
+                0
+            }
 
             State::RecvChecksum => self.checksum,
-            State::SendChecksum => todo!("memcard reply to checksum byte {data:#04x}"),
+            State::SendChecksum => {
+                self.end_response = if self.checksum == data {
+                    EndResponse::Good
+                } else {
+                    EndResponse::BadChecksum
+                };
+                0
+            }
 
-            State::MemEnd => match self.command {
-                Command::Read => 0x47,
-                Command::Write => todo!("mem card write cmd end state"),
-                Command::GetId => {
-                    unreachable!("memory card GetId command doesn't have mem end state")
+            State::MemEnd => {
+                if self.command == Command::Write {
+                    if matches!(self.end_response, EndResponse::Good) {
+                        self.save_sector();
+                    }
+                    self.directory_not_read = false;
                 }
-            },
+
+                debug!(cmd=?self.command, sector=self.sector_number, "DONE!");
+                self.end_response as u8
+            }
         };
 
-        debug!(state=?self.state, command=?self.command, "memcard recv={data:x} send={send:x}");
-
-        if self.bytes_left > 0 {
-            return send;
-        }
+        trace!(state=?self.state, command=?self.command, "memcard recv={data:#x} send={send:#x}");
 
         if let Some((next_state, next_idx)) = self.command.next(self.state, data, self.state_idx) {
             if matches!(next_state, State::RecvSector) {
                 self.load_sector();
+                self.bytes_left = 128;
+            }
+
+            if matches!(next_state, State::SendSector) {
                 self.bytes_left = 128;
             }
 
@@ -130,10 +164,24 @@ impl MemoryCard {
     }
 
     pub fn load_sector(&mut self) {
-        let address = (self.address as usize) * FRAME_SIZE;
+        let address = (self.sector_number as usize) * FRAME_SIZE;
         self.sector
             .copy_from_slice(&self.format[address..address + 128]);
     }
+
+    pub fn save_sector(&mut self) {
+        let address = (self.sector_number as usize) * FRAME_SIZE;
+        self.format[address..address + 128].copy_from_slice(&self.sector);
+    }
+}
+
+#[derive(Default, Clone, Copy)]
+#[repr(u8)]
+enum EndResponse {
+    #[default]
+    Good = 0x47,
+    BadChecksum = 0x4E,
+    BadSector = 0xFF,
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq)]
@@ -159,7 +207,7 @@ enum State {
     MemEnd,
 }
 
-#[derive(Debug, Default, Clone, Copy)]
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
 enum Command {
     #[default]
     Read,
@@ -214,8 +262,8 @@ impl Command {
     fn states_table(&self) -> &'static [(State, Option<u8>)] {
         match self {
             Command::Read => &Command::READ_STATES,
-            Command::Write => todo!("memory card write command"),
-            Command::GetId => todo!("memory card getid command"),
+            Command::Write => &Command::WRITE_STATES,
+            Command::GetId => &Command::GETID_STATES,
         }
     }
 

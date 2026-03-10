@@ -25,7 +25,12 @@ impl DeviceManager {
     }
 
     pub fn reset(&mut self) {
+        if self.current_state == State::None {
+            return;
+        }
+
         self.gamepads.iter_mut().flatten().for_each(|g| g.reset());
+        self.memcards.iter_mut().flatten().for_each(|g| g.reset());
         self.current_state = State::None;
     }
 
