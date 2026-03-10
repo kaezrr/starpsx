@@ -217,10 +217,7 @@ pub fn show_memory_cards_modal(app: &mut Application, ctx: &egui::Context) {
         return;
     }
 
-    let cards_dir = dirs::data_local_dir()
-        .unwrap_or_else(|| std::path::PathBuf::from("."))
-        .join("StarPSX")
-        .join("memory_cards");
+    let cards_dir = app.memory_cards_path.clone();
 
     let modal = egui::Modal::new(egui::Id::new("MemoryCards")).show(ctx, |ui| {
         ui.set_width(400.0);

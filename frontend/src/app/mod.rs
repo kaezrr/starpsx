@@ -45,6 +45,7 @@ pub struct Application {
 
     app_config: config::AppConfig,
     config_path: PathBuf,
+    memory_cards_path: PathBuf,
 
     app_state: Option<AppState>,
     egui_ctx: egui::Context,
@@ -172,6 +173,7 @@ impl Application {
 
             app_config: launch_config.app_config,
             config_path: launch_config.config_path,
+            memory_cards_path: launch_config.memory_cards_path,
 
             toasts: Toasts::default().with_margin(vec2(5.0, 40.0)),
 
@@ -318,16 +320,15 @@ impl Application {
         let shared_state = Arc::new(SharedState::default());
 
         let memory_card = {
-            let memcards_dir = dirs::data_local_dir()
-                .unwrap_or_else(|| PathBuf::from("."))
-                .join("StarPSX")
-                .join("memory_cards");
-
             match self.app_config.memory_card_type {
-                config::MemoryCardType::PerTitle => runnable_path
-                    .as_ref()
-                    .map(|f| memcards_dir.join(f.file_prefix()).with_extension("mcd")),
-                config::MemoryCardType::Shared => Some(memcards_dir.join("shared_card.mcd")),
+                config::MemoryCardType::PerTitle => runnable_path.as_ref().map(|f| {
+                    self.memory_cards_path
+                        .join(f.file_prefix())
+                        .with_extension("mcd")
+                }),
+                config::MemoryCardType::Shared => {
+                    Some(self.memory_cards_path.join("shared_card.mcd"))
+                }
                 config::MemoryCardType::None => None,
             }
         };
