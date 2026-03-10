@@ -66,6 +66,7 @@ pub struct LaunchConfig {
     pub runnable_path: Option<PathBuf>,
     pub auto_run: bool,
     pub config_path: PathBuf,
+    pub memory_cards_path: PathBuf,
     pub full_speed: bool,
 }
 
@@ -77,6 +78,11 @@ impl LaunchConfig {
             .ok_or_else(|| anyhow!("could not find config directory"))?
             .join("StarPSX")
             .join("config.toml");
+
+        let memory_cards_path = dirs::data_local_dir()
+            .ok_or_else(|| anyhow!("could not find local data directory"))?
+            .join("StarPSX")
+            .join("memory_cards");
 
         let mut app_config = AppConfig::load_from_file(&config_path)
             .with_default_controller()
@@ -94,10 +100,19 @@ impl LaunchConfig {
             app_config,
             runnable_path,
             config_path,
+            memory_cards_path,
             auto_run: args.auto_run,
             full_speed: args.full_speed,
         })
     }
+}
+
+#[derive(Default, Deserialize, Serialize, PartialEq, Clone, Copy)]
+pub enum MemoryCardType {
+    #[default]
+    PerTitle,
+    Shared,
+    None,
 }
 
 #[derive(Serialize, Deserialize, Default)]
@@ -106,6 +121,7 @@ pub struct AppConfig {
     pub bios_path: Option<PathBuf>,
     pub display_vram: bool,
     pub debugger_view: bool,
+    pub memory_card_type: MemoryCardType,
 
     #[serde(skip)]
     pub keybinds: input::Bindings,

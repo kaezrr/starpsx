@@ -45,6 +45,7 @@ pub struct Application {
 
     app_config: config::AppConfig,
     config_path: PathBuf,
+    memory_cards_path: PathBuf,
 
     app_state: Option<AppState>,
     egui_ctx: egui::Context,
@@ -55,6 +56,7 @@ pub struct Application {
     keybinds_table_open: bool,
     info_modal_open: bool,
     bios_modal_open: bool,
+    memory_cards_modal_open: bool,
 
     previous_pause: bool,
     full_speed: bool,
@@ -91,6 +93,8 @@ impl eframe::App for Application {
         ui::show_info_modal(&mut self.info_modal_open, ctx);
 
         ui::show_bios_modal(self, ctx);
+
+        ui::show_memory_cards_modal(self, ctx);
 
         ui::show_performance_panel(self, ctx);
 
@@ -169,12 +173,14 @@ impl Application {
 
             app_config: launch_config.app_config,
             config_path: launch_config.config_path,
+            memory_cards_path: launch_config.memory_cards_path,
 
             toasts: Toasts::default().with_margin(vec2(5.0, 40.0)),
 
             keybinds_table_open: false,
             info_modal_open: false,
             bios_modal_open: false,
+            memory_cards_modal_open: false,
 
             previous_pause: false,
             full_speed: launch_config.full_speed,
@@ -313,6 +319,20 @@ impl Application {
 
         let shared_state = Arc::new(SharedState::default());
 
+        let memory_card = {
+            match self.app_config.memory_card_type {
+                config::MemoryCardType::PerTitle => runnable_path.as_ref().map(|f| {
+                    self.memory_cards_path
+                        .join(f.file_prefix())
+                        .with_extension("mcd")
+                }),
+                config::MemoryCardType::Shared => {
+                    Some(self.memory_cards_path.join("shared_card.mcd"))
+                }
+                config::MemoryCardType::None => None,
+            }
+        };
+
         // Build emulator from the provided configuration
         let emulator = emulator::Emulator::build(
             UiChannels {
@@ -323,6 +343,7 @@ impl Application {
             shared_state.clone(),
             bios_path.clone(),
             runnable_path,
+            memory_card,
             self.app_config.display_vram,
             self.full_speed,
         )?;

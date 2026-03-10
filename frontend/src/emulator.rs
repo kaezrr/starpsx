@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
@@ -52,6 +53,7 @@ pub struct Emulator {
     breakpoints: HashSet<u32>,
     bios_path: PathBuf,
     file_path: Option<RunnablePath>,
+    memory_card: Option<PathBuf>,
     show_vram: bool,
     full_speed: bool,
 }
@@ -69,29 +71,32 @@ impl Emulator {
 
         bios_path: PathBuf,
         file_path: Option<RunnablePath>,
+        memory_card: Option<PathBuf>,
 
         show_vram: bool,
         full_speed: bool,
     ) -> anyhow::Result<Self> {
-        let (system, audio_stream) = Self::build_system(&bios_path, file_path.as_ref())?;
-        let breakpoints = HashSet::new();
+        let (system, audio_stream) =
+            Self::build_system(&bios_path, file_path.as_ref(), memory_card.as_deref())?;
 
         Ok(Self {
             channels,
             shared_state,
             system,
             audio_stream,
-            breakpoints,
-            show_vram,
             bios_path,
             file_path,
+            memory_card,
+            breakpoints: HashSet::new(),
+            show_vram,
             full_speed,
         })
     }
 
     fn build_system(
-        bios_path: &PathBuf,
+        bios_path: &Path,
         file_path: Option<&RunnablePath>,
+        memory_card: Option<&Path>,
     ) -> anyhow::Result<(starpsx_core::System, Stream)> {
         const STREAM_CONFIG: StreamConfig = StreamConfig {
             channels: 2,
@@ -137,12 +142,37 @@ impl Emulator {
             })
             .transpose()?;
 
-        let system = starpsx_core::System::build(bios, run_type, audio_tx)?;
+        let memory_card = memory_card
+            .as_ref()
+            .map(|path| -> anyhow::Result<Box<[u8; 0x20000]>> {
+                let bytes = if path.exists() {
+                    let bytes = std::fs::read(path)?;
+                    bytes
+                        .try_into()
+                        .map_err(|_| anyhow::anyhow!("memory card is wrong size"))?
+                } else {
+                    if let Some(parent) = path.parent() {
+                        std::fs::create_dir_all(parent)?;
+                    }
+                    let blank = Box::new(*include_bytes!("blank.mcd"));
+                    std::fs::write(path, blank.as_ref())?;
+                    blank
+                };
+                info!(?path, "Using memory card");
+                Ok(bytes)
+            })
+            .transpose()?;
+
+        let system = starpsx_core::System::build(bios, run_type, audio_tx, memory_card)?;
         Ok((system, audio_stream))
     }
 
     fn rebuild_system(&mut self) -> anyhow::Result<()> {
-        let (system, audio_stream) = Self::build_system(&self.bios_path, self.file_path.as_ref())?;
+        let (system, audio_stream) = Self::build_system(
+            &self.bios_path,
+            self.file_path.as_ref(),
+            self.memory_card.as_deref(),
+        )?;
         self.system = system;
         self.audio_stream = audio_stream;
         Ok(())
@@ -155,6 +185,27 @@ impl Emulator {
 
     fn send_debug_snapshot(&self) {
         let _ = self.channels.snapshot_tx.try_send(self.system.snapshot());
+    }
+
+    fn save_memory_card_to_disk(&mut self) {
+        let Some(path) = self.memory_card.as_ref() else {
+            return;
+        };
+
+        let Some(card) = self.system.memory_card() else {
+            return;
+        };
+
+        let Some(data) = card.dirty_data() else {
+            return;
+        };
+
+        let tmp_path = path.with_extension("mcd.tmp");
+        if let Err(err) =
+            std::fs::write(&tmp_path, data).and_then(|_| std::fs::rename(&tmp_path, path))
+        {
+            tracing::error!("failed to save memory card: {err}");
+        }
     }
 
     fn update_core_gamepad(&mut self, new_state: GamepadState) {
@@ -236,7 +287,9 @@ impl Emulator {
             let frame_start = Instant::now();
 
             let frame = if self.breakpoints.is_empty() {
-                Some(self.system.run_frame(self.show_vram))
+                let fb = self.system.run_frame(self.show_vram);
+                self.save_memory_card_to_disk();
+                Some(fb)
             } else {
                 self.system
                     .run_breakpoint(&self.breakpoints, self.show_vram)
@@ -307,6 +360,6 @@ pub fn parse_runnable(path: PathBuf) -> anyhow::Result<RunnablePath> {
         Some("exe") | Some("ps-exe") => Ok(RunnablePath::Exe(path)),
         Some("bin") => Ok(RunnablePath::Bin(path)),
         Some("cue") => Ok(RunnablePath::Cue(path)),
-        _ => Err(anyhow!("unsupported file format")),
+        _ => anyhow::bail!("unsupported file format"),
     }
 }

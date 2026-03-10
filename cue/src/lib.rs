@@ -6,7 +6,6 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use anyhow::Ok;
-use anyhow::anyhow;
 pub use builder::CdDisk;
 use builder::CueBuilder;
 use parser::CueParser;

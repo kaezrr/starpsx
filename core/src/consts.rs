@@ -1,8 +1,6 @@
 pub const LINE_DURATION: u64 = 2172;
 pub const HBLANK_DURATION: u64 = 390;
 
-pub const BAUDRATE_TRANSFER_DELAY: u64 = 1088;
-
 pub const SECTOR_SIZE: usize = 0x930;
 
 pub const AVG_1ST_RESP_GENERIC: u64 = 0xC4E1;

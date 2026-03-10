@@ -434,16 +434,21 @@ impl Renderer {
                 } else {
                     ((y - y0).abs(), -dy)
                 };
-                let inv = denom - num;
-                let red = (shaded[0].r as i32 * inv + shaded[1].r as i32 * num) / denom;
-                let green = (shaded[0].g as i32 * inv + shaded[1].g as i32 * num) / denom;
-                let blue = (shaded[0].b as i32 * inv + shaded[1].b as i32 * num) / denom;
 
-                Color {
-                    r: red as u8,
-                    g: green as u8,
-                    b: blue as u8,
-                    mask: 0,
+                if denom == 0 {
+                    shaded[0]
+                } else {
+                    let inv = denom - num;
+                    let red = (shaded[0].r as i32 * inv + shaded[1].r as i32 * num) / denom;
+                    let green = (shaded[0].g as i32 * inv + shaded[1].g as i32 * num) / denom;
+                    let blue = (shaded[0].b as i32 * inv + shaded[1].b as i32 * num) / denom;
+
+                    Color {
+                        r: red as u8,
+                        g: green as u8,
+                        b: blue as u8,
+                        mask: 0,
+                    }
                 }
             };
 

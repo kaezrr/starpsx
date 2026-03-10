@@ -73,9 +73,9 @@ Options:
 | Timers      | 🟢 Done        | functional but may contain inaccuracies |
 | CDROM       | 🟡 Partial     | boots a few games                       |
 | GTE         | 🟢 Done        | passes all tests                        |
-| SPU         | 🔴 Not started |                                         |
 | Gamepad     | 🟢 Done        | full analog pad support                 |
-| Memory Card | 🔴 Not started |                                         |
+| Memory Card | 🟢 Done        | per-title and shared modes available    |
+| SPU         | 🔴 Not started |                                         |
 | MDEC        | 🔴 Not started |                                         |
 
 ## Acknowledgements
