@@ -354,7 +354,9 @@ impl Gpu {
                     0x2E => (9, Gpu::gp0_poly_texture::<QUAD, SEMI_TRANS, BLEND>),
                     0x2F => (9, Gpu::gp0_poly_texture::<QUAD, SEMI_TRANS, RAW>),
                     0x3C => (12, Gpu::gp0_poly_texture_shaded::<QUAD, OPAQUE, BLEND>),
+                    0x3D => (12, Gpu::gp0_poly_texture_shaded::<QUAD, OPAQUE, RAW>),
                     0x3E => (12, Gpu::gp0_poly_texture_shaded::<QUAD, SEMI_TRANS, BLEND>),
+                    0x3F => (12, Gpu::gp0_poly_texture_shaded::<QUAD, SEMI_TRANS, RAW>),
 
                     // Single Line
                     0x40 | 0x41 | 0x44 | 0x45 => (3, Gpu::gp0_line_mono::<OPAQUE>),
