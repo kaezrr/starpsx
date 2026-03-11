@@ -6,9 +6,9 @@ use std::array::from_fn;
 use channel::Channel;
 use tracing::trace;
 use utils::Direction;
+use utils::Mode;
 use utils::Port;
 use utils::Step;
-use utils::Sync;
 
 use crate::System;
 use crate::mem::ByteAddressable;
@@ -26,8 +26,7 @@ bitfield::bitfield! {
 // Ignoring 0-6 channel irq setting, all irqs happen on completion for now
 impl Interrupt {
     fn master_flag(&self) -> bool {
-        let channel_match = (self.channel_irq_flag() & self.channel_irq_mask()) > 0;
-        self.bus_error() || (self.channel_irq_en() && channel_match)
+        self.bus_error() || (self.channel_irq_en() && self.channel_irq_flag() > 0)
     }
 
     fn update_irq(&mut self) -> bool {
@@ -76,9 +75,9 @@ pub const PADDR_END: u32 = 0x1F801100;
 
 impl DMAController {
     fn do_dma(system: &mut System, port: Port) {
-        match system.dma.channels[port as usize].ctl.sync() {
-            Sync::LinkedList => DMAController::do_dma_linked_list(system, port),
-            _ => DMAController::do_dma_block(system, port),
+        match system.dma.channels[port as usize].ctl.mode() {
+            Mode::LinkedList => DMAController::do_dma_linked_list(system, port),
+            Mode::Burst | Mode::Slice => DMAController::do_dma_block(system, port),
         }
 
         if system.dma.dicr.should_irq_on_channel_complete(port) {
