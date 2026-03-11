@@ -56,16 +56,16 @@ impl Interrupt {
 }
 
 pub struct DMAController {
-    control: u32,
-    interrupt: Interrupt,
-    pub channels: [Channel; 8],
+    dpcr: u32,
+    dicr: Interrupt,
+    pub channels: [Channel; 7],
 }
 
 impl Default for DMAController {
     fn default() -> Self {
         DMAController {
-            control: 0x07654321,
-            interrupt: Interrupt(0),
+            dpcr: 0x07654321,
+            dicr: Interrupt(0),
             channels: from_fn(|_| Channel::new()),
         }
     }
@@ -75,38 +75,34 @@ pub const PADDR_START: u32 = 0x1F801080;
 pub const PADDR_END: u32 = 0x1F801100;
 
 impl DMAController {
-    fn get_mut_channel(&mut self, x: u32) -> &mut Channel {
-        &mut self.channels[Port::from(x) as usize]
-    }
-
-    fn get_channel(&self, x: u32) -> &Channel {
-        &self.channels[Port::from(x) as usize]
-    }
-
     fn do_dma(system: &mut System, port: Port) {
         match system.dma.channels[port as usize].ctl.sync() {
             Sync::LinkedList => DMAController::do_dma_linked_list(system, port),
             _ => DMAController::do_dma_block(system, port),
         }
 
-        if system.dma.interrupt.should_irq_on_channel_complete(port) {
+        if system.dma.dicr.should_irq_on_channel_complete(port) {
             system.irqctl.stat().set_dma(true);
         }
     }
 
+    fn write_dpcr<T: ByteAddressable>(&mut self, data: T) {
+        debug_assert_eq!(T::LEN, 4);
+        self.dpcr = data.to_u32();
+    }
+
     fn write_dicr<T: ByteAddressable>(&mut self, data: T) {
         debug_assert_eq!(T::LEN, 4); // word aligned dicr write
-        trace!(target:"dma", "dma write to dicr={:08x}", data.to_u32());
 
         // bit 31 read only, bits 24 - 30 get reset on sets.
         let mut new_irq = Interrupt(data.to_u32() & !(1 << 31));
-        let old_irq = self.interrupt;
+        let old_irq = self.dicr;
 
         let old_flags = old_irq.channel_irq_flag();
         let new_flags = new_irq.channel_irq_flag();
 
         new_irq.set_channel_irq_flag(old_flags & !(new_flags));
-        self.interrupt = new_irq;
+        self.dicr = new_irq;
     }
 
     fn do_dma_block(system: &mut System, port: Port) {
@@ -186,43 +182,32 @@ impl DMAController {
 }
 
 pub fn read<T: ByteAddressable>(system: &mut System, addr: u32) -> T {
-    let offs = addr - PADDR_START;
-    let major = (offs >> 4) & 0x7;
-    let minor = (offs) & 0xF;
-    let dma = &mut system.dma;
+    let channel = (((addr >> 4) & 0xF) - 8) as usize;
+    let register = addr & 0xF;
 
-    let data = match (major, minor) {
-        (0..=6, 0) => dma.get_channel(major).base,
-        (0..=6, 4) => dma.get_channel(major).block_ctl.0,
-        (0..=6, 8) => dma.get_channel(major).ctl.0,
-        (7, 0) => dma.control,
-        (7, 4) => dma.interrupt.0,
-        _ => unimplemented!("DMA read {offs:x}"),
+    let data = match addr {
+        0x1F801080..0x1F8010F0 => system.dma.channels[channel].read(register),
+        0x1F8010F0 => system.dma.dpcr,
+        0x1F8010F4 => system.dma.dicr.0,
+        _ => unimplemented!("dma read {addr:x}"),
     };
 
     T::from_u32(data)
 }
 
 pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, data: T) {
-    let offs = addr - PADDR_START;
-    let major = (offs >> 4) & 0x7;
-    let minor = (offs) & 0xF;
-    let dma = &mut system.dma;
+    let channel = (((addr >> 4) & 0xF) - 8) as usize;
+    let register = addr & 0xF;
 
-    // TODO: dicr bug is not fixed but panics
-    match (major, minor) {
-        (0..=6, 0) => dma.get_mut_channel(major).base = data.to_u32() & 0xFFFFFF,
-        (0..=6, 4) => dma.get_mut_channel(major).block_ctl.0 = data.to_u32(),
-        (0..=6, 8) => dma.get_mut_channel(major).ctl.0 = data.to_u32(),
-        (7, 0) => dma.control = data.to_u32(),
-        (7, 4) => dma.write_dicr(data),
-        _ => unimplemented!("DMA write {offs:x} = {data:x}"),
-    }
-
-    if let 0..=6 = major {
-        let port = Port::from(major);
-        if dma.channels[port as usize].active() {
-            DMAController::do_dma(system, port);
+    match addr {
+        0x1F801080..0x1F8010F0 => {
+            system.dma.channels[channel].write(register, data);
+            if system.dma.channels[channel].active() {
+                DMAController::do_dma(system, Port::from(channel));
+            }
         }
-    }
+        0x1F8010F0 => system.dma.write_dpcr(data),
+        0x1F8010F4 => system.dma.write_dicr(data),
+        _ => unimplemented!("dma write {addr:x} = {data:x}"),
+    };
 }

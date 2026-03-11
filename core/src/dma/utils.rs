@@ -1,3 +1,5 @@
+use num_enum::FromPrimitive;
+
 #[derive(PartialEq, Clone, Copy, Debug)]
 pub enum Direction {
     ToRam,
@@ -48,35 +50,22 @@ impl From<u8> for Sync {
     }
 }
 
-#[derive(PartialEq, Clone, Copy, Debug)]
+#[derive(PartialEq, Clone, Copy, Debug, FromPrimitive)]
+#[repr(usize)]
 pub enum Port {
     // Macroblock decoder input
-    MdecIn,
+    #[default]
+    MdecIn = 0,
     // Macroblock decoder output
-    MdecOut,
+    MdecOut = 1,
     // Graphics Processing Unit
-    Gpu,
+    Gpu = 2,
     // CD-ROM Drive
-    CdRom,
+    CdRom = 3,
     // Sound Processing Unit
-    Spu,
+    Spu = 4,
     // Extension Port
-    Pio,
+    Pio = 5,
     // Clear ordering table
-    Otc,
-}
-
-impl From<u32> for Port {
-    fn from(index: u32) -> Self {
-        match index {
-            0 => Port::MdecIn,
-            1 => Port::MdecOut,
-            2 => Port::Gpu,
-            3 => Port::CdRom,
-            4 => Port::Spu,
-            5 => Port::Pio,
-            6 => Port::Otc,
-            _ => unreachable!("Unknown port {index}"),
-        }
-    }
+    Otc = 6,
 }

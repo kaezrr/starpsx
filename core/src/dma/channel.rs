@@ -1,3 +1,5 @@
+use crate::mem::ByteAddressable;
+
 use super::utils::Direction;
 use super::utils::Step;
 use super::utils::Sync;
@@ -59,5 +61,26 @@ impl Channel {
     pub fn done(&mut self) {
         self.ctl.set_enable(false);
         self.ctl.set_trigger(false);
+    }
+
+    pub fn read(&self, reg: u32) -> u32 {
+        match reg {
+            0 => self.base,
+            4 => self.block_ctl.0,
+            8 => self.ctl.0,
+            _ => unimplemented!("channel reg read {reg}"),
+        }
+    }
+
+    pub fn write<T: ByteAddressable>(&mut self, reg: u32, data: T) {
+        assert_eq!(T::LEN, 4);
+
+        let data = data.to_u32();
+        match reg {
+            0 => self.base = data,
+            4 => self.block_ctl.0 = data,
+            8 => self.ctl.0 = data,
+            _ => unimplemented!("channel reg write {reg}"),
+        }
     }
 }
