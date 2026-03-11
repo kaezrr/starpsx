@@ -26,7 +26,9 @@ bitfield::bitfield! {
 // Ignoring 0-6 channel irq setting, all irqs happen on completion for now
 impl Interrupt {
     fn master_flag(&self) -> bool {
-        self.bus_error() || (self.channel_irq_en() && self.channel_irq_flag() > 0)
+        let flags = (self.0 >> 24) & 0x7f;
+        let mask = (self.0 >> 16) & 0x7f;
+        self.bus_error() || (self.channel_irq_en() && (flags & mask) != 0)
     }
 
     fn update_irq(&mut self) -> bool {
@@ -74,6 +76,12 @@ pub const PADDR_START: u32 = 0x1F801080;
 pub const PADDR_END: u32 = 0x1F801100;
 
 impl DMAController {
+    /// Check if channel is master-enabled in DPCR (bit 3 of each channel's 4-bit nibble)
+    fn channel_enabled(&self, port: Port) -> bool {
+        let bit = (port as u32) * 4 + 3;
+        self.dpcr & (1 << bit) != 0
+    }
+
     fn do_dma(system: &mut System, port: Port) {
         match system.dma.channels[port as usize].ctl.mode() {
             Mode::LinkedList => DMAController::do_dma_linked_list(system, port),
@@ -86,7 +94,6 @@ impl DMAController {
     }
 
     fn write_dpcr<T: ByteAddressable>(&mut self, data: T) {
-        debug_assert_eq!(T::LEN, 4);
         self.dpcr = data.to_u32();
     }
 
@@ -102,6 +109,7 @@ impl DMAController {
 
         new_irq.set_channel_irq_flag(old_flags & !(new_flags));
         self.dicr = new_irq;
+        self.dicr.update_irq();
     }
 
     fn do_dma_block(system: &mut System, port: Port) {
@@ -116,9 +124,6 @@ impl DMAController {
         };
 
         let mut addr = base;
-
-        trace!(target:"dma", ?port, addr, "dma block transfer");
-
         for s in (0..size).rev() {
             let cur_addr = addr & 0x1FFFFC;
             match dir {
@@ -126,7 +131,7 @@ impl DMAController {
                     let src_word = match port {
                         Port::Otc => match s {
                             0 => 0xFFFFFF,
-                            _ => addr.wrapping_sub(4) & 0x1FFFFF,
+                            _ => addr.wrapping_sub(4) & 0x1FFFFC,
                         },
                         Port::Gpu => system.gpu.read(),
                         Port::CdRom => system.cdrom.read_rddata::<u32>(),
@@ -151,21 +156,14 @@ impl DMAController {
 
     fn do_dma_linked_list(system: &mut System, port: Port) {
         let channel = &mut system.dma.channels[port as usize];
-
-        // only supports ram to gpu linked list dma
-        assert_eq!(channel.ctl.dir(), Direction::FromRam);
-        assert_eq!(port, Port::Gpu);
-
         let mut addr = channel.base & 0x1FFFFC;
-
-        trace!(target: "dma", ?port, addr, "dma linked list transfer");
 
         loop {
             let header = system.ram.read::<u32>(addr);
             let size = header >> 24;
 
             for i in 0..size {
-                let data = system.ram.read::<u32>(addr + 4 * (i + 1));
+                let data = system.ram.read::<u32>((addr + 4 * (i + 1)) & 0x1FFFFC);
                 system.gpu.gp0(data);
             }
 
@@ -173,7 +171,7 @@ impl DMAController {
             if next_addr & (1 << 23) != 0 {
                 break;
             }
-            addr = next_addr;
+            addr = next_addr & 0x1FFFFC;
         }
 
         channel.done();
@@ -200,9 +198,18 @@ pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, data: T) {
 
     match addr {
         0x1F801080..0x1F8010F0 => {
+            let port = Port::from(channel);
             system.dma.channels[channel].write(register, data);
-            if system.dma.channels[channel].active() {
-                DMAController::do_dma(system, Port::from(channel));
+
+            // OTC only supports backwards transfer to RAM; force control bits
+            if port == Port::Otc && register == 8 {
+                let ctl = &mut system.dma.channels[channel].ctl;
+                ctl.0 &= 0x5100_0000; // keep only enable (bit 24) and trigger (bit 28)
+                ctl.0 |= 2; // force step = decrement
+            }
+
+            if system.dma.channel_enabled(port) && system.dma.channels[channel].active() {
+                DMAController::do_dma(system, port);
             }
         }
         0x1F8010F0 => system.dma.write_dpcr(data),

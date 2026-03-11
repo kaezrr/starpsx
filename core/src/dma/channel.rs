@@ -47,9 +47,11 @@ impl Channel {
         let bs = self.block_ctl.block_size();
         let bc = self.block_ctl.block_count();
 
+        let bs = if bs == 0 { 0x10000 } else { bs };
+
         match self.ctl.mode() {
-            Mode::Burst => Some(if bs == 0 { 0x10000 } else { bs }),
-            Mode::Slice => Some(bc * bs),
+            Mode::Burst => Some(bs),
+            Mode::Slice => Some((if bc == 0 { 0x10000 } else { bc }) * bs),
             Mode::LinkedList => None,
         }
     }
@@ -74,7 +76,7 @@ impl Channel {
 
         let data = data.to_u32();
         match reg {
-            0 => self.base = data,
+            0 => self.base = data & 0xFF_FFFF,
             4 => self.block_ctl.0 = data,
             8 => self.ctl.0 = data,
             _ => unimplemented!("channel reg write {reg}"),
