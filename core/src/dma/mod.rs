@@ -97,17 +97,20 @@ impl DMAController {
         self.dpcr = data.to_u32();
     }
 
-    fn write_dicr<T: ByteAddressable>(&mut self, data: T) {
-        debug_assert_eq!(T::LEN, 4); // word aligned dicr write
+    fn write_dicr<T: ByteAddressable>(&mut self, data: T, offset: u32) {
+        let byte_shift = offset / 8;
+        let write_mask = ((1u64 << (T::LEN * 8)) - 1) as u32;
+        let shifted_mask = write_mask << byte_shift;
+        let shifted_data = (data.to_u32() & write_mask) << byte_shift;
 
-        // bit 31 read only, bits 24 - 30 get reset on sets.
-        let mut new_irq = Interrupt(data.to_u32() & !(1 << 31));
+        let merged = (self.dicr.0 & !shifted_mask) | shifted_data;
         let old_irq = self.dicr;
+        let mut new_irq = Interrupt((merged & !(1 << 31)) | (old_irq.0 & (1 << 31)));
 
         let old_flags = old_irq.channel_irq_flag();
         let new_flags = new_irq.channel_irq_flag();
+        new_irq.set_channel_irq_flag(old_flags & !new_flags);
 
-        new_irq.set_channel_irq_flag(old_flags & !(new_flags));
         self.dicr = new_irq;
         self.dicr.update_irq();
     }
@@ -135,6 +138,7 @@ impl DMAController {
                         },
                         Port::Gpu => system.gpu.read(),
                         Port::CdRom => system.cdrom.read_rddata::<u32>(),
+                        Port::MdecOut => system.mdec.data(),
                         _ => todo!("DMA source {port:?}"),
                     };
                     system.ram.write::<u32>(cur_addr, src_word);
@@ -186,6 +190,7 @@ pub fn read<T: ByteAddressable>(system: &mut System, addr: u32) -> T {
         0x1F801080..0x1F8010F0 => system.dma.channels[channel].read(register),
         0x1F8010F0 => system.dma.dpcr,
         0x1F8010F4 => system.dma.dicr.0,
+        0x1F8010F6 => system.dma.dicr.0 >> 16,
         _ => unimplemented!("dma read {addr:x}"),
     };
 
@@ -213,7 +218,8 @@ pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, data: T) {
             }
         }
         0x1F8010F0 => system.dma.write_dpcr(data),
-        0x1F8010F4 => system.dma.write_dicr(data),
+        0x1F8010F4 => system.dma.write_dicr(data, 0),
+        0x1F8010F6 => system.dma.write_dicr(data, 16),
         _ => unimplemented!("dma write {addr:x} = {data:x}"),
     };
 }

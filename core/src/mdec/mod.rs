@@ -149,7 +149,7 @@ impl MacroDecoder {
     fn handle_command(&mut self, command: CommandType) {
         match command {
             CommandType::DecodeMacroblock(depth, is_signed, is_bit15_set) => {
-                todo!("handle command decode macroblock, {depth:?}, {is_signed}, {is_bit15_set}")
+                debug!("handle command decode macroblock, {depth:?}, {is_signed}, {is_bit15_set}")
             }
             CommandType::SetQuantTable(color) => debug!("handle set quant table, {color:?}"),
             CommandType::SetScaleTable => debug!("handle set scale table"),
@@ -170,6 +170,10 @@ impl MacroDecoder {
                 }
             }
         }
+    }
+
+    pub fn data(&mut self) -> u32 {
+        0xF8C8DC
     }
 }
 
