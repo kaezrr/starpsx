@@ -97,22 +97,18 @@ impl DMAController {
         self.dpcr = data.to_u32();
     }
 
-    fn write_dicr<T: ByteAddressable>(&mut self, data: T, offset: u32) {
-        let byte_shift = offset / 8;
-        let write_mask = ((1u64 << (T::LEN * 8)) - 1) as u32;
-        let shifted_mask = write_mask << byte_shift;
-        let shifted_data = (data.to_u32() & write_mask) << byte_shift;
-
-        let merged = (self.dicr.0 & !shifted_mask) | shifted_data;
+    fn write_dicr(&mut self, data: u32) -> bool {
+        // bit 31 read only, bits 24 - 30 get reset on sets.
         let old_irq = self.dicr;
-        let mut new_irq = Interrupt((merged & !(1 << 31)) | (old_irq.0 & (1 << 31)));
+        let mut new_irq = Interrupt(data & !(1 << 31) | old_irq.0 & (1 << 31));
 
         let old_flags = old_irq.channel_irq_flag();
         let new_flags = new_irq.channel_irq_flag();
-        new_irq.set_channel_irq_flag(old_flags & !new_flags);
+
+        new_irq.set_channel_irq_flag(old_flags & !(new_flags));
 
         self.dicr = new_irq;
-        self.dicr.update_irq();
+        self.dicr.update_irq()
     }
 
     fn do_dma_block(system: &mut System, port: Port) {
@@ -218,8 +214,16 @@ pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, data: T) {
             }
         }
         0x1F8010F0 => system.dma.write_dpcr(data),
-        0x1F8010F4 => system.dma.write_dicr(data, 0),
-        0x1F8010F6 => system.dma.write_dicr(data, 16),
+        0x1F8010F4 => {
+            if system.dma.write_dicr(data.to_u32()) {
+                system.irqctl.stat().set_dma(true);
+            }
+        }
+        0x1F8010F6 => {
+            if system.dma.write_dicr(data.to_u32() << 16) {
+                system.irqctl.stat().set_dma(true);
+            }
+        }
         _ => unimplemented!("dma write {addr:x} = {data:x}"),
     };
 }
