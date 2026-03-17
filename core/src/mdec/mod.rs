@@ -1,3 +1,4 @@
+use arrayvec::ArrayVec;
 use num_enum::FromPrimitive;
 use tracing::debug;
 
@@ -68,6 +69,7 @@ pub struct MacroDecoder {
     status: Status,
     state: State,
     params_len: u16,
+    output_fifo: ArrayVec<u32, 32>, // 32 words
 }
 
 impl MacroDecoder {
@@ -149,7 +151,11 @@ impl MacroDecoder {
     fn handle_command(&mut self, command: CommandType) {
         match command {
             CommandType::DecodeMacroblock(depth, is_signed, is_bit15_set) => {
-                debug!("handle command decode macroblock, {depth:?}, {is_signed}, {is_bit15_set}")
+                debug!("handle command decode macroblock, {depth:?}, {is_signed}, {is_bit15_set}");
+                for _ in 0..32 {
+                    self.output_fifo.push(0xF8C8DC);
+                }
+                self.status.set_out_fifo_empty(false);
             }
             CommandType::SetQuantTable(color) => debug!("handle set quant table, {color:?}"),
             CommandType::SetScaleTable => debug!("handle set scale table"),
@@ -172,14 +178,18 @@ impl MacroDecoder {
         }
     }
 
-    pub fn data(&mut self) -> u32 {
-        0xF8C8DC
+    pub fn response(&mut self) -> u32 {
+        let data = self.output_fifo.pop().unwrap_or(0xDEADBEEF);
+        if self.output_fifo.is_empty() {
+            self.status.set_out_fifo_empty(true);
+        }
+        data
     }
 }
 
-pub fn read<T: ByteAddressable>(system: &System, addr: u32) -> T {
+pub fn read<T: ByteAddressable>(system: &mut System, addr: u32) -> T {
     let data = match addr {
-        0x1F801820 => todo!("MDEC response"),
+        0x1F801820 => system.mdec.response(),
         0x1F801824 => system.mdec.status(),
         _ => unimplemented!("MDEC read {addr:x}"),
     };

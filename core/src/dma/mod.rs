@@ -122,6 +122,8 @@ impl DMAController {
             (step, channel.ctl.dir(), channel.base, size)
         };
 
+        tracing::debug!(?port, size, "dma");
+
         let mut addr = base;
         for s in (0..size).rev() {
             let cur_addr = addr & 0x1FFFFC;
@@ -134,7 +136,7 @@ impl DMAController {
                         },
                         Port::Gpu => system.gpu.read(),
                         Port::CdRom => system.cdrom.read_rddata::<u32>(),
-                        Port::MdecOut => system.mdec.data(),
+                        Port::MdecOut => system.mdec.response(),
                         _ => todo!("DMA source {port:?}"),
                     };
                     system.ram.write::<u32>(cur_addr, src_word);

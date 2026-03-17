@@ -47,11 +47,9 @@ impl Channel {
         let bs = self.block_ctl.block_size();
         let bc = self.block_ctl.block_count();
 
-        let bs = if bs == 0 { 0x10000 } else { bs };
-
         match self.ctl.mode() {
-            Mode::Burst => Some(bs),
-            Mode::Slice => Some((if bc == 0 { 0x10000 } else { bc }) * bs),
+            Mode::Burst => Some(if bs == 0 { 0x10000 } else { bs }),
+            Mode::Slice => Some(bc * bs),
             Mode::LinkedList => None,
         }
     }
