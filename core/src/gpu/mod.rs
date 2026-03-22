@@ -408,7 +408,7 @@ impl Gpu {
                     0xC0 => (3, Gpu::gp0_image_store),
 
                     // Environment
-                    0x00 => (1, Gpu::gp0_nop),
+                    0x00 | 0x03 | 0x04..=0x1E | 0xE0 | 0xE7..=0xEF => (1, Gpu::gp0_nop),
                     0x01 => (1, Gpu::gp0_clear_cache),
                     0xE1 => (1, Gpu::gp0_draw_mode),
                     0xE2 => (1, Gpu::gp0_texture_window),
