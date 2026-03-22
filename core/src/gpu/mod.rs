@@ -408,7 +408,6 @@ impl Gpu {
                     0xC0 => (3, Gpu::gp0_image_store),
 
                     // Environment
-                    0x00 | 0x03 | 0x04..=0x1E | 0xE0 | 0xE7..=0xEF => (1, Gpu::gp0_nop),
                     0x01 => (1, Gpu::gp0_clear_cache),
                     0xE1 => (1, Gpu::gp0_draw_mode),
                     0xE2 => (1, Gpu::gp0_texture_window),
@@ -416,6 +415,9 @@ impl Gpu {
                     0xE4 => (1, Gpu::gp0_drawing_area_bottom_right),
                     0xE5 => (1, Gpu::gp0_drawing_area_offset),
                     0xE6 => (1, Gpu::gp0_mask_bit_setting),
+
+                    0x00 | 0x03 | 0x04..=0x1E | 0xE0 | 0xE7..=0xEF => (1, Gpu::gp0_nop),
+
                     _ => unimplemented!("GP0 command {data:08x}"),
                 };
                 return self.process_argument(data, CommandArguments::new(cmd, len));

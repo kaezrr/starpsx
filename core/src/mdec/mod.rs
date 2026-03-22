@@ -57,33 +57,44 @@ enum CommandType {
     SetScaleTable,
 }
 
-#[derive(Default)]
-enum State {
-    #[default]
-    Command,
-    Params(CommandType),
+struct Command {
+    command_type: CommandType,
+    parameters: ArrayVec<u32, 32>,
 }
 
-#[derive(Default)]
 pub struct MacroDecoder {
     status: Status,
-    state: State,
-    params_len: u16,
+    collecting: Option<Command>,
+
     output_fifo: ArrayVec<u32, 32>, // 32 words
+    params_remaining: u16,
+
+    scale_table: [i16; 64],
 }
 
+impl Default for MacroDecoder {
+    fn default() -> Self {
+        Self {
+            status: Status::default(),
+            collecting: None,
+            output_fifo: ArrayVec::default(),
+            params_remaining: 0,
+            scale_table: [0; 64],
+        }
+    }
+}
 impl MacroDecoder {
     fn status(&self) -> u32 {
         // Bits 0-15 show number of remaining parameters minus 1, 0xFFFF = 0
-        (self.status.0 & !0xFFFF) | self.params_len.wrapping_sub(1) as u32
+        (self.status.0 & !0xFFFF) | self.params_remaining.wrapping_sub(1) as u32
     }
 
     fn write_control(&mut self, data: u32) {
         // Reset
         if data & (1 << 31) != 0 {
             self.status.0 = 0x80040000;
-            self.params_len = 0;
-            self.state = State::Command;
+            self.params_remaining = 0;
+            self.collecting = None;
         }
 
         self.status.set_data_in(data & (1 << 30) != 0);
@@ -100,7 +111,7 @@ impl MacroDecoder {
             0 | 4..8 => {
                 debug!("no function");
                 // Doesn't have the "minus 1" effect
-                self.params_len = cmd.params_len() + 1;
+                self.params_remaining = cmd.params_len() + 1;
             }
 
             1 => {
@@ -116,40 +127,49 @@ impl MacroDecoder {
                     "decode macroblock"
                 );
 
-                self.params_len = cmd.params_len();
                 self.status.set_busy(true);
-                self.state = State::Params(CommandType::DecodeMacroblock(
-                    output_depth,
-                    is_signed,
-                    is_bit15_set,
-                ));
+                self.params_remaining = cmd.params_len();
+                self.collecting = Some(Command {
+                    command_type: CommandType::DecodeMacroblock(
+                        output_depth,
+                        is_signed,
+                        is_bit15_set,
+                    ),
+                    parameters: ArrayVec::default(),
+                });
             }
 
             2 => {
                 let color = cmd.color();
                 debug!(?color, "set quant table with");
 
-                self.state = State::Params(CommandType::SetQuantTable(color));
                 self.status.set_busy(true);
-                self.params_len = match color {
+                self.params_remaining = match color {
                     Color::Luminance => 16, // 64 unsigned bytes
                     Color::LuminanceAndColor => 32,
                 };
+                self.collecting = Some(Command {
+                    command_type: CommandType::SetQuantTable(color),
+                    parameters: ArrayVec::default(),
+                });
             }
 
             3 => {
                 debug!("set scale table");
-                self.state = State::Params(CommandType::SetScaleTable);
-                self.params_len = 32; // 64 signed halfwords
                 self.status.set_busy(true);
+                self.params_remaining = 32; // 64 signed halfwords
+                self.collecting = Some(Command {
+                    command_type: CommandType::SetScaleTable,
+                    parameters: ArrayVec::default(),
+                });
             }
 
             _ => unreachable!("3 bit value"),
         }
     }
 
-    fn handle_command(&mut self, command: CommandType) {
-        match command {
+    fn handle_command(&mut self, collected: Command) {
+        match collected.command_type {
             CommandType::DecodeMacroblock(depth, is_signed, is_bit15_set) => {
                 debug!("handle command decode macroblock, {depth:?}, {is_signed}, {is_bit15_set}");
                 for _ in 0..32 {
@@ -158,21 +178,25 @@ impl MacroDecoder {
                 self.status.set_out_fifo_empty(false);
             }
             CommandType::SetQuantTable(color) => debug!("handle set quant table, {color:?}"),
-            CommandType::SetScaleTable => debug!("handle set scale table"),
+            CommandType::SetScaleTable => {
+                self.scale_table = bytemuck::cast(collected.parameters.into_inner().unwrap());
+            }
         }
     }
 
     pub fn command_or_param(&mut self, data: u32) {
-        match self.state {
-            State::Command => self.decode_command(data),
-            State::Params(cmd) => {
-                debug!("mdec param {data:x}");
-                self.params_len -= 1;
+        let collecting_command = self.collecting.take();
+        match collecting_command {
+            None => self.decode_command(data),
+            Some(mut collected) => {
+                self.params_remaining -= 1;
+                collected.parameters.push(data);
 
-                if self.params_len == 0 {
-                    self.state = State::Command;
+                if self.params_remaining == 0 {
                     self.status.set_busy(false);
-                    self.handle_command(cmd);
+                    self.handle_command(collected); // Consume
+                } else {
+                    self.collecting = Some(collected);
                 }
             }
         }
