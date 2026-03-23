@@ -2,7 +2,6 @@ mod util;
 
 use std::collections::VecDeque;
 
-use arrayvec::ArrayVec;
 use num_enum::FromPrimitive;
 use tracing::debug;
 
@@ -60,14 +59,18 @@ enum Color {
 
 #[derive(Debug, Clone, Copy)]
 enum CommandType {
-    DecodeMacroblock(Depth, bool, bool),
     SetQuantTable(Color),
     SetScaleTable,
+    DecodeMacroblock {
+        depth: Depth,
+        is_signed: bool,
+        b15_set: bool,
+    },
 }
 
 struct Command {
     command_type: CommandType,
-    parameters: ArrayVec<u32, 32>,
+    parameters: Vec<u32>,
 }
 
 pub struct MacroDecoder {
@@ -127,14 +130,14 @@ impl MacroDecoder {
             }
 
             1 => {
-                let output_depth = cmd.output_depth();
+                let depth = cmd.output_depth();
                 let is_signed = cmd.output_signed();
-                let is_bit15_set = cmd.output_bit15();
+                let b15_set = cmd.output_bit15();
 
                 debug!(
-                    ?output_depth,
+                    ?depth,
                     is_signed,
-                    is_bit15_set,
+                    b15_set,
                     len = cmd.params_len(),
                     "decode macroblock"
                 );
@@ -142,12 +145,12 @@ impl MacroDecoder {
                 self.status.set_busy(true);
                 self.params_remaining = cmd.params_len();
                 self.collecting = Some(Command {
-                    command_type: CommandType::DecodeMacroblock(
-                        output_depth,
+                    command_type: CommandType::DecodeMacroblock {
+                        depth,
                         is_signed,
-                        is_bit15_set,
-                    ),
-                    parameters: ArrayVec::default(),
+                        b15_set,
+                    },
+                    parameters: vec![],
                 });
             }
 
@@ -162,7 +165,7 @@ impl MacroDecoder {
                 };
                 self.collecting = Some(Command {
                     command_type: CommandType::SetQuantTable(color),
-                    parameters: ArrayVec::default(),
+                    parameters: vec![],
                 });
             }
 
@@ -172,7 +175,7 @@ impl MacroDecoder {
                 self.params_remaining = 32; // 64 signed halfwords
                 self.collecting = Some(Command {
                     command_type: CommandType::SetScaleTable,
-                    parameters: ArrayVec::default(),
+                    parameters: vec![],
                 });
             }
 
@@ -182,13 +185,17 @@ impl MacroDecoder {
 
     fn handle_command(&mut self, collected: Command) {
         match collected.command_type {
-            CommandType::DecodeMacroblock(depth, is_signed, is_bit15_set) => {
+            CommandType::DecodeMacroblock {
+                depth,
+                is_signed,
+                b15_set,
+            } => {
                 debug!(
                     ?depth,
-                    is_signed, is_bit15_set, "handle command decode macroblock"
+                    is_signed, b15_set, "handle command decode macroblock"
                 );
 
-                let source: &[u16] = bytemuck::cast_slice(collected.parameters.as_ref());
+                let source: &[u16] = bytemuck::cast_slice(collected.parameters.as_slice());
 
                 match depth {
                     Depth::Bit4 => {
@@ -197,31 +204,41 @@ impl MacroDecoder {
                         let words: [u32; 8] = bytemuck::cast(pixels);
 
                         self.output_fifo.extend(words);
+                        self.status.set_out_fifo_empty(false);
                     }
+
                     Depth::Bit8 => {
                         let block = self.decode_block(source, &self.luminance_table);
                         let pixels = level_shift_8bpp(block);
                         let words: [u32; 16] = bytemuck::cast(pixels);
 
                         self.output_fifo.extend(words);
+                        self.status.set_out_fifo_empty(false);
                     }
-                    Depth::Bit15 => todo!("decode 15 bpp"),
-                    Depth::Bit24 => todo!("decode 24 bpp"),
-                };
 
-                self.status.set_out_fifo_empty(false);
+                    Depth::Bit15 => {
+                        dbg!(collected.parameters.len());
+                        todo!("decode 15 bpp");
+                    }
+
+                    Depth::Bit24 => {
+                        dbg!(collected.parameters.len());
+                        todo!("decode 24 bpp");
+                    }
+                }
             }
+
             CommandType::SetQuantTable(color) => {
-                let raw_bytes: &[u8] = bytemuck::cast_slice(collected.parameters.as_ref());
-
+                let raw_bytes: &[u8] = bytemuck::cast_slice(collected.parameters.as_slice());
                 self.luminance_table.copy_from_slice(&raw_bytes[0..64]);
-
                 if color == Color::LuminanceAndColor {
                     self.chrominance_table.copy_from_slice(&raw_bytes[64..128]);
                 }
             }
+
             CommandType::SetScaleTable => {
-                self.scale_table = bytemuck::cast(collected.parameters.into_inner().unwrap());
+                let scale_table: [u32; 32] = collected.parameters.clone().try_into().unwrap();
+                self.scale_table = bytemuck::cast(scale_table);
             }
         }
     }
