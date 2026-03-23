@@ -1,8 +1,7 @@
-use crate::mem::ByteAddressable;
-
 use super::utils::Direction;
 use super::utils::Mode;
 use super::utils::Step;
+use crate::mem::ByteAddressable;
 
 bitfield::bitfield! {
     pub struct Control(u32);
@@ -49,7 +48,7 @@ impl Channel {
 
         match self.ctl.mode() {
             Mode::Burst => Some(if bs == 0 { 0x10000 } else { bs }),
-            Mode::Slice => Some(bc * bs),
+            Mode::Slice => Some(bc.max(1) * bs),
             Mode::LinkedList => None,
         }
     }
