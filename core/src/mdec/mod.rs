@@ -10,6 +10,7 @@ use crate::mdec::util::ZAG_ZIG;
 use crate::mdec::util::level_shift_4bpp;
 use crate::mdec::util::level_shift_8bpp;
 use crate::mdec::util::signed10bit;
+use crate::mdec::util::yuv_to_rgb15_block;
 use crate::mem::ByteAddressable;
 
 pub const PADDR_START: u32 = 0x1F801820;
@@ -64,7 +65,7 @@ enum CommandType {
     DecodeMacroblock {
         depth: Depth,
         is_signed: bool,
-        b15_set: bool,
+        b15: bool,
     },
 }
 
@@ -148,7 +149,7 @@ impl MacroDecoder {
                     command_type: CommandType::DecodeMacroblock {
                         depth,
                         is_signed,
-                        b15_set,
+                        b15: b15_set,
                     },
                     parameters: vec![],
                 });
@@ -188,37 +189,61 @@ impl MacroDecoder {
             CommandType::DecodeMacroblock {
                 depth,
                 is_signed,
-                b15_set,
+                b15,
             } => {
-                debug!(
-                    ?depth,
-                    is_signed, b15_set, "handle command decode macroblock"
-                );
+                debug!(?depth, is_signed, b15, "handle command decode macroblock");
 
-                let source: &[u16] = bytemuck::cast_slice(collected.parameters.as_slice());
+                let raw: &[u16] = bytemuck::cast_slice(collected.parameters.as_slice());
+                let mut source: VecDeque<u16> = raw.iter().copied().collect();
 
                 match depth {
                     Depth::Bit4 => {
-                        let block = self.decode_block(source, &self.luminance_table);
+                        let block = self.decode_block(&mut source, &self.luminance_table);
                         let pixels = level_shift_4bpp(block);
-                        let words: [u32; 8] = bytemuck::cast(pixels);
 
+                        let words: [u32; 8] = bytemuck::cast(pixels);
                         self.output_fifo.extend(words);
-                        self.status.set_out_fifo_empty(false);
                     }
 
                     Depth::Bit8 => {
-                        let block = self.decode_block(source, &self.luminance_table);
+                        let block = self.decode_block(&mut source, &self.luminance_table);
                         let pixels = level_shift_8bpp(block);
-                        let words: [u32; 16] = bytemuck::cast(pixels);
 
+                        let words: [u32; 16] = bytemuck::cast(pixels);
                         self.output_fifo.extend(words);
-                        self.status.set_out_fifo_empty(false);
                     }
 
                     Depth::Bit15 => {
-                        dbg!(collected.parameters.len());
-                        todo!("decode 15 bpp");
+                        while !source.is_empty() {
+                            // Skip any trailing padding before checking if there's real data left
+                            while source.front() == Some(&0xFE00) {
+                                source.pop_front();
+                            }
+
+                            if source.is_empty() {
+                                break;
+                            }
+
+                            let cr = self.decode_block(&mut source, &self.chrominance_table);
+                            let cb = self.decode_block(&mut source, &self.chrominance_table);
+
+                            let mut dst = [0x0u16; 256];
+
+                            let y1 = self.decode_block(&mut source, &self.luminance_table);
+                            yuv_to_rgb15_block(&cr, &cb, &y1, (0, 0), is_signed, b15, &mut dst);
+
+                            let y2 = self.decode_block(&mut source, &self.luminance_table);
+                            yuv_to_rgb15_block(&cr, &cb, &y2, (8, 0), is_signed, b15, &mut dst);
+
+                            let y3 = self.decode_block(&mut source, &self.luminance_table);
+                            yuv_to_rgb15_block(&cr, &cb, &y3, (0, 8), is_signed, b15, &mut dst);
+
+                            let y4 = self.decode_block(&mut source, &self.luminance_table);
+                            yuv_to_rgb15_block(&cr, &cb, &y4, (8, 8), is_signed, b15, &mut dst);
+
+                            let words: [u32; 128] = bytemuck::cast(dst);
+                            self.output_fifo.extend(words);
+                        }
                     }
 
                     Depth::Bit24 => {
@@ -226,6 +251,8 @@ impl MacroDecoder {
                         todo!("decode 24 bpp");
                     }
                 }
+
+                self.status.set_out_fifo_empty(false);
             }
 
             CommandType::SetQuantTable(color) => {
@@ -286,23 +313,20 @@ impl MacroDecoder {
         }
     }
 
-    pub fn decode_block(&self, source: &[u16], qt: &[u8]) -> [i16; 64] {
+    pub fn decode_block(&self, source: &mut VecDeque<u16>, qt: &[u8]) -> [i16; 64] {
         let mut block = [0; 64];
         let mut k: usize = 0;
-        let mut start_idx = 0;
-        while start_idx < source.len() && source[start_idx] == 0xFE00 {
-            start_idx += 1;
-        }
 
-        if start_idx >= source.len() {
+        while source.front() == Some(&0xFE00) {
+            source.pop_front();
+        }
+        if source.is_empty() {
             return [0; 64];
         }
 
-        let first_word = source[start_idx];
-        let q_fact = ((first_word >> 10) & 0x3F) as i16;
+        let first_word = source.pop_front().unwrap();
+        let q_fact = ((first_word >> 10) & 0x3F) as i32;
         let dc_coeff = signed10bit(first_word & 0x3FF);
-
-        // DC coefficient, also needs SCALE_ZAG[0], same as AC path
         let dc_val = if q_fact == 0 {
             (dc_coeff * 2).clamp(-0x400, 0x3FF)
         } else {
@@ -310,23 +334,29 @@ impl MacroDecoder {
         };
         block[ZAG_ZIG[0]] = dc_val;
 
-        for &n in source.iter().skip(start_idx + 1) {
+        while let Some(&n) = source.front() {
             if n == 0xFE00 {
                 break;
             }
+            source.pop_front();
+
             k += 1 + ((n >> 10) & 0x3F) as usize;
             if k > 63 {
                 break;
             }
-            let ac_level = signed10bit(n & 0x3FF);
+            let ac_level = signed10bit(n & 0x3FF) as i32;
             let val = if q_fact == 0 {
                 (ac_level * 2).clamp(-0x400, 0x3FF)
             } else {
-                let qt_val = qt[k] as i16;
+                let qt_val = qt[k] as i32;
                 ((ac_level * qt_val * q_fact + 4) / 8).clamp(-0x400, 0x3FF)
             };
             let target_idx = if q_fact == 0 { k } else { ZAG_ZIG[k] };
-            block[target_idx] = val;
+            block[target_idx] = val as i16;
+
+            if k == 63 {
+                break; // block is full, don't consume the next word
+            }
         }
 
         self.inverse_discrete_cosine(&mut block);

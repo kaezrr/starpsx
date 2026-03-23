@@ -43,3 +43,44 @@ pub fn level_shift_4bpp(block: [i16; 64]) -> [u8; 32] {
     }
     out
 }
+
+pub fn yuv_to_rgb15_block(
+    cr: &[i16; 64],
+    cb: &[i16; 64],
+    y: &[i16; 64],
+    pos: (usize, usize),
+    is_signed: bool,
+    b15: bool,
+    dst: &mut [u16; 256],
+) {
+    let (xx, yy) = pos;
+    for py in 0..8 {
+        for px in 0..8 {
+            let cr_val = cr[((px + xx) / 2) + ((py + yy) / 2) * 8] as i32;
+            let cb_val = cb[((px + xx) / 2) + ((py + yy) / 2) * 8] as i32;
+
+            let r_off = (1.402 * cr_val as f64) as i32;
+            let b_off = (1.772 * cb_val as f64) as i32;
+            let g_off = (-0.3437 * cb_val as f64 + -0.7143 * cr_val as f64) as i32;
+
+            let luma = y[px + py * 8] as i32;
+
+            let mut r = (luma + r_off).clamp(-128, 127);
+            let mut g = (luma + g_off).clamp(-128, 127);
+            let mut b = (luma + b_off).clamp(-128, 127);
+
+            if !is_signed {
+                r ^= 0x80;
+                g ^= 0x80;
+                b ^= 0x80;
+            }
+
+            let r5 = (r as u8 >> 3) as u16;
+            let g5 = (g as u8 >> 3) as u16;
+            let b5 = (b as u8 >> 3) as u16;
+            let pixel = r5 | (g5 << 5) | (b5 << 10) | (b15 as u16) << 15;
+
+            dst[(px + xx) + (py + yy) * 16] = pixel;
+        }
+    }
+}
