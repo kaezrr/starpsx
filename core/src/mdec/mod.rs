@@ -1,5 +1,7 @@
 mod util;
 
+use std::collections::VecDeque;
+
 use arrayvec::ArrayVec;
 use num_enum::FromPrimitive;
 use tracing::debug;
@@ -72,7 +74,7 @@ pub struct MacroDecoder {
     status: Status,
     collecting: Option<Command>,
 
-    output_fifo: ArrayVec<u32, 32>, // 32 words
+    output_fifo: VecDeque<u32>, // 32 words
     params_remaining: u16,
 
     scale_table: [i16; 64],
@@ -85,7 +87,7 @@ impl Default for MacroDecoder {
         Self {
             status: Status::default(),
             collecting: None,
-            output_fifo: ArrayVec::default(),
+            output_fifo: VecDeque::default(),
             params_remaining: 0,
             scale_table: [0; 64],
             luminance_table: [0; 64],
@@ -195,7 +197,6 @@ impl MacroDecoder {
                         let words: [u32; 8] = bytemuck::cast(pixels);
 
                         self.output_fifo.extend(words);
-                        self.output_fifo.reverse();
                     }
                     Depth::Bit8 => {
                         let block = self.decode_block(source, &self.luminance_table);
@@ -203,7 +204,6 @@ impl MacroDecoder {
                         let words: [u32; 16] = bytemuck::cast(pixels);
 
                         self.output_fifo.extend(words);
-                        self.output_fifo.reverse();
                     }
                     Depth::Bit15 => todo!("decode 15 bpp"),
                     Depth::Bit24 => todo!("decode 24 bpp"),
@@ -245,7 +245,7 @@ impl MacroDecoder {
     }
 
     pub fn response(&mut self) -> u32 {
-        let data = self.output_fifo.pop().unwrap_or(0xFE00FE00);
+        let data = self.output_fifo.pop_front().unwrap_or(0xFE00FE00);
         if self.output_fifo.is_empty() {
             self.status.set_out_fifo_empty(true);
         }
