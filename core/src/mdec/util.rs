@@ -84,3 +84,41 @@ pub fn yuv_to_rgb15_block(
         }
     }
 }
+
+pub fn yuv_to_rgb24_block(
+    cr: &[i16; 64],
+    cb: &[i16; 64],
+    y: &[i16; 64],
+    pos: (usize, usize),
+    is_signed: bool,
+    dst: &mut [u8; 768], // 16 * 16 * 3
+) {
+    let (xx, yy) = pos;
+    for py in 0..8 {
+        for px in 0..8 {
+            let cr_val = cr[((px + xx) / 2) + ((py + yy) / 2) * 8] as i32;
+            let cb_val = cb[((px + xx) / 2) + ((py + yy) / 2) * 8] as i32;
+
+            let r_off = (1.402 * cr_val as f64) as i32;
+            let b_off = (1.772 * cb_val as f64) as i32;
+            let g_off = (-0.3437 * cb_val as f64 + -0.7143 * cr_val as f64) as i32;
+
+            let luma = y[px + py * 8] as i32;
+
+            let mut r = (luma + r_off).clamp(-128, 127);
+            let mut g = (luma + g_off).clamp(-128, 127);
+            let mut b = (luma + b_off).clamp(-128, 127);
+
+            if !is_signed {
+                r ^= 0x80;
+                g ^= 0x80;
+                b ^= 0x80;
+            }
+
+            let base = ((px + xx) + (py + yy) * 16) * 3;
+            dst[base] = r as u8;
+            dst[base + 1] = g as u8;
+            dst[base + 2] = b as u8;
+        }
+    }
+}

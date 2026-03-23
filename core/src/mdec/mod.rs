@@ -11,6 +11,7 @@ use crate::mdec::util::level_shift_4bpp;
 use crate::mdec::util::level_shift_8bpp;
 use crate::mdec::util::signed10bit;
 use crate::mdec::util::yuv_to_rgb15_block;
+use crate::mdec::util::yuv_to_rgb24_block;
 use crate::mem::ByteAddressable;
 
 pub const PADDR_START: u32 = 0x1F801820;
@@ -227,7 +228,7 @@ impl MacroDecoder {
                             let cr = self.decode_block(&mut source, &self.chrominance_table);
                             let cb = self.decode_block(&mut source, &self.chrominance_table);
 
-                            let mut dst = [0x0u16; 256];
+                            let mut dst = [0u16; 256];
 
                             let y1 = self.decode_block(&mut source, &self.luminance_table);
                             yuv_to_rgb15_block(&cr, &cb, &y1, (0, 0), is_signed, b15, &mut dst);
@@ -241,14 +242,42 @@ impl MacroDecoder {
                             let y4 = self.decode_block(&mut source, &self.luminance_table);
                             yuv_to_rgb15_block(&cr, &cb, &y4, (8, 8), is_signed, b15, &mut dst);
 
-                            let words: [u32; 128] = bytemuck::cast(dst);
+                            let words: &[u32] = bytemuck::cast_slice(&dst);
                             self.output_fifo.extend(words);
                         }
                     }
 
                     Depth::Bit24 => {
-                        dbg!(collected.parameters.len());
-                        todo!("decode 24 bpp");
+                        while !source.is_empty() {
+                            // Skip any trailing padding before checking if there's real data left
+                            while source.front() == Some(&0xFE00) {
+                                source.pop_front();
+                            }
+
+                            if source.is_empty() {
+                                break;
+                            }
+
+                            let cr = self.decode_block(&mut source, &self.chrominance_table);
+                            let cb = self.decode_block(&mut source, &self.chrominance_table);
+
+                            let mut dst = [0u8; 768];
+
+                            let y1 = self.decode_block(&mut source, &self.luminance_table);
+                            yuv_to_rgb24_block(&cr, &cb, &y1, (0, 0), is_signed, &mut dst);
+
+                            let y2 = self.decode_block(&mut source, &self.luminance_table);
+                            yuv_to_rgb24_block(&cr, &cb, &y2, (8, 0), is_signed, &mut dst);
+
+                            let y3 = self.decode_block(&mut source, &self.luminance_table);
+                            yuv_to_rgb24_block(&cr, &cb, &y3, (0, 8), is_signed, &mut dst);
+
+                            let y4 = self.decode_block(&mut source, &self.luminance_table);
+                            yuv_to_rgb24_block(&cr, &cb, &y4, (8, 8), is_signed, &mut dst);
+
+                            let words: &[u32] = bytemuck::cast_slice(&dst);
+                            self.output_fifo.extend(words);
+                        }
                     }
                 }
 
