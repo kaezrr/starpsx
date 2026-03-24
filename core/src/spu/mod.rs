@@ -187,6 +187,15 @@ pub fn read<T: ByteAddressable>(system: &System, addr: u32) -> T {
         0x1F801DA6 => spu.data_transfer_address.into(),
         0x1F801DAC => spu.data_transfer_control.into(),
 
+        0x1F801DB0 => spu.cd_volume,
+        0x1F801DB2 => spu.cd_volume >> 16,
+
+        0x1F801DB4 => spu.external_volume,
+        0x1F801DB6 => spu.external_volume >> 16,
+
+        0x1F801D94 => spu.voice_noise_enable,
+        0x1F801D96 => spu.voice_noise_enable >> 16,
+
         0x1F801D98 => spu.voice_echo_on,
         0x1F801D9A => spu.voice_echo_on >> 16,
 
