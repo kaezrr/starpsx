@@ -4,6 +4,7 @@ mod cpu;
 mod dma;
 mod gpu;
 mod irq;
+mod mdec;
 mod mem;
 mod sched;
 mod sio;
@@ -38,6 +39,7 @@ use starpsx_renderer::FrameBuffer;
 use timers::Timers;
 use tracing::info;
 
+use crate::mdec::MacroDecoder;
 use crate::sio::Sio1;
 use crate::sio::gamepad::Gamepad;
 use crate::sio::memory_card::MemoryCard;
@@ -63,6 +65,7 @@ pub struct System {
     irqctl: InterruptController,
 
     cdrom: CdRom,
+    mdec: MacroDecoder,
 
     sio0: Sio0,
     sio1: Sio1,
@@ -96,6 +99,7 @@ impl System {
             timers: Timers::default(),
             irqctl: InterruptController::default(),
             cdrom: CdRom::default(),
+            mdec: MacroDecoder::default(),
 
             tty: Vec::new(),
             scheduler: EventScheduler::default(),

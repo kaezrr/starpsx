@@ -321,11 +321,14 @@ impl Application {
 
         let memory_card = {
             match self.app_config.memory_card_type {
-                config::MemoryCardType::PerTitle => runnable_path.as_ref().map(|f| {
-                    self.memory_cards_path
-                        .join(f.file_prefix())
-                        .with_extension("mcd")
-                }),
+                config::MemoryCardType::PerTitle => runnable_path
+                    .as_ref()
+                    .filter(|f| matches!(f, RunnablePath::Cue(_)))
+                    .map(|f| {
+                        self.memory_cards_path
+                            .join(f.file_prefix())
+                            .with_extension("mcd")
+                    }),
                 config::MemoryCardType::Shared => {
                     Some(self.memory_cards_path.join("shared_card.mcd"))
                 }

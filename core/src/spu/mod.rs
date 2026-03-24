@@ -15,7 +15,7 @@ use crate::mem::ByteAddressable;
 use crate::spu::envelope::SweepVolume;
 
 pub const PADDR_START: u32 = 0x1F801C00;
-pub const PADDR_END: u32 = 0x1F801E7F;
+pub const PADDR_END: u32 = 0x1F801E80;
 
 bitfield::bitfield! {
     struct Control(u16);

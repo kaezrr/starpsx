@@ -19,15 +19,15 @@ pub enum Step {
 
 #[derive(PartialEq, Clone, Copy, FromPrimitive, IntoPrimitive)]
 #[repr(u8)]
-pub enum Sync {
+pub enum Mode {
     #[default]
     Burst = 0,
     Slice = 1,
     LinkedList = 2,
 }
 
-#[derive(PartialEq, Clone, Copy, Debug, FromPrimitive, IntoPrimitive)]
-#[repr(u32)]
+#[derive(PartialEq, Clone, Copy, Debug, FromPrimitive)]
+#[repr(usize)]
 pub enum Port {
     // Macroblock decoder input
     #[default]

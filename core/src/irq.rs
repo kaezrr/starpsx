@@ -2,7 +2,7 @@ use crate::System;
 use crate::mem::ByteAddressable;
 
 pub const PADDR_START: u32 = 0x1F801070;
-pub const PADDR_END: u32 = 0x1F801077;
+pub const PADDR_END: u32 = 0x1F801078;
 
 bitfield::bitfield! {
     #[derive(Clone, Copy, Default)]
