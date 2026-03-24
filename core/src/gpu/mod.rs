@@ -123,7 +123,7 @@ bitfield::bitfield! {
 }
 
 pub const PADDR_START: u32 = 0x1F801810;
-pub const PADDR_END: u32 = 0x1F801817;
+pub const PADDR_END: u32 = 0x1F801818;
 
 pub struct Gpu {
     pub renderer: Renderer,
@@ -354,7 +354,9 @@ impl Gpu {
                     0x2E => (9, Gpu::gp0_poly_texture::<QUAD, SEMI_TRANS, BLEND>),
                     0x2F => (9, Gpu::gp0_poly_texture::<QUAD, SEMI_TRANS, RAW>),
                     0x3C => (12, Gpu::gp0_poly_texture_shaded::<QUAD, OPAQUE, BLEND>),
+                    0x3D => (12, Gpu::gp0_poly_texture_shaded::<QUAD, OPAQUE, RAW>),
                     0x3E => (12, Gpu::gp0_poly_texture_shaded::<QUAD, SEMI_TRANS, BLEND>),
+                    0x3F => (12, Gpu::gp0_poly_texture_shaded::<QUAD, SEMI_TRANS, RAW>),
 
                     // Single Line
                     0x40 | 0x41 | 0x44 | 0x45 => (3, Gpu::gp0_line_mono::<OPAQUE>),
@@ -406,7 +408,6 @@ impl Gpu {
                     0xC0 => (3, Gpu::gp0_image_store),
 
                     // Environment
-                    0x00 => (1, Gpu::gp0_nop),
                     0x01 => (1, Gpu::gp0_clear_cache),
                     0xE1 => (1, Gpu::gp0_draw_mode),
                     0xE2 => (1, Gpu::gp0_texture_window),
@@ -414,6 +415,9 @@ impl Gpu {
                     0xE4 => (1, Gpu::gp0_drawing_area_bottom_right),
                     0xE5 => (1, Gpu::gp0_drawing_area_offset),
                     0xE6 => (1, Gpu::gp0_mask_bit_setting),
+
+                    0x00 | 0x03 | 0x04..=0x1E | 0xE0 | 0xE7..=0xEF => (1, Gpu::gp0_nop),
+
                     _ => unimplemented!("GP0 command {data:08x}"),
                 };
                 return self.process_argument(data, CommandArguments::new(cmd, len));

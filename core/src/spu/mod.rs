@@ -4,7 +4,7 @@ use crate::System;
 use crate::mem::ByteAddressable;
 
 pub const PADDR_START: u32 = 0x1F801C00;
-pub const PADDR_END: u32 = 0x1F801E7F;
+pub const PADDR_END: u32 = 0x1F801E80;
 
 // This is a stubbed component right now, just returns whatever is written
 pub struct Spu {
