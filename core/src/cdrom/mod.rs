@@ -15,7 +15,7 @@ use crate::mem::ByteAddressable;
 use crate::sched::Event;
 
 pub const PADDR_START: u32 = 0x1F801800;
-pub const PADDR_END: u32 = 0x1F801803;
+pub const PADDR_END: u32 = 0x1F801804;
 
 pub struct CdRom {
     status: Status,

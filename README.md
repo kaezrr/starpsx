@@ -76,8 +76,8 @@ Options:
 | GTE         | 🟢 Done        | passes all tests                        |
 | Gamepad     | 🟢 Done        | full analog pad support                 |
 | Memory Card | 🟢 Done        | per-title and shared modes available    |
+| MDEC        | 🟢 Done        | pass most test ROMs                     |
 | SPU         | 🔴 Not started |                                         |
-| MDEC        | 🔴 Not started |                                         |
 
 ## Acknowledgements
 
