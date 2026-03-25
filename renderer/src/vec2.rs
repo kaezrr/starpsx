@@ -1,39 +1,11 @@
-use std::ops::Add;
-use std::ops::AddAssign;
-use std::ops::Sub;
+use derive_more::Add;
+use derive_more::AddAssign;
+use derive_more::Sub;
 
-#[derive(Default, Debug, Clone, Copy)]
+#[derive(Default, Debug, Clone, Copy, Add, Sub, AddAssign)]
 pub struct Vec2 {
     pub x: i32,
     pub y: i32,
-}
-
-impl Add for Vec2 {
-    type Output = Self;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        Vec2 {
-            x: self.x + rhs.x,
-            y: self.y + rhs.y,
-        }
-    }
-}
-
-impl AddAssign for Vec2 {
-    fn add_assign(&mut self, rhs: Self) {
-        *self = *self + rhs;
-    }
-}
-
-impl Sub for Vec2 {
-    type Output = Self;
-
-    fn sub(self, rhs: Self) -> Self::Output {
-        Vec2 {
-            x: self.x - rhs.x,
-            y: self.y - rhs.y,
-        }
-    }
 }
 
 impl Vec2 {

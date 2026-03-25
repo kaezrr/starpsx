@@ -5,4 +5,6 @@ edition = "2024"
 
 [dependencies]
 bytemuck = { version = "1.23.2", features = ["derive"] }
+derive_more = { version = "2.1.1", features = ["add", "add_assign"] }
+num_enum = "0.7.6"
 tracing = "0.1.43"

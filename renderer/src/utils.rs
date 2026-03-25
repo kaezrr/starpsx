@@ -1,3 +1,6 @@
+use num_enum::FromPrimitive;
+use num_enum::IntoPrimitive;
+
 use crate::Renderer;
 use crate::vec2::Vec2;
 
@@ -274,28 +277,10 @@ pub struct RectTextureOptions {
 }
 
 /// Display color bits per pixel
-#[derive(Default, Debug, Clone, Copy)]
+#[derive(Default, Debug, Clone, Copy, FromPrimitive, IntoPrimitive)]
+#[repr(u8)]
 pub enum DisplayDepth {
     #[default]
     D15,
     D24,
-}
-
-impl From<u8> for DisplayDepth {
-    fn from(v: u8) -> Self {
-        match v {
-            0 => Self::D15,
-            1 => Self::D24,
-            _ => unreachable!(),
-        }
-    }
-}
-
-impl From<DisplayDepth> for u8 {
-    fn from(v: DisplayDepth) -> Self {
-        match v {
-            DisplayDepth::D15 => 0,
-            DisplayDepth::D24 => 1,
-        }
-    }
 }
