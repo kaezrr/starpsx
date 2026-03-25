@@ -81,7 +81,7 @@ fn init_logging(dir: &str, filename: &str) -> WorkerGuard {
 
     let stdout_layer = fmt::layer().without_time();
 
-    let filter = EnvFilter::try_from_default_env().unwrap_or(EnvFilter::new("info"));
+    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
 
     tracing_subscriber::registry()
         .with(file_layer)

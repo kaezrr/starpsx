@@ -10,7 +10,9 @@ pub struct Color {
     pub r: u8,
     pub g: u8,
     pub b: u8,
-    pub mask: u8,
+
+    /// Bit 15: mask bit
+    pub m: u8,
 }
 
 const DITHER_TABLE: [[i8; 4]; 4] = [
@@ -29,8 +31,8 @@ impl From5Bit for u16 {
         let r = convert_5bit_to_8bit(self & 0x1F);
         let g = convert_5bit_to_8bit((self >> 5) & 0x1F);
         let b = convert_5bit_to_8bit((self >> 10) & 0x1F);
-        let mask = (self >> 15) as u8;
-        Color { r, g, b, mask }
+        let m = (self >> 15) as u8;
+        Color { r, g, b, m }
     }
 }
 
@@ -44,7 +46,7 @@ impl From5Bit for u32 {
         let g = convert_5bit_to_8bit(g >> 3);
         let b = convert_5bit_to_8bit(b >> 3);
 
-        Color { r, g, b, mask: 0 }
+        Color { r, g, b, m: 0 }
     }
 }
 
@@ -53,40 +55,44 @@ impl Color {
         r: 0,
         g: 0,
         b: 0,
-        mask: 0xFF,
+        m: 0xFF,
     };
 
     pub fn new_5bit<T: From5Bit>(pixel: T) -> Self {
         pixel.to_color()
     }
 
-    pub fn with_full_alpha(mut self) -> Self {
-        self.mask = 0xFF;
+    #[must_use]
+    pub const fn with_full_alpha(mut self) -> Self {
+        self.m = 0xFF;
         self
     }
 
-    pub fn is_masked(&self) -> bool {
-        self.mask == 1
+    #[must_use]
+    pub const fn is_masked(&self) -> bool {
+        self.m == 1
     }
 
-    pub fn new_8bit(pixel: u32) -> Self {
+    #[must_use]
+    pub const fn new_8bit(pixel: u32) -> Self {
         let r = (pixel & 0xFF) as u8;
         let g = ((pixel >> 8) & 0xFF) as u8;
         let b = ((pixel >> 16) & 0xFF) as u8;
 
-        Self { r, g, b, mask: 0 }
+        Self { r, g, b, m: 0 }
     }
 
+    #[must_use]
     pub fn to_5bit(&self, mask: Option<bool>) -> u16 {
-        let r = (self.r >> 3) as u16;
-        let g = (self.g >> 3) as u16;
-        let b = (self.b >> 3) as u16;
-        let m = mask.unwrap_or(self.mask == 1) as u16;
+        let r = u16::from(self.r >> 3);
+        let g = u16::from(self.g >> 3);
+        let b = u16::from(self.b >> 3);
+        let m = u16::from(mask.unwrap_or(self.m == 1));
 
         m << 15 | b << 10 | g << 5 | r
     }
 
-    pub fn apply_dithering(&mut self, x: usize, y: usize) {
+    pub const fn apply_dithering(&mut self, x: usize, y: usize) {
         let offset = DITHER_TABLE[y & 3][x & 3];
 
         self.r = self.r.saturating_add_signed(offset);
@@ -95,17 +101,17 @@ impl Color {
     }
 
     // weights is a 30.2 fixed point number
-    pub fn blend_screen(&mut self, back: Color, weights: (i32, i32)) {
+    pub fn blend_screen(&mut self, back: Self, weights: (i32, i32)) {
         let (w0, w1) = weights;
-        self.r = ((back.r as i32 * w0 + self.r as i32 * w1) >> 2).clamp(0, 255) as u8;
-        self.g = ((back.g as i32 * w0 + self.g as i32 * w1) >> 2).clamp(0, 255) as u8;
-        self.b = ((back.b as i32 * w0 + self.b as i32 * w1) >> 2).clamp(0, 255) as u8;
+        self.r = ((i32::from(back.r) * w0 + i32::from(self.r) * w1) >> 2).clamp(0, 255) as u8;
+        self.g = ((i32::from(back.g) * w0 + i32::from(self.g) * w1) >> 2).clamp(0, 255) as u8;
+        self.b = ((i32::from(back.b) * w0 + i32::from(self.b) * w1) >> 2).clamp(0, 255) as u8;
     }
 
-    pub fn blend(&mut self, poly: Color) {
-        self.r = ((self.r as i32 * poly.r as i32) >> 7).min(255) as u8;
-        self.g = ((self.g as i32 * poly.g as i32) >> 7).min(255) as u8;
-        self.b = ((self.b as i32 * poly.b as i32) >> 7).min(255) as u8;
+    pub fn blend(&mut self, poly: Self) {
+        self.r = ((u16::from(self.r) * u16::from(poly.r)) >> 7).min(255) as u8;
+        self.g = ((u16::from(self.g) * u16::from(poly.g)) >> 7).min(255) as u8;
+        self.b = ((u16::from(self.b) * u16::from(poly.b)) >> 7).min(255) as u8;
     }
 }
 
@@ -119,7 +125,6 @@ const FIVE_BIT_TO_8BIT: [u8; 32] = {
     table
 };
 
-#[inline(always)]
 const fn convert_5bit_to_8bit(color: u16) -> u8 {
     FIVE_BIT_TO_8BIT[color as usize]
 }
@@ -172,12 +177,14 @@ pub struct Clut {
 }
 
 impl Clut {
+    #[must_use]
     pub fn new(data: u16) -> Self {
         let base_x = ((data & 0x3F) << 4).into();
         let base_y = ((data >> 6) & 0x1ff).into();
         Self { base_x, base_y }
     }
 
+    #[must_use]
     pub fn get_color(&self, renderer: &Renderer, index: u8) -> u16 {
         renderer.vram_read(self.base_x + index as usize, self.base_y)
     }
@@ -202,6 +209,7 @@ pub struct Texture {
 }
 
 impl Texture {
+    #[must_use]
     pub fn new(data: u16, clut: Option<Clut>) -> Self {
         let base_x = ((data & 0xF) << 6).into();
         let base_y = (((data >> 4) & 1) << 8).into();
@@ -214,10 +222,11 @@ impl Texture {
         }
     }
 
-    pub fn set_clut(&mut self, clut: Clut) {
+    pub const fn set_clut(&mut self, clut: Clut) {
         self.clut = Some(clut);
     }
 
+    #[must_use]
     pub fn get_texel(&self, renderer: &Renderer, p: Vec2) -> u16 {
         let Vec2 {
             x: x_mask,
@@ -251,7 +260,9 @@ impl Texture {
         let texel = renderer.vram_read(self.page_x + u / 2, self.page_y + v);
         let clut_index = (texel >> ((u % 2) * 8)) & 0xFF;
 
-        self.clut.unwrap().get_color(renderer, clut_index as u8)
+        self.clut
+            .expect("8 bit texture must have color table")
+            .get_color(renderer, clut_index as u8)
     }
 
     fn get_texel_4bit(&self, renderer: &Renderer, p: Vec2) -> u16 {
@@ -259,7 +270,9 @@ impl Texture {
         let texel = renderer.vram_read(self.page_x + u / 4, self.page_y + v);
         let clut_index = (texel >> ((u % 4) * 4)) & 0xF;
 
-        self.clut.unwrap().get_color(renderer, clut_index as u8)
+        self.clut
+            .expect("4 bit texture must have color table")
+            .get_color(renderer, clut_index as u8)
     }
 }
 
@@ -274,7 +287,7 @@ pub struct RectTextureOptions {
 }
 
 /// Display color bits per pixel
-#[derive(Default, Debug, Clone, Copy, IntoPrimitive, FromPrimitive)]
+#[derive(Default, Debug, Clone, Copy, FromPrimitive, IntoPrimitive)]
 #[repr(u8)]
 pub enum DisplayDepth {
     #[default]

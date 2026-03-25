@@ -4,6 +4,7 @@ version = "0.7.0"
 edition = "2024"
 
 [dependencies]
+anyhow = "1.0.102"
 bytemuck = "1.24.0"
 clap = { version = "4.5.54", features = ["derive"] }
 cue = { path = "../cue" }
@@ -19,13 +20,15 @@ egui-notify = "0.21.0"
 gilrs = "0.11.0"
 rfd = "0.17.2"
 serde = { version = "1.0.228", features = ["derive"] }
+spin_sleep = "1.3.3"
 starpsx-core = { path = "../core" }
 starpsx-renderer = { path = "../renderer" }
 toml = "0.9.11"
 tracing = "0.1.43"
 tracing-appender = "0.2.4"
 tracing-subscriber = { version = "0.3.22", features = ["env-filter", "registry"] }
-anyhow = "1.0.102"
 cpal = "0.17.3"
 ringbuf = "0.4.8"
-spin_sleep = "1.3.3"
+
+[lints]
+workspace = true

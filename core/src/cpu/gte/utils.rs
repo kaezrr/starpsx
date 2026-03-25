@@ -38,24 +38,20 @@ pub fn vec_xy_write(v: &mut [i16], d: u32) {
 pub fn divide(numerator: u16, divisor: u16) -> u32 {
     let shift = divisor.leading_zeros();
 
-    let n = (numerator as u64) << shift;
+    let n = u64::from(numerator) << shift;
     let d = divisor << shift;
 
-    let reciprocal = reciprocal(d) as u64;
+    let reciprocal = u64::from(reciprocal(d));
     let res = (n * reciprocal + 0x8000) >> 16;
 
     if res <= 0x1ffff { res as u32 } else { 0x1ffff }
 }
 
-fn reciprocal(d: u16) -> u32 {
+const fn reciprocal(d: u16) -> u32 {
     let index = ((d & 0x7fff) + 0x40) >> 7;
-
     let factor = UNR_TABLE[index as usize] as i32 + 0x101;
-
     let d = (d | 0x8000) as i32;
-
     let tmp = ((d * -factor) + 0x80) >> 8;
-
     let r = ((factor * (0x20000 + tmp)) + 0x80) >> 8;
 
     r as u32

@@ -1,11 +1,14 @@
 use starpsx_renderer::vec2::Vec2;
 
-use super::*;
+use super::Command;
+use super::GP0State;
+use super::Gpu;
+use super::VerticalRes;
 
 impl Gpu {
     pub fn gp1_reset(&mut self) {
-        self.gpu_stat.0 = 0x14802000;
-        self.gpu_stat.set_hres(1);
+        self.status.0 = 0x1480_2000;
+        self.status.set_hres(1);
         self.renderer.ctx.reset();
 
         // NOTE: Clear command cache and invalidate GPU cache here if I ever implement it
@@ -15,27 +18,27 @@ impl Gpu {
     pub fn gp1_display_mode(&mut self, command: Command) {
         let hres = command.hres_1() | (command.hres_2() << 2);
 
-        self.gpu_stat.set_hres(hres);
-        self.gpu_stat.set_display_depth(command.display_depth());
+        self.status.set_hres(hres);
+        self.status.set_display_depth(command.display_depth());
 
-        self.gpu_stat.set_interlaced_v(command.interlaced());
-        self.gpu_stat.set_interlaced(command.interlaced());
+        self.status.set_interlaced_v(command.interlaced());
+        self.status.set_interlaced(command.interlaced());
 
         self.renderer.ctx.display_depth = command.display_depth();
         self.renderer.ctx.interlaced = command.interlaced();
 
         // Free to set whatever vertical resolution if interlaced
         if command.interlaced() {
-            self.gpu_stat.set_vres(command.vres());
+            self.status.set_vres(command.vres());
         } else {
-            self.gpu_stat.set_vres(VerticalRes::Y240);
+            self.status.set_vres(VerticalRes::Y240);
         }
 
-        let width = self.gpu_stat.hres().as_value();
-        let height = self.gpu_stat.vres().as_value();
+        let width = self.status.hres().as_value();
+        let height = self.status.vres().as_value();
 
         self.renderer.change_resolution(width, height);
-        self.gpu_stat.set_vmode(command.vmode());
+        self.status.set_vmode(command.vmode());
 
         if command.flip_screen() {
             unimplemented!("Flip screen bit not supported!");
@@ -43,14 +46,14 @@ impl Gpu {
     }
 
     pub fn gp1_dma_direction(&mut self, command: Command) {
-        self.gpu_stat.set_dma_direction(command.dma_direction());
+        self.status.set_dma_direction(command.dma_direction());
     }
 
     pub fn gp1_display_vram_start(&mut self, command: Command) {
         self.renderer.ctx.display_vram_start = {
             let x = command.display_vram_x() & !1; // LSB is ignored? not sure
             let y = command.display_vram_y();
-            Vec2::new(x as i32, y as i32)
+            Vec2::new(i32::from(x), i32::from(y))
         };
     }
 
@@ -71,22 +74,22 @@ impl Gpu {
     }
 
     pub fn gp1_display_enable(&mut self, command: Command) {
-        self.gpu_stat.set_display_disabled(command.display_off());
+        self.status.set_display_disabled(command.display_off());
         self.renderer.ctx.display_disabled = command.display_off();
     }
 
     pub fn gp1_reset_command_buffer(&mut self) {
-        self.gp0_state = GP0State::AwaitCommand;
+        self.state = GP0State::AwaitCommand;
     }
 
     pub fn gp1_acknowledge_irq(&mut self) {
-        self.gpu_stat.set_interrupt(false);
+        self.status.set_interrupt(false);
     }
 
     // GPU version v0
     pub fn gp1_read_internal_reg(&mut self, command: Command) {
-        self.gpu_read = match command.register_index() & 0x7 {
-            0x00 | 0x01 | 0x07 | 0x06 => self.gpu_read,
+        self.read = match command.register_index() & 0x7 {
+            0x00 | 0x01 | 0x07 | 0x06 => self.read,
             0x02 => todo!("Read texture window setting"),
             0x03 => self.draw_area_top_left(),
             0x04 => self.draw_area_bottom_right(),

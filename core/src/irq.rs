@@ -1,8 +1,8 @@
 use crate::System;
 use crate::mem::ByteAddressable;
 
-pub const PADDR_START: u32 = 0x1F801070;
-pub const PADDR_END: u32 = 0x1F801078;
+pub const PADDR_START: u32 = 0x1F80_1070;
+pub const PADDR_END: u32 = 0x1F80_1078;
 
 bitfield::bitfield! {
     #[derive(Clone, Copy, Default)]
@@ -42,22 +42,22 @@ impl InterruptController {
             0 => self.stat.0 &= val,
             4 => self.mask = val,
             _ => unimplemented!("irqctl register {offs}"),
-        };
+        }
     }
 
-    pub fn pending(&self) -> bool {
+    pub const fn pending(&self) -> bool {
         self.stat.0 & self.mask != 0
     }
 
-    pub fn stat(&mut self) -> &mut IStat {
+    pub const fn stat(&mut self) -> &mut IStat {
         &mut self.stat
     }
 }
 
-pub fn read<T: ByteAddressable>(system: &mut System, offs: u32) -> T {
+pub fn read<T: ByteAddressable>(system: &System, offs: u32) -> T {
     T::from_u32(system.irqctl.read_reg(offs))
 }
 
 pub fn write<T: ByteAddressable>(system: &mut System, offs: u32, data: T) {
-    system.irqctl.write_reg(offs, data.to_u32())
+    system.irqctl.write_reg(offs, data.to_u32());
 }

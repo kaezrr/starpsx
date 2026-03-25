@@ -202,20 +202,20 @@ impl Emulator {
 
         let tmp_path = path.with_extension("mcd.tmp");
         if let Err(err) =
-            std::fs::write(&tmp_path, data).and_then(|_| std::fs::rename(&tmp_path, path))
+            std::fs::write(&tmp_path, data).and_then(|()| std::fs::rename(&tmp_path, path))
         {
             tracing::error!("failed to save memory card: {err}");
         }
     }
 
-    fn update_core_gamepad(&mut self, new_state: GamepadState) {
+    const fn update_core_gamepad(&mut self, new_state: &GamepadState) {
         let gamepad = self.system.gamepad_mut();
         gamepad.set_buttons(new_state.buttons);
         gamepad.set_analog_mode(new_state.analog_mode);
         gamepad.set_stick_axis(new_state.left_stick, new_state.right_stick);
     }
 
-    fn send_frame_buffer(&mut self, buffer: FrameBuffer) {
+    fn send_frame_buffer(&self, buffer: FrameBuffer) {
         // Non blocking send
         let _ = self.channels.frame_tx.try_send(buffer);
     }
@@ -357,7 +357,7 @@ impl SharedState {
 
 pub fn parse_runnable(path: PathBuf) -> anyhow::Result<RunnablePath> {
     match path.extension().and_then(|e| e.to_str()) {
-        Some("exe") | Some("ps-exe") => Ok(RunnablePath::Exe(path)),
+        Some("exe" | "ps-exe") => Ok(RunnablePath::Exe(path)),
         Some("bin") => Ok(RunnablePath::Bin(path)),
         Some("cue") => Ok(RunnablePath::Cue(path)),
         _ => anyhow::bail!("unsupported file format"),

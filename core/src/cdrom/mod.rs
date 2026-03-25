@@ -14,8 +14,8 @@ use crate::consts::AVG_RATE_INT1;
 use crate::mem::ByteAddressable;
 use crate::sched::Event;
 
-pub const PADDR_START: u32 = 0x1F801800;
-pub const PADDR_END: u32 = 0x1F801804;
+pub const PADDR_START: u32 = 0x1F80_1800;
+pub const PADDR_END: u32 = 0x1F80_1804;
 
 pub struct CdRom {
     status: Status,
@@ -77,7 +77,7 @@ impl CdRom {
     // Clear the corresponding set bit of HINTSTS
     fn write_hclrctl(&mut self, val: u8) {
         trace!(target:"cdrom", "cdrom write hclrctl={:#02x}", val);
-        self.hintsts.0 &= !(val & 0x1F)
+        self.hintsts.0 &= !(val & 0x1F);
     }
 
     fn read_hintsts(&self) -> u8 {
@@ -95,17 +95,16 @@ impl CdRom {
         self.hintmsk.0 | 0xE0 // Bits 5-7 are always 1 on read
     }
 
-    fn write_hchpctl(&mut self, data: u8) {
-        trace!(target:"cdrom", "cdrom write hchpctl={:#02x}", data);
-    }
-
     fn replace_sector_buffer(&mut self, new_buffer: VecDeque<u8>) {
         self.sector_buffer = new_buffer;
         self.address.set_data_request(true);
     }
 
     fn pop_from_sector_buffer(&mut self) -> u8 {
-        let data = self.sector_buffer.pop_front().unwrap();
+        let data = self
+            .sector_buffer
+            .pop_front()
+            .expect("pop_from_sector_buffer inserted disk");
 
         if self.sector_buffer.is_empty() {
             self.address.set_data_request(false);
@@ -180,7 +179,7 @@ impl CdRom {
                 };
                 system
                     .scheduler
-                    .schedule(Event::CdromResultIrq(res_type), delay, repeat)
+                    .schedule(Event::CdromResultIrq(res_type), delay, repeat);
             });
     }
 
@@ -203,7 +202,7 @@ impl CdRom {
                 let sector_data = cdrom
                     .disk
                     .as_mut()
-                    .unwrap()
+                    .expect("int1 inserted disk")
                     .read_sector_and_advance(cdrom.sector_size);
 
                 cdrom.replace_sector_buffer(sector_data);
@@ -247,8 +246,8 @@ pub fn read<T: ByteAddressable>(system: &mut System, addr: u32) -> T {
         (_, 0) => cdrom.read_addr().into(),
         (_, 1) => cdrom.pop_result().into(),
         (_, 2) => cdrom.read_rddata::<T>().to_u32(),
-        (0, 3) | (2, 3) => cdrom.read_hintmsk().into(),
-        (1, 3) | (3, 3) => cdrom.read_hintsts().into(),
+        (0 | 2, 3) => cdrom.read_hintmsk().into(),
+        (1 | 3, 3) => cdrom.read_hintsts().into(),
         (x, y) => unreachable!("cdrom bank {x} register {y}"),
     };
 
@@ -265,7 +264,7 @@ pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, data: T) {
 
         (0, 1) => CdRom::exec_command(system, val),
         (0, 2) => cdrom.push_parameter(val),
-        (0, 3) => cdrom.write_hchpctl(val),
+        (0, 3) => trace!(target:"cdrom", "cdrom write hchpctl={data:#02x}"),
 
         (1, 2) => cdrom.write_hintmsk(val),
         (1, 3) => cdrom.write_hclrctl(val),
@@ -329,7 +328,7 @@ bitfield::bitfield! {
 
 impl Status {
     /// Returns the status byte with the error bit set, without mutating self.
-    pub fn with_error(&self) -> u8 {
+    pub const fn with_error(&self) -> u8 {
         self.0 | 0x01
     }
 
@@ -340,14 +339,14 @@ impl Status {
         before
     }
 
-    /// Sets the motor_on flag and returns the status byte before the change.
+    /// Sets the `motor_on` flag and returns the status byte before the change.
     pub fn enable_motor(&mut self) -> u8 {
         let before = self.0;
         self.set_motor_on(true);
         before
     }
 
-    /// Clears the motor_on flag and returns the status byte before the change.
+    /// Clears the `motor_on` flag and returns the status byte before the change.
     pub fn disable_motor(&mut self) -> u8 {
         let before = self.0;
         self.set_motor_on(false);
@@ -362,13 +361,13 @@ enum Speed {
 }
 
 impl Speed {
-    fn transform<T>(&self, value: T) -> T
+    fn transform<T>(self, value: T) -> T
     where
         T: Div<u64, Output = T>,
     {
         match self {
-            Speed::Normal => value,
-            Speed::Double => value / 2,
+            Self::Normal => value,
+            Self::Double => value / 2,
         }
     }
 }

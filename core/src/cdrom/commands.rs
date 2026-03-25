@@ -2,7 +2,10 @@ use arrayvec::ArrayVec;
 use tracing::debug;
 use tracing::error;
 
-use super::*;
+use super::CdRom;
+use super::SectorSize;
+use super::Speed;
+use super::Status;
 use crate::consts::AVG_1ST_RESP_GENERIC;
 use crate::consts::AVG_1ST_RESP_INIT;
 use crate::consts::AVG_2ND_RESP_GET_ID;
@@ -11,7 +14,7 @@ use crate::consts::AVG_2ND_RESP_SEEKL;
 use crate::consts::AVG_RATE_INT1;
 
 impl CdRom {
-    pub fn test(&mut self) -> CommandResponse {
+    pub fn test(&self) -> CommandResponse {
         if self.parameters.len() != 1 {
             return error_response(&self.status, 0x20);
         }
@@ -34,7 +37,7 @@ impl CdRom {
         }
     }
 
-    pub fn nop(&mut self) -> CommandResponse {
+    pub fn nop(&self) -> CommandResponse {
         if !self.parameters.is_empty() {
             return error_response(&self.status, 0x20);
         }
@@ -44,7 +47,7 @@ impl CdRom {
         CommandResponse::new().int3([self.status.0], AVG_1ST_RESP_GENERIC)
     }
 
-    pub fn get_id(&mut self) -> CommandResponse {
+    pub fn get_id(&self) -> CommandResponse {
         if !self.parameters.is_empty() {
             return error_response(&self.status, 0x20);
         }
@@ -78,13 +81,13 @@ impl CdRom {
 
         self.disk
             .as_mut()
-            .expect("set loc while no disk inserted")
+            .expect("set_loc inserted disk")
             .seek_location(m, s, f);
 
         CommandResponse::new().int3([self.status.0], AVG_1ST_RESP_GENERIC)
     }
 
-    pub fn seekl(&mut self) -> CommandResponse {
+    pub fn seekl(&self) -> CommandResponse {
         if !self.parameters.is_empty() {
             return error_response(&self.status, 0x20);
         }
@@ -96,7 +99,7 @@ impl CdRom {
             .int2([self.status.0], AVG_1ST_RESP_GENERIC + AVG_2ND_RESP_SEEKL)
     }
 
-    pub fn seekp(&mut self) -> CommandResponse {
+    pub fn seekp(&self) -> CommandResponse {
         if !self.parameters.is_empty() {
             return error_response(&self.status, 0x20);
         }
@@ -117,16 +120,18 @@ impl CdRom {
 
         let mode = self.parameters[0];
 
-        self.speed = match mode & (1 << 7) != 0 {
-            true => Speed::Double,
-            false => Speed::Normal,
+        self.speed = if mode & (1 << 7) != 0 {
+            Speed::Double
+        } else {
+            Speed::Normal
         };
 
         // Set sector size only if ignore bit is 0
         if mode & (1 << 4) == 0 {
-            self.sector_size = match mode & (1 << 5) != 0 {
-                true => SectorSize::WholeSectorExceptSyncBytes,
-                false => SectorSize::DataOnly,
+            self.sector_size = if mode & (1 << 5) != 0 {
+                SectorSize::WholeSectorExceptSyncBytes
+            } else {
+                SectorSize::DataOnly
             };
         }
 
@@ -196,7 +201,7 @@ impl CdRom {
     }
 
     // stubbed audio command
-    pub fn set_filter(&mut self) -> CommandResponse {
+    pub fn set_filter(&self) -> CommandResponse {
         if !self.parameters.is_empty() {
             return error_response(&self.status, 0x20);
         }
@@ -206,14 +211,14 @@ impl CdRom {
         CommandResponse::new().int3([self.status.0], AVG_1ST_RESP_INIT)
     }
 
-    pub fn play(&mut self) -> CommandResponse {
+    pub fn play(&self) -> CommandResponse {
         debug!(target: "cdrom", "cdrom play");
 
         CommandResponse::new().int3([self.status.0], AVG_1ST_RESP_INIT)
     }
 
     // stubbed audio command
-    pub fn demute(&mut self) -> CommandResponse {
+    pub fn demute(&self) -> CommandResponse {
         if !self.parameters.is_empty() {
             return error_response(&self.status, 0x20);
         }
@@ -223,29 +228,29 @@ impl CdRom {
         CommandResponse::new().int3([self.status.0], AVG_1ST_RESP_INIT)
     }
 
-    pub fn get_tn(&mut self) -> CommandResponse {
+    pub fn get_tn(&self) -> CommandResponse {
         if !self.parameters.is_empty() {
             return error_response(&self.status, 0x20);
         }
 
         debug!(target: "cdrom", "cdrom get tn");
 
-        let disk = &self.disk.as_ref().unwrap();
+        let disk = &self.disk.as_ref().expect("get_tn inserted disk");
 
-        let first_track = to_bcd(disk.first_track_id()).unwrap();
-        let last_track = to_bcd(disk.last_track_id()).unwrap();
+        let first_track = to_bcd(disk.first_track_id()).expect("first track id is valid bcd");
+        let last_track = to_bcd(disk.last_track_id()).expect("last track id is valid bcd");
 
         CommandResponse::new().int3([self.status.0, first_track, last_track], AVG_1ST_RESP_INIT)
     }
 
-    pub fn get_td(&mut self) -> CommandResponse {
+    pub fn get_td(&self) -> CommandResponse {
         if self.parameters.len() != 1 {
             return error_response(&self.status, 0x20);
         }
 
         debug!(target: "cdrom", "cdrom get td");
 
-        let disk = &self.disk.as_ref().unwrap();
+        let disk = &self.disk.as_ref().expect("get_td inserted disk");
         let last_track = disk.last_track_id();
 
         let Some(track) = from_bcd(self.parameters[0]).filter(|&x| x <= last_track) else {
@@ -260,7 +265,11 @@ impl CdRom {
         };
 
         CommandResponse::new().int3(
-            [self.status.0, to_bcd(mm).unwrap(), to_bcd(ss).unwrap()],
+            [
+                self.status.0,
+                to_bcd(mm).expect("valid bcd minutes"),
+                to_bcd(ss).expect("valid bcd seconds"),
+            ],
             AVG_1ST_RESP_INIT,
         )
     }
@@ -276,14 +285,14 @@ impl CdRom {
         let after_reading = self.status.0;
 
         if let Some(cd) = self.disk.as_mut() {
-            cd.seek_location(0, 2, 0)
+            cd.seek_location(0, 2, 0);
         }
 
         self.status.disable_motor();
 
         let delay = match self.speed {
-            Speed::Normal => 0x0d38aca,
-            Speed::Double => 0x18a6076,
+            Speed::Normal => 0x0D3_8ACA,
+            Speed::Double => 0x18A_6076,
         };
 
         CommandResponse::new()
@@ -291,17 +300,18 @@ impl CdRom {
             .int2([self.status.0], delay)
     }
 
-    pub fn get_locp(&mut self) -> CommandResponse {
+    pub fn get_locp(&self) -> CommandResponse {
         if !self.parameters.is_empty() {
             return error_response(&self.status, 0x20);
         }
 
         debug!(target: "cdrom", "cdrom getlocp");
 
-        let disk = self.disk.as_ref().unwrap();
+        let disk = self.disk.as_ref().expect("get_locp inserted disk");
 
         CommandResponse::new().int3(
-            disk.position_info().map(|x| to_bcd(x).unwrap()),
+            disk.position_info()
+                .map(|x| to_bcd(x).expect("track position is valid bcd")),
             AVG_1ST_RESP_GENERIC,
         )
     }
@@ -311,7 +321,7 @@ fn error_response(stat: &Status, err_byte: u8) -> CommandResponse {
     CommandResponse::new().int5([stat.with_error(), err_byte], AVG_1ST_RESP_INIT)
 }
 
-fn from_bcd(bcd: u8) -> Option<u8> {
+const fn from_bcd(bcd: u8) -> Option<u8> {
     let tens = bcd >> 4;
     let ones = bcd & 0x0F;
 
@@ -322,7 +332,7 @@ fn from_bcd(bcd: u8) -> Option<u8> {
     }
 }
 
-fn to_bcd(val: u8) -> Option<u8> {
+const fn to_bcd(val: u8) -> Option<u8> {
     if val > 99 {
         return None;
     }
@@ -333,7 +343,7 @@ fn to_bcd(val: u8) -> Option<u8> {
     Some((tens << 4) | ones)
 }
 
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Eq, Clone)]
 pub enum ResponseType {
     INT3(ArrayVec<u8, 8>),
     INT2(ArrayVec<u8, 8>),

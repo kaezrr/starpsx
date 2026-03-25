@@ -33,11 +33,11 @@ impl CdImage {
     }
 
     pub fn first_track_id(&self) -> u8 {
-        self.tracks.first().unwrap().id
+        self.tracks.first().expect("first track id").id
     }
 
     pub fn last_track_id(&self) -> u8 {
-        self.tracks.last().unwrap().id
+        self.tracks.last().expect("last track id").id
     }
 
     pub fn track_mm_ss_ff(&self, track_id: u8) -> (u8, u8, u8) {
@@ -56,7 +56,7 @@ impl CdImage {
         mm_ss_ff(self.data.len()) // total length of the disk
     }
 
-    pub fn reset_read_head(&mut self) {
+    pub const fn reset_read_head(&mut self) {
         self.read_head = SECTOR_SIZE * 75 * 2; // 2 seconds
     }
 
@@ -99,7 +99,7 @@ impl CdImage {
         self.tracks[current_track].track_type
     }
 
-    pub fn seek_location(&mut self, mins: u8, secs: u8, sect: u8) {
+    pub const fn seek_location(&mut self, mins: u8, secs: u8, sect: u8) {
         let total_sectors = ((mins as usize) * 60 * 75) + ((secs as usize) * 75) + (sect as usize);
         self.read_head = total_sectors * SECTOR_SIZE;
     }
@@ -124,11 +124,11 @@ impl CdImage {
             SectorSize::WholeSectorExceptSyncBytes => &sector[0xC..],
         };
 
-        VecDeque::from_iter(sector_read.iter().copied())
+        sector_read.iter().copied().collect()
     }
 }
 
-fn mm_ss_ff(read_head: usize) -> (u8, u8, u8) {
+const fn mm_ss_ff(read_head: usize) -> (u8, u8, u8) {
     let sectors = read_head / SECTOR_SIZE;
     let secs = sectors / 75;
     let sect = sectors % 75;

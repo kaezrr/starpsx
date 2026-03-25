@@ -1,4 +1,10 @@
-use super::*;
+use super::CueSheet;
+use super::File;
+use super::FileType;
+use super::PathBuf;
+use super::Track;
+use super::TrackIndex;
+use super::TrackType;
 use crate::scanner::Token;
 
 pub struct CueParser {
@@ -7,7 +13,7 @@ pub struct CueParser {
 }
 
 impl CueParser {
-    pub fn new(tokens: Vec<Token>) -> Self {
+    pub const fn new(tokens: Vec<Token>) -> Self {
         Self { tokens, current: 0 }
     }
 
@@ -43,13 +49,13 @@ impl CueParser {
 
         let mut tracks = Vec::new();
 
-        while let Token::Track = self.peek() {
+        while matches!(self.peek(), Token::Track) {
             tracks.push(self.parse_track()?);
         }
 
         Ok(File {
             path: PathBuf::from(name),
-            file_type,
+            format: file_type,
             tracks,
         })
     }
@@ -77,18 +83,18 @@ impl CueParser {
         let mut indexes = Vec::new();
 
         // Consume useless flags
-        if let Token::Flags = self.peek() {
-            self.parse_flags()?
+        if matches!(self.peek(), Token::Flags) {
+            self.parse_flags()?;
         }
 
-        while let Token::Index = self.peek() {
+        while matches!(self.peek(), Token::Index) {
             indexes.push(self.parse_index()?);
         }
 
         Ok(Track {
             id,
-            track_type,
             indexes,
+            track_type,
         })
     }
 
@@ -130,7 +136,7 @@ impl CueParser {
         Ok(TrackIndex { id, lba })
     }
 
-    fn is_at_end(&self) -> bool {
+    const fn is_at_end(&self) -> bool {
         self.current >= self.tokens.len()
     }
 

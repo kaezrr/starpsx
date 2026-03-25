@@ -11,8 +11,8 @@ use crate::sio::device_manager::DeviceManager;
 use crate::sio::gamepad::Gamepad;
 use crate::sio::memory_card::MemoryCard;
 
-pub const PADDR_START: u32 = 0x1F801040;
-pub const PADDR_END: u32 = 0x1F801060;
+pub const PADDR_START: u32 = 0x1F80_1040;
+pub const PADDR_END: u32 = 0x1F80_1060;
 
 bitfield::bitfield! {
     struct Status(u32);
@@ -154,7 +154,7 @@ impl Sio0 {
             if sio.control.dsr_interrupt_enable() && sio.status.dsr_input_on() {
                 system.scheduler.schedule(
                     Event::SerialSend,
-                    sio.baud_timer_reload_value as u64 * 8,
+                    u64::from(sio.baud_timer_reload_value) * 8,
                     None,
                 );
             }
@@ -197,7 +197,7 @@ impl Sio0 {
         }
 
         if self.received.is_full() {
-            *self.received.last_mut().unwrap() = data;
+            *self.received.last_mut().expect("last received") = data;
         } else {
             self.received.push(data);
         }

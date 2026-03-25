@@ -77,8 +77,8 @@ impl eframe::App for Application {
             if self.previous_pause {
                 self.toasts.warning("Paused").duration(None).closable(false);
             } else {
-                self.toasts.dismiss_all_toasts()
-            };
+                self.toasts.dismiss_all_toasts();
+            }
         }
 
         if let Err(err) = self.poll_dialog(ctx) {
@@ -128,14 +128,14 @@ impl eframe::App for Application {
             // Get framebuffers from emulator thread
             match emu.frame_rx.try_recv() {
                 Ok(fb) => {
-                    emu.present_frame_buffer(fb);
+                    emu.present_frame_buffer(&fb);
                 }
                 Err(TryRecvError::Disconnected) => {
                     info!("emulator thread exited, closing UI");
                     return ctx.send_viewport_cmd(ViewportCommand::Close);
                 }
                 Err(TryRecvError::Empty) => (), // Do nothing
-            };
+            }
 
             if self.app_config.debugger_view {
                 emu.debugger.show_ui(ctx);
@@ -214,7 +214,7 @@ impl Application {
 
         let mut changed = false;
         ctx.input(|i| {
-            for (phys, action) in &self.app_config.keybinds {
+            for (phys, &action) in &self.app_config.keybinds {
                 let PhysicalInput::Key(key) = phys else {
                     continue;
                 };
@@ -241,7 +241,7 @@ impl Application {
             match event {
                 gilrs::EventType::ButtonPressed(button, _) => {
                     let phys = PhysicalInput::GilrsButton(button);
-                    if let Some(action) = self.app_config.keybinds.get(&phys) {
+                    if let Some(action) = self.app_config.keybinds.get(&phys).copied() {
                         changed |= self
                             .input_state
                             .handle_action(action, ActionValue::Digital(true));
@@ -250,7 +250,7 @@ impl Application {
 
                 gilrs::EventType::ButtonReleased(button, _) => {
                     let phys = PhysicalInput::GilrsButton(button);
-                    if let Some(action) = self.app_config.keybinds.get(&phys) {
+                    if let Some(action) = self.app_config.keybinds.get(&phys).copied() {
                         changed |= self
                             .input_state
                             .handle_action(action, ActionValue::Digital(false));
@@ -259,7 +259,7 @@ impl Application {
 
                 gilrs::EventType::AxisChanged(axis, value, _) => {
                     let phys = PhysicalInput::GilrsAxis(axis);
-                    if let Some(action) = self.app_config.keybinds.get(&phys) {
+                    if let Some(action) = self.app_config.keybinds.get(&phys).copied() {
                         changed |= self
                             .input_state
                             .handle_action(action, ActionValue::Analog(value));
@@ -301,8 +301,7 @@ impl Application {
     fn is_paused(&self) -> bool {
         self.app_state
             .as_ref()
-            .map(|a| a.debugger.is_paused())
-            .unwrap_or(false)
+            .is_some_and(|a| a.debugger.is_paused())
     }
 
     fn start_emulator(&mut self, runnable_path: Option<RunnablePath>) -> anyhow::Result<()> {
@@ -401,7 +400,7 @@ impl Application {
         self.app_config.save_to_file(&self.config_path);
     }
 
-    fn toggle_debugger_view(&mut self) {
+    fn toggle_debugger_view(&self) {
         self.app_config.save_to_file(&self.config_path);
     }
 

@@ -10,8 +10,8 @@ pub struct Gamepad {
 impl Default for Gamepad {
     fn default() -> Self {
         Self {
-            state: Default::default(),
-            mode: Default::default(),
+            state: State::default(),
+            mode: Mode::default(),
             digital_switches: 0xFFFF,
             joystick_axes: [0x80; 4],
             in_ack: Default::default(),
@@ -49,20 +49,20 @@ impl Gamepad {
         }
     }
 
-    pub fn reset(&mut self) {
+    pub const fn reset(&mut self) {
         self.state = State::Init;
         self.in_ack = false;
     }
 
-    pub fn set_stick_axis(&mut self, left: (u8, u8), right: (u8, u8)) {
+    pub const fn set_stick_axis(&mut self, left: (u8, u8), right: (u8, u8)) {
         self.joystick_axes = [right.0, right.1, left.0, left.1];
     }
 
-    pub fn set_buttons(&mut self, new_value: u16) {
+    pub const fn set_buttons(&mut self, new_value: u16) {
         self.digital_switches = new_value;
     }
 
-    pub fn set_analog_mode(&mut self, in_analog: bool) {
+    pub const fn set_analog_mode(&mut self, in_analog: bool) {
         if self.mode.get() == in_analog {
             return;
         }
@@ -70,7 +70,8 @@ impl Gamepad {
         self.reset();
     }
 
-    pub fn in_ack(&self) -> bool {
+    #[must_use]
+    pub const fn in_ack(&self) -> bool {
         self.in_ack
     }
 }
@@ -119,35 +120,36 @@ impl Mode {
         (State::AnalogInput3, Some(0x00)),
     ];
 
-    fn id(&self) -> [u8; 2] {
+    const fn id(self) -> [u8; 2] {
         match self {
-            Mode::Digital => 0x5A41_u16.to_le_bytes(),
-            Mode::Analog => 0x5A73_u16.to_le_bytes(),
+            Self::Digital => 0x5A41_u16.to_le_bytes(),
+            Self::Analog => 0x5A73_u16.to_le_bytes(),
         }
     }
 
-    fn set(&mut self, in_analog: bool) {
-        *self = match in_analog {
-            false => Mode::Digital,
-            true => Mode::Analog,
+    const fn set(&mut self, in_analog: bool) {
+        *self = if in_analog {
+            Self::Analog
+        } else {
+            Self::Digital
         };
     }
 
-    fn get(&self) -> bool {
+    const fn get(self) -> bool {
         match self {
-            Mode::Digital => false,
-            Mode::Analog => true,
+            Self::Digital => false,
+            Self::Analog => true,
         }
     }
 
-    fn states_table(&self) -> &'static [(State, Option<u8>)] {
+    const fn states_table(self) -> &'static [(State, Option<u8>)] {
         match self {
-            Mode::Digital => &Mode::GAMEPAD_DIGITAL_STATES,
-            Mode::Analog => &Mode::GAMEPAD_ANALOG_STATES,
+            Self::Digital => &Self::GAMEPAD_DIGITAL_STATES,
+            Self::Analog => &Self::GAMEPAD_ANALOG_STATES,
         }
     }
 
-    fn next(&self, current_state: State, received_byte: u8) -> Option<State> {
+    fn next(self, current_state: State, received_byte: u8) -> Option<State> {
         let idx = current_state as usize;
         let states_table = self.states_table();
 
@@ -155,7 +157,7 @@ impl Mode {
 
         // TAP byte should be zero, multiplayer mode not supported
         if matches!(next_state, State::SwitchLow) {
-            assert_eq!(received_byte, check_byte.unwrap())
+            assert_eq!(received_byte, check_byte.expect("switch low check byte"));
         }
 
         let next_state_is_valid = check_byte.is_none_or(|b| b == received_byte);

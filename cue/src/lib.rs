@@ -5,18 +5,23 @@ mod scanner;
 use std::path::Path;
 use std::path::PathBuf;
 
-use anyhow::Ok;
 pub use builder::CdDisk;
 use builder::CueBuilder;
 use parser::CueParser;
 use scanner::Scanner;
 
+/// # Errors
+///
+/// Returns an error if:
+/// * The CUE file or its referenced binary tracks cannot be read.
+/// * The file content contains invalid tokens or malformed syntax.
+/// * The disk layout is invalid or references missing resources.
 pub fn build_disk<P: AsRef<Path>>(cue_path: P) -> anyhow::Result<CdDisk> {
     let cue_file = std::fs::read(cue_path.as_ref())?;
     let tokens = Scanner::with_source(cue_file).tokenize()?;
     let cue_sheet = CueParser::new(tokens).parse_cuesheet()?;
 
-    let parent_dir = cue_path.as_ref().parent().unwrap();
+    let parent_dir = cue_path.as_ref().parent().unwrap_or_else(|| Path::new("."));
     CueBuilder::new(parent_dir).build_disk(cue_sheet)
 }
 
@@ -28,8 +33,7 @@ struct CueSheet {
 #[derive(Debug)]
 struct File {
     #[expect(unused)]
-    file_type: FileType,
-
+    format: FileType,
     path: PathBuf,
     tracks: Vec<Track>,
 }
@@ -47,6 +51,7 @@ pub struct Track {
 }
 
 impl Track {
+    #[must_use]
     pub fn single() -> Self {
         Self {
             track_type: TrackType::Mode2_2352,
@@ -56,7 +61,7 @@ impl Track {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TrackType {
     Audio,
     Mode2_2352,

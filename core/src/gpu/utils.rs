@@ -4,7 +4,9 @@ use starpsx_renderer::utils::Clut;
 use starpsx_renderer::utils::Texture;
 use starpsx_renderer::vec2::Vec2;
 
-use super::*;
+use super::ArrayVec;
+use super::Command;
+use super::Gpu;
 
 /// Texture color bits per pixel
 #[derive(IntoPrimitive, FromPrimitive)]
@@ -17,7 +19,7 @@ pub enum TextureDepth {
 }
 
 /// Video modes
-#[derive(Debug, Clone, Copy, PartialEq, IntoPrimitive, FromPrimitive)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, IntoPrimitive, FromPrimitive)]
 #[repr(u8)]
 pub enum VMode {
     #[default]
@@ -50,13 +52,13 @@ pub enum HorizontalRes {
 }
 
 impl HorizontalRes {
-    pub fn as_value(&self) -> u16 {
+    pub const fn as_value(self) -> u16 {
         match self {
-            HorizontalRes::X256 => 256,
-            HorizontalRes::X320 => 320,
-            HorizontalRes::X368 => 368,
-            HorizontalRes::X512 => 512,
-            HorizontalRes::X640 => 640,
+            Self::X256 => 256,
+            Self::X320 => 320,
+            Self::X368 => 368,
+            Self::X512 => 512,
+            Self::X640 => 640,
         }
     }
 }
@@ -71,10 +73,10 @@ pub enum VerticalRes {
 }
 
 impl VerticalRes {
-    pub fn as_value(&self) -> u16 {
+    pub const fn as_value(self) -> u16 {
         match self {
-            VerticalRes::Y240 => 240,
-            VerticalRes::Y480 => 480,
+            Self::Y240 => 240,
+            Self::Y480 => 480,
         }
     }
 }
@@ -89,8 +91,8 @@ pub struct VramCopyFields {
     pub current_col: u16,
 }
 
-pub type CommandFn = fn(&mut Gpu, ArrayVec<Command, 16>) -> GP0State;
-pub type PolyLineFn = fn(&mut Gpu, Vec<u32>, Vec<u32>) -> GP0State;
+pub type CommandFn = fn(&mut Gpu, &[Command]) -> GP0State;
+pub type PolyLineFn = fn(&mut Gpu, Vec<u32>, &[u32]) -> GP0State;
 
 pub struct CommandArguments {
     func: CommandFn,
@@ -111,12 +113,12 @@ impl CommandArguments {
         self.params.push(data);
     }
 
-    pub fn done(&self) -> bool {
+    pub const fn done(&self) -> bool {
         self.params.len() == self.target_len
     }
 
     pub fn call(self, gpu: &mut Gpu) -> GP0State {
-        (self.func)(gpu, self.params)
+        (self.func)(gpu, &self.params)
     }
 }
 
@@ -144,7 +146,7 @@ impl PolyLineArguments {
             return;
         }
 
-        if data & 0xF000F000 == 0x50005000 {
+        if data & 0xF000_F000 == 0x5000_5000 {
             self.done = true;
             return;
         }
@@ -160,10 +162,10 @@ impl PolyLineArguments {
     }
 
     pub fn call(self, gpu: &mut Gpu) -> GP0State {
-        (self.func)(gpu, self.vertices, self.colors)
+        (self.func)(gpu, self.vertices, &self.colors)
     }
 
-    pub fn done(&self) -> bool {
+    pub const fn done(&self) -> bool {
         self.done
     }
 }
@@ -177,7 +179,7 @@ pub enum GP0State {
 }
 
 // Parses YYYYXXXX to x and y vertex coordinates. Both are 11 bit signed numbers
-pub fn parse_xy(data: u32) -> Vec2 {
+pub const fn parse_xy(data: u32) -> Vec2 {
     let x = ((data & 0xFFFF) as i16) << 5 >> 5;
     let y = (((data >> 16) & 0xFFFF) as i16) << 5 >> 5;
 
@@ -196,7 +198,7 @@ pub fn parse_page_uv(data: u32, clut: Clut) -> (Texture, Vec2) {
     (texpage, uv)
 }
 
-pub fn parse_uv(data: u32) -> Vec2 {
+pub const fn parse_uv(data: u32) -> Vec2 {
     let u = data & 0xFF;
     let v = (data >> 8) & 0xFF;
     Vec2::new(u as i32, v as i32)

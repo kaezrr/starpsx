@@ -57,7 +57,7 @@ pub fn show_top_menu(app: &mut Application, ctx: &egui::Context) {
                             app.start_bios().unwrap_or_else(|err| {
                                 error!(%err, "could not start bios");
                                 app.toasts.error(format!("Could not start bios: {err}"));
-                            })
+                            });
                         }
                     },
                 );
@@ -276,14 +276,10 @@ pub fn show_memory_cards_modal(app: &mut Application, ctx: &egui::Context) {
                     .filter(|path| {
                         path.extension()
                             .and_then(|ext| ext.to_str())
-                            .map(|ext| ext.eq_ignore_ascii_case("mcd"))
-                            .unwrap_or(false)
+                            .is_some_and(|ext| ext.eq_ignore_ascii_case("mcd"))
                     })
                     .filter(|path| {
-                        path.file_name()
-                            .and_then(|name| name.to_str())
-                            .map(|name| name != "shared_card.mcd")
-                            .unwrap_or(true)
+                        path.file_name().and_then(|name| name.to_str()) != Some("shared_card.mcd")
                     })
                     .filter_map(|path| {
                         path.file_name()

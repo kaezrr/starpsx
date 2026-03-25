@@ -1,19 +1,17 @@
-use super::*;
+use super::builder;
 
 pub struct Scanner {
     source: Vec<u8>,
     tokens: Vec<Token>,
-
     start: usize,
     current: usize,
 }
 
 impl Scanner {
-    pub fn with_source(source: Vec<u8>) -> Self {
+    pub const fn with_source(source: Vec<u8>) -> Self {
         Self {
             source,
             tokens: Vec::new(),
-
             start: 0,
             current: 0,
         }
@@ -42,7 +40,7 @@ impl Scanner {
 
             c if c.is_ascii_digit() => self.number_or_time()?,
 
-            c => anyhow::bail!("Unexpected character '{}'", c),
+            c => anyhow::bail!("Unexpected character '{c}'"),
         };
 
         self.tokens.push(token);
@@ -113,7 +111,7 @@ impl Scanner {
         )))
     }
 
-    fn peek(&mut self) -> char {
+    fn peek(&self) -> char {
         self.source[self.current] as char
     }
 
@@ -123,12 +121,12 @@ impl Scanner {
         ch as char
     }
 
-    fn is_at_end(&self) -> bool {
+    const fn is_at_end(&self) -> bool {
         self.current >= self.source.len()
     }
 }
 
-fn is_alnum(ch: char) -> bool {
+const fn is_alnum(ch: char) -> bool {
     ch == '/' || ch.is_ascii_alphanumeric()
 }
 
@@ -142,11 +140,11 @@ fn try_to_keyword(s: &str) -> anyhow::Result<Token> {
         "FLAGS" => Ok(Token::Flags),
         "DCP" => Ok(Token::Dcp),
         "MODE2/2352" => Ok(Token::Mode2_2352),
-        word => anyhow::bail!("Invalid keyword: -{}-", word),
+        word => anyhow::bail!("Invalid keyword: -{word}-"),
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Token {
     File,
     Track,
@@ -171,6 +169,6 @@ pub enum Token {
     Dcp,
 }
 
-fn to_sectors(minutes: usize, seconds: usize, frames: usize) -> usize {
+const fn to_sectors(minutes: usize, seconds: usize, frames: usize) -> usize {
     (minutes * 60 * 75 + seconds * 75 + frames) * builder::SECTOR_SIZE
 }

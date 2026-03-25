@@ -27,12 +27,15 @@ pub enum RunnablePath {
 impl RunnablePath {
     pub fn file_prefix(&self) -> String {
         let buf = match self {
-            RunnablePath::Exe(path_buf) => path_buf,
-            RunnablePath::Bin(path_buf) => path_buf,
-            RunnablePath::Cue(path_buf) => path_buf,
+            Self::Exe(path_buf)
+            | Self::Bin(path_buf)
+            | Self::Cue(path_buf) => path_buf,
         };
 
-        buf.file_prefix().unwrap().to_string_lossy().into_owned()
+        buf.file_prefix()
+            .expect("file prefix")
+            .to_string_lossy()
+            .into_owned()
     }
 }
 
@@ -48,7 +51,7 @@ pub struct Args {
     #[arg(short, long)]
     auto_run: bool,
 
-    /// Show debugger_view on startup
+    /// Show `debugger_view` on startup
     #[arg(short, long)]
     debugger_view: bool,
 
@@ -107,7 +110,7 @@ impl LaunchConfig {
     }
 }
 
-#[derive(Default, Deserialize, Serialize, PartialEq, Clone, Copy)]
+#[derive(Default, Deserialize, Serialize, PartialEq, Eq, Clone, Copy)]
 pub enum MemoryCardType {
     #[default]
     PerTitle,
@@ -136,7 +139,7 @@ impl AppConfig {
                 std::fs::create_dir_all(parent).expect("create config dir");
             }
 
-            let cfg = AppConfig::default();
+            let cfg = Self::default();
             cfg.save_to_file(path);
 
             return cfg;
@@ -149,13 +152,13 @@ impl AppConfig {
             }
             Err(err) => {
                 error!(%err, "failed to read config file, using defaults");
-                return AppConfig::default();
+                return Self::default();
             }
         };
 
         toml::from_str(&text).unwrap_or_else(|err| {
             error!(%err, "config file was invalid, using a default config");
-            AppConfig::default()
+            Self::default()
         })
     }
 

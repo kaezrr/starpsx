@@ -52,9 +52,10 @@ macro_rules! int_impl {
             }
 
             fn to_u32(self) -> u32 {
-                self as u32
+                u32::from(self)
             }
 
+            #[allow(clippy::cast_lossless)]
             fn to_u16(self) -> u16 {
                 self as u16
             }
@@ -72,9 +73,9 @@ int_impl!(u32);
 
 pub mod bios {
 
-    use super::*;
-    pub const PADDR_START: u32 = 0x1FC00000;
-    pub const PADDR_END: u32 = 0x1FC80000;
+    use super::ByteAddressable;
+    pub const PADDR_START: u32 = 0x1FC0_0000;
+    pub const PADDR_END: u32 = 0x1FC8_0000;
 
     pub struct Bios {
         bytes: Box<[u8; 512 * 1024]>,
@@ -86,29 +87,33 @@ pub mod bios {
                 .try_into()
                 .map_err(|_| anyhow::anyhow!("invalid bios image"))?;
 
-            Ok(Bios { bytes: box_bytes })
+            Ok(Self { bytes: box_bytes })
         }
 
         pub fn read<T: ByteAddressable>(&self, addr: u32) -> T {
             let addr = (addr - PADDR_START) as usize;
-            T::from_le_bytes(self.bytes[addr..addr + size_of::<T>()].try_into().unwrap())
+            T::from_le_bytes(
+                self.bytes[addr..addr + size_of::<T>()]
+                    .try_into()
+                    .expect("read bytes"),
+            )
         }
     }
 }
 
 pub mod ram {
-    use super::*;
-    pub const PADDR_START: u32 = 0x00000000;
-    pub const PADDR_END: u32 = 0x00200000;
+    use super::ByteAddressable;
+    pub const PADDR_START: u32 = 0x0000_0000;
+    pub const PADDR_END: u32 = 0x0020_0000;
 
     pub struct Ram {
-        pub bytes: Box<[u8; 0x200000]>,
+        pub bytes: Box<[u8; 0x20_0000]>,
     }
 
     impl Default for Ram {
         fn default() -> Self {
             Self {
-                bytes: vec![0; 0x200000].try_into().unwrap(),
+                bytes: vec![0; 0x0020_0000].try_into().expect("ram alloc"),
             }
         }
     }
@@ -116,7 +121,11 @@ pub mod ram {
     impl Ram {
         pub fn read<T: ByteAddressable>(&self, addr: u32) -> T {
             let addr = addr as usize;
-            T::from_le_bytes(self.bytes[addr..addr + T::LEN].try_into().unwrap())
+            T::from_le_bytes(
+                self.bytes[addr..addr + T::LEN]
+                    .try_into()
+                    .expect("read bytes"),
+            )
         }
 
         pub fn write<T: ByteAddressable>(&mut self, addr: u32, val: T) {
@@ -127,9 +136,9 @@ pub mod ram {
 }
 
 pub mod scratch {
-    use super::*;
-    pub const PADDR_START: u32 = 0x1F800000;
-    pub const PADDR_END: u32 = 0x1F800400;
+    use super::ByteAddressable;
+    pub const PADDR_START: u32 = 0x1F80_0000;
+    pub const PADDR_END: u32 = 0x1F80_0400;
 
     pub struct Scratch {
         bytes: Box<[u8; 0x400]>,
@@ -138,7 +147,7 @@ pub mod scratch {
     impl Default for Scratch {
         fn default() -> Self {
             Self {
-                bytes: vec![0; 0x400].try_into().unwrap(),
+                bytes: vec![0; 0x400].try_into().expect("scratch alloc"),
             }
         }
     }
@@ -146,7 +155,11 @@ pub mod scratch {
     impl Scratch {
         pub fn read<T: ByteAddressable>(&self, addr: u32) -> T {
             let addr = (addr - PADDR_START) as usize;
-            T::from_le_bytes(self.bytes[addr..addr + size_of::<T>()].try_into().unwrap())
+            T::from_le_bytes(
+                self.bytes[addr..addr + size_of::<T>()]
+                    .try_into()
+                    .expect("read bytes"),
+            )
         }
 
         pub fn write<T: ByteAddressable>(&mut self, addr: u32, val: T) {
@@ -165,15 +178,15 @@ macro_rules! stubbed {
 
 const fn mask_region(addr: u32) -> u32 {
     addr & match addr >> 29 {
-        0b000..=0b011 => 0xFFFFFFFF, // KUSEG
-        0b100 => 0x7FFFFFFF,         // KSEG0
-        0b101 => 0x1FFFFFFF,         // KSEG1
-        0b110 | 0b111 => 0xFFFFFFFF, // KSEG2
+        0b100 => 0x7FFF_FFFF,                         // KSEG0
+        0b101 => 0x1FFF_FFFF,                         // KSEG1
+        0b000..=0b011 | 0b110 | 0b111 => 0xFFFF_FFFF, // KSEG2 | KUSEG
         _ => unreachable!(),
     }
 }
 
 impl System {
+    #[must_use]
     pub fn fetch_instruction(&self, addr: u32) -> u32 {
         let addr = mask_region(addr);
 
@@ -181,10 +194,12 @@ impl System {
             ram::PADDR_START..ram::PADDR_END => self.ram.read(addr),
             bios::PADDR_START..bios::PADDR_END => self.bios.read(addr),
             scratch::PADDR_START..scratch::PADDR_END => self.scratch.read(addr),
-            _ => 0xFFFFFFFF,
+            _ => 0xFFFF_FFFF,
         }
     }
 
+    /// # Errors
+    /// Returns an error if the address is not properly aligned 
     pub fn read<T: ByteAddressable>(&mut self, addr: u32) -> Result<T, Exception> {
         if !addr.is_multiple_of(T::LEN as u32) {
             return Err(Exception::LoadAddressError(addr));
@@ -215,15 +230,15 @@ impl System {
 
             mdec::PADDR_START..mdec::PADDR_END => mdec::read(self, addr),
 
-            0x1F801000..0x1F801024 => stubbed!("memctl", addr),
+            0x1F80_1000..0x1F80_1024 => stubbed!("memctl", addr),
 
-            0x1F801060..0x1F801064 => T::from_u32(0xB88), // 2MB Ram Size
+            0x1F80_1060..0x1F80_1064 => T::from_u32(0xB88), // 2MB Ram Size
 
-            0xFFFE0130..0xFFFE0134 => unimplemented!("read to cachectl"),
+            0xFFFE_0130..0xFFFE_0134 => unimplemented!("read to cachectl"),
 
-            0x1F000000..0x1F000100 => stubbed!("expansion1", addr),
+            0x1F00_0000..0x1F00_0100 => stubbed!("expansion1", addr),
 
-            0x1F802000..0x1F802042 => unimplemented!("read to expansion2"),
+            0x1F80_2000..0x1F80_2042 => unimplemented!("read to expansion2"),
 
             _ => unimplemented!("read at {addr:#08X}"),
         };
@@ -231,6 +246,8 @@ impl System {
         Ok(data)
     }
 
+    /// # Errors
+    /// Returns an error if the address is not properly aligned
     pub fn write<T: ByteAddressable>(&mut self, addr: u32, data: T) -> Result<(), Exception> {
         if !addr.is_multiple_of(T::LEN as u32) {
             return Err(Exception::StoreAddressError(addr));
@@ -258,23 +275,24 @@ impl System {
 
             mdec::PADDR_START..mdec::PADDR_END => mdec::write(self, addr, data),
 
-            0x1F801000..0x1F801024 => {
-                trace!(target: "mem", region = "memctl", "stubbed write addr={:#08x}", addr)
+            0x1F80_1000..0x1F80_1024 => {
+                trace!(target: "mem", region = "memctl", "stubbed write addr={:#08x}", addr);
             }
-            0x1F801060..0x1F801064 => {
-                trace!(target: "mem", region = "ramsize", "stubbed write addr={:#08x}", addr)
+            0x1F80_1060..0x1F80_1064 => {
+                trace!(target: "mem", region = "ramsize", "stubbed write addr={:#08x}", addr);
             }
-            0xFFFE0130..0xFFFE0134 => {
-                trace!(target: "mem", region = "cachectl", "stubbed write addr={:#08x}", addr)
+            0xFFFE_0130..0xFFFE_0134 => {
+                trace!(target: "mem", region = "cachectl", "stubbed write addr={:#08x}", addr);
             }
-            0x1F000000..0x1F000100 => {
-                trace!(target: "mem", region = "expansion1", "stubbed write addr={:#08x}", addr)
+            0x1F00_0000..0x1F00_0100 => {
+                trace!(target: "mem", region = "expansion1", "stubbed write addr={:#08x}", addr);
             }
-            0x1F802000..0x1F802042 => {
-                trace!(target: "mem", region = "expansion2", "stubbed write addr={:#08x}", addr)
+            0x1F80_2000..0x1F80_2042 => {
+                trace!(target: "mem", region = "expansion2", "stubbed write addr={:#08x}", addr);
             }
+
             _ => unimplemented!("write at {addr:#08X}"),
-        };
+        }
 
         Ok(())
     }
