@@ -1,4 +1,7 @@
-use super::*;
+use super::CueSheet;
+use super::File;
+use super::Path;
+use super::Track;
 
 pub(crate) const SECTOR_SIZE: usize = 0x930;
 const SEC_2: usize = SECTOR_SIZE * 75 * 2;
@@ -44,7 +47,7 @@ impl<'a> CueBuilder<'a> {
         }
 
         for mut track in file.tracks {
-            for index in track.indexes.iter_mut() {
+            for index in &mut track.indexes {
                 index.lba += self.current;
             }
             self.tracks.push(track);

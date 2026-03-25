@@ -1,4 +1,10 @@
-use super::*;
+use super::CueSheet;
+use super::File;
+use super::FileType;
+use super::PathBuf;
+use super::Track;
+use super::TrackIndex;
+use super::TrackType;
 use crate::scanner::Token;
 
 pub struct CueParser {
@@ -49,7 +55,7 @@ impl CueParser {
 
         Ok(File {
             path: PathBuf::from(name),
-            file_type,
+            format: file_type,
             tracks,
         })
     }
@@ -78,7 +84,7 @@ impl CueParser {
 
         // Consume useless flags
         if let Token::Flags = self.peek() {
-            self.parse_flags()?
+            self.parse_flags()?;
         }
 
         while let Token::Index = self.peek() {
@@ -87,8 +93,8 @@ impl CueParser {
 
         Ok(Track {
             id,
-            track_type,
             indexes,
+            track_type,
         })
     }
 
