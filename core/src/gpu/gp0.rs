@@ -395,7 +395,7 @@ impl Gpu {
             v,
             Vec2::new(SIDE, SIDE),
             color,
-            RectTextureOptions { clut, uv },
+            &RectTextureOptions { clut, uv },
         );
 
         GP0State::AwaitCommand
@@ -427,7 +427,7 @@ impl Gpu {
             v,
             side,
             color,
-            RectTextureOptions { clut, uv },
+            &RectTextureOptions { clut, uv },
         );
 
         GP0State::AwaitCommand

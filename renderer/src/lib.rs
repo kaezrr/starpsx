@@ -56,8 +56,7 @@ impl Default for Renderer {
     fn default() -> Self {
         Self {
             ctx: DrawContext::default(),
-            vram: vec![0; VRAM_SIZE].try_into().unwrap(),
-
+            vram: vec![0; VRAM_SIZE].try_into().expect("vram alloc"),
             frame: FrameBuffer::black(),
         }
     }
@@ -80,6 +79,7 @@ impl Renderer {
         self.frame = FrameBuffer::new(width, height, self.ctx.interlaced);
     }
 
+    #[must_use]
     pub fn vram_read(&self, x: usize, y: usize) -> u16 {
         let index = VRAM_WIDTH * y + x;
         self.vram[index]
@@ -91,7 +91,7 @@ impl Renderer {
             return;
         }
 
-        self.vram[index] = data | (self.ctx.force_set_masked_bit as u16) << 15;
+        self.vram[index] = data | u16::from(self.ctx.force_set_masked_bit) << 15;
     }
 
     pub fn vram_self_copy(&mut self, src: Vec2, dst: Vec2, size: Vec2) {
@@ -126,7 +126,7 @@ impl Renderer {
             utils::DisplayDepth::D15 => {
                 if interlaced {
                     // Draw alternating odd/even lines every frame
-                    for y in (draw_odd as usize..height).step_by(2) {
+                    for y in (usize::from(draw_odd)..height).step_by(2) {
                         for x in 0..width {
                             let pixel = self.vram_read(sx + x, sy + y);
                             let index = y * width + x;
@@ -153,14 +153,14 @@ impl Renderer {
             utils::DisplayDepth::D24 => {
                 if interlaced {
                     // Draw alternating odd/even lines every frame
-                    for y in (draw_odd as usize..height).step_by(2) {
+                    for y in (usize::from(draw_odd)..height).step_by(2) {
                         let mut vram_x = 0;
 
                         // Write one full row
                         for x in (0..width).step_by(2) {
-                            let w0 = self.vram_read(sx + vram_x, sy + y) as u32;
-                            let w1 = self.vram_read(sx + vram_x + 1, sy + y) as u32;
-                            let w2 = self.vram_read(sx + vram_x + 2, sy + y) as u32;
+                            let w0 = u32::from(self.vram_read(sx + vram_x, sy + y));
+                            let w1 = u32::from(self.vram_read(sx + vram_x + 1, sy + y));
+                            let w2 = u32::from(self.vram_read(sx + vram_x + 2, sy + y));
 
                             let pixel0 = w0 | ((w1 & 0xFF) << 16);
                             let pixel1 = (w2 << 8) | (w1 >> 8);
@@ -180,9 +180,9 @@ impl Renderer {
 
                         // Write one full row
                         for x in (0..width).step_by(2) {
-                            let w0 = self.vram_read(sx + vram_x, sy + y) as u32;
-                            let w1 = self.vram_read(sx + vram_x + 1, sy + y) as u32;
-                            let w2 = self.vram_read(sx + vram_x + 2, sy + y) as u32;
+                            let w0 = u32::from(self.vram_read(sx + vram_x, sy + y));
+                            let w1 = u32::from(self.vram_read(sx + vram_x + 1, sy + y));
+                            let w2 = u32::from(self.vram_read(sx + vram_x + 2, sy + y));
 
                             let pixel0 = w0 | ((w1 & 0xFF) << 16);
                             let pixel1 = (w2 << 8) | (w1 >> 8);
@@ -202,7 +202,7 @@ impl Renderer {
                     }
                 }
             }
-        };
+        }
 
         let vrange = self.ctx.display_ver_range as usize;
 
@@ -214,6 +214,7 @@ impl Renderer {
         self.frame.clone()
     }
 
+    #[must_use]
     pub fn produce_vram_framebuffer(&self) -> FrameBuffer {
         let (sx, sy, width, height) = (0, 0, VRAM_WIDTH, VRAM_HEIGHT);
 
@@ -237,8 +238,8 @@ impl Renderer {
         let max_x = (r.x + side_x - 1).min(0x3FF) as usize;
         let max_y = (r.y + side_y - 1).min(0x1FF) as usize;
 
-        for x in min_x..max_x + 1 {
-            for y in min_y..max_y + 1 {
+        for x in min_x..=max_x {
+            for y in min_y..=max_y {
                 let index = VRAM_WIDTH * y + x;
                 self.vram[index] = color.to_5bit(None);
             }
@@ -266,8 +267,8 @@ impl Renderer {
             return;
         }
 
-        for y in min_y..max_y + 1 {
-            for x in min_x..max_x + 1 {
+        for y in min_y..=max_y {
+            for x in min_x..=max_x {
                 let mut color = color;
                 if SEMI_TRANS {
                     let old = self.vram_read(x as usize, y as usize);
@@ -287,7 +288,7 @@ impl Renderer {
         mut r: Vec2,
         side: Vec2,
         color: Color,
-        tex: RectTextureOptions,
+        tex: &RectTextureOptions,
     ) {
         r += self.ctx.drawing_area_offset;
         let min_x = r.x.max(self.ctx.drawing_area_top_left.x);
@@ -306,8 +307,8 @@ impl Renderer {
 
         self.ctx.rect_texture.set_clut(tex.clut);
 
-        for y in min_y..max_y + 1 {
-            for x in min_x..max_x + 1 {
+        for y in min_y..=max_y {
+            for x in min_x..=max_x {
                 let uv = tex.uv + Vec2::new(x, y) - r;
                 let texel = self.ctx.rect_texture.get_texel(self, uv);
                 if texel == 0 {
@@ -439,15 +440,17 @@ impl Renderer {
                     shaded[0]
                 } else {
                     let inv = denom - num;
-                    let red = (shaded[0].r as i32 * inv + shaded[1].r as i32 * num) / denom;
-                    let green = (shaded[0].g as i32 * inv + shaded[1].g as i32 * num) / denom;
-                    let blue = (shaded[0].b as i32 * inv + shaded[1].b as i32 * num) / denom;
+                    let red = (i32::from(shaded[0].r) * inv + i32::from(shaded[1].r) * num) / denom;
+                    let green =
+                        (i32::from(shaded[0].g) * inv + i32::from(shaded[1].g) * num) / denom;
+                    let blue =
+                        (i32::from(shaded[0].b) * inv + i32::from(shaded[1].b) * num) / denom;
 
                     Color {
                         r: red as u8,
                         g: green as u8,
                         b: blue as u8,
-                        mask: 0,
+                        m: 0,
                     }
                 }
             };
@@ -514,16 +517,16 @@ impl Renderer {
         let (mut e2_row, a2, b2) = edge_function(start, t[1], t[2]);
         let (mut e3_row, a3, b3) = edge_function(start, t[2], t[0]);
 
-        let bias1 = !is_top_left(t[0], t[1]) as i32;
-        let bias2 = !is_top_left(t[1], t[2]) as i32;
-        let bias3 = !is_top_left(t[2], t[0]) as i32;
+        let bias1 = i32::from(!is_top_left(t[0], t[1]));
+        let bias2 = i32::from(!is_top_left(t[1], t[2]));
+        let bias3 = i32::from(!is_top_left(t[2], t[0]));
 
-        for y in min_y..max_y + 1 {
+        for y in min_y..=max_y {
             let mut e1 = e1_row;
             let mut e2 = e2_row;
             let mut e3 = e3_row;
 
-            for x in min_x..max_x + 1 {
+            for x in min_x..=max_x {
                 if e1 >= bias1 && e2 >= bias2 && e3 >= bias3 {
                     let mut color = mono;
 
@@ -588,27 +591,30 @@ impl Renderer {
         let (mut e2_row, a2, b2) = edge_function(start, t[1], t[2]);
         let (mut e3_row, a3, b3) = edge_function(start, t[2], t[0]);
 
-        let bias1 = !is_top_left(t[0], t[1]) as i32;
-        let bias2 = !is_top_left(t[1], t[2]) as i32;
-        let bias3 = !is_top_left(t[2], t[0]) as i32;
+        let bias1 = i32::from(!is_top_left(t[0], t[1]));
+        let bias2 = i32::from(!is_top_left(t[1], t[2]));
+        let bias3 = i32::from(!is_top_left(t[2], t[0]));
 
         let [c0, c1, c2] = shaded;
 
-        let r_dx = a2 * c0.r as i32 + a3 * c1.r as i32 + a1 * c2.r as i32;
-        let g_dx = a2 * c0.g as i32 + a3 * c1.g as i32 + a1 * c2.g as i32;
-        let b_dx = a2 * c0.b as i32 + a3 * c1.b as i32 + a1 * c2.b as i32;
+        let r_dx = a2 * i32::from(c0.r) + a3 * i32::from(c1.r) + a1 * i32::from(c2.r);
+        let g_dx = a2 * i32::from(c0.g) + a3 * i32::from(c1.g) + a1 * i32::from(c2.g);
+        let b_dx = a2 * i32::from(c0.b) + a3 * i32::from(c1.b) + a1 * i32::from(c2.b);
 
-        let r_dy = b2 * c0.r as i32 + b3 * c1.r as i32 + b1 * c2.r as i32;
-        let g_dy = b2 * c0.g as i32 + b3 * c1.g as i32 + b1 * c2.g as i32;
-        let b_dy = b2 * c0.b as i32 + b3 * c1.b as i32 + b1 * c2.b as i32;
+        let r_dy = b2 * i32::from(c0.r) + b3 * i32::from(c1.r) + b1 * i32::from(c2.r);
+        let g_dy = b2 * i32::from(c0.g) + b3 * i32::from(c1.g) + b1 * i32::from(c2.g);
+        let b_dy = b2 * i32::from(c0.b) + b3 * i32::from(c1.b) + b1 * i32::from(c2.b);
 
-        let mut r_row = e2_row * c0.r as i32 + e3_row * c1.r as i32 + e1_row * c2.r as i32;
-        let mut g_row = e2_row * c0.g as i32 + e3_row * c1.g as i32 + e1_row * c2.g as i32;
-        let mut b_row = e2_row * c0.b as i32 + e3_row * c1.b as i32 + e1_row * c2.b as i32;
+        let mut r_row =
+            e2_row * i32::from(c0.r) + e3_row * i32::from(c1.r) + e1_row * i32::from(c2.r);
+        let mut g_row =
+            e2_row * i32::from(c0.g) + e3_row * i32::from(c1.g) + e1_row * i32::from(c2.g);
+        let mut b_row =
+            e2_row * i32::from(c0.b) + e3_row * i32::from(c1.b) + e1_row * i32::from(c2.b);
 
         let sum = e1_row + e2_row + e3_row;
 
-        for y in min_y..max_y + 1 {
+        for y in min_y..=max_y {
             let mut e1 = e1_row;
             let mut e2 = e2_row;
             let mut e3 = e3_row;
@@ -616,13 +622,13 @@ impl Renderer {
             let mut g_num = g_row;
             let mut b_num = b_row;
 
-            for x in min_x..max_x + 1 {
+            for x in min_x..=max_x {
                 if e1 >= bias1 && e2 >= bias2 && e3 >= bias3 {
                     let mut color = Color {
                         r: (r_num / sum) as u8,
                         g: (g_num / sum) as u8,
                         b: (b_num / sum) as u8,
-                        mask: 0,
+                        m: 0,
                     };
 
                     if SEMI_TRANS {
@@ -693,9 +699,9 @@ impl Renderer {
         let (mut e2_row, a2, b2) = edge_function(start, t[1], t[2]);
         let (mut e3_row, a3, b3) = edge_function(start, t[2], t[0]);
 
-        let bias1 = !is_top_left(t[0], t[1]) as i32;
-        let bias2 = !is_top_left(t[1], t[2]) as i32;
-        let bias3 = !is_top_left(t[2], t[0]) as i32;
+        let bias1 = i32::from(!is_top_left(t[0], t[1]));
+        let bias2 = i32::from(!is_top_left(t[1], t[2]));
+        let bias3 = i32::from(!is_top_left(t[2], t[0]));
 
         let [uv0, uv1, uv2] = tex.uvs;
 
@@ -709,22 +715,18 @@ impl Renderer {
 
         let sum = e1_row + e2_row + e3_row;
 
-        for y in min_y..max_y + 1 {
+        for y in min_y..=max_y {
             let mut e1 = e1_row;
             let mut e2 = e2_row;
             let mut e3 = e3_row;
             let mut u_num = u_row;
             let mut v_num = v_row;
 
-            for x in min_x..max_x + 1 {
+            for x in min_x..=max_x {
                 if e1 >= bias1 && e2 >= bias2 && e3 >= bias3 {
-                    let texel = tex.texture.get_texel(
-                        self,
-                        Vec2 {
-                            x: u_num / sum,
-                            y: v_num / sum,
-                        },
-                    );
+                    let texel = tex
+                        .texture
+                        .get_texel(self, Vec2::new(u_num / sum, v_num / sum));
 
                     // Fully black texels are ignored
                     if texel != 0 {
@@ -805,23 +807,26 @@ impl Renderer {
         let (mut e2_row, a2, b2) = edge_function(start, t[1], t[2]);
         let (mut e3_row, a3, b3) = edge_function(start, t[2], t[0]);
 
-        let bias1 = !is_top_left(t[0], t[1]) as i32;
-        let bias2 = !is_top_left(t[1], t[2]) as i32;
-        let bias3 = !is_top_left(t[2], t[0]) as i32;
+        let bias1 = i32::from(!is_top_left(t[0], t[1]));
+        let bias2 = i32::from(!is_top_left(t[1], t[2]));
+        let bias3 = i32::from(!is_top_left(t[2], t[0]));
 
         let [c0, c1, c2] = shaded;
 
-        let r_dx = a2 * c0.r as i32 + a3 * c1.r as i32 + a1 * c2.r as i32;
-        let g_dx = a2 * c0.g as i32 + a3 * c1.g as i32 + a1 * c2.g as i32;
-        let b_dx = a2 * c0.b as i32 + a3 * c1.b as i32 + a1 * c2.b as i32;
+        let r_dx = a2 * i32::from(c0.r) + a3 * i32::from(c1.r) + a1 * i32::from(c2.r);
+        let g_dx = a2 * i32::from(c0.g) + a3 * i32::from(c1.g) + a1 * i32::from(c2.g);
+        let b_dx = a2 * i32::from(c0.b) + a3 * i32::from(c1.b) + a1 * i32::from(c2.b);
 
-        let r_dy = b2 * c0.r as i32 + b3 * c1.r as i32 + b1 * c2.r as i32;
-        let g_dy = b2 * c0.g as i32 + b3 * c1.g as i32 + b1 * c2.g as i32;
-        let b_dy = b2 * c0.b as i32 + b3 * c1.b as i32 + b1 * c2.b as i32;
+        let r_dy = b2 * i32::from(c0.r) + b3 * i32::from(c1.r) + b1 * i32::from(c2.r);
+        let g_dy = b2 * i32::from(c0.g) + b3 * i32::from(c1.g) + b1 * i32::from(c2.g);
+        let b_dy = b2 * i32::from(c0.b) + b3 * i32::from(c1.b) + b1 * i32::from(c2.b);
 
-        let mut r_row = e2_row * c0.r as i32 + e3_row * c1.r as i32 + e1_row * c2.r as i32;
-        let mut g_row = e2_row * c0.g as i32 + e3_row * c1.g as i32 + e1_row * c2.g as i32;
-        let mut b_row = e2_row * c0.b as i32 + e3_row * c1.b as i32 + e1_row * c2.b as i32;
+        let mut r_row =
+            e2_row * i32::from(c0.r) + e3_row * i32::from(c1.r) + e1_row * i32::from(c2.r);
+        let mut g_row =
+            e2_row * i32::from(c0.g) + e3_row * i32::from(c1.g) + e1_row * i32::from(c2.g);
+        let mut b_row =
+            e2_row * i32::from(c0.b) + e3_row * i32::from(c1.b) + e1_row * i32::from(c2.b);
 
         let [uv0, uv1, uv2] = tex.uvs;
 
@@ -835,7 +840,7 @@ impl Renderer {
 
         let sum = e1_row + e2_row + e3_row;
 
-        for y in min_y..max_y + 1 {
+        for y in min_y..=max_y {
             let mut e1 = e1_row;
             let mut e2 = e2_row;
             let mut e3 = e3_row;
@@ -845,15 +850,11 @@ impl Renderer {
             let mut u_num = u_row;
             let mut v_num = v_row;
 
-            for x in min_x..max_x + 1 {
+            for x in min_x..=max_x {
                 if e1 >= bias1 && e2 >= bias2 && e3 >= bias3 {
-                    let texel = tex.texture.get_texel(
-                        self,
-                        Vec2 {
-                            x: u_num / sum,
-                            y: v_num / sum,
-                        },
-                    );
+                    let texel = tex
+                        .texture
+                        .get_texel(self, Vec2::new(u_num / sum, v_num / sum));
                     // Fully black texels are ignored
                     if texel != 0 {
                         let mut color = Color::new_5bit(texel);
@@ -862,7 +863,7 @@ impl Renderer {
                                 r: (r_num / sum) as u8,
                                 g: (g_num / sum) as u8,
                                 b: (b_num / sum) as u8,
-                                mask: 0,
+                                m: 0,
                             });
                         }
 

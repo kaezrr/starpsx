@@ -2,6 +2,11 @@
 resolver = "3"
 members = ["core", "cue", "frontend", "renderer"]
 
+[workspace.lints.clippy]
+enum_glob_use = "deny"
+pedantic = "deny"
+unwrap_used = "deny"
+
 [profile.dev]
 opt-level = 1
 debug = "line-tables-only"
