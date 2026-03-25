@@ -13,7 +13,7 @@ pub struct CueParser {
 }
 
 impl CueParser {
-    pub fn new(tokens: Vec<Token>) -> Self {
+    pub const fn new(tokens: Vec<Token>) -> Self {
         Self { tokens, current: 0 }
     }
 
@@ -49,7 +49,7 @@ impl CueParser {
 
         let mut tracks = Vec::new();
 
-        while let Token::Track = self.peek() {
+        while matches!(self.peek(), Token::Track) {
             tracks.push(self.parse_track()?);
         }
 
@@ -83,11 +83,11 @@ impl CueParser {
         let mut indexes = Vec::new();
 
         // Consume useless flags
-        if let Token::Flags = self.peek() {
+        if matches!(self.peek(), Token::Flags) {
             self.parse_flags()?;
         }
 
-        while let Token::Index = self.peek() {
+        while matches!(self.peek(), Token::Index) {
             indexes.push(self.parse_index()?);
         }
 
@@ -136,7 +136,7 @@ impl CueParser {
         Ok(TrackIndex { id, lba })
     }
 
-    fn is_at_end(&self) -> bool {
+    const fn is_at_end(&self) -> bool {
         self.current >= self.tokens.len()
     }
 

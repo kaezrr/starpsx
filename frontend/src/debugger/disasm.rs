@@ -80,12 +80,12 @@ pub fn decode_instruction_line(instr: u32, addr: u32) -> DisasmLine {
     let rd = ((instr >> 11) & 0x1F) as u8;
     let shamt = ((instr >> 6) & 0x1F) as u8;
     let imm = (instr & 0xFFFF) as u16;
-    let simm = imm as i16;
+    let simm = imm.cast_signed();
     let target26 = instr & 0x03FF_FFFF;
     let target_addr = (addr & 0xF000_0000) | (target26 << 2);
     let branch_target = addr
         .wrapping_add(4)
-        .wrapping_add((i32::from(simm) << 2) as u32);
+        .wrapping_add((i32::from(simm) << 2).cast_unsigned());
 
     let rsn = REG_NAME[rs as usize];
     let rtn = REG_NAME[rt as usize];

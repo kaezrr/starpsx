@@ -225,7 +225,7 @@ impl Texture {
         }
     }
 
-    pub fn set_clut(&mut self, clut: Clut) {
+    pub const fn set_clut(&mut self, clut: Clut) {
         self.clut = Some(clut);
     }
 

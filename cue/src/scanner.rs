@@ -8,7 +8,7 @@ pub struct Scanner {
 }
 
 impl Scanner {
-    pub fn with_source(source: Vec<u8>) -> Self {
+    pub const fn with_source(source: Vec<u8>) -> Self {
         Self {
             source,
             tokens: Vec::new(),
@@ -144,7 +144,7 @@ fn try_to_keyword(s: &str) -> anyhow::Result<Token> {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Token {
     File,
     Track,

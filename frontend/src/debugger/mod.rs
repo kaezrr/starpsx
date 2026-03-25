@@ -129,7 +129,7 @@ impl Debugger {
         });
     }
 
-    fn cpu_register_changed(&self, i: usize) -> bool {
+    const fn cpu_register_changed(&self, i: usize) -> bool {
         let Some(ref c) = self.curr_snapshot else {
             return false;
         };

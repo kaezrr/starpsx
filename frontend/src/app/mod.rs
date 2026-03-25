@@ -400,7 +400,7 @@ impl Application {
         self.app_config.save_to_file(&self.config_path);
     }
 
-    fn toggle_debugger_view(&mut self) {
+    fn toggle_debugger_view(&self) {
         self.app_config.save_to_file(&self.config_path);
     }
 

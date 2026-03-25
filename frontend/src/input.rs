@@ -7,7 +7,7 @@ use starpsx_core::gamepad::Axis;
 use starpsx_core::gamepad::Button;
 use tracing::error;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct GamepadState {
     pub buttons: u16,
     pub left_stick: (u8, u8),
@@ -93,7 +93,8 @@ impl GamepadState {
             _ => value,
         };
 
-        let byte = ((v + 1.0) * 127.5).round().clamp(0.0, 255.0) as u8;
+        let byte = v.mul_add(127.5, 127.5) as u8;
+
         match axis {
             Axis::RightX => self.right_stick.0 = byte,
             Axis::RightY => self.right_stick.1 = byte,
@@ -132,7 +133,6 @@ pub enum ActionValue {
     Analog(f32),
 }
 
-#[allow(unused)]
 #[derive(Eq, PartialEq, Hash)]
 pub enum PhysicalInput {
     GilrsButton(GButton),

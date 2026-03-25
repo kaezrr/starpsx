@@ -4,8 +4,19 @@ members = ["core", "cue", "frontend", "renderer"]
 
 [workspace.lints.clippy]
 enum_glob_use = "deny"
-pedantic = "deny"
+nursery = { level = "deny", priority = -1 }
+pedantic = { level = "deny", priority = -1 }
+undocumented_unsafe_blocks = "deny"
 unwrap_used = "deny"
+
+# Annoying lints that I don't want
+cast_possible_truncation = "allow"
+cast_possible_wrap = "allow"
+cast_precision_loss = "allow"
+cast_sign_loss = "allow"
+similar_names = "allow"
+struct_excessive_bools = "allow"
+too_many_lines = "allow"
 
 [profile.dev]
 opt-level = 1

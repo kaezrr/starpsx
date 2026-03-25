@@ -69,7 +69,7 @@ impl Emulator {
             channels,
             shared_state,
 
-            system: Emulator::build_core(&bios_path, file_path.as_ref(), memory_card.as_deref())?,
+            system: Self::build_core(&bios_path, file_path.as_ref(), memory_card.as_deref())?,
 
             bios_path,
             file_path,
@@ -169,7 +169,7 @@ impl Emulator {
         gamepad.set_stick_axis(new_state.left_stick, new_state.right_stick);
     }
 
-    fn send_frame_buffer(&mut self, buffer: FrameBuffer) {
+    fn send_frame_buffer(&self, buffer: FrameBuffer) {
         // Non blocking send
         let _ = self.channels.frame_tx.try_send(buffer);
     }
@@ -191,7 +191,7 @@ impl Emulator {
                     }
 
                     UiCommand::Restart => {
-                        self.system = Emulator::build_core(
+                        self.system = Self::build_core(
                             &self.bios_path,
                             self.file_path.as_ref(),
                             self.memory_card.as_deref(),
