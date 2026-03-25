@@ -1,5 +1,7 @@
+use super::GAUSSIAN_TABLE;
+use super::Volume;
+use super::apply_volume;
 use super::envelope::AdsrEnvelope;
-use super::*;
 
 #[derive(Default)]
 pub struct Voice {
@@ -37,10 +39,10 @@ impl Voice {
         self.current_buffer_idx = 0;
         self.loop_index_force = false;
 
-        self.decode_next_block(sound_ram)
+        self.decode_next_block(sound_ram);
     }
 
-    pub fn key_off(&mut self) {
+    pub const fn key_off(&mut self) {
         self.envelope.key_off();
     }
 
@@ -74,10 +76,10 @@ impl Voice {
 
         // Apply the Gaussian interpolation
         let mut interpolated: i32;
-        interpolated = (GAUSSIAN_TABLE[0x0FF - i] * self.oldest_sample as i32) >> 15;
-        interpolated += (GAUSSIAN_TABLE[0x1FF - i] * self.older_sample as i32) >> 15;
-        interpolated += (GAUSSIAN_TABLE[0x100 + i] * self.old_sample as i32) >> 15;
-        interpolated += (GAUSSIAN_TABLE[i] * self.current_sample as i32) >> 15;
+        interpolated = (GAUSSIAN_TABLE[0x0FF - i] * i32::from(self.oldest_sample)) >> 15;
+        interpolated += (GAUSSIAN_TABLE[0x1FF - i] * i32::from(self.older_sample)) >> 15;
+        interpolated += (GAUSSIAN_TABLE[0x100 + i] * i32::from(self.old_sample)) >> 15;
+        interpolated += (GAUSSIAN_TABLE[i] * i32::from(self.current_sample)) >> 15;
 
         self.envelope.tick();
         self.apply_voice_volume(interpolated as i16)
@@ -86,7 +88,7 @@ impl Voice {
     fn decode_next_block(&mut self, sound_ram: &[u8]) {
         let block = &sound_ram[self.current_address..self.current_address + 16]
             .try_into()
-            .unwrap();
+            .expect("read sound ram");
 
         self.decode_adpcm_block(block);
 

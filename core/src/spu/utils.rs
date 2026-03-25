@@ -2,7 +2,7 @@ pub fn write_half<const HIGH: bool>(reg: &mut u32, val: u16) {
     let shift = if HIGH { 16 } else { 0 };
     let mask = 0xFFFF << shift;
 
-    *reg = (*reg & !mask) | ((val as u32) << shift);
+    *reg = (*reg & !mask) | (u32::from(val) << shift);
 }
 
 pub const GAUSSIAN_TABLE: [i32; 512] = [

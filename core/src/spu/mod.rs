@@ -79,7 +79,7 @@ impl Default for Spu {
 
             control: Control(0),
 
-            sound_ram: Box::new([0; 0x80000]),
+            sound_ram: vec![0; 0x80000].try_into().expect("spu ram alloc"),
         }
     }
 }
@@ -140,7 +140,7 @@ impl Spu {
         let mut mixed_l = 0_i32;
         let mut mixed_r = 0_i32;
 
-        for voice in self.voices.iter_mut() {
+        for voice in &mut self.voices {
             let samples = voice.tick(self.sound_ram.as_slice());
             mixed_l += i32::from(samples[0]);
             mixed_r += i32::from(samples[1]);
@@ -168,48 +168,48 @@ pub fn read<T: ByteAddressable>(system: &System, addr: u32) -> T {
     let spu = &system.spu;
 
     let data = match addr {
-        0x1F801D80 => spu.main_volume.l.register.0 as u32,
-        0x1F801D82 => spu.main_volume.r.register.0 as u32,
+        0x1F80_1D80 => u32::from(spu.main_volume.l.register.0),
+        0x1F80_1D82 => u32::from(spu.main_volume.r.register.0),
 
-        0x1F801DB8 => spu.main_volume.l.volume() as u32, // current volume
-        0x1F801DBA => spu.main_volume.r.volume() as u32,
+        0x1F80_1DB8 => spu.main_volume.l.volume() as u32, // current volume
+        0x1F80_1DBA => spu.main_volume.r.volume() as u32,
 
-        0x1F801DAE => (spu.control.0 & 0x3F).into(),
+        0x1F80_1DAE => (spu.control.0 & 0x3F).into(),
 
-        0x1F801DAA => spu.control.0.into(), // Status register
+        0x1F80_1DAA => spu.control.0.into(), // Status register
 
-        0x1F801D88 => spu.voice_key_on,
-        0x1F801D8A => spu.voice_key_on >> 16,
+        0x1F80_1D88 => spu.voice_key_on,
+        0x1F80_1D8A => spu.voice_key_on >> 16,
 
-        0x1F801D8C => spu.voice_key_off,
-        0x1F801D8E => spu.voice_key_off >> 16,
+        0x1F80_1D8C => spu.voice_key_off,
+        0x1F80_1D8E => spu.voice_key_off >> 16,
 
-        0x1F801DA6 => spu.data_transfer_address.into(),
-        0x1F801DAC => spu.data_transfer_control.into(),
+        0x1F80_1DA6 => spu.data_transfer_address.into(),
+        0x1F80_1DAC => spu.data_transfer_control.into(),
 
-        0x1F801DB0 => spu.cd_volume,
-        0x1F801DB2 => spu.cd_volume >> 16,
+        0x1F80_1DB0 => spu.cd_volume,
+        0x1F80_1DB2 => spu.cd_volume >> 16,
 
-        0x1F801DB4 => spu.external_volume,
-        0x1F801DB6 => spu.external_volume >> 16,
+        0x1F80_1DB4 => spu.external_volume,
+        0x1F80_1DB6 => spu.external_volume >> 16,
 
-        0x1F801D94 => spu.voice_noise_enable,
-        0x1F801D96 => spu.voice_noise_enable >> 16,
+        0x1F80_1D94 => spu.voice_noise_enable,
+        0x1F80_1D96 => spu.voice_noise_enable >> 16,
 
-        0x1F801D98 => spu.voice_echo_on,
-        0x1F801D9A => spu.voice_echo_on >> 16,
+        0x1F80_1D98 => spu.voice_echo_on,
+        0x1F80_1D9A => spu.voice_echo_on >> 16,
 
-        0x1F801C00..=0x1F801D7F => {
-            let offset = addr - 0x1F801C00;
+        0x1F80_1C00..=0x1F80_1D7F => {
+            let offset = addr - 0x1F80_1C00;
             let idx = (offset / 0x10) as usize;
             let reg = offset % 0x10;
 
             let voice = &spu.voices[idx];
 
             match reg {
-                0x00 => voice.volume.l.register.0 as u32,
-                0x02 => voice.volume.r.register.0 as u32,
-                0x04 => voice.sample_rate as u32,
+                0x00 => u32::from(voice.volume.l.register.0),
+                0x02 => u32::from(voice.volume.r.register.0),
+                0x04 => u32::from(voice.sample_rate),
 
                 0x06 => voice.start_address / 8,
                 0x0E => voice.repeat_address / 8,
@@ -223,7 +223,7 @@ pub fn read<T: ByteAddressable>(system: &System, addr: u32) -> T {
             }
         }
 
-        0x1F801E00..=0x1F801E7F => {
+        0x1F80_1E00..=0x1F80_1E7F => {
             debug!(target: "spu", "spu reading from unknown register");
             0
         }
@@ -234,6 +234,7 @@ pub fn read<T: ByteAddressable>(system: &System, addr: u32) -> T {
     T::from_u32(data)
 }
 
+#[allow(clippy::match_same_arms)]
 pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, val: T) {
     // To make generics more readable
     const HIGH: bool = true;
@@ -257,57 +258,57 @@ pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, val: T) {
     let val = val.to_u16();
 
     match addr {
-        0x1F801D80 => spu.main_volume.l.set_volume(val),
-        0x1F801D82 => spu.main_volume.r.set_volume(val),
+        0x1F80_1D80 => spu.main_volume.l.set_volume(val),
+        0x1F80_1D82 => spu.main_volume.r.set_volume(val),
 
-        0x1F801D84 => {} // spu.reverb.output_volume.l = val as i16,
-        0x1F801D86 => {} // spu.reverb.output_volume.r = val as i16,
-        0x1F801DA2 => {} // spu.reverb.base = val,
+        0x1F80_1D84 => {} // spu.reverb.output_volume.l = val as i16,
+        0x1F80_1D86 => {} // spu.reverb.output_volume.r = val as i16,
+        0x1F80_1DA2 => {} // spu.reverb.base = val,
 
-        0x1F801DC0 => {} // spu.reverb.apf_offset[0] = val,
-        0x1F801DC2 => {} // spu.reverb.apf_offset[1] = val,
+        0x1F80_1DC0 => {} // spu.reverb.apf_offset[0] = val,
+        0x1F80_1DC2 => {} // spu.reverb.apf_offset[1] = val,
 
-        0x1F801DD0 => {} // spu.reverb.apf_volume[0] = val,
-        0x1F801DD2 => {} // spu.reverb.apf_volume[1] = val,
+        0x1F80_1DD0 => {} // spu.reverb.apf_volume[0] = val,
+        0x1F80_1DD2 => {} // spu.reverb.apf_volume[1] = val,
 
-        0x1F801DF4 => {} // spu.reverb.apf_address[0].l = val as i16,
-        0x1F801DF6 => {} // spu.reverb.apf_address[0].r = val as i16,
-        0x1F801DF8 => {} // spu.reverb.apf_address[1].l = val as i16,
-        0x1F801DFA => {} // spu.reverb.apf_address[1].r = val as i16,
+        0x1F80_1DF4 => {} // spu.reverb.apf_address[0].l = val as i16,
+        0x1F80_1DF6 => {} // spu.reverb.apf_address[0].r = val as i16,
+        0x1F80_1DF8 => {} // spu.reverb.apf_address[1].l = val as i16,
+        0x1F80_1DFA => {} // spu.reverb.apf_address[1].r = val as i16,
 
-        0x1F801DC4 => {} // spu.reverb.reflection_volume[0] = val,
-        0x1F801DCE => {} // spu.reverb.reflection_volume[1] = val,
+        0x1F80_1DC4 => {} // spu.reverb.reflection_volume[0] = val,
+        0x1F80_1DCE => {} // spu.reverb.reflection_volume[1] = val,
 
-        0x1F801DD4 => {} // spu.reverb.same_side_reflect_addr[0].l = val as i16,
-        0x1F801DD6 => {} // spu.reverb.same_side_reflect_addr[0].r = val as i16,
-        0x1F801DE0 => {} // spu.reverb.same_side_reflect_addr[1].l = val as i16,
-        0x1F801DE2 => {} // spu.reverb.same_side_reflect_addr[1].r = val as i16,
+        0x1F80_1DD4 => {} // spu.reverb.same_side_reflect_addr[0].l = val as i16,
+        0x1F80_1DD6 => {} // spu.reverb.same_side_reflect_addr[0].r = val as i16,
+        0x1F80_1DE0 => {} // spu.reverb.same_side_reflect_addr[1].l = val as i16,
+        0x1F80_1DE2 => {} // spu.reverb.same_side_reflect_addr[1].r = val as i16,
 
-        0x1F801DE4 => {} // spu.reverb.diff_side_reflect_addr[0].l = val as i16,
-        0x1F801DE6 => {} // spu.reverb.diff_side_reflect_addr[0].r = val as i16,
-        0x1F801DF0 => {} // spu.reverb.diff_side_reflect_addr[1].l = val as i16,
-        0x1F801DF2 => {} // spu.reverb.diff_side_reflect_addr[1].r = val as i16,
+        0x1F80_1DE4 => {} // spu.reverb.diff_side_reflect_addr[0].l = val as i16,
+        0x1F80_1DE6 => {} // spu.reverb.diff_side_reflect_addr[0].r = val as i16,
+        0x1F80_1DF0 => {} // spu.reverb.diff_side_reflect_addr[1].l = val as i16,
+        0x1F80_1DF2 => {} // spu.reverb.diff_side_reflect_addr[1].r = val as i16,
 
-        0x1F801DC6 => {} // spu.reverb.comb_volume[0] = val,
-        0x1F801DC8 => {} // spu.reverb.comb_volume[1] = val,
-        0x1F801DCA => {} // spu.reverb.comb_volume[2] = val,
-        0x1F801DCC => {} // spu.reverb.comb_volume[3] = val,
+        0x1F80_1DC6 => {} // spu.reverb.comb_volume[0] = val,
+        0x1F80_1DC8 => {} // spu.reverb.comb_volume[1] = val,
+        0x1F80_1DCA => {} // spu.reverb.comb_volume[2] = val,
+        0x1F80_1DCC => {} // spu.reverb.comb_volume[3] = val,
 
-        0x1F801DD8 => {} // spu.reverb.comb_address[0].l = val as i16,
-        0x1F801DDA => {} // spu.reverb.comb_address[0].r = val as i16,
-        0x1F801DDC => {} // spu.reverb.comb_address[1].l = val as i16,
-        0x1F801DDE => {} // spu.reverb.comb_address[1].r = val as i16,
-        0x1F801DE8 => {} // spu.reverb.comb_address[2].l = val as i16,
-        0x1F801DEA => {} // spu.reverb.comb_address[2].r = val as i16,
-        0x1F801DEC => {} // spu.reverb.comb_address[3].l = val as i16,
-        0x1F801DEE => {} // spu.reverb.comb_address[3].r = val as i16,
+        0x1F80_1DD8 => {} // spu.reverb.comb_address[0].l = val as i16,
+        0x1F80_1DDA => {} // spu.reverb.comb_address[0].r = val as i16,
+        0x1F80_1DDC => {} // spu.reverb.comb_address[1].l = val as i16,
+        0x1F80_1DDE => {} // spu.reverb.comb_address[1].r = val as i16,
+        0x1F80_1DE8 => {} // spu.reverb.comb_address[2].l = val as i16,
+        0x1F80_1DEA => {} // spu.reverb.comb_address[2].r = val as i16,
+        0x1F80_1DEC => {} // spu.reverb.comb_address[3].l = val as i16,
+        0x1F80_1DEE => {} // spu.reverb.comb_address[3].r = val as i16,
 
-        0x1F801DFC => {} // spu.reverb.input_volume.l = val as i16,
-        0x1F801DFE => {} // spu.reverb.input_volume.r = val as i16,
+        0x1F80_1DFC => {} // spu.reverb.input_volume.l = val as i16,
+        0x1F80_1DFE => {} // spu.reverb.input_volume.r = val as i16,
 
-        0x1F801DAA => spu.control.0 = val,
+        0x1F80_1DAA => spu.control.0 = val,
 
-        0x1F801D8C => {
+        0x1F80_1D8C => {
             write_half::<LOW>(&mut spu.voice_key_off, val);
             for i in 0..16 {
                 if spu.voice_key_off & (1 << i) != 0 {
@@ -315,7 +316,7 @@ pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, val: T) {
                 }
             }
         }
-        0x1F801D8E => {
+        0x1F80_1D8E => {
             write_half::<HIGH>(&mut spu.voice_key_off, val);
             for i in 16..24 {
                 if spu.voice_key_off & (1 << i) != 0 {
@@ -323,7 +324,7 @@ pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, val: T) {
                 }
             }
         }
-        0x1F801D88 => {
+        0x1F80_1D88 => {
             write_half::<LOW>(&mut spu.voice_key_on, val);
             for i in 0..16 {
                 if spu.voice_key_on & (1 << i) != 0 {
@@ -331,7 +332,7 @@ pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, val: T) {
                 }
             }
         }
-        0x1F801D8A => {
+        0x1F80_1D8A => {
             write_half::<HIGH>(&mut spu.voice_key_on, val);
             for i in 16..24 {
                 if spu.voice_key_on & (1 << i) != 0 {
@@ -340,30 +341,30 @@ pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, val: T) {
             }
         }
 
-        0x1F801D90 => write_half::<LOW>(&mut spu.voice_pitch_enable, val),
-        0x1F801D92 => write_half::<HIGH>(&mut spu.voice_pitch_enable, val),
+        0x1F80_1D90 => write_half::<LOW>(&mut spu.voice_pitch_enable, val),
+        0x1F80_1D92 => write_half::<HIGH>(&mut spu.voice_pitch_enable, val),
 
-        0x1F801D94 => write_half::<LOW>(&mut spu.voice_noise_enable, val),
-        0x1F801D96 => write_half::<HIGH>(&mut spu.voice_noise_enable, val),
+        0x1F80_1D94 => write_half::<LOW>(&mut spu.voice_noise_enable, val),
+        0x1F80_1D96 => write_half::<HIGH>(&mut spu.voice_noise_enable, val),
 
-        0x1F801D98 => write_half::<LOW>(&mut spu.voice_echo_on, val),
-        0x1F801D9A => write_half::<HIGH>(&mut spu.voice_echo_on, val),
+        0x1F80_1D98 => write_half::<LOW>(&mut spu.voice_echo_on, val),
+        0x1F80_1D9A => write_half::<HIGH>(&mut spu.voice_echo_on, val),
 
-        0x1F801DB0 => write_half::<LOW>(&mut spu.cd_volume, val),
-        0x1F801DB2 => write_half::<HIGH>(&mut spu.cd_volume, val),
+        0x1F80_1DB0 => write_half::<LOW>(&mut spu.cd_volume, val),
+        0x1F80_1DB2 => write_half::<HIGH>(&mut spu.cd_volume, val),
 
-        0x1F801DB4 => write_half::<LOW>(&mut spu.external_volume, val),
-        0x1F801DB6 => write_half::<HIGH>(&mut spu.external_volume, val),
+        0x1F80_1DB4 => write_half::<LOW>(&mut spu.external_volume, val),
+        0x1F80_1DB6 => write_half::<HIGH>(&mut spu.external_volume, val),
 
-        0x1F801DAC => spu.data_transfer_control = val, // Should be 0x0004
+        0x1F80_1DAC => spu.data_transfer_control = val, // Should be 0x0004
 
-        0x1F801DA6 => {
+        0x1F80_1DA6 => {
             spu.data_transfer_address = val;
             spu.current_address = usize::from(val) * 8;
         }
 
         // Transfer half word to ram
-        0x1F801DA8 => {
+        0x1F80_1DA8 => {
             let bytes = val.to_le_bytes();
             let addr = spu.current_address;
 
@@ -372,8 +373,8 @@ pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, val: T) {
             spu.current_address += 2;
         }
 
-        0x1F801C00..=0x1F801D7F => {
-            let offset = addr - 0x1F801C00;
+        0x1F80_1C00..=0x1F80_1D7F => {
+            let offset = addr - 0x1F80_1C00;
             let idx = (offset / 0x10) as usize;
             let reg = offset % 0x10;
 
@@ -396,10 +397,10 @@ pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, val: T) {
             }
         }
 
-        0x1F801D9C => {} // voice status (read only)
-        0x1F801D9E => {} // voice status (read only)
+        0x1F80_1D9C => {} // voice status (read only)
+        0x1F80_1D9E => {} // voice status (read only)
 
-        0x1F801E00..=0x1F801E7F => {
+        0x1F80_1E00..=0x1F80_1E7F => {
             debug!(target: "spu", "spu writing to unknown register");
         }
 
@@ -418,11 +419,11 @@ fn apply_volume(sample: i16, volume: i16) -> i16 {
 }
 
 fn i16_volume_to_percent(v: i16) -> f32 {
-    (v as f32 / 0x7FFF as f32) * 100.0
+    (f32::from(v) / 0x7FFF as f32) * 100.0
 }
 
 fn sample_rate_to_hz(raw: u16) -> f32 {
-    raw as f32 / 4096.0 * 44100.0
+    f32::from(raw) / 4096.0 * 44100.0
 }
 
 pub use envelope::AdsrPhase;

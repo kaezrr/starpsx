@@ -267,7 +267,7 @@ impl System {
         let spu = self.spu.snapshot();
         let gpu = self.gpu.snapshot();
 
-        SystemSnapshot { cpu, ins, spu, gpu }
+        SystemSnapshot { cpu, spu, gpu, ins }
     }
 
     pub fn step_instruction(&mut self, show_vram: bool) -> Option<FrameBuffer> {

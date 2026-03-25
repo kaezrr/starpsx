@@ -18,7 +18,7 @@ enum ChangeRate {
     Exponential = 1,
 }
 
-#[derive(Default, PartialEq, Clone, Copy)]
+#[derive(Default, PartialEq, Eq, Clone, Copy)]
 pub enum AdsrPhase {
     #[default]
     Off,
@@ -31,11 +31,11 @@ pub enum AdsrPhase {
 impl fmt::Display for AdsrPhase {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            AdsrPhase::Off => write!(f, "Off"),
-            AdsrPhase::Attack => write!(f, "Attack"),
-            AdsrPhase::Decay => write!(f, "Decay"),
-            AdsrPhase::Sustain => write!(f, "Sustain"),
-            AdsrPhase::Release => write!(f, "Release"),
+            Self::Off => write!(f, "Off"),
+            Self::Attack => write!(f, "Attack"),
+            Self::Decay => write!(f, "Decay"),
+            Self::Sustain => write!(f, "Sustain"),
+            Self::Release => write!(f, "Release"),
         }
     }
 }
@@ -52,25 +52,25 @@ pub struct AdsrEnvelope {
 }
 
 impl AdsrEnvelope {
-    pub fn volume(&self) -> i16 {
+    pub const fn volume(&self) -> i16 {
         self.level
     }
 
-    pub fn phase(&self) -> AdsrPhase {
+    pub const fn phase(&self) -> AdsrPhase {
         self.phase
     }
 
-    pub fn set_volume(&mut self, v: i16) {
+    pub const fn set_volume(&mut self, v: i16) {
         self.level = v;
     }
 
-    pub fn key_on(&mut self) {
+    pub const fn key_on(&mut self) {
         self.level = 0;
         self.counter = 0;
         self.phase = AdsrPhase::Attack;
     }
 
-    pub fn key_off(&mut self) {
+    pub const fn key_off(&mut self) {
         self.phase = AdsrPhase::Release;
     }
 
@@ -104,7 +104,7 @@ impl AdsrEnvelope {
             }
         }
 
-        let combined_rate = (step_value as u16) | ((shift as u16) << 2);
+        let combined_rate = u16::from(step_value) | (u16::from(shift) << 2);
         if combined_rate != 0x7F {
             counter_increment = counter_increment.max(1);
         }
@@ -233,7 +233,7 @@ pub struct SweepVolume {
 }
 
 impl SweepVolume {
-    pub fn volume(&self) -> i16 {
+    pub const fn volume(&self) -> i16 {
         self.level
     }
 

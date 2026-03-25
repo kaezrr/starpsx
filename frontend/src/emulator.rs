@@ -10,7 +10,7 @@ use std::sync::mpsc::SyncSender;
 use std::time::Duration;
 use std::time::Instant;
 
-use anyhow::anyhow;
+use anyhow::Context;
 use cpal::Stream;
 use cpal::StreamConfig;
 use cpal::default_host;
@@ -106,7 +106,7 @@ impl Emulator {
 
         let device = default_host()
             .default_output_device()
-            .ok_or(anyhow!("no output device available"))?;
+            .context("no output device available")?;
 
         let rb = HeapRb::<[i16; 2]>::new(RING_BUFFER_SIZE);
         let (mut audio_tx, mut audio_rx) = rb.split();
@@ -227,7 +227,7 @@ impl Emulator {
                 UiCommand::SetVramDisplay(show_vram) => self.show_vram = show_vram,
                 UiCommand::Shutdown => return true,
                 UiCommand::DebugRequestState => self.send_debug_snapshot(),
-                UiCommand::NewInputState(state) => self.update_core_gamepad(state),
+                UiCommand::NewInputState(state) => self.update_core_gamepad(&state),
                 UiCommand::SetSpeed(value) => self.full_speed = value,
 
                 UiCommand::Restart => match self.rebuild_system() {
@@ -272,9 +272,9 @@ impl Emulator {
 
             if paused != last_paused {
                 if paused {
-                    self.audio_stream.pause().unwrap();
+                    self.audio_stream.pause().expect("pause stream");
                 } else {
-                    self.audio_stream.play().unwrap();
+                    self.audio_stream.play().expect("play stream");
                 }
                 last_paused = paused;
             }
@@ -297,13 +297,12 @@ impl Emulator {
 
             let core_time = frame_start.elapsed();
 
-            match frame {
-                Some(buffer) => self.send_frame_buffer(buffer),
-                None => {
-                    self.shared_state.pause();
-                    self.send_debug_snapshot();
-                    continue;
-                }
+            if let Some(buffer) = frame {
+                self.send_frame_buffer(buffer);
+            } else {
+                self.shared_state.pause();
+                self.send_debug_snapshot();
+                continue;
             }
 
             if !self.full_speed
