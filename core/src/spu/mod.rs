@@ -3,8 +3,8 @@ use tracing::trace;
 use crate::System;
 use crate::mem::ByteAddressable;
 
-pub const PADDR_START: u32 = 0x1F801C00;
-pub const PADDR_END: u32 = 0x1F801E80;
+pub const PADDR_START: u32 = 0x1F80_1C00;
+pub const PADDR_END: u32 = 0x1F80_1E80;
 
 // This is a stubbed component right now, just returns whatever is written
 pub struct Spu {
@@ -25,7 +25,7 @@ pub fn read<T: ByteAddressable>(system: &System, addr: u32) -> T {
     T::from_le_bytes(
         system.spu.stubbed_registers[addr..addr + T::LEN]
             .try_into()
-            .unwrap(),
+            .expect("read bytes"),
     )
 }
 

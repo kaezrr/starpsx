@@ -2,13 +2,13 @@ use arrayvec::ArrayVec;
 
 use crate::cdrom::ResponseType;
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct TimerInterrupt {
     pub which: usize,
     pub toggle: bool,
 }
 
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Clone, Eq)]
 pub enum Event {
     VBlankStart,
     VBlankEnd,
@@ -33,11 +33,11 @@ pub struct EventScheduler {
 }
 
 impl EventScheduler {
-    pub fn sysclk(&self) -> u64 {
+    pub const fn sysclk(&self) -> u64 {
         self.sysclk
     }
 
-    pub fn advance(&mut self, used_cycles: u64) {
+    pub const fn advance(&mut self, used_cycles: u64) {
         self.sysclk += used_cycles;
     }
 

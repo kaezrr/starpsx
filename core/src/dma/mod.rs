@@ -25,7 +25,7 @@ bitfield::bitfield! {
 
 // Ignoring 0-6 channel irq setting, all irqs happen on completion for now
 impl Interrupt {
-    fn master_flag(&self) -> bool {
+    fn master_flag(self) -> bool {
         let flags = (self.0 >> 24) & 0x7f;
         let mask = (self.0 >> 16) & 0x7f;
         self.bus_error() || (self.channel_irq_en() && (flags & mask) != 0)
@@ -47,11 +47,11 @@ impl Interrupt {
         self.update_irq()
     }
 
-    fn set_channel_irq_flag_bit(&mut self, port: Port) {
+    const fn set_channel_irq_flag_bit(&mut self, port: Port) {
         self.0 |= 1 << ((port as u32) + 24);
     }
 
-    fn mask_enabled(&mut self, port: Port) -> bool {
+    const fn mask_enabled(self, port: Port) -> bool {
         self.0 & (1 << ((port as u32) + 16)) != 0
     }
 }
@@ -64,28 +64,28 @@ pub struct DMAController {
 
 impl Default for DMAController {
     fn default() -> Self {
-        DMAController {
-            dpcr: 0x07654321,
+        Self {
+            dpcr: 0x0765_4321,
             dicr: Interrupt(0),
             channels: from_fn(|_| Channel::new()),
         }
     }
 }
 
-pub const PADDR_START: u32 = 0x1F801080;
-pub const PADDR_END: u32 = 0x1F801100;
+pub const PADDR_START: u32 = 0x1F80_1080;
+pub const PADDR_END: u32 = 0x1F80_1100;
 
 impl DMAController {
     /// Check if channel is master-enabled in DPCR (bit 3 of each channel's 4-bit nibble)
-    fn channel_enabled(&self, port: Port) -> bool {
+    const fn channel_enabled(&self, port: Port) -> bool {
         let bit = (port as u32) * 4 + 3;
         self.dpcr & (1 << bit) != 0
     }
 
     fn do_dma(system: &mut System, port: Port) {
         match system.dma.channels[port as usize].ctl.mode() {
-            Mode::LinkedList => DMAController::do_dma_linked_list(system, port),
-            Mode::Burst | Mode::Slice => DMAController::do_dma_block(system, port),
+            Mode::LinkedList => Self::do_dma_linked_list(system, port),
+            Mode::Burst | Mode::Slice => Self::do_dma_block(system, port),
         }
 
         if system.dma.dicr.should_irq_on_channel_complete(port) {
@@ -126,13 +126,13 @@ impl DMAController {
 
         let mut addr = base;
         for s in (0..size).rev() {
-            let cur_addr = addr & 0x1FFFFC;
+            let cur_addr = addr & 0x1F_FFFC;
             match dir {
                 Direction::ToRam => {
                     let src_word = match port {
                         Port::Otc => match s {
-                            0 => 0xFFFFFF,
-                            _ => addr.wrapping_sub(4) & 0x1FFFFC,
+                            0 => 0xFF_FFFF,
+                            _ => addr.wrapping_sub(4) & 0x1F_FFFC,
                         },
                         Port::Gpu => system.gpu.read(),
                         Port::CdRom => system.cdrom.read_rddata::<u32>(),
@@ -158,37 +158,37 @@ impl DMAController {
 
     fn do_dma_linked_list(system: &mut System, port: Port) {
         let channel = &mut system.dma.channels[port as usize];
-        let mut addr = channel.base & 0x1FFFFC;
+        let mut addr = channel.base & 0x1F_FFFC;
 
         loop {
             let header = system.ram.read::<u32>(addr);
             let size = header >> 24;
 
             for i in 0..size {
-                let data = system.ram.read::<u32>((addr + 4 * (i + 1)) & 0x1FFFFC);
+                let data = system.ram.read::<u32>((addr + 4 * (i + 1)) & 0x1F_FFFC);
                 system.gpu.gp0(data);
             }
 
-            let next_addr = header & 0xFFFFFF;
+            let next_addr = header & 0xFF_FFFF;
             if next_addr & (1 << 23) != 0 {
                 break;
             }
-            addr = next_addr & 0x1FFFFC;
+            addr = next_addr & 0x1F_FFFC;
         }
 
         channel.done();
     }
 }
 
-pub fn read<T: ByteAddressable>(system: &mut System, addr: u32) -> T {
+pub fn read<T: ByteAddressable>(system: &System, addr: u32) -> T {
     let channel = (((addr >> 4) & 0xF) - 8) as usize;
     let register = addr & 0xF;
 
     let data = match addr {
-        0x1F801080..0x1F8010F0 => system.dma.channels[channel].read(register),
-        0x1F8010F0 => system.dma.dpcr,
-        0x1F8010F4 => system.dma.dicr.0,
-        0x1F8010F6 => system.dma.dicr.0 >> 16,
+        0x1F80_1080..0x1F80_10F0 => system.dma.channels[channel].read(register),
+        0x1F80_10F0 => system.dma.dpcr,
+        0x1F80_10F4 => system.dma.dicr.0,
+        0x1F80_10F6 => system.dma.dicr.0 >> 16,
         _ => unimplemented!("dma read {addr:x}"),
     };
 
@@ -200,7 +200,7 @@ pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, data: T) {
     let register = addr & 0xF;
 
     match addr {
-        0x1F801080..0x1F8010F0 => {
+        0x1F80_1080..0x1F80_10F0 => {
             let port = Port::from(channel);
             system.dma.channels[channel].write(register, data);
 
@@ -215,17 +215,17 @@ pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, data: T) {
                 DMAController::do_dma(system, port);
             }
         }
-        0x1F8010F0 => system.dma.write_dpcr(data),
-        0x1F8010F4 => {
+        0x1F80_10F0 => system.dma.write_dpcr(data),
+        0x1F80_10F4 => {
             if system.dma.write_dicr(data.to_u32()) {
                 system.irqctl.stat().set_dma(true);
             }
         }
-        0x1F8010F6 => {
+        0x1F80_10F6 => {
             if system.dma.write_dicr(data.to_u32() << 16) {
                 system.irqctl.stat().set_dma(true);
             }
         }
         _ => unimplemented!("dma write {addr:x} = {data:x}"),
-    };
+    }
 }

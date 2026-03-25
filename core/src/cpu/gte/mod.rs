@@ -4,6 +4,7 @@ mod utils;
 use std::ops::Index;
 use std::ops::IndexMut;
 
+use num_enum::FromPrimitive;
 use utils::matrix_reg_read;
 use utils::matrix_reg_write;
 use utils::vec_xy_read;
@@ -95,7 +96,7 @@ pub fn cop2(system: &mut System, instr: Instruction) -> Result<(), Exception> {
         0x04 => mtc2(system, instr),
         0x06 => ctc2(system, instr),
         _ => unimplemented!("GTE instruction instr={:#08x} ", instr.0),
-    };
+    }
 
     Ok(())
 }
@@ -137,13 +138,10 @@ impl GTEngine {
             // IRGB and ORGB both are mirrors
             28 => self.set_irgb(ColorConversion(data)),
 
-            // ORGB is read only
-            29 => {}
+            // ORGB and LZCR are read only
+            29 | 31 => {}
 
             30 => self.lzcs = data as i32,
-
-            // LZCR is read only
-            31 => {}
 
             32..=36 => matrix_reg_write(&mut self.rtm, r - 32, data),
 
@@ -169,10 +167,10 @@ impl GTEngine {
             63 => self.flag.write(data),
 
             _ => unimplemented!("invalid GTE register write: {r}"),
-        };
+        }
     }
 
-    fn read_reg(&mut self, r: usize) -> u32 {
+    fn read_reg(&self, r: usize) -> u32 {
         match r {
             0 => vec_xy_read(&self.v[0]),
             1 => self.v[0][2] as u32,
@@ -184,7 +182,7 @@ impl GTEngine {
             5 => self.v[2][2] as u32,
 
             6 => u32::from_le_bytes(self.rgbc),
-            7 => self.otz as u32,
+            7 => u32::from(self.otz),
 
             8..=11 => self.ir[r - 8] as u32,
 
@@ -193,7 +191,7 @@ impl GTEngine {
             // SXYP is a SXY2 mirror with move-on-write
             15 => vec_xy_read(&self.sxy[2]),
 
-            16..=19 => self.sz[r - 16] as u32,
+            16..=19 => u32::from(self.sz[r - 16]),
 
             20..=22 => u32::from_le_bytes(self.colors[r - 20]),
 
@@ -237,7 +235,7 @@ impl GTEngine {
     }
 
     /// Counting leading bits result
-    fn lzcr(&self) -> u32 {
+    const fn lzcr(&self) -> u32 {
         if self.lzcs.is_negative() {
             self.lzcs.leading_ones()
         } else {
@@ -362,7 +360,6 @@ pub fn swc2(system: &mut System, instr: Instruction) -> Result<(), Exception> {
     Ok(())
 }
 
-#[inline(always)]
 fn check_valid_gte_access(system: &System) -> Result<(), Exception> {
     if system.cpu.cop0.gte_enabled() {
         return Ok(());
@@ -420,20 +417,20 @@ bitfield::bitfield! {
 impl Flag {
     fn read(&self) -> u32 {
         let is_err = (self.err1() | self.err2()) != 0;
-        self.0 | ((is_err as u32) << 31)
+        self.0 | (u32::from(is_err) << 31)
     }
 
-    fn write(&mut self, v: u32) {
-        self.0 = v & 0x7FFFF000;
+    const fn write(&mut self, v: u32) {
+        self.0 = v & 0x7FFF_F000;
     }
 
-    fn clear(&mut self) {
+    const fn clear(&mut self) {
         self.0 = 0;
     }
 }
 
 bitfield::bitfield! {
-#[derive(Default)]
+#[derive(Default, Clone, Copy)]
     struct ColorConversion(u32);
     u16, r, set_r: 4, 0;
     u16, g, set_g: 9, 5;
@@ -488,7 +485,7 @@ where
     T: Default + Copy,
 {
     fn default() -> Self {
-        FixedFifo {
+        Self {
             fifo: [T::default(); LEN],
         }
     }
@@ -496,10 +493,10 @@ where
 
 #[derive(Clone, Copy, Debug)]
 enum Matrix {
-    Rotation,
-    Light,
-    Color,
-    Reserved,
+    Rotation = 0,
+    Light = 1,
+    Color = 2,
+    Reserved = 3,
 }
 
 impl From<u8> for Matrix {
@@ -514,58 +511,30 @@ impl From<u8> for Matrix {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, FromPrimitive)]
+#[repr(u8)]
 enum Vector {
-    V0,
-    V1,
-    V2,
-    IR,
+    #[default]
+    V0 = 0,
+    V1 = 1,
+    V2 = 2,
+    IR = 3,
 }
 
-impl From<u8> for Vector {
-    fn from(value: u8) -> Self {
-        match value {
-            0 => Self::V0,
-            1 => Self::V1,
-            2 => Self::V2,
-            3 => Self::IR,
-            _ => unreachable!("2 bit cannot reach here"),
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, FromPrimitive)]
+#[repr(u8)]
 enum ControlVec {
-    Translation,
-    Background,
-    FarColor,
-    None,
+    #[default]
+    Translation = 0,
+    Background = 1,
+    FarColor = 2,
+    None = 3,
 }
 
-impl From<u8> for ControlVec {
-    fn from(value: u8) -> Self {
-        match value {
-            0 => Self::Translation,
-            1 => Self::Background,
-            2 => Self::FarColor,
-            3 => Self::None,
-            _ => panic!("2 bit cannot reach here"),
-        }
-    }
-}
-
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, FromPrimitive)]
+#[repr(u8)]
 enum Saturation {
-    S16,
-    U15,
-}
-
-impl From<u8> for Saturation {
-    fn from(value: u8) -> Self {
-        match value {
-            0 => Self::S16,
-            1 => Self::U15,
-            _ => unreachable!("bool cannot reach here"),
-        }
-    }
+    #[default]
+    S16 = 0,
+    U15 = 1,
 }

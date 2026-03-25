@@ -22,7 +22,7 @@ pub struct MemoryCard {
 }
 
 impl MemoryCard {
-    pub fn from_bytes(data: Box<[u8; 0x20000]>) -> Self {
+    pub const fn from_bytes(data: Box<[u8; 0x20000]>) -> Self {
         Self {
             in_ack: false,
             state: State::Init,
@@ -47,15 +47,14 @@ impl MemoryCard {
         let send = match self.state {
             State::Init => 0xFF,
             State::CardId1 => 0x5A,
-            State::CardId2 => 0x5D,
+            State::CardId2 | State::CmdAck2 => 0x5D,
             State::CmdAck1 => 0x5C,
-            State::CmdAck2 => 0x5D,
             State::Recv04h => 0x04,
             State::Recv00h => 0x00,
             State::Recv80h => 0x80,
             State::AckMsb => (self.sector_number >> 8) as u8,
             State::AckLsb => (self.sector_number & 0xFF) as u8,
-            State::Flag => (self.directory_not_read as u8) << 3,
+            State::Flag => u8::from(self.directory_not_read) << 3,
 
             State::SendMsb => {
                 self.sector_number = u16::from(data) << 8;
@@ -149,11 +148,11 @@ impl MemoryCard {
         }
     }
 
-    pub fn in_ack(&self) -> bool {
+    pub const fn in_ack(&self) -> bool {
         self.in_ack
     }
 
-    pub fn reset(&mut self) {
+    pub const fn reset(&mut self) {
         self.in_ack = false;
         self.state = State::Init;
         self.state_idx = 0;
@@ -263,20 +262,20 @@ impl Command {
         (State::MemEnd, Some(0x00)),
     ];
 
-    fn states_table(&self) -> &'static [(State, Option<u8>)] {
+    const fn states_table(self) -> &'static [(State, Option<u8>)] {
         match self {
-            Command::Read => &Command::READ_STATES,
-            Command::Write => &Command::WRITE_STATES,
-            Command::GetId => &Command::GETID_STATES,
+            Self::Read => &Self::READ_STATES,
+            Self::Write => &Self::WRITE_STATES,
+            Self::GetId => &Self::GETID_STATES,
         }
     }
 
     pub fn next(&mut self, current: State, recv: u8, state_idx: usize) -> Option<(State, usize)> {
         if current == State::Flag {
             *self = match recv {
-                0x52 => Command::Read,
-                0x57 => Command::Write,
-                0x53 => Command::GetId,
+                0x52 => Self::Read,
+                0x57 => Self::Write,
+                0x53 => Self::GetId,
                 _ => return None,
             };
         }

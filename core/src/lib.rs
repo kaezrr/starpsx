@@ -13,6 +13,7 @@ mod timers;
 
 use std::collections::HashSet;
 
+use anyhow::Context;
 use cdrom::CdImage;
 use cdrom::CdRom;
 use consts::HBLANK_DURATION;
@@ -71,12 +72,17 @@ pub struct System {
 }
 
 impl System {
+    /// # Errors
+    ///
+    /// This function will return an error if:
+    /// * Bios file is not valid
+    /// * Runnable file is not valid
     pub fn build(
         bios: Vec<u8>,
         runnable: Option<RunType>,
         memory_card: Option<Box<[u8; 0x20000]>>,
     ) -> anyhow::Result<Self> {
-        let mut psx = System {
+        let mut psx = Self {
             cpu: Cpu::default(),
             gpu: Gpu::default(),
             spu: Spu::default(),
@@ -110,7 +116,7 @@ impl System {
             match run_type {
                 RunType::Disk(disk) => psx.cdrom.insert_disc(CdImage::from_disk(disk)),
                 RunType::Binary(bytes) => psx.cdrom.insert_disc(CdImage::from_bytes(bytes)),
-                RunType::Executable(bytes) => psx.sideload_exe(bytes),
+                RunType::Executable(bytes) => psx.sideload_exe(&bytes)?,
             }
         } else {
             psx.cdrom.open_shell();
@@ -141,22 +147,38 @@ impl System {
         Ok(psx)
     }
 
-    pub fn sideload_exe(&mut self, exe: Vec<u8>) {
-        while self.cpu.pc != 0x80030000 {
+    fn sideload_exe(&mut self, exe: &[u8]) -> anyhow::Result<()> {
+        while self.cpu.pc != 0x8003_0000 {
             Cpu::run_next_instruction(self);
             self.check_for_tty_output();
         }
 
-        // Parse EXE header
-        let init_pc = u32::from_le_bytes(exe[0x10..0x14].try_into().unwrap());
-        let init_r28 = u32::from_le_bytes(exe[0x14..0x18].try_into().unwrap());
-        let exe_addr = u32::from_le_bytes(exe[0x18..0x1C].try_into().unwrap()) & 0x1FFFFF;
-        let exe_size = u32::from_le_bytes(exe[0x1C..0x20].try_into().unwrap());
-        let init_sp = u32::from_le_bytes(exe[0x30..0x34].try_into().unwrap());
+        // Wrap header reads in a helper to avoid repetitive boilerplate
+        let rd = |off| -> anyhow::Result<u32> {
+            exe.get(off..off + 4)
+                .and_then(|b| b.try_into().ok())
+                .map(u32::from_le_bytes)
+                .context("Invalid PS-EXE header")
+        };
 
-        // Copy EXE data to RAM
-        self.ram.bytes[exe_addr as usize..(exe_addr + exe_size) as usize]
-            .copy_from_slice(&exe[2048..2048 + exe_size as usize]);
+        let init_pc = rd(0x10)?;
+        let init_r28 = rd(0x14)?;
+        let exe_addr = rd(0x18)? & 0x001F_FFFF;
+        let exe_size = rd(0x1C)? as usize;
+        let init_sp = rd(0x30)?;
+
+        // Use get_mut to avoid the slice panic if exe_size is garbage
+        let dest = self
+            .ram
+            .bytes
+            .get_mut(exe_addr as usize..exe_addr as usize + exe_size)
+            .context("EXE load address out of RAM bounds")?;
+
+        let src = exe
+            .get(2048..2048 + exe_size)
+            .context("EXE file truncated")?;
+
+        dest.copy_from_slice(src);
 
         self.cpu.regs[28] = init_r28;
         if init_sp != 0 {
@@ -165,6 +187,8 @@ impl System {
         }
 
         self.cpu.pc = init_pc;
+
+        Ok(())
     }
 
     fn enter_vsync(&mut self, show_vram: bool) -> FrameBuffer {
@@ -172,9 +196,10 @@ impl System {
         self.gpu.enter_vsync();
         self.irqctl.stat().set_vblank(true);
 
-        match show_vram {
-            true => self.gpu.renderer.produce_vram_framebuffer(),
-            false => self.gpu.renderer.produce_frame_buffer(),
+        if show_vram {
+            self.gpu.renderer.produce_vram_framebuffer()
+        } else {
+            self.gpu.renderer.produce_frame_buffer()
         }
     }
 
@@ -189,7 +214,7 @@ impl System {
     }
 
     fn check_for_tty_output(&mut self) {
-        let pc = self.cpu.pc & 0x1FFFFFFF;
+        let pc = self.cpu.pc & 0x1FFF_FFFF;
         if (pc == 0xA0 && self.cpu.regs[9] == 0x3C) || (pc == 0xB0 && self.cpu.regs[9] == 0x3D) {
             let byte = self.cpu.regs[4] as u8;
             if byte == b'\n' || byte == b'\r' {
@@ -201,14 +226,20 @@ impl System {
         }
     }
 
-    pub fn gamepad_mut(&mut self) -> &mut Gamepad {
-        self.sio0.device_manager.gamepads[0].as_mut().unwrap()
+    /// # Panics
+    ///
+    /// Panics if console has no virtual gamepad in port 0
+    pub const fn gamepad_mut(&mut self) -> &mut Gamepad {
+        self.sio0.device_manager.gamepads[0]
+            .as_mut()
+            .expect("atleast 1 gamepad")
     }
 
-    pub fn memory_card(&mut self) -> Option<&mut MemoryCard> {
+    pub const fn memory_card(&mut self) -> Option<&mut MemoryCard> {
         self.sio0.device_manager.memcards[0].as_mut()
     }
 
+    #[must_use]
     pub fn snapshot(&self) -> SystemSnapshot {
         let cpu = self.cpu.snapshot();
 
@@ -248,9 +279,8 @@ impl System {
     // Run emulator for one frame and return the generated frame
     pub fn run_frame(&mut self, show_vram: bool) -> FrameBuffer {
         loop {
-            match self.step_instruction(show_vram) {
-                Some(fb) => break fb,
-                None => continue,
+            if let Some(fb) = self.step_instruction(show_vram) {
+                break fb;
             }
         }
     }
@@ -266,15 +296,10 @@ impl System {
                 return None;
             }
 
-            match self.step_instruction(show_vram) {
-                Some(fb) => break Some(fb),
-                None => continue,
+            if let Some(fb) = self.step_instruction(show_vram) {
+                break Some(fb);
             }
         }
-    }
-
-    pub fn print_pc(&self) {
-        info!("pc={:08x}", self.cpu.pc);
     }
 }
 

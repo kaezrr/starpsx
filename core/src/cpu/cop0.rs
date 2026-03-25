@@ -1,4 +1,5 @@
-use super::*;
+use super::Instruction;
+use super::System;
 
 #[derive(Default)]
 pub struct Cop0 {
@@ -16,20 +17,18 @@ pub struct Cop0 {
 }
 
 impl Cop0 {
-    pub fn gte_enabled(&self) -> bool {
+    pub const fn gte_enabled(&self) -> bool {
         (self.sr >> 30) & 1 != 0
     }
 }
 
-pub fn cop0(system: &mut System, instr: Instruction) -> Result<(), Exception> {
+pub fn cop0(system: &mut System, instr: Instruction) {
     match instr.rs() {
         0x00 => mfc0(system, instr),
         0x04 => mtc0(system, instr),
         0x10 => rfe(system, instr),
         _ => unimplemented!("cop0 instruction {:#08X}", instr.0),
-    };
-
-    Ok(())
+    }
 }
 
 /// Move to cop0 register

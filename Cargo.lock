@@ -2621,6 +2621,7 @@ dependencies = [
  "bitfield",
  "bytemuck",
  "cue",
+ "derive_more",
  "num_enum",
  "starpsx-renderer",
  "tracing",

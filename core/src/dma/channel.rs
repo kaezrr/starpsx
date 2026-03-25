@@ -25,8 +25,8 @@ pub struct Channel {
 }
 
 impl Channel {
-    pub fn new() -> Self {
-        Channel {
+    pub const fn new() -> Self {
+        Self {
             ctl: Control(0),
             block_ctl: Block(0),
             base: 0,

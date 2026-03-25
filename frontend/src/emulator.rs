@@ -162,7 +162,7 @@ impl Emulator {
         }
     }
 
-    fn update_core_gamepad(&mut self, new_state: &GamepadState) {
+    const fn update_core_gamepad(&mut self, new_state: &GamepadState) {
         let gamepad = self.system.gamepad_mut();
         gamepad.set_buttons(new_state.buttons);
         gamepad.set_analog_mode(new_state.analog_mode);

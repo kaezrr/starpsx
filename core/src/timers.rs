@@ -1,5 +1,5 @@
-use std::ops::Index;
-use std::ops::IndexMut;
+use derive_more::Index;
+use derive_more::IndexMut;
 
 use crate::LINE_DURATION;
 use crate::System;
@@ -7,12 +7,14 @@ use crate::mem::ByteAddressable;
 use crate::sched::Event;
 use crate::sched::TimerInterrupt;
 
-pub const PADDR_START: u32 = 0x1F801100;
-pub const PADDR_END: u32 = 0x1F801130;
+pub const PADDR_START: u32 = 0x1F80_1100;
+pub const PADDR_END: u32 = 0x1F80_1130;
 
-#[derive(Default)]
+#[derive(Default, IndexMut, Index)]
 pub struct Timers {
-    timers: [Timer; 3],
+    #[index]
+    #[index_mut]
+    counters: [Timer; 3],
     in_vsync: bool,
     in_hsync: bool,
     hblanks: u32,
@@ -39,20 +41,20 @@ impl Timers {
         match system.timers.clock_source(which) {
             Clock::Cpu => ticks,
             Clock::CpuDiv8 => ticks * 8,
-            Clock::Dot => ticks * (system.gpu.get_dot_clock_divider() as u64),
+            Clock::Dot => ticks * u64::from(system.gpu.get_dot_clock_divider()),
             Clock::HBlank => ticks * LINE_DURATION,
         }
     }
 
     pub fn enter_vsync(system: &mut System) {
-        Timers::update_value(system, 1);
+        Self::update_value(system, 1);
 
         system.timers.in_vsync = true;
 
         match system.timers.sync_mode(1) {
             SyncMode::ResetOnVSync | SyncMode::VSyncOnly => system.timers[1].counter = 0,
             _ => (),
-        };
+        }
     }
 
     pub fn exit_vsync(system: &mut System) {
@@ -63,11 +65,11 @@ impl Timers {
         }
 
         system.timers[1].last_read = system.scheduler.sysclk();
-        Timers::reschedule_interrupt_if_needed(system, 1);
+        Self::reschedule_interrupt_if_needed(system, 1);
     }
 
     pub fn enter_hsync(system: &mut System) {
-        Timers::update_value(system, 0);
+        Self::update_value(system, 0);
 
         system.timers.hblanks += 1;
         system.timers.in_hsync = true;
@@ -75,7 +77,7 @@ impl Timers {
         match system.timers.sync_mode(0) {
             SyncMode::ResetOnHSync | SyncMode::HSyncOnly => system.timers[0].counter = 0,
             _ => (),
-        };
+        }
     }
 
     pub fn exit_hsync(system: &mut System) {
@@ -86,7 +88,7 @@ impl Timers {
         }
 
         system.timers[0].last_read = system.scheduler.sysclk();
-        Timers::reschedule_interrupt_if_needed(system, 0);
+        Self::reschedule_interrupt_if_needed(system, 0);
     }
 
     fn update_value(system: &mut System, which: usize) {
@@ -106,16 +108,17 @@ impl Timers {
         }
 
         let timer = &mut system.timers[which];
-        let reset = match timer.mode.reset_to_target() {
-            true => timer.target as u32,
-            false => 0xFFFF,
+        let reset = if timer.mode.reset_to_target() {
+            u32::from(timer.target)
+        } else {
+            0xFFFF
         };
 
         // Only drain hblanks when this timer actually uses the HBlank clock.
         let delta = match system.timers.clock_source(which) {
             Clock::Cpu => clock_delta,
             Clock::CpuDiv8 => clock_delta / 8,
-            Clock::Dot => clock_delta / system.gpu.get_dot_clock_divider() as u32,
+            Clock::Dot => clock_delta / u32::from(system.gpu.get_dot_clock_divider()),
             Clock::HBlank => {
                 let h = system.timers.hblanks;
                 system.timers.hblanks = 0;
@@ -248,23 +251,9 @@ pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, data: T) {
         4 => timer.set_mode(data),
         8 => timer.target = data,
         n => unimplemented!("timer write {n}"),
-    };
+    }
 
     Timers::reschedule_interrupt_if_needed(system, which);
-}
-
-impl Index<usize> for Timers {
-    type Output = Timer;
-
-    fn index(&self, index: usize) -> &Self::Output {
-        &self.timers[index]
-    }
-}
-
-impl IndexMut<usize> for Timers {
-    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-        &mut self.timers[index]
-    }
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -340,15 +329,15 @@ pub struct Timer {
 }
 
 impl Timer {
-    fn counter(&self) -> u16 {
+    const fn counter(&self) -> u16 {
         self.counter as u16
     }
 
     fn set_counter(&mut self, val: u16) {
-        self.counter = u32::from(val)
+        self.counter = u32::from(val);
     }
 
-    fn read_mode(&mut self) -> u16 {
+    const fn read_mode(&mut self) -> u16 {
         let v = self.mode.0;
         // Bits 12-11 are reset after read.
         self.mode.0 &= !0x1800;
@@ -367,20 +356,17 @@ impl Timer {
     fn get_ticks_to_value(&self, target: u16) -> u32 {
         let counter = self.counter;
         let target = u32::from(target);
-        let reset = match self.mode.reset_to_target() {
-            true => target,
-            false => 0xFFFF,
+        let reset = if self.mode.reset_to_target() {
+            target
+        } else {
+            0xFFFF
         };
         let period = reset + 1;
 
-        if counter < target {
-            target - counter
-        } else if counter == target {
-            // Already sitting on the target so next hit is one full period away.
-            period
-        } else {
-            // counter > target: wrap around.
-            period - counter + target
+        match counter.cmp(&target) {
+            std::cmp::Ordering::Less => target - counter,
+            std::cmp::Ordering::Equal => period,
+            std::cmp::Ordering::Greater => period - counter + target,
         }
     }
 }

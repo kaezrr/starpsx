@@ -13,24 +13,24 @@ bitfield::bitfield! {
 }
 
 impl Instruction {
-    pub fn rs(&self) -> usize {
+    pub fn rs(self) -> usize {
         self.rs_raw() as usize
     }
 
-    pub fn rt(&self) -> usize {
+    pub fn rt(self) -> usize {
         self.rt_raw() as usize
     }
 
-    pub fn rd(&self) -> usize {
+    pub fn rd(self) -> usize {
         self.rd_raw() as usize
     }
 
-    pub fn imm16_se(&self) -> u32 {
+    pub fn imm16_se(self) -> u32 {
         self.imm16_se_raw() as u32
     }
 
-    pub fn is_gte_command(&self) -> bool {
-        self.0 >> 25 == 0b0100101
+    pub const fn is_gte_command(self) -> bool {
+        self.0 >> 25 == 0b010_0101
     }
 }
 
@@ -47,16 +47,16 @@ pub enum Exception {
 }
 
 impl Exception {
-    pub fn code(&self) -> u32 {
+    pub const fn code(&self) -> u32 {
         match self {
-            Exception::Interrupt => 0x0,
-            Exception::LoadAddressError(_) => 0x4,
-            Exception::StoreAddressError(_) => 0x5,
-            Exception::Syscall => 0x8,
-            Exception::Break => 0x9,
-            Exception::IllegalInstruction => 0xA,
-            Exception::CoprocessorError => 0xB,
-            Exception::Overflow => 0xC,
+            Self::Interrupt => 0x0,
+            Self::LoadAddressError(_) => 0x4,
+            Self::StoreAddressError(_) => 0x5,
+            Self::Syscall => 0x8,
+            Self::Break => 0x9,
+            Self::IllegalInstruction => 0xA,
+            Self::CoprocessorError => 0xB,
+            Self::Overflow => 0xC,
         }
     }
 }

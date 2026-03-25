@@ -56,14 +56,14 @@ pub fn yuv_to_rgb15_block(
     let (xx, yy) = pos;
     for py in 0..8 {
         for px in 0..8 {
-            let cr_val = cr[((px + xx) / 2) + ((py + yy) / 2) * 8] as i32;
-            let cb_val = cb[((px + xx) / 2) + ((py + yy) / 2) * 8] as i32;
+            let cr_val = i32::from(cr[usize::midpoint(px, xx) + usize::midpoint(py, yy) * 8]);
+            let cb_val = i32::from(cb[usize::midpoint(px, xx) + usize::midpoint(py, yy) * 8]);
 
-            let r_off = (1.402 * cr_val as f64) as i32;
-            let b_off = (1.772 * cb_val as f64) as i32;
-            let g_off = (-0.3437 * cb_val as f64 + -0.7143 * cr_val as f64) as i32;
+            let r_off = (1.402 * f64::from(cr_val)) as i32;
+            let b_off = (1.772 * f64::from(cb_val)) as i32;
+            let g_off = (-0.3437f64).mul_add(f64::from(cb_val), -0.7143 * f64::from(cr_val)) as i32;
 
-            let luma = y[px + py * 8] as i32;
+            let luma = i32::from(y[px + py * 8]);
 
             let mut r = (luma + r_off).clamp(-128, 127);
             let mut g = (luma + g_off).clamp(-128, 127);
@@ -75,10 +75,10 @@ pub fn yuv_to_rgb15_block(
                 b ^= 0x80;
             }
 
-            let r5 = (r as u8 >> 3) as u16;
-            let g5 = (g as u8 >> 3) as u16;
-            let b5 = (b as u8 >> 3) as u16;
-            let pixel = r5 | (g5 << 5) | (b5 << 10) | (b15 as u16) << 15;
+            let r5 = u16::from(r as u8 >> 3);
+            let g5 = u16::from(g as u8 >> 3);
+            let b5 = u16::from(b as u8 >> 3);
+            let pixel = r5 | (g5 << 5) | (b5 << 10) | u16::from(b15) << 15;
 
             dst[(px + xx) + (py + yy) * 16] = pixel;
         }
@@ -96,14 +96,14 @@ pub fn yuv_to_rgb24_block(
     let (xx, yy) = pos;
     for py in 0..8 {
         for px in 0..8 {
-            let cr_val = cr[((px + xx) / 2) + ((py + yy) / 2) * 8] as i32;
-            let cb_val = cb[((px + xx) / 2) + ((py + yy) / 2) * 8] as i32;
+            let cr_val = i32::from(cr[usize::midpoint(px, xx) + usize::midpoint(py, yy) * 8]);
+            let cb_val = i32::from(cb[usize::midpoint(px, xx) + usize::midpoint(py, yy) * 8]);
 
-            let r_off = (1.402 * cr_val as f64) as i32;
-            let b_off = (1.772 * cb_val as f64) as i32;
-            let g_off = (-0.3437 * cb_val as f64 + -0.7143 * cr_val as f64) as i32;
+            let r_off = (1.402 * f64::from(cr_val)) as i32;
+            let b_off = (1.772 * f64::from(cb_val)) as i32;
+            let g_off = (-0.3437f64).mul_add(f64::from(cb_val), -0.7143 * f64::from(cr_val)) as i32;
 
-            let luma = y[px + py * 8] as i32;
+            let luma = i32::from(y[px + py * 8]);
 
             let mut r = (luma + r_off).clamp(-128, 127);
             let mut g = (luma + g_off).clamp(-128, 127);

@@ -1,5 +1,6 @@
-use super::*;
-use crate::sio::memory_card::MemoryCard;
+use super::System;
+use super::gamepad::Gamepad;
+use super::memory_card::MemoryCard;
 
 #[derive(Clone, Copy, PartialEq)]
 enum State {
@@ -15,7 +16,7 @@ pub struct DeviceManager {
 }
 
 impl DeviceManager {
-    pub fn new(gamepads: [Option<Gamepad>; 2], memcards: [Option<MemoryCard>; 2]) -> Self {
+    pub const fn new(gamepads: [Option<Gamepad>; 2], memcards: [Option<MemoryCard>; 2]) -> Self {
         Self {
             gamepads,
             memcards,
@@ -28,14 +29,17 @@ impl DeviceManager {
             return;
         }
 
-        self.gamepads.iter_mut().flatten().for_each(|g| g.reset());
-        self.memcards.iter_mut().flatten().for_each(|g| g.reset());
+        self.gamepads.iter_mut().flatten().for_each(Gamepad::reset);
+        self.memcards
+            .iter_mut()
+            .flatten()
+            .for_each(MemoryCard::reset);
         self.current_state = State::None;
     }
 
     pub fn send_and_receive_byte(system: &mut System, data: u8) -> (u8, bool) {
         let sio = &mut system.sio0;
-        let port = sio.control.port_select() as usize;
+        let port = usize::from(sio.control.port_select());
 
         let (byte, next_state) = match sio.device_manager.current_state {
             State::None => match data {
@@ -54,28 +58,28 @@ impl DeviceManager {
     fn process_memcard_communication(&mut self, port: usize, data: u8) -> (u8, State) {
         self.memcards[port]
             .as_mut()
-            .map(|mc| {
+            .map_or((0xFF, State::None), |mc| {
                 let byte = mc.send_and_receive_byte(data);
-                let state = match mc.in_ack() {
-                    true => State::MemCardComm,
-                    false => State::None,
+                let state = if mc.in_ack() {
+                    State::MemCardComm
+                } else {
+                    State::None
                 };
                 (byte, state)
             })
-            .unwrap_or((0xFF, State::None))
     }
 
     fn process_gamepad_communication(&mut self, port: usize, data: u8) -> (u8, State) {
         self.gamepads[port]
             .as_mut()
-            .map(|gp| {
+            .map_or((0xFF, State::None), |gp| {
                 let byte = gp.send_and_receive_byte(data);
-                let state = match gp.in_ack() {
-                    true => State::GamepadComm,
-                    false => State::None,
+                let state = if gp.in_ack() {
+                    State::GamepadComm
+                } else {
+                    State::None
                 };
                 (byte, state)
             })
-            .unwrap_or((0xFF, State::None))
     }
 }

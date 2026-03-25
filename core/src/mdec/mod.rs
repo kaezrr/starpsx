@@ -14,8 +14,8 @@ use crate::mdec::util::yuv_to_rgb15_block;
 use crate::mdec::util::yuv_to_rgb24_block;
 use crate::mem::ByteAddressable;
 
-pub const PADDR_START: u32 = 0x1F801820;
-pub const PADDR_END: u32 = 0x1F801828;
+pub const PADDR_START: u32 = 0x1F80_1820;
+pub const PADDR_END: u32 = 0x1F80_1828;
 
 bitfield::bitfield! {
     #[derive(Default)]
@@ -101,7 +101,7 @@ impl Default for MacroDecoder {
     }
 }
 impl MacroDecoder {
-    fn status(&self) -> u32 {
+    const fn status(&self) -> u32 {
         // Bits 0-15 show number of remaining parameters minus 1, 0xFFFF = 0
         (self.status.0 & !0xFFFF) | self.params_remaining.wrapping_sub(1) as u32
     }
@@ -109,7 +109,7 @@ impl MacroDecoder {
     fn write_control(&mut self, data: u32) {
         // Reset
         if data & (1 << 31) != 0 {
-            self.status.0 = 0x80040000;
+            self.status.0 = 0x8004_0000;
             self.params_remaining = 0;
             self.collecting = None;
         }
@@ -185,7 +185,7 @@ impl MacroDecoder {
         }
     }
 
-    fn handle_command(&mut self, collected: Command) {
+    fn handle_command(&mut self, collected: &Command) {
         match collected.command_type {
             CommandType::DecodeMacroblock {
                 depth,
@@ -293,7 +293,11 @@ impl MacroDecoder {
             }
 
             CommandType::SetScaleTable => {
-                let scale_table: [u32; 32] = collected.parameters.clone().try_into().unwrap();
+                let scale_table: [u32; 32] = collected
+                    .parameters
+                    .clone()
+                    .try_into()
+                    .expect("scale table is 32 words");
                 self.scale_table = bytemuck::cast(scale_table);
             }
         }
@@ -309,7 +313,7 @@ impl MacroDecoder {
 
                 if self.params_remaining == 0 {
                     self.status.set_busy(false);
-                    self.handle_command(collected); // Consume
+                    self.handle_command(&collected); // Consume
                 } else {
                     self.collecting = Some(collected);
                 }
@@ -318,7 +322,7 @@ impl MacroDecoder {
     }
 
     pub fn response(&mut self) -> u32 {
-        let data = self.output_fifo.pop_front().unwrap_or(0xFE00FE00);
+        let data = self.output_fifo.pop_front().unwrap_or(0xFE00_FE00);
         if self.output_fifo.is_empty() {
             self.status.set_out_fifo_empty(true);
         }
@@ -333,7 +337,8 @@ impl MacroDecoder {
                 for y in 0..8 {
                     let mut sum: i32 = 0;
                     for z in 0..8 {
-                        sum += src[y + z * 8] as i32 * (self.scale_table[x + z * 8] as i32 / 8);
+                        sum += i32::from(src[y + z * 8])
+                            * (i32::from(self.scale_table[x + z * 8]) / 8);
                     }
                     dst[x + y * 8] = ((sum + 0xFFF) / 0x2000) as i16;
                 }
@@ -353,13 +358,13 @@ impl MacroDecoder {
             return [0; 64];
         }
 
-        let first_word = source.pop_front().unwrap();
-        let q_fact = ((first_word >> 10) & 0x3F) as i32;
+        let first_word = source.pop_front().expect("source is not empty");
+        let q_fact = i32::from((first_word >> 10) & 0x3F);
         let dc_coeff = signed10bit(first_word & 0x3FF);
         let dc_val = if q_fact == 0 {
             (dc_coeff * 2).clamp(-0x400, 0x3FF)
         } else {
-            (dc_coeff * qt[0] as i16).clamp(-0x400, 0x3FF)
+            (dc_coeff * i16::from(qt[0])).clamp(-0x400, 0x3FF)
         };
         block[ZAG_ZIG[0]] = dc_val;
 
@@ -373,11 +378,11 @@ impl MacroDecoder {
             if k > 63 {
                 break;
             }
-            let ac_level = signed10bit(n & 0x3FF) as i32;
+            let ac_level = i32::from(signed10bit(n & 0x3FF));
             let val = if q_fact == 0 {
                 (ac_level * 2).clamp(-0x400, 0x3FF)
             } else {
-                let qt_val = qt[k] as i32;
+                let qt_val = i32::from(qt[k]);
                 ((ac_level * qt_val * q_fact + 4) / 8).clamp(-0x400, 0x3FF)
             };
             let target_idx = if q_fact == 0 { k } else { ZAG_ZIG[k] };
@@ -395,8 +400,8 @@ impl MacroDecoder {
 
 pub fn read<T: ByteAddressable>(system: &mut System, addr: u32) -> T {
     let data = match addr {
-        0x1F801820 => system.mdec.response(),
-        0x1F801824 => system.mdec.status(),
+        0x1F80_1820 => system.mdec.response(),
+        0x1F80_1824 => system.mdec.status(),
         _ => unimplemented!("MDEC read {addr:x}"),
     };
 
@@ -411,8 +416,8 @@ pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, data: T) {
     debug!("mdec write {addr:x}={data:x}");
 
     match addr {
-        0x1F801820 => system.mdec.command_or_param(data),
-        0x1F801824 => system.mdec.write_control(data),
+        0x1F80_1820 => system.mdec.command_or_param(data),
+        0x1F80_1824 => system.mdec.write_control(data),
         _ => unimplemented!("MDEC write {addr:x}={data:x}"),
     }
 }

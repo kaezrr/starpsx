@@ -1,6 +1,6 @@
 use num_enum::FromPrimitive;
 
-#[derive(PartialEq, Clone, Copy, Debug, FromPrimitive)]
+#[derive(PartialEq, Eq, Clone, Copy, Debug, FromPrimitive)]
 #[repr(u8)]
 pub enum Direction {
     #[default]
@@ -8,7 +8,7 @@ pub enum Direction {
     FromRam,
 }
 
-#[derive(PartialEq, Clone, Copy, FromPrimitive)]
+#[derive(PartialEq, Eq, Clone, Copy, FromPrimitive)]
 #[repr(u8)]
 pub enum Step {
     #[default]
@@ -16,7 +16,7 @@ pub enum Step {
     Decrement,
 }
 
-#[derive(PartialEq, Clone, Copy, FromPrimitive)]
+#[derive(PartialEq, Eq, Clone, Copy, FromPrimitive)]
 #[repr(u8)]
 pub enum Mode {
     #[default]
@@ -25,7 +25,7 @@ pub enum Mode {
     LinkedList,
 }
 
-#[derive(PartialEq, Clone, Copy, Debug, FromPrimitive)]
+#[derive(PartialEq, Eq, Clone, Copy, Debug, FromPrimitive)]
 #[repr(usize)]
 pub enum Port {
     // Macroblock decoder input
