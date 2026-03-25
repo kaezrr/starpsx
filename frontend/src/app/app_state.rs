@@ -13,12 +13,12 @@ pub struct AppState {
     pub frame_rx: Receiver<FrameBuffer>,
     pub texture: egui::TextureHandle,
 
-    /// (width, height, was_interlaced)
+    /// (width, height, interlaced)
     pub last_frame_state: Option<([usize; 2], bool)>,
 }
 
 impl AppState {
-    pub fn present_frame_buffer(&mut self, fb: FrameBuffer) {
+    pub fn present_frame_buffer(&mut self, fb: &FrameBuffer) {
         let rgba_bytes = bytemuck::cast_slice(&fb.rgba);
         let image = egui::ColorImage::from_rgba_unmultiplied(fb.resolution, rgba_bytes);
 

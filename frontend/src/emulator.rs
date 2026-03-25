@@ -156,13 +156,13 @@ impl Emulator {
 
         let tmp_path = path.with_extension("mcd.tmp");
         if let Err(err) =
-            std::fs::write(&tmp_path, data).and_then(|_| std::fs::rename(&tmp_path, path))
+            std::fs::write(&tmp_path, data).and_then(|()| std::fs::rename(&tmp_path, path))
         {
             tracing::error!("failed to save memory card: {err}");
         }
     }
 
-    fn update_core_gamepad(&mut self, new_state: GamepadState) {
+    fn update_core_gamepad(&mut self, new_state: &GamepadState) {
         let gamepad = self.system.gamepad_mut();
         gamepad.set_buttons(new_state.buttons);
         gamepad.set_analog_mode(new_state.analog_mode);
@@ -187,7 +187,7 @@ impl Emulator {
                     UiCommand::Shutdown => break 'emulator,
 
                     UiCommand::NewInputState(gamepad_state) => {
-                        self.update_core_gamepad(gamepad_state)
+                        self.update_core_gamepad(&gamepad_state);
                     }
 
                     UiCommand::Restart => {
@@ -196,15 +196,17 @@ impl Emulator {
                             self.file_path.as_ref(),
                             self.memory_card.as_deref(),
                         )
-                        .unwrap();
+                        .expect("restart emulator");
+
                         self.shared_state.resume();
                         info!("emulator thread restarted...");
                     }
 
                     UiCommand::DebugSetBreakpoint(address, enabled) => {
-                        match enabled {
-                            true => self.breakpoints.insert(address),
-                            false => self.breakpoints.remove(&address),
+                        if enabled {
+                            self.breakpoints.insert(address)
+                        } else {
+                            self.breakpoints.remove(&address)
                         };
                     }
                     UiCommand::DebugStep => {
@@ -298,7 +300,7 @@ impl SharedState {
 
 pub fn parse_runnable(path: PathBuf) -> anyhow::Result<RunnablePath> {
     match path.extension().and_then(|e| e.to_str()) {
-        Some("exe") | Some("ps-exe") => Ok(RunnablePath::Exe(path)),
+        Some("exe" | "ps-exe") => Ok(RunnablePath::Exe(path)),
         Some("bin") => Ok(RunnablePath::Bin(path)),
         Some("cue") => Ok(RunnablePath::Cue(path)),
         _ => anyhow::bail!("unsupported file format"),

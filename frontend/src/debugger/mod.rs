@@ -42,18 +42,18 @@ impl Debugger {
             input_tx,
             snapshot_rx,
 
-            breakpoints: Default::default(),
-            state_view: Default::default(),
-            address_input: Default::default(),
-            prev_snapshot: Default::default(),
-            curr_snapshot: Default::default(),
+            breakpoints: Vec::default(),
+            state_view: StateView::default(),
+            address_input: String::default(),
+            prev_snapshot: None,
+            curr_snapshot: None,
 
             pc_changed: false,
         }
     }
 
     pub fn sync_send(&self, cmd: UiCommand) {
-        self.input_tx.send(cmd).unwrap();
+        self.input_tx.send(cmd).expect("send to ui channel");
     }
 
     pub fn send(&self, cmd: UiCommand) {
@@ -65,10 +65,11 @@ impl Debugger {
     }
 
     pub fn toggle_pause(&self) {
-        match self.shared_state.is_paused() {
-            true => self.shared_state.resume(),
-            false => self.shared_state.pause(),
-        };
+        if self.shared_state.is_paused() {
+            self.shared_state.resume();
+        } else {
+            self.shared_state.pause();
+        }
     }
 
     pub fn load_metrics(&self) -> (f32, f32) {
@@ -288,25 +289,25 @@ impl Debugger {
 
                         row.col(|ui| {
                             if is_current_pc {
-                                paint_bg(ui)
+                                paint_bg(ui);
                             }
                             line_indicator(ui, snapshot.pc, *addr, &breakpoint_set);
                         });
                         row.col(|ui| {
                             if is_current_pc {
-                                paint_bg(ui)
+                                paint_bg(ui);
                             }
                             monospace_hex(ui, *addr, true);
                         });
                         row.col(|ui| {
                             if is_current_pc {
-                                paint_bg(ui)
+                                paint_bg(ui);
                             }
                             monospace_hex(ui, *word, false);
                         });
                         row.col(|ui| {
                             if is_current_pc {
-                                paint_bg(ui)
+                                paint_bg(ui);
                             }
                             disasm.label_monospace(ui);
                         });
@@ -376,7 +377,7 @@ impl Debugger {
                             let mut enabled = br.enabled;
                             if ui.checkbox(&mut enabled, "").changed() {
                                 actions.push(BreakpointAction::Toggle { index: i, enabled });
-                            };
+                            }
                         });
                         row.col(|ui| {
                             monospace_hex(ui, br.address, true);

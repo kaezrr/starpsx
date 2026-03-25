@@ -22,7 +22,7 @@ pub struct DisasmLine {
 
 impl DisasmLine {
     fn push_tokens(&mut self, tokens: Vec<DisasmToken>) {
-        self.tokens.extend(tokens)
+        self.tokens.extend(tokens);
     }
 
     /// Draw disassembly as monospace highlighted text
@@ -85,7 +85,7 @@ pub fn decode_instruction_line(instr: u32, addr: u32) -> DisasmLine {
     let target_addr = (addr & 0xF000_0000) | (target26 << 2);
     let branch_target = addr
         .wrapping_add(4)
-        .wrapping_add(((simm as i32) << 2) as u32);
+        .wrapping_add((i32::from(simm) << 2) as u32);
 
     let rsn = REG_NAME[rs as usize];
     let rtn = REG_NAME[rt as usize];
@@ -100,7 +100,7 @@ pub fn decode_instruction_line(instr: u32, addr: u32) -> DisasmLine {
                         DisasmToken::Mnemonic("sll"),
                         DisasmToken::RegisterName(rdn),
                         DisasmToken::RegisterName(rtn),
-                        DisasmToken::Literal(format!("{}", shamt)),
+                        DisasmToken::Literal(format!("{shamt}")),
                     ]);
                 }
                 0x02 => {
@@ -108,7 +108,7 @@ pub fn decode_instruction_line(instr: u32, addr: u32) -> DisasmLine {
                         DisasmToken::Mnemonic("srl"),
                         DisasmToken::RegisterName(rdn),
                         DisasmToken::RegisterName(rtn),
-                        DisasmToken::Literal(format!("{}", shamt)),
+                        DisasmToken::Literal(format!("{shamt}")),
                     ]);
                 }
                 0x03 => {
@@ -116,7 +116,7 @@ pub fn decode_instruction_line(instr: u32, addr: u32) -> DisasmLine {
                         DisasmToken::Mnemonic("sra"),
                         DisasmToken::RegisterName(rdn),
                         DisasmToken::RegisterName(rtn),
-                        DisasmToken::Literal(format!("{}", shamt)),
+                        DisasmToken::Literal(format!("{shamt}")),
                     ]);
                 }
                 0x04 => {
@@ -306,34 +306,34 @@ pub fn decode_instruction_line(instr: u32, addr: u32) -> DisasmLine {
                     line.push_tokens(vec![
                         DisasmToken::Mnemonic("bltz"),
                         DisasmToken::RegisterName(rsn),
-                        DisasmToken::Literal(format!("{:#010x}", branch_target)),
+                        DisasmToken::Literal(format!("{branch_target:#010x}")),
                     ]);
                 }
                 0x01 => {
                     line.push_tokens(vec![
                         DisasmToken::Mnemonic("bgez"),
                         DisasmToken::RegisterName(rsn),
-                        DisasmToken::Literal(format!("{:#010x}", branch_target)),
+                        DisasmToken::Literal(format!("{branch_target:#010x}")),
                     ]);
                 }
                 0x10 => {
                     line.push_tokens(vec![
                         DisasmToken::Mnemonic("bltzal"),
                         DisasmToken::RegisterName(rsn),
-                        DisasmToken::Literal(format!("{:#010x}", branch_target)),
+                        DisasmToken::Literal(format!("{branch_target:#010x}")),
                     ]);
                 }
                 0x11 => {
                     line.push_tokens(vec![
                         DisasmToken::Mnemonic("bgezal"),
                         DisasmToken::RegisterName(rsn),
-                        DisasmToken::Literal(format!("{:#010x}", branch_target)),
+                        DisasmToken::Literal(format!("{branch_target:#010x}")),
                     ]);
                 }
                 _ => {
                     line.push_tokens(vec![
                         DisasmToken::Mnemonic("unknown"),
-                        DisasmToken::Literal(format!("{:#010x}", instr)),
+                        DisasmToken::Literal(format!("{instr:#010x}")),
                     ]);
                 }
             }
@@ -341,13 +341,13 @@ pub fn decode_instruction_line(instr: u32, addr: u32) -> DisasmLine {
         0x02 => {
             line.push_tokens(vec![
                 DisasmToken::Mnemonic("j"),
-                DisasmToken::Literal(format!("{:#010x}", target_addr)),
+                DisasmToken::Literal(format!("{target_addr:#010x}")),
             ]);
         }
         0x03 => {
             line.push_tokens(vec![
                 DisasmToken::Mnemonic("jal"),
-                DisasmToken::Literal(format!("{:#010x}", target_addr)),
+                DisasmToken::Literal(format!("{target_addr:#010x}")),
             ]);
         }
         0x04 => {
@@ -355,7 +355,7 @@ pub fn decode_instruction_line(instr: u32, addr: u32) -> DisasmLine {
                 DisasmToken::Mnemonic("beq"),
                 DisasmToken::RegisterName(rsn),
                 DisasmToken::RegisterName(rtn),
-                DisasmToken::Literal(format!("{:#010x}", branch_target)),
+                DisasmToken::Literal(format!("{branch_target:#010x}")),
             ]);
         }
         0x05 => {
@@ -363,21 +363,21 @@ pub fn decode_instruction_line(instr: u32, addr: u32) -> DisasmLine {
                 DisasmToken::Mnemonic("bne"),
                 DisasmToken::RegisterName(rsn),
                 DisasmToken::RegisterName(rtn),
-                DisasmToken::Literal(format!("{:#010x}", branch_target)),
+                DisasmToken::Literal(format!("{branch_target:#010x}")),
             ]);
         }
         0x06 => {
             line.push_tokens(vec![
                 DisasmToken::Mnemonic("blez"),
                 DisasmToken::RegisterName(rsn),
-                DisasmToken::Literal(format!("{:#010x}", branch_target)),
+                DisasmToken::Literal(format!("{branch_target:#010x}")),
             ]);
         }
         0x07 => {
             line.push_tokens(vec![
                 DisasmToken::Mnemonic("bgtz"),
                 DisasmToken::RegisterName(rsn),
-                DisasmToken::Literal(format!("{:#010x}", branch_target)),
+                DisasmToken::Literal(format!("{branch_target:#010x}")),
             ]);
         }
         0x08 => {
@@ -385,7 +385,7 @@ pub fn decode_instruction_line(instr: u32, addr: u32) -> DisasmLine {
                 DisasmToken::Mnemonic("addi"),
                 DisasmToken::RegisterName(rtn),
                 DisasmToken::RegisterName(rsn),
-                DisasmToken::Literal(format!("{}", simm)),
+                DisasmToken::Literal(format!("{simm}")),
             ]);
         }
         0x09 => {
@@ -393,7 +393,7 @@ pub fn decode_instruction_line(instr: u32, addr: u32) -> DisasmLine {
                 DisasmToken::Mnemonic("addiu"),
                 DisasmToken::RegisterName(rtn),
                 DisasmToken::RegisterName(rsn),
-                DisasmToken::Literal(format!("{}", simm)),
+                DisasmToken::Literal(format!("{simm}")),
             ]);
         }
         0x0A => {
@@ -401,7 +401,7 @@ pub fn decode_instruction_line(instr: u32, addr: u32) -> DisasmLine {
                 DisasmToken::Mnemonic("slti"),
                 DisasmToken::RegisterName(rtn),
                 DisasmToken::RegisterName(rsn),
-                DisasmToken::Literal(format!("{}", simm)),
+                DisasmToken::Literal(format!("{simm}")),
             ]);
         }
         0x0B => {
@@ -409,7 +409,7 @@ pub fn decode_instruction_line(instr: u32, addr: u32) -> DisasmLine {
                 DisasmToken::Mnemonic("sltiu"),
                 DisasmToken::RegisterName(rtn),
                 DisasmToken::RegisterName(rsn),
-                DisasmToken::Literal(format!("{}", simm)),
+                DisasmToken::Literal(format!("{simm}")),
             ]);
         }
         0x0C => {
@@ -417,7 +417,7 @@ pub fn decode_instruction_line(instr: u32, addr: u32) -> DisasmLine {
                 DisasmToken::Mnemonic("andi"),
                 DisasmToken::RegisterName(rtn),
                 DisasmToken::RegisterName(rsn),
-                DisasmToken::Literal(format!("{:#x}", imm)),
+                DisasmToken::Literal(format!("{imm:#x}")),
             ]);
         }
         0x0D => {
@@ -425,7 +425,7 @@ pub fn decode_instruction_line(instr: u32, addr: u32) -> DisasmLine {
                 DisasmToken::Mnemonic("ori"),
                 DisasmToken::RegisterName(rtn),
                 DisasmToken::RegisterName(rsn),
-                DisasmToken::Literal(format!("{:#x}", imm)),
+                DisasmToken::Literal(format!("{imm:#x}")),
             ]);
         }
         0x0E => {
@@ -433,14 +433,14 @@ pub fn decode_instruction_line(instr: u32, addr: u32) -> DisasmLine {
                 DisasmToken::Mnemonic("xori"),
                 DisasmToken::RegisterName(rtn),
                 DisasmToken::RegisterName(rsn),
-                DisasmToken::Literal(format!("{:#x}", imm)),
+                DisasmToken::Literal(format!("{imm:#x}")),
             ]);
         }
         0x0F => {
             line.push_tokens(vec![
                 DisasmToken::Mnemonic("lui"),
                 DisasmToken::RegisterName(rtn),
-                DisasmToken::Literal(format!("{:#x}", imm)),
+                DisasmToken::Literal(format!("{imm:#x}")),
             ]);
         }
         0x10 => {
@@ -455,7 +455,7 @@ pub fn decode_instruction_line(instr: u32, addr: u32) -> DisasmLine {
                     _ => {
                         line.push_tokens(vec![
                             DisasmToken::Mnemonic("cop0"),
-                            DisasmToken::Literal(format!("{:#x}", instr & 0x01FFFFFF)),
+                            DisasmToken::Literal(format!("{:#x}", instr & 0x01FF_FFFF)),
                         ]);
                     }
                 }
@@ -495,19 +495,19 @@ pub fn decode_instruction_line(instr: u32, addr: u32) -> DisasmLine {
                         if (rt & 0x01) == 0 {
                             line.push_tokens(vec![
                                 DisasmToken::Mnemonic("bc0f"),
-                                DisasmToken::Literal(format!("{:#010x}", branch_target)),
+                                DisasmToken::Literal(format!("{branch_target:#010x}")),
                             ]);
                         } else {
                             line.push_tokens(vec![
                                 DisasmToken::Mnemonic("bc0t"),
-                                DisasmToken::Literal(format!("{:#010x}", branch_target)),
+                                DisasmToken::Literal(format!("{branch_target:#010x}")),
                             ]);
                         }
                     }
                     _ => {
                         line.push_tokens(vec![
                             DisasmToken::Mnemonic("cop0"),
-                            DisasmToken::Literal(format!("{:#010x}", instr)),
+                            DisasmToken::Literal(format!("{instr:#010x}")),
                         ]);
                     }
                 }
@@ -518,7 +518,7 @@ pub fn decode_instruction_line(instr: u32, addr: u32) -> DisasmLine {
             if (instr & (1 << 25)) != 0 {
                 line.push_tokens(vec![
                     DisasmToken::Mnemonic("cop1"),
-                    DisasmToken::Literal(format!("{:#x}", instr & 0x01FFFFFF)),
+                    DisasmToken::Literal(format!("{:#x}", instr & 0x01FF_FFFF)),
                 ]);
             } else {
                 match rs {
@@ -554,19 +554,19 @@ pub fn decode_instruction_line(instr: u32, addr: u32) -> DisasmLine {
                         if (rt & 0x01) == 0 {
                             line.push_tokens(vec![
                                 DisasmToken::Mnemonic("bc1f"),
-                                DisasmToken::Literal(format!("{:#010x}", branch_target)),
+                                DisasmToken::Literal(format!("{branch_target:#010x}")),
                             ]);
                         } else {
                             line.push_tokens(vec![
                                 DisasmToken::Mnemonic("bc1t"),
-                                DisasmToken::Literal(format!("{:#010x}", branch_target)),
+                                DisasmToken::Literal(format!("{branch_target:#010x}")),
                             ]);
                         }
                     }
                     _ => {
                         line.push_tokens(vec![
                             DisasmToken::Mnemonic("cop1"),
-                            DisasmToken::Literal(format!("{:#010x}", instr)),
+                            DisasmToken::Literal(format!("{instr:#010x}")),
                         ]);
                     }
                 }
@@ -577,7 +577,7 @@ pub fn decode_instruction_line(instr: u32, addr: u32) -> DisasmLine {
             if (instr & (1 << 25)) != 0 {
                 line.push_tokens(vec![
                     DisasmToken::Mnemonic("cop2"),
-                    DisasmToken::Literal(format!("{:#x}", instr & 0x01FFFFFF)),
+                    DisasmToken::Literal(format!("{:#x}", instr & 0x01FF_FFFF)),
                 ]);
             } else {
                 match rs {
@@ -613,19 +613,19 @@ pub fn decode_instruction_line(instr: u32, addr: u32) -> DisasmLine {
                         if (rt & 0x01) == 0 {
                             line.push_tokens(vec![
                                 DisasmToken::Mnemonic("bc2f"),
-                                DisasmToken::Literal(format!("{:#010x}", branch_target)),
+                                DisasmToken::Literal(format!("{branch_target:#010x}")),
                             ]);
                         } else {
                             line.push_tokens(vec![
                                 DisasmToken::Mnemonic("bc2t"),
-                                DisasmToken::Literal(format!("{:#010x}", branch_target)),
+                                DisasmToken::Literal(format!("{branch_target:#010x}")),
                             ]);
                         }
                     }
                     _ => {
                         line.push_tokens(vec![
                             DisasmToken::Mnemonic("cop2"),
-                            DisasmToken::Literal(format!("{:#010x}", instr)),
+                            DisasmToken::Literal(format!("{instr:#010x}")),
                         ]);
                     }
                 }
@@ -640,49 +640,49 @@ pub fn decode_instruction_line(instr: u32, addr: u32) -> DisasmLine {
             line.push_tokens(vec![
                 DisasmToken::Mnemonic("lb"),
                 DisasmToken::RegisterName(rtn),
-                DisasmToken::Literal(format!("{}({})", simm, rsn)),
+                DisasmToken::Literal(format!("{simm}({rsn})")),
             ]);
         }
         0x21 => {
             line.push_tokens(vec![
                 DisasmToken::Mnemonic("lh"),
                 DisasmToken::RegisterName(rtn),
-                DisasmToken::Literal(format!("{}({})", simm, rsn)),
+                DisasmToken::Literal(format!("{simm}({rsn})")),
             ]);
         }
         0x22 => {
             line.push_tokens(vec![
                 DisasmToken::Mnemonic("lwl"),
                 DisasmToken::RegisterName(rtn),
-                DisasmToken::Literal(format!("{}({})", simm, rsn)),
+                DisasmToken::Literal(format!("{simm}({rsn})")),
             ]);
         }
         0x23 => {
             line.push_tokens(vec![
                 DisasmToken::Mnemonic("lw"),
                 DisasmToken::RegisterName(rtn),
-                DisasmToken::Literal(format!("{}({})", simm, rsn)),
+                DisasmToken::Literal(format!("{simm}({rsn})")),
             ]);
         }
         0x24 => {
             line.push_tokens(vec![
                 DisasmToken::Mnemonic("lbu"),
                 DisasmToken::RegisterName(rtn),
-                DisasmToken::Literal(format!("{}({})", simm, rsn)),
+                DisasmToken::Literal(format!("{simm}({rsn})")),
             ]);
         }
         0x25 => {
             line.push_tokens(vec![
                 DisasmToken::Mnemonic("lhu"),
                 DisasmToken::RegisterName(rtn),
-                DisasmToken::Literal(format!("{}({})", simm, rsn)),
+                DisasmToken::Literal(format!("{simm}({rsn})")),
             ]);
         }
         0x26 => {
             line.push_tokens(vec![
                 DisasmToken::Mnemonic("lwr"),
                 DisasmToken::RegisterName(rtn),
-                DisasmToken::Literal(format!("{}({})", simm, rsn)),
+                DisasmToken::Literal(format!("{simm}({rsn})")),
             ]);
         }
         // Stores
@@ -690,35 +690,35 @@ pub fn decode_instruction_line(instr: u32, addr: u32) -> DisasmLine {
             line.push_tokens(vec![
                 DisasmToken::Mnemonic("sb"),
                 DisasmToken::RegisterName(rtn),
-                DisasmToken::Literal(format!("{}({})", simm, rsn)),
+                DisasmToken::Literal(format!("{simm}({rsn})")),
             ]);
         }
         0x29 => {
             line.push_tokens(vec![
                 DisasmToken::Mnemonic("sh"),
                 DisasmToken::RegisterName(rtn),
-                DisasmToken::Literal(format!("{}({})", simm, rsn)),
+                DisasmToken::Literal(format!("{simm}({rsn})")),
             ]);
         }
         0x2A => {
             line.push_tokens(vec![
                 DisasmToken::Mnemonic("swl"),
                 DisasmToken::RegisterName(rtn),
-                DisasmToken::Literal(format!("{}({})", simm, rsn)),
+                DisasmToken::Literal(format!("{simm}({rsn})")),
             ]);
         }
         0x2B => {
             line.push_tokens(vec![
                 DisasmToken::Mnemonic("sw"),
                 DisasmToken::RegisterName(rtn),
-                DisasmToken::Literal(format!("{}({})", simm, rsn)),
+                DisasmToken::Literal(format!("{simm}({rsn})")),
             ]);
         }
         0x2E => {
             line.push_tokens(vec![
                 DisasmToken::Mnemonic("swr"),
                 DisasmToken::RegisterName(rtn),
-                DisasmToken::Literal(format!("{}({})", simm, rsn)),
+                DisasmToken::Literal(format!("{simm}({rsn})")),
             ]);
         }
         // Coprocessor loads
@@ -727,7 +727,7 @@ pub fn decode_instruction_line(instr: u32, addr: u32) -> DisasmLine {
             line.push_tokens(vec![
                 DisasmToken::Mnemonic("lwc2"),
                 DisasmToken::RegisterName(rtn),
-                DisasmToken::Literal(format!("{}({})", simm, rsn)),
+                DisasmToken::Literal(format!("{simm}({rsn})")),
             ]);
         }
         // Coprocessor stores
@@ -736,7 +736,7 @@ pub fn decode_instruction_line(instr: u32, addr: u32) -> DisasmLine {
             line.push_tokens(vec![
                 DisasmToken::Mnemonic("swc2"),
                 DisasmToken::RegisterName(rtn),
-                DisasmToken::Literal(format!("{}({})", simm, rsn)),
+                DisasmToken::Literal(format!("{simm}({rsn})")),
             ]);
         }
         _ => {

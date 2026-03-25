@@ -26,12 +26,15 @@ pub enum RunnablePath {
 impl RunnablePath {
     pub fn file_prefix(&self) -> String {
         let buf = match self {
-            RunnablePath::Exe(path_buf) => path_buf,
-            RunnablePath::Bin(path_buf) => path_buf,
-            RunnablePath::Cue(path_buf) => path_buf,
+            RunnablePath::Exe(path_buf)
+            | RunnablePath::Bin(path_buf)
+            | RunnablePath::Cue(path_buf) => path_buf,
         };
 
-        buf.file_prefix().unwrap().to_string_lossy().into_owned()
+        buf.file_prefix()
+            .expect("file prefix")
+            .to_string_lossy()
+            .into_owned()
     }
 }
 
@@ -47,7 +50,7 @@ pub struct Args {
     #[arg(short, long)]
     auto_run: bool,
 
-    /// Show debugger_view on startup
+    /// Show `debugger_view` on startup
     #[arg(short, long)]
     debugger_view: bool,
 
