@@ -5,22 +5,18 @@ use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::AtomicU32;
 use std::sync::atomic::Ordering;
+use std::sync::mpsc;
 use std::sync::mpsc::Receiver;
 use std::sync::mpsc::SyncSender;
 use std::time::Duration;
 use std::time::Instant;
 
 use anyhow::Context;
-use cpal::Stream;
 use cpal::StreamConfig;
 use cpal::default_host;
 use cpal::traits::DeviceTrait;
 use cpal::traits::HostTrait;
 use cpal::traits::StreamTrait;
-use ringbuf::HeapRb;
-use ringbuf::traits::Consumer;
-use ringbuf::traits::Producer;
-use ringbuf::traits::Split;
 use starpsx_core::RunType;
 use starpsx_core::SystemSnapshot;
 use starpsx_renderer::FrameBuffer;
@@ -31,7 +27,13 @@ use tracing::warn;
 use crate::config::RunnablePath;
 use crate::input::GamepadState;
 
-pub const RING_BUFFER_SIZE: usize = 8192;
+const FRAME_TIME: Duration = Duration::from_nanos(16_666_667);
+
+const AUDIO_STREAM_CONFIG: StreamConfig = StreamConfig {
+    channels: 2,
+    sample_rate: 44100_u32,
+    buffer_size: cpal::BufferSize::Default,
+};
 
 pub enum UiCommand {
     NewInputState(GamepadState),
@@ -45,11 +47,16 @@ pub enum UiCommand {
     DebugRequestState,
 }
 
+pub struct UiChannels {
+    pub frame_tx: SyncSender<FrameBuffer>,
+    pub input_rx: Receiver<UiCommand>,
+    pub snapshot_tx: SyncSender<SystemSnapshot>,
+}
+
 pub struct Emulator {
     channels: UiChannels,
     shared_state: Arc<SharedState>,
     system: starpsx_core::System,
-    audio_stream: Stream,
     breakpoints: HashSet<u32>,
     bios_path: PathBuf,
     file_path: Option<RunnablePath>,
@@ -58,32 +65,20 @@ pub struct Emulator {
     full_speed: bool,
 }
 
-pub struct UiChannels {
-    pub frame_tx: SyncSender<FrameBuffer>,
-    pub input_rx: Receiver<UiCommand>,
-    pub snapshot_tx: SyncSender<SystemSnapshot>,
-}
-
 impl Emulator {
     pub fn build(
         channels: UiChannels,
         shared_state: Arc<SharedState>,
-
         bios_path: PathBuf,
         file_path: Option<RunnablePath>,
         memory_card: Option<PathBuf>,
-
         show_vram: bool,
         full_speed: bool,
     ) -> anyhow::Result<Self> {
-        let (system, audio_stream) =
-            Self::build_system(&bios_path, file_path.as_ref(), memory_card.as_deref())?;
-
         Ok(Self {
             channels,
             shared_state,
-            system,
-            audio_stream,
+            system: build_system(&bios_path, file_path.as_ref(), memory_card.as_deref())?,
             bios_path,
             file_path,
             memory_card,
@@ -93,94 +88,16 @@ impl Emulator {
         })
     }
 
-    fn build_system(
-        bios_path: &Path,
-        file_path: Option<&RunnablePath>,
-        memory_card: Option<&Path>,
-    ) -> anyhow::Result<(starpsx_core::System, Stream)> {
-        const STREAM_CONFIG: StreamConfig = StreamConfig {
-            channels: 2,
-            sample_rate: 44100_u32,
-            buffer_size: cpal::BufferSize::Default,
-        };
+    pub fn run(self) -> anyhow::Result<()> {
+        let (audio_tx, audio_rx) = mpsc::sync_channel::<[i16; 2]>(8192);
+        let audio_stream = build_audio_stream(audio_rx)?;
 
-        let device = default_host()
-            .default_output_device()
-            .context("no output device available")?;
+        std::thread::spawn(move || {
+            info!("emulator thread started...");
+            self.main_loop(&audio_stream, &audio_tx);
+        });
 
-        let rb = HeapRb::<[i16; 2]>::new(RING_BUFFER_SIZE);
-        let (mut audio_tx, mut audio_rx) = rb.split();
-
-        // Prefill silence
-        for _ in 0..(RING_BUFFER_SIZE) {
-            let _ = audio_tx.try_push([0, 0]);
-        }
-
-        let audio_stream = device.build_output_stream(
-            &STREAM_CONFIG,
-            move |data: &mut [i16], _: &cpal::OutputCallbackInfo| {
-                for frame in data.chunks_exact_mut(2) {
-                    let frame_out = audio_rx.try_pop().unwrap_or([0, 0]);
-                    frame.copy_from_slice(&frame_out);
-                }
-            },
-            move |err| {
-                error!("an error occurred on the output audio stream: {err}");
-            },
-            None,
-        )?;
-
-        let bios = std::fs::read(bios_path)?;
-        let run_type = file_path
-            .map(|run_type| -> anyhow::Result<RunType> {
-                let bytes = match run_type {
-                    RunnablePath::Exe(path) => RunType::Executable(std::fs::read(path)?),
-                    RunnablePath::Bin(path) => RunType::Binary(std::fs::read(path)?),
-                    RunnablePath::Cue(path) => RunType::Disk(cue::build_disk(path)?),
-                };
-                Ok(bytes)
-            })
-            .transpose()?;
-
-        let memory_card = memory_card
-            .as_ref()
-            .map(|path| -> anyhow::Result<Box<[u8; 0x20000]>> {
-                let bytes = if path.exists() {
-                    let bytes = std::fs::read(path)?;
-                    bytes
-                        .try_into()
-                        .map_err(|_| anyhow::anyhow!("memory card is wrong size"))?
-                } else {
-                    if let Some(parent) = path.parent() {
-                        std::fs::create_dir_all(parent)?;
-                    }
-                    let blank = Box::new(*include_bytes!("blank.mcd"));
-                    std::fs::write(path, blank.as_ref())?;
-                    blank
-                };
-                info!(?path, "Using memory card");
-                Ok(bytes)
-            })
-            .transpose()?;
-
-        let system = starpsx_core::System::build(bios, run_type, audio_tx, memory_card)?;
-        Ok((system, audio_stream))
-    }
-
-    fn rebuild_system(&mut self) -> anyhow::Result<()> {
-        let (system, audio_stream) = Self::build_system(
-            &self.bios_path,
-            self.file_path.as_ref(),
-            self.memory_card.as_deref(),
-        )?;
-        self.system = system;
-        self.audio_stream = audio_stream;
         Ok(())
-    }
-
-    pub fn run(self) {
-        std::thread::spawn(move || self.main_loop());
-        info!("emulator thread started...");
     }
 
     fn send_debug_snapshot(&self) {
@@ -216,7 +133,7 @@ impl Emulator {
     }
 
     fn send_frame_buffer(&self, buffer: FrameBuffer) {
-        // Non blocking send
+        // Non-blocking send
         let _ = self.channels.frame_tx.try_send(buffer);
     }
 
@@ -229,11 +146,19 @@ impl Emulator {
                 UiCommand::DebugRequestState => self.send_debug_snapshot(),
                 UiCommand::NewInputState(state) => self.update_core_gamepad(&state),
                 UiCommand::SetSpeed(value) => self.full_speed = value,
-
-                UiCommand::Restart => match self.rebuild_system() {
-                    Ok(()) => info!("emulator restarted"),
-                    Err(e) => error!("failed to restart emulator: {e}"),
-                },
+                UiCommand::Restart => {
+                    match build_system(
+                        &self.bios_path,
+                        self.file_path.as_ref(),
+                        self.memory_card.as_deref(),
+                    ) {
+                        Ok(system) => {
+                            info!("emulator thread restarted");
+                            self.system = system;
+                        }
+                        Err(err) => error!(%err, "failed to restart emulator thread"),
+                    }
+                }
 
                 UiCommand::DebugSetBreakpoint(address, enabled) => {
                     if enabled {
@@ -259,8 +184,7 @@ impl Emulator {
         false
     }
 
-    fn main_loop(mut self) {
-        const FRAME_TIME: Duration = Duration::from_nanos(16_666_667);
+    fn main_loop(mut self, audio_stream: &cpal::Stream, audio_rx: &SyncSender<[i16; 2]>) {
         let mut last_paused = true;
 
         loop {
@@ -272,9 +196,9 @@ impl Emulator {
 
             if paused != last_paused {
                 if paused {
-                    self.audio_stream.pause().expect("pause stream");
+                    audio_stream.pause().expect("pause audio stream");
                 } else {
-                    self.audio_stream.play().expect("play stream");
+                    audio_stream.play().expect("play audio stream");
                 }
                 last_paused = paused;
             }
@@ -320,6 +244,28 @@ impl Emulator {
     }
 }
 
+fn build_audio_stream(audio_rx: Receiver<[i16; 2]>) -> anyhow::Result<cpal::Stream> {
+    let device = default_host()
+        .default_output_device()
+        .context("no output device available")?;
+
+    let stream = device.build_output_stream(
+        &AUDIO_STREAM_CONFIG,
+        move |data: &mut [i16], _: &cpal::OutputCallbackInfo| {
+            for frame in data.chunks_exact_mut(2) {
+                let frame_out = audio_rx.recv().expect("recv on audio channel");
+                frame.copy_from_slice(&frame_out);
+            }
+        },
+        move |err| {
+            error!("an error occurred on the output audio stream: {err}");
+        },
+        None,
+    )?;
+
+    Ok(stream)
+}
+
 #[derive(Default)]
 pub struct SharedState {
     frame_time_ms: AtomicU32,
@@ -361,4 +307,46 @@ pub fn parse_runnable(path: PathBuf) -> anyhow::Result<RunnablePath> {
         Some("cue") => Ok(RunnablePath::Cue(path)),
         _ => anyhow::bail!("unsupported file format"),
     }
+}
+
+fn build_system(
+    bios_path: &Path,
+    file_path: Option<&RunnablePath>,
+    memory_card: Option<&Path>,
+) -> anyhow::Result<starpsx_core::System> {
+    let bios = std::fs::read(bios_path)?;
+    let run_type = file_path
+        .map(|run_type| -> anyhow::Result<RunType> {
+            let bytes = match run_type {
+                RunnablePath::Exe(path) => RunType::Executable(std::fs::read(path)?),
+                RunnablePath::Bin(path) => RunType::Binary(std::fs::read(path)?),
+                RunnablePath::Cue(path) => RunType::Disk(cue::build_disk(path)?),
+            };
+            Ok(bytes)
+        })
+        .transpose()?;
+
+    let memory_card = memory_card
+        .as_ref()
+        .map(|path| -> anyhow::Result<Box<[u8; 0x20000]>> {
+            let bytes = if path.exists() {
+                let bytes = std::fs::read(path)?;
+                bytes
+                    .try_into()
+                    .map_err(|_| anyhow::anyhow!("memory card is wrong size"))?
+            } else {
+                if let Some(parent) = path.parent() {
+                    std::fs::create_dir_all(parent)?;
+                }
+                let blank = Box::new(*include_bytes!("blank.mcd"));
+                std::fs::write(path, blank.as_ref())?;
+                blank
+            };
+            info!(?path, "Using memory card");
+            Ok(bytes)
+        })
+        .transpose()?;
+
+    let system = starpsx_core::System::build(bios, run_type, memory_card)?;
+    Ok(system)
 }

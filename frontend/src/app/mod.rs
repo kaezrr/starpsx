@@ -363,8 +363,7 @@ impl Application {
             last_frame_state: None,
         });
 
-        emulator.run();
-        Ok(())
+        emulator.run()
     }
 
     fn start_bios(&mut self) -> anyhow::Result<()> {

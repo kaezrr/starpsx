@@ -27,8 +27,6 @@ use irq::InterruptController;
 use mem::bios::Bios;
 use mem::ram::Ram;
 use mem::scratch::Scratch;
-use ringbuf::HeapProd;
-use ringbuf::traits::Producer;
 use sched::Event;
 use sched::EventScheduler;
 use sio::Sio0;
@@ -76,8 +74,6 @@ pub struct System {
 
     // RGBA frame buffer
     pub produced_frame_buffer: Option<FrameBuffer>,
-
-    audio_producer: HeapProd<[i16; 2]>,
 }
 
 impl System {
@@ -89,7 +85,6 @@ impl System {
     pub fn build(
         bios: Vec<u8>,
         runnable: Option<RunType>,
-        audio_producer: HeapProd<[i16; 2]>,
         memory_card: Option<Box<[u8; 0x20000]>>,
     ) -> anyhow::Result<Self> {
         let mut psx = Self {
@@ -118,8 +113,6 @@ impl System {
             sio1: Sio1, // Does nothing
 
             produced_frame_buffer: None,
-
-            audio_producer,
         };
 
         // Load game or exe
@@ -283,8 +276,8 @@ impl System {
                 Event::CdromResultIrq(x) => CdRom::handle_response(self, x),
                 Event::DsrOff => self.sio0.turn_off_dsr(),
                 Event::SpuTick => {
-                    let samples = self.spu.tick().unwrap_or([0, 0]);
-                    let _ = self.audio_producer.try_push(samples);
+                    let _ = self.spu.tick().unwrap_or([0, 0]);
+                    // let _ = self.audio_producer.try_push(samples);
                 }
             }
         }
