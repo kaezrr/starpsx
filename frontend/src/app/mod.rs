@@ -9,7 +9,6 @@ use std::task::Context;
 use std::task::Poll;
 use std::task::Waker;
 use std::time::Duration;
-use std::time::Instant;
 
 use anyhow::anyhow;
 use eframe::egui::Color32;
@@ -62,8 +61,6 @@ pub struct Application {
     full_speed: bool,
 
     pending_dialog: Option<PendingDialog>,
-
-    last_metrics_update: std::time::Instant,
     displayed_metrics: MetricsSnapshot,
 }
 
@@ -129,12 +126,14 @@ impl eframe::App for Application {
             match emu.frame_rx.try_recv() {
                 Ok(fb) => {
                     emu.present_frame_buffer(&fb);
+                    self.displayed_metrics.capture_frame();
                 }
+
+                Err(TryRecvError::Empty) => (), // Do nothing
                 Err(TryRecvError::Disconnected) => {
                     info!("emulator thread exited, closing UI");
                     return ctx.send_viewport_cmd(ViewportCommand::Close);
                 }
-                Err(TryRecvError::Empty) => (), // Do nothing
             }
 
             if self.app_config.debugger_view {
@@ -188,7 +187,6 @@ impl Application {
             pending_dialog: None,
 
             displayed_metrics: MetricsSnapshot::default(),
-            last_metrics_update: Instant::now(),
         };
 
         if launch_config.auto_run {
@@ -280,22 +278,6 @@ impl Application {
             }
         }
         changed
-    }
-
-    fn get_metrics(&mut self) -> &MetricsSnapshot {
-        if self.last_metrics_update.elapsed() >= std::time::Duration::from_millis(100) {
-            if let Some(ref emu) = self.app_state {
-                let (frame_ms, core_ms) = emu.debugger.load_metrics();
-                self.displayed_metrics = MetricsSnapshot {
-                    fps: (1.0 / frame_ms).round() as u32,
-                    core_fps: (1.0 / core_ms).round() as u32,
-                    core_ms: core_ms * 1000.0,
-                    last_frame_data: emu.last_frame_state,
-                };
-            }
-            self.last_metrics_update = std::time::Instant::now();
-        }
-        &self.displayed_metrics
     }
 
     fn is_paused(&self) -> bool {

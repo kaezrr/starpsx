@@ -3,13 +3,11 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
-use std::sync::atomic::AtomicU32;
 use std::sync::atomic::Ordering;
 use std::sync::mpsc;
 use std::sync::mpsc::Receiver;
 use std::sync::mpsc::SyncSender;
 use std::time::Duration;
-use std::time::Instant;
 
 use anyhow::Context;
 use cpal::StreamConfig;
@@ -26,8 +24,6 @@ use tracing::warn;
 
 use crate::config::RunnablePath;
 use crate::input::GamepadState;
-
-const FRAME_TIME: Duration = Duration::from_nanos(16_666_667);
 
 const AUDIO_STREAM_CONFIG: StreamConfig = StreamConfig {
     channels: 2,
@@ -174,9 +170,7 @@ impl Emulator {
                         continue;
                     }
 
-                    if let Some(fb) = self.system.step_instruction(self.show_vram) {
-                        self.send_frame_buffer(fb);
-                    }
+                    self.system.step_instruction(self.show_vram);
                     self.send_debug_snapshot();
                 }
             }
@@ -193,7 +187,6 @@ impl Emulator {
             }
 
             let paused = self.shared_state.is_paused();
-
             if paused != last_paused {
                 if paused {
                     audio_stream.pause().expect("pause audio stream");
@@ -208,36 +201,18 @@ impl Emulator {
                 continue;
             }
 
-            let frame_start = Instant::now();
+            if self.full_speed {
+                self.system.run_frame(self.show_vram);
+            } else {
+                let samples = self.system.run_one_spu_tick(self.show_vram);
+                audio_rx.send(samples).expect("send audio samples"); // Blocking send
+            }
 
-            let frame = if self.breakpoints.is_empty() {
-                let fb = self.system.run_frame(self.show_vram);
+            // Try to save memory_card to disk at the same frequency
+            if let Some(fb) = self.system.frame_buffer.take() {
                 self.save_memory_card_to_disk();
-                Some(fb)
-            } else {
-                self.system
-                    .run_breakpoint(&self.breakpoints, self.show_vram)
-            };
-
-            let core_time = frame_start.elapsed();
-
-            if let Some(buffer) = frame {
-                self.send_frame_buffer(buffer);
-            } else {
-                self.shared_state.pause();
-                self.send_debug_snapshot();
-                continue;
+                self.send_frame_buffer(fb);
             }
-
-            if !self.full_speed
-                && let Some(sleep_dur) = FRAME_TIME.checked_sub(core_time)
-            {
-                spin_sleep::sleep(sleep_dur);
-            }
-
-            let total_time = frame_start.elapsed();
-            self.shared_state
-                .store(total_time.as_secs_f32(), core_time.as_secs_f32());
         }
 
         info!("emulator thread stopped!");
@@ -268,8 +243,6 @@ fn build_audio_stream(audio_rx: Receiver<[i16; 2]>) -> anyhow::Result<cpal::Stre
 
 #[derive(Default)]
 pub struct SharedState {
-    frame_time_ms: AtomicU32,
-    core_time_ms: AtomicU32,
     is_paused: AtomicBool,
 }
 
@@ -284,19 +257,6 @@ impl SharedState {
 
     pub fn is_paused(&self) -> bool {
         self.is_paused.load(Ordering::Relaxed)
-    }
-
-    pub fn store(&self, frame_time_ms: f32, core_time_ms: f32) {
-        self.frame_time_ms
-            .store(frame_time_ms.to_bits(), Ordering::Relaxed);
-        self.core_time_ms
-            .store(core_time_ms.to_bits(), Ordering::Relaxed);
-    }
-
-    pub fn load(&self) -> (f32, f32) {
-        let fps = f32::from_bits(self.frame_time_ms.load(Ordering::Relaxed));
-        let core_time_ms = f32::from_bits(self.core_time_ms.load(Ordering::Relaxed));
-        (fps, core_time_ms)
     }
 }
 

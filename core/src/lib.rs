@@ -73,7 +73,7 @@ pub struct System {
     scheduler: EventScheduler,
 
     // RGBA frame buffer
-    pub produced_frame_buffer: Option<FrameBuffer>,
+    pub frame_buffer: Option<FrameBuffer>,
 }
 
 impl System {
@@ -112,7 +112,7 @@ impl System {
             ),
             sio1: Sio1, // Does nothing
 
-            produced_frame_buffer: None,
+            frame_buffer: None,
         };
 
         // Load game or exe
@@ -263,11 +263,10 @@ impl System {
         SystemSnapshot { cpu, spu, gpu, ins }
     }
 
-    pub fn step_instruction(&mut self, show_vram: bool) -> Option<FrameBuffer> {
+    pub fn step_instruction(&mut self, show_vram: bool) -> Option<[i16; 2]> {
         if let Some(event) = self.scheduler.get_next_event() {
             match event {
-                // Frame completes just before entering vsync
-                Event::VBlankStart => return Some(self.enter_vsync(show_vram)),
+                Event::VBlankStart => self.frame_buffer = Some(self.enter_vsync(show_vram)),
                 Event::VBlankEnd => self.exit_vsync(),
                 Event::HBlankStart => self.enter_hsync(),
                 Event::HBlankEnd => Timers::exit_hsync(self),
@@ -276,8 +275,7 @@ impl System {
                 Event::CdromResultIrq(x) => CdRom::handle_response(self, x),
                 Event::DsrOff => self.sio0.turn_off_dsr(),
                 Event::SpuTick => {
-                    let _ = self.spu.tick().unwrap_or([0, 0]);
-                    // let _ = self.audio_producer.try_push(samples);
+                    return Some(self.spu.tick().unwrap_or([0, 0]));
                 }
             }
         }
@@ -290,29 +288,29 @@ impl System {
         None
     }
 
-    // Run emulator for one frame and return the generated frame
-    pub fn run_frame(&mut self, show_vram: bool) -> FrameBuffer {
+    pub fn run_one_spu_tick(&mut self, show_vram: bool) -> [i16; 2] {
         loop {
-            if let Some(fb) = self.step_instruction(show_vram) {
-                break fb;
+            if let Some(sample) = self.step_instruction(show_vram) {
+                break sample;
             }
         }
     }
 
+    // Run emulator for one frame
+    pub fn run_frame(&mut self, show_vram: bool) {
+        for _ in (0..565_053).step_by(2) {
+            let _ = self.step_instruction(show_vram);
+        }
+    }
+
     // Run emulator until it generates a frame or hits a breakpoint
-    pub fn run_breakpoint(
-        &mut self,
-        breakpoints: &HashSet<u32>,
-        show_vram: bool,
-    ) -> Option<FrameBuffer> {
+    pub fn run_breakpoint(&mut self, breakpoints: &HashSet<u32>, show_vram: bool) {
         loop {
             if breakpoints.contains(&self.cpu.pc) {
-                return None;
+                return;
             }
 
-            if let Some(fb) = self.step_instruction(show_vram) {
-                break Some(fb);
-            }
+            let _ = self.step_instruction(show_vram);
         }
     }
 }

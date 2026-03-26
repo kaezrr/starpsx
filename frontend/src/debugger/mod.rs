@@ -76,10 +76,6 @@ impl Debugger {
         self.sync_send(UiCommand::Restart);
     }
 
-    pub fn load_metrics(&self) -> (f32, f32) {
-        self.shared_state.load()
-    }
-
     pub fn show_ui(&mut self, ctx: &egui::Context) {
         if !self.is_paused() {
             self.request_snapshot();
