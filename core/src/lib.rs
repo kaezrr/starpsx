@@ -304,13 +304,12 @@ impl System {
     }
 
     // Run emulator until it generates a frame or hits a breakpoint
-    pub fn run_breakpoint(&mut self, breakpoints: &HashSet<u32>, show_vram: bool) {
+    pub fn run_till_breakpoint(&mut self, breakpoints: &HashSet<u32>) {
         loop {
             if breakpoints.contains(&self.cpu.pc) {
                 return;
             }
-
-            let _ = self.step_instruction(show_vram);
+            let _ = self.step_instruction(false);
         }
     }
 }

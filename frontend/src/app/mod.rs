@@ -35,6 +35,7 @@ use crate::emulator::UiChannels;
 use crate::emulator::UiCommand;
 use crate::emulator::{self};
 use crate::input::ActionValue;
+use crate::input::GamepadState;
 use crate::input::PhysicalInput;
 use crate::input::{self};
 
@@ -117,8 +118,7 @@ impl eframe::App for Application {
                 }
 
                 if input_dirty {
-                    emu.debugger
-                        .send(UiCommand::NewInputState(self.input_state.clone()));
+                    let _ = emu.input_tx.try_send(self.input_state.clone());
                 }
             }
 
@@ -295,7 +295,8 @@ impl Application {
 
         // Message channels for thread communication
         let (frame_tx, frame_rx) = std::sync::mpsc::sync_channel::<FrameBuffer>(1);
-        let (input_tx, input_rx) = std::sync::mpsc::sync_channel::<UiCommand>(2);
+        let (ui_command_tx, ui_command_rx) = std::sync::mpsc::sync_channel::<UiCommand>(2);
+        let (input_tx, input_rx) = std::sync::mpsc::sync_channel::<GamepadState>(2);
         let (snapshot_tx, snapshot_rx) = std::sync::mpsc::sync_channel::<SystemSnapshot>(1);
 
         let shared_state = Arc::new(SharedState::default());
@@ -321,6 +322,7 @@ impl Application {
         let emulator = emulator::Emulator::build(
             UiChannels {
                 frame_tx,
+                ui_command_rx,
                 input_rx,
                 snapshot_tx,
             },
@@ -333,8 +335,8 @@ impl Application {
         )?;
 
         self.app_state = Some(AppState {
-            debugger: Debugger::new(shared_state, input_tx, snapshot_rx),
-
+            debugger: Debugger::new(shared_state, ui_command_tx, snapshot_rx),
+            input_tx,
             frame_rx,
             texture: self.egui_ctx.load_texture(
                 "frame buffer",

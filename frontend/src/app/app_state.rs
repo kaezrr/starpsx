@@ -1,4 +1,5 @@
 use std::sync::mpsc::Receiver;
+use std::sync::mpsc::SyncSender;
 
 use eframe::egui::TextureOptions;
 use eframe::egui::{self};
@@ -6,11 +7,13 @@ use starpsx_renderer::FrameBuffer;
 
 use crate::debugger::Debugger;
 use crate::emulator::UiCommand;
+use crate::input::GamepadState;
 
 // This holds all the state required after emulator init
 pub struct AppState {
     pub debugger: Debugger,
     pub frame_rx: Receiver<FrameBuffer>,
+    pub input_tx: SyncSender<GamepadState>,
     pub texture: egui::TextureHandle,
 
     /// (width, height, interlaced)

@@ -32,7 +32,6 @@ const AUDIO_STREAM_CONFIG: StreamConfig = StreamConfig {
 };
 
 pub enum UiCommand {
-    NewInputState(GamepadState),
     SetVramDisplay(bool),
     SetSpeed(bool),
     Restart,
@@ -45,7 +44,8 @@ pub enum UiCommand {
 
 pub struct UiChannels {
     pub frame_tx: SyncSender<FrameBuffer>,
-    pub input_rx: Receiver<UiCommand>,
+    pub ui_command_rx: Receiver<UiCommand>,
+    pub input_rx: Receiver<GamepadState>,
     pub snapshot_tx: SyncSender<SystemSnapshot>,
 }
 
@@ -135,12 +135,11 @@ impl Emulator {
 
     /// Process pending UI commands. Returns `true` if shutdown was requested.
     fn process_commands(&mut self) -> bool {
-        while let Ok(command) = self.channels.input_rx.try_recv() {
+        while let Ok(command) = self.channels.ui_command_rx.try_recv() {
             match command {
                 UiCommand::SetVramDisplay(show_vram) => self.show_vram = show_vram,
                 UiCommand::Shutdown => return true,
                 UiCommand::DebugRequestState => self.send_debug_snapshot(),
-                UiCommand::NewInputState(state) => self.update_core_gamepad(&state),
                 UiCommand::SetSpeed(value) => self.full_speed = value,
                 UiCommand::Restart => {
                     match build_system(
@@ -186,6 +185,10 @@ impl Emulator {
                 break;
             }
 
+            if let Ok(new_state) = self.channels.input_rx.try_recv() {
+                self.update_core_gamepad(&new_state);
+            }
+
             let paused = self.shared_state.is_paused();
             if paused != last_paused {
                 if paused {
@@ -198,6 +201,13 @@ impl Emulator {
 
             if paused {
                 std::thread::sleep(Duration::from_millis(16));
+                continue;
+            }
+
+            if !self.breakpoints.is_empty() {
+                self.system.run_till_breakpoint(&self.breakpoints);
+                self.send_debug_snapshot();
+                self.shared_state.pause();
                 continue;
             }
 
