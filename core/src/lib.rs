@@ -127,6 +127,12 @@ impl System {
             psx.cdrom.open_shell();
         }
 
+        // // -------------------CDROM TESTING ONLY-----------------------
+        // psx.cdrom.insert_disc(CdImage::from_disk(
+        //     cue::build_disk("../dev/pcsx_redux_cdrom_tests/test.cue").unwrap(),
+        // ));
+        // // ------------------------------------------------------------
+
         // Schedule some initial events
         psx.scheduler.schedule(
             Event::VBlankStart,
