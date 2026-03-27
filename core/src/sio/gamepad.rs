@@ -104,7 +104,7 @@ impl Mode {
         (State::Init, None),
         (State::IdLow, Some(0x01)),
         (State::IdHigh, Some(0x42)),
-        (State::SwitchLow, Some(0x00)),
+        (State::SwitchLow, None),
         (State::SwitchHigh, None),
     ];
 
@@ -112,7 +112,7 @@ impl Mode {
         (State::Init, Some(0x00)),
         (State::IdLow, Some(0x01)),
         (State::IdHigh, Some(0x42)),
-        (State::SwitchLow, Some(0x00)),
+        (State::SwitchLow, None),
         (State::SwitchHigh, None),
         (State::AnalogInput0, None),
         (State::AnalogInput1, Some(0x00)),
@@ -149,16 +149,12 @@ impl Mode {
         }
     }
 
+    // TAP byte should be zero, multiplayer mode not supported right now
     fn next(self, current_state: State, received_byte: u8) -> Option<State> {
         let idx = current_state as usize;
         let states_table = self.states_table();
 
         let (next_state, check_byte) = states_table[(idx + 1) % states_table.len()];
-
-        // TAP byte should be zero, multiplayer mode not supported
-        if matches!(next_state, State::SwitchLow) {
-            assert_eq!(received_byte, check_byte.expect("switch low check byte"));
-        }
 
         let next_state_is_valid = check_byte.is_none_or(|b| b == received_byte);
         next_state_is_valid.then_some(next_state)
