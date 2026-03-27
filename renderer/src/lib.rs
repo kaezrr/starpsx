@@ -204,8 +204,10 @@ impl Renderer {
             }
         }
 
-        let vrange = self.ctx.display_ver_range as usize;
-
+        // Black out all the lines that lie outside the vertical range (bottom lines only)
+        // This is not the correct way to do it and should be changed later, pixels outside the
+        // range should blacked out with the frame being in the center
+        let vrange = (self.ctx.display_ver_range as usize) * if interlaced { 2 } else { 1 };
         if height >= vrange {
             let starting_row = vrange * width * if interlaced { 1 } else { 2 };
             self.frame.rgba[starting_row..].fill(Color::BLACK);

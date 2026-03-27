@@ -69,8 +69,7 @@ impl Gpu {
         let y1 = command.vertical_y1();
         let y2 = command.vertical_y2();
 
-        let mul = if self.renderer.ctx.interlaced { 2 } else { 1 };
-        self.renderer.ctx.display_ver_range = (y2 - y1) * mul;
+        self.renderer.ctx.display_ver_range = y2 - y1;
     }
 
     pub fn gp1_display_enable(&mut self, command: Command) {
