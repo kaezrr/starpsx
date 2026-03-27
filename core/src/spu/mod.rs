@@ -122,7 +122,7 @@ impl Spu {
 
     pub fn dma_write(&mut self, data: u32) {
         let bytes = data.to_le_bytes();
-        let addr = self.current_address;
+        let addr = self.current_address & 0x7FFFF;
 
         self.sound_ram[addr] = bytes[0];
         self.sound_ram[addr + 1] = bytes[1];
