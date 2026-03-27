@@ -351,6 +351,17 @@ pub enum ResponseType {
     INT1,
 }
 
+impl From<&ResponseType> for u8 {
+    fn from(rt: &ResponseType) -> Self {
+        match rt {
+            ResponseType::INT1 => 1,
+            ResponseType::INT2(_) => 2,
+            ResponseType::INT3(_) => 3,
+            ResponseType::INT5(_) => 5,
+        }
+    }
+}
+
 #[derive(Default)]
 pub struct CommandResponse {
     pub responses: ArrayVec<(ResponseType, u64), 2>,

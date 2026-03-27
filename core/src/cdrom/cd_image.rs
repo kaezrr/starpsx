@@ -1,5 +1,6 @@
 use std::collections::VecDeque;
 
+use num_enum::TryFromPrimitive;
 use tracing::debug;
 
 use super::SectorSize;
@@ -104,27 +105,38 @@ impl CdImage {
         self.read_head = total_sectors * SECTOR_SIZE;
     }
 
-    pub fn read_sector_and_advance(&mut self, sect_size: SectorSize) -> VecDeque<u8> {
-        debug!(
-            target: "cdrom",
-            LBA = self.read_head / SECTOR_SIZE,
-            read_head = %mm_ss_ff_str(self.read_head),
-            ?sect_size,
-            "reading sector"
-        );
-
+    pub fn read_sector_and_advance(&mut self, sect_size: SectorSize) -> Sector {
         debug_assert!(self.read_head + SECTOR_SIZE <= self.data.len());
         debug_assert_ne!(self.current_sector_type(), cue::TrackType::Audio);
 
         let sector = &self.data[self.read_head..self.read_head + SECTOR_SIZE];
         self.read_head += SECTOR_SIZE;
 
+        let sector_type = if sector[0xF] == 0x2 {
+            let sector_type = (sector[0x12] >> 1) & 0b111;
+            SectorType::try_from(sector_type).expect("unknown sector type")
+        } else {
+            SectorType::Data
+        };
+
+        debug!(
+            target: "cdrom",
+            LBA = self.read_head / SECTOR_SIZE,
+            read_head = %mm_ss_ff_str(self.read_head),
+            ?sect_size,
+            ?sector_type,
+            "reading sector"
+        );
+
         let sector_read = match sect_size {
             SectorSize::DataOnly => &sector[0x18..0x818],
             SectorSize::WholeSectorExceptSyncBytes => &sector[0xC..],
         };
 
-        sector_read.iter().copied().collect()
+        Sector {
+            bytes: sector_read.iter().copied().collect(),
+            kind: sector_type,
+        }
     }
 }
 
@@ -141,4 +153,17 @@ const fn mm_ss_ff(read_head: usize) -> (u8, u8, u8) {
 fn mm_ss_ff_str(read_head: usize) -> String {
     let i = mm_ss_ff(read_head);
     format!("{:02}:{:02}:{:02}", i.0, i.1, i.2)
+}
+
+#[derive(Debug, TryFromPrimitive)]
+#[repr(u8)]
+pub enum SectorType {
+    Video = 1,
+    Audio = 2,
+    Data = 4,
+}
+
+pub struct Sector {
+    pub bytes: VecDeque<u8>,
+    pub kind: SectorType,
 }

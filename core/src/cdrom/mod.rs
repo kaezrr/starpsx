@@ -10,6 +10,7 @@ pub use commands::ResponseType;
 use tracing::trace;
 
 use crate::System;
+use crate::cdrom::cd_image::SectorType;
 use crate::consts::AVG_RATE_INT1;
 use crate::mem::ByteAddressable;
 use crate::sched::Event;
@@ -95,7 +96,7 @@ impl CdRom {
         self.hintmsk.0 | 0xE0 // Bits 5-7 are always 1 on read
     }
 
-    fn replace_sector_buffer(&mut self, new_buffer: VecDeque<u8>) {
+    fn replace_sector(&mut self, new_buffer: VecDeque<u8>) {
         self.sector_buffer = new_buffer;
         self.address.set_data_request(true);
     }
@@ -186,37 +187,36 @@ impl CdRom {
     pub fn handle_response(system: &mut System, response: ResponseType) {
         let cdrom = &mut system.cdrom;
 
-        cdrom.results.clear();
-        let irq = match response {
-            ResponseType::INT3(response) => {
-                cdrom.results.extend(response);
-                3
+        let irq = u8::from(&response);
+        let mut results = Vec::new();
+
+        match response {
+            ResponseType::INT5(response) => {
+                results.extend(response);
             }
 
-            ResponseType::INT2(response) => {
-                cdrom.results.extend(response);
-                2
+            ResponseType::INT3(response) | ResponseType::INT2(response) => {
+                results.extend(response);
             }
 
             ResponseType::INT1 => {
-                let sector_data = cdrom
-                    .disk
-                    .as_mut()
-                    .expect("int1 inserted disk")
-                    .read_sector_and_advance(cdrom.sector_size);
+                let Some(inserted_disk) = cdrom.disk.as_mut() else {
+                    panic!("int1 but no inserted disk");
+                };
 
-                cdrom.replace_sector_buffer(sector_data);
-                cdrom.results.extend(vec![cdrom.status.0]);
-                1
+                let sector = inserted_disk.read_sector_and_advance(cdrom.sector_size);
+
+                // Audio sectors should not trigger interrupts
+                match sector.kind {
+                    SectorType::Video | SectorType::Data => cdrom.replace_sector(sector.bytes),
+                    SectorType::Audio => todo!("CDXA Audio"),
+                }
+
+                results.push(cdrom.status.0);
             }
+        }
 
-            ResponseType::INT5([status, error_code]) => {
-                cdrom.results.push(status);
-                cdrom.results.push(error_code);
-                5
-            }
-        };
-
+        cdrom.results = results;
         cdrom.hintsts.set_interrupt(irq);
         cdrom.address.set_result_read_ready(true);
 
