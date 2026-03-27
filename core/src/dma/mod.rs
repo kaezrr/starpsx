@@ -121,7 +121,7 @@ impl DMAController {
             (step, channel.ctl.dir(), channel.base, size)
         };
 
-        tracing::debug!(?port, size, "dma");
+        tracing::debug!(target: "dma", ?port, size, "dma");
 
         let mut addr = base;
         for s in (0..size).rev() {
