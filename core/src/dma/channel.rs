@@ -44,11 +44,12 @@ impl Channel {
     /// Get DMA transfer size in words
     pub fn transfer_size(&self) -> Option<u32> {
         let bs = self.block_ctl.block_size();
-        let bc = self.block_ctl.block_count();
+        let block_size = if bs == 0 { 0x10000 } else { bs };
+        let block_count = self.block_ctl.block_count().max(1);
 
         match self.ctl.mode() {
-            Mode::Burst => Some(if bs == 0 { 0x10000 } else { bs }),
-            Mode::Slice => Some(bc.max(1) * bs),
+            Mode::Burst => Some(block_size),
+            Mode::Slice => Some(block_count * block_size),
             Mode::LinkedList => None,
         }
     }
