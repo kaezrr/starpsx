@@ -161,6 +161,7 @@ impl Emulator {
                         }
                         Err(err) => error!(%err, "failed to restart emulator thread"),
                     }
+                    self.shared_state.resume();
                 }
 
                 UiCommand::DebugSetBreakpoint(address, enabled) => {
