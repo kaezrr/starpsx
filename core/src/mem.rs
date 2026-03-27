@@ -104,7 +104,7 @@ pub mod bios {
 pub mod ram {
     use super::ByteAddressable;
     pub const PADDR_START: u32 = 0x0000_0000;
-    pub const PADDR_END: u32 = 0x0020_0000;
+    pub const PADDR_END: u32 = 0x0080_0000;
 
     pub struct Ram {
         pub bytes: Box<[u8; 0x20_0000]>,
@@ -120,7 +120,7 @@ pub mod ram {
 
     impl Ram {
         pub fn read<T: ByteAddressable>(&self, addr: u32) -> T {
-            let addr = addr as usize;
+            let addr = (addr & 0x1FF_FFF) as usize;
             T::from_le_bytes(
                 self.bytes[addr..addr + T::LEN]
                     .try_into()
@@ -129,7 +129,7 @@ pub mod ram {
         }
 
         pub fn write<T: ByteAddressable>(&mut self, addr: u32, val: T) {
-            let addr = addr as usize;
+            let addr = (addr & 0x1FF_FFF) as usize;
             self.bytes[addr..addr + T::LEN].copy_from_slice(val.to_le_bytes().as_ref());
         }
     }
@@ -199,7 +199,7 @@ impl System {
     }
 
     /// # Errors
-    /// Returns an error if the address is not properly aligned 
+    /// Returns an error if the address is not properly aligned
     pub fn read<T: ByteAddressable>(&mut self, addr: u32) -> Result<T, Exception> {
         if !addr.is_multiple_of(T::LEN as u32) {
             return Err(Exception::LoadAddressError(addr));
