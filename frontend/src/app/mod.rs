@@ -126,7 +126,7 @@ impl eframe::App for Application {
             match emu.frame_rx.try_recv() {
                 Ok(fb) => {
                     emu.present_frame_buffer(&fb);
-                    self.displayed_metrics.capture_frame();
+                    self.displayed_metrics.capture_frame_data(&fb);
                 }
 
                 Err(TryRecvError::Empty) => (), // Do nothing
@@ -343,8 +343,6 @@ impl Application {
                 ColorImage::filled([100, 100], Color32::BLACK),
                 egui::TextureOptions::NEAREST,
             ),
-
-            last_frame_state: None,
         });
 
         emulator.run()
