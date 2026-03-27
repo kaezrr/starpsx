@@ -28,7 +28,7 @@ tracing = "0.1.43"
 tracing-appender = "0.2.4"
 tracing-subscriber = { version = "0.3.22", features = ["env-filter", "registry"] }
 cpal = "0.17.3"
-ringbuf = "0.4.8"
+ringbuf-blocking = "0.1.0-rc.6"
 
 [lints]
 workspace = true

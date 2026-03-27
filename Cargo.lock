@@ -2537,6 +2537,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "ringbuf-blocking"
+version = "0.1.0-rc.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "de08051bc901a39feec48156e30a98e4a9bf69b8cad00e3aa57c475b799c73ef"
+dependencies = [
+ "ringbuf",
+]
+
+[[package]]
 name = "rustc-hash"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2821,7 +2830,7 @@ dependencies = [
  "egui_extras",
  "gilrs",
  "rfd",
- "ringbuf",
+ "ringbuf-blocking",
  "serde",
  "spin_sleep",
  "starpsx-core",
@@ -2843,7 +2852,6 @@ dependencies = [
  "cue",
  "derive_more",
  "num_enum",
- "ringbuf",
  "starpsx-renderer",
  "tracing",
 ]

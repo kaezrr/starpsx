@@ -4,7 +4,6 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
-use std::sync::mpsc;
 use std::sync::mpsc::Receiver;
 use std::sync::mpsc::SyncSender;
 use std::time::Duration;
@@ -15,6 +14,10 @@ use cpal::default_host;
 use cpal::traits::DeviceTrait;
 use cpal::traits::HostTrait;
 use cpal::traits::StreamTrait;
+use ringbuf_blocking::BlockingCons;
+use ringbuf_blocking::BlockingHeapRb;
+use ringbuf_blocking::BlockingProd;
+use ringbuf_blocking::traits::Split;
 use starpsx_core::RunType;
 use starpsx_core::SystemSnapshot;
 use starpsx_renderer::FrameBuffer;
@@ -24,6 +27,9 @@ use tracing::warn;
 
 use crate::config::RunnablePath;
 use crate::input::GamepadState;
+
+type AudioProducer = BlockingProd<Arc<BlockingHeapRb<[i16; 2]>>>;
+type AudioConsumer = BlockingCons<Arc<BlockingHeapRb<[i16; 2]>>>;
 
 const AUDIO_STREAM_CONFIG: StreamConfig = StreamConfig {
     channels: 2,
@@ -85,12 +91,14 @@ impl Emulator {
     }
 
     pub fn run(self) -> anyhow::Result<()> {
-        let (audio_tx, audio_rx) = mpsc::sync_channel::<[i16; 2]>(8192);
-        let audio_stream = build_audio_stream(audio_rx)?;
+        let rb = BlockingHeapRb::<[i16; 2]>::new(2);
+        let (prod, cons) = rb.split();
+
+        let audio_stream = build_audio_stream(cons)?;
 
         std::thread::spawn(move || {
             info!("emulator thread started...");
-            self.main_loop(&audio_stream, &audio_tx);
+            self.main_loop(&audio_stream, prod);
         });
 
         Ok(())
@@ -177,7 +185,7 @@ impl Emulator {
         false
     }
 
-    fn main_loop(mut self, audio_stream: &cpal::Stream, audio_rx: &SyncSender<[i16; 2]>) {
+    fn main_loop(mut self, audio_stream: &cpal::Stream, mut prod: AudioProducer) {
         let mut last_paused = true;
 
         loop {
@@ -215,7 +223,7 @@ impl Emulator {
                 self.system.run_frame(self.show_vram);
             } else {
                 let samples = self.system.run_one_spu_tick(self.show_vram);
-                audio_rx.send(samples).expect("send audio samples"); // Blocking send
+                prod.push(samples).expect("send audio samples"); // Blocking send
             }
 
             // Try to save memory_card to disk at the same frequency
@@ -229,7 +237,7 @@ impl Emulator {
     }
 }
 
-fn build_audio_stream(audio_rx: Receiver<[i16; 2]>) -> anyhow::Result<cpal::Stream> {
+fn build_audio_stream(mut cons: AudioConsumer) -> anyhow::Result<cpal::Stream> {
     let device = default_host()
         .default_output_device()
         .context("no output device available")?;
@@ -238,7 +246,7 @@ fn build_audio_stream(audio_rx: Receiver<[i16; 2]>) -> anyhow::Result<cpal::Stre
         &AUDIO_STREAM_CONFIG,
         move |data: &mut [i16], _: &cpal::OutputCallbackInfo| {
             for frame in data.chunks_exact_mut(2) {
-                let frame_out = audio_rx.recv().expect("recv on audio channel");
+                let frame_out = cons.pop().expect("recv on audio channel");
                 frame.copy_from_slice(&frame_out);
             }
         },
