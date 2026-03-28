@@ -30,6 +30,9 @@ pub struct CdRom {
     mode: Mode,
     sector_buffer: VecDeque<u8>,
 
+    filter_file: u8,
+    filter_channel: u8,
+
     disk: Option<CdImage>,
 }
 
@@ -46,6 +49,9 @@ impl Default for CdRom {
 
             mode: Mode::default(),
             sector_buffer: VecDeque::new(),
+
+            filter_file: 0,
+            filter_channel: 0,
 
             disk: None,
         }
@@ -133,16 +139,17 @@ impl CdRom {
         val
     }
 
+    /// Returns whether the sector was as adpcm or data
     fn process_sector(&mut self, sector: Vec<u8>) -> bool {
         let sector_mode = sector[0xF];
+        let file = sector[0x10];
+        let channel = sector[0x11];
         let submode = sector[0x12];
-
-        // Check realtime and audio bits
-        let is_realtime_audio = (submode & (1 << 6) != 0) && (submode & (1 << 2) != 0);
-        let deliver_adpcm = self.mode.adpcm_enabled && sector_mode == 0x02 && is_realtime_audio;
+        let is_realtime_audio = (submode & 0x44) == 0x44;
+        let mode = &self.mode; // cdrom mode
 
         let mut sector_data = VecDeque::from(sector);
-        match self.mode.sector_size {
+        match mode.sector_size {
             // Data is in the slice 0x18..0x818
             SectorSize::DataOnly => {
                 sector_data.drain(0x818..);
@@ -154,13 +161,27 @@ impl CdRom {
             }
         }
 
-        if deliver_adpcm {
-            warn!("CDXA Audio not yet implemented");
-        } else {
-            self.replace_sector(sector_data);
+        if sector_mode == 2 {
+            // Filter rejects both ADPCM and data delivery if file/channel doesn't match
+            if mode.filter_enabled && (file != self.filter_file || channel != self.filter_channel) {
+                return false;
+            }
+
+            // ADPCM delivery
+            if mode.adpcm_enabled && is_realtime_audio {
+                warn!("CDXA Audio not yet implemented");
+                return true;
+            }
+
+            // Even if ADPCM is disabled, don't deliver realtime audio sectors as data
+            // when filter is enabled
+            if mode.filter_enabled && is_realtime_audio {
+                return false;
+            }
         }
 
-        deliver_adpcm
+        self.replace_sector(sector_data);
+        false
     }
 
     fn exec_command(system: &mut System, cmd: u8) {

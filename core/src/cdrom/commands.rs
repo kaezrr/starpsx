@@ -183,13 +183,15 @@ impl CdRom {
             .int2([self.status.0], AVG_1ST_RESP_GENERIC + AVG_2ND_RESP_SEEKL)
     }
 
-    // stubbed audio command
-    pub fn set_filter(&self) -> CommandResponse {
-        if !self.parameters.is_empty() {
+    pub fn set_filter(&mut self) -> CommandResponse {
+        if !self.parameters.len() != 2 {
             return error_response(&self.status, 0x20);
         }
 
         debug!(target: "cdrom", "cdrom set filter");
+
+        self.filter_file = self.parameters[0];
+        self.filter_channel = self.parameters[1];
 
         CommandResponse::new().int3([self.status.0], AVG_1ST_RESP_INIT)
     }
