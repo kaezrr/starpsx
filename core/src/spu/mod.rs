@@ -12,7 +12,7 @@ use voice::Voice;
 
 use crate::System;
 use crate::mem::ByteAddressable;
-use crate::spu::envelope::SweepVolume;
+use crate::spu::envelope::SweepVolumeLR;
 
 pub const PADDR_START: u32 = 0x1F80_1C00;
 pub const PADDR_END: u32 = 0x1F80_1E80;
@@ -35,10 +35,9 @@ enum RamMode {
 }
 
 pub struct Spu {
-    main_volume: Volume,
-
-    cd_volume: u32,
-    external_volume: u32,
+    main_volume: SweepVolume,
+    cd_volume: Volume,
+    external_volume: Volume,
 
     voice_key_off: u32,
     voice_key_on: u32,
@@ -60,10 +59,9 @@ pub struct Spu {
 impl Default for Spu {
     fn default() -> Self {
         Self {
-            main_volume: Volume::default(),
-
-            cd_volume: 0,
-            external_volume: 0,
+            main_volume: SweepVolume::default(),
+            cd_volume: Volume::default(),
+            external_volume: Volume::default(),
 
             voice_key_off: 0,
             voice_key_on: 0,
@@ -132,31 +130,37 @@ impl Spu {
         self.current_address += 4;
     }
 
-    pub fn tick(&mut self) -> Option<[i16; 2]> {
-        if !self.control.enabled() {
+    pub fn tick(system: &mut System) -> Option<[i16; 2]> {
+        let spu = &mut system.spu;
+
+        if !spu.control.enabled() {
             return None;
         }
 
         let mut mixed_l = 0_i32;
         let mut mixed_r = 0_i32;
 
-        for voice in &mut self.voices {
-            let samples = voice.tick(self.sound_ram.as_slice());
+        for voice in &mut spu.voices {
+            let samples = voice.tick(spu.sound_ram.as_slice());
             mixed_l += i32::from(samples[0]);
             mixed_r += i32::from(samples[1]);
         }
 
-        if !self.control.unmuted() {
+        let cd_l = system.cdrom.pop_from_audio_buffer().unwrap_or(0);
+        let cd_r = system.cdrom.pop_from_audio_buffer().unwrap_or(0);
+
+        if !spu.control.unmuted() {
             return Some([0, 0]);
         }
 
-        // Clamp the sums to 16-bit
-        let clamped_l = mixed_l.clamp(-0x8000, 0x7FFF) as i16;
-        let clamped_r = mixed_r.clamp(-0x8000, 0x7FFF) as i16;
+        mixed_l += i32::from(apply_volume(cd_l, spu.cd_volume.l));
+        mixed_r += i32::from(apply_volume(cd_r, spu.cd_volume.r));
 
-        // Apply main volume
-        let output_l = apply_volume(clamped_l, self.main_volume.l.volume());
-        let output_r = apply_volume(clamped_r, self.main_volume.r.volume());
+        let clamped_l = mixed_l.clamp(-32768, 32767) as i16;
+        let clamped_r = mixed_r.clamp(-32768, 32767) as i16;
+
+        let output_l = apply_volume(clamped_l, spu.main_volume.l.volume());
+        let output_r = apply_volume(clamped_r, spu.main_volume.r.volume());
 
         Some([output_l, output_r])
     }
@@ -187,11 +191,11 @@ pub fn read<T: ByteAddressable>(system: &System, addr: u32) -> T {
         0x1F80_1DA6 => spu.data_transfer_address.into(),
         0x1F80_1DAC => spu.data_transfer_control.into(),
 
-        0x1F80_1DB0 => spu.cd_volume,
-        0x1F80_1DB2 => spu.cd_volume >> 16,
+        0x1F80_1DB0 => spu.cd_volume.l as u32,
+        0x1F80_1DB2 => spu.cd_volume.r as u32,
 
-        0x1F80_1DB4 => spu.external_volume,
-        0x1F80_1DB6 => spu.external_volume >> 16,
+        0x1F80_1DB4 => spu.external_volume.l as u32,
+        0x1F80_1DB6 => spu.external_volume.r as u32,
 
         0x1F80_1D94 => spu.voice_noise_enable,
         0x1F80_1D96 => spu.voice_noise_enable >> 16,
@@ -350,11 +354,11 @@ pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, val: T) {
         0x1F80_1D98 => write_half::<LOW>(&mut spu.voice_echo_on, val),
         0x1F80_1D9A => write_half::<HIGH>(&mut spu.voice_echo_on, val),
 
-        0x1F80_1DB0 => write_half::<LOW>(&mut spu.cd_volume, val),
-        0x1F80_1DB2 => write_half::<HIGH>(&mut spu.cd_volume, val),
+        0x1F80_1DB0 => spu.cd_volume.l = val as i16,
+        0x1F80_1DB2 => spu.cd_volume.r = val as i16,
 
-        0x1F80_1DB4 => write_half::<LOW>(&mut spu.external_volume, val),
-        0x1F80_1DB6 => write_half::<HIGH>(&mut spu.external_volume, val),
+        0x1F80_1DB4 => spu.external_volume.l = val as i16,
+        0x1F80_1DB6 => spu.external_volume.r = val as i16,
 
         0x1F80_1DAC => spu.data_transfer_control = val, // Should be 0x0004
 
@@ -409,9 +413,15 @@ pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, val: T) {
 }
 
 #[derive(Default)]
+struct SweepVolume {
+    l: SweepVolumeLR,
+    r: SweepVolumeLR,
+}
+
+#[derive(Default)]
 struct Volume {
-    l: SweepVolume,
-    r: SweepVolume,
+    l: i16,
+    r: i16,
 }
 
 fn apply_volume(sample: i16, volume: i16) -> i16 {

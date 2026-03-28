@@ -28,7 +28,9 @@ pub struct CdRom {
     results: Vec<u8>,
 
     mode: Mode,
-    sector_buffer: VecDeque<u8>,
+    data_buffer: VecDeque<u8>,
+    audio_buffer: VecDeque<i16>,
+    audio_muted: bool,
 
     filter_file: u8,
     filter_channel: u8,
@@ -48,7 +50,9 @@ impl Default for CdRom {
             results: Vec::new(),
 
             mode: Mode::default(),
-            sector_buffer: VecDeque::new(),
+            data_buffer: VecDeque::new(),
+            audio_buffer: VecDeque::new(),
+            audio_muted: false,
 
             filter_file: 0,
             filter_channel: 0,
@@ -74,7 +78,7 @@ impl CdRom {
         let mut bytes = [0u8; 4];
 
         (0..T::LEN).for_each(|i| {
-            bytes[i] = self.pop_from_sector_buffer();
+            bytes[i] = self.pop_from_data_buffer();
         });
 
         u32::from_le_bytes(bytes)
@@ -101,22 +105,38 @@ impl CdRom {
         self.hintmsk.0 | 0xE0 // Bits 5-7 are always 1 on read
     }
 
-    fn replace_sector(&mut self, new_buffer: VecDeque<u8>) {
-        self.sector_buffer = new_buffer;
+    fn push_to_data_buffer(&mut self, new_buffer: VecDeque<u8>) {
+        self.data_buffer = new_buffer;
         self.address.set_data_request(true);
     }
 
-    fn pop_from_sector_buffer(&mut self) -> u8 {
+    fn push_to_audio_buffer(&mut self, data: &[u8]) {
+        let samples: Vec<i16> = data
+            .chunks_exact(2)
+            .map(|c| i16::from_le_bytes([c[0], c[1]]))
+            .collect();
+
+        self.audio_buffer.extend(samples);
+    }
+
+    fn pop_from_data_buffer(&mut self) -> u8 {
         let data = self
-            .sector_buffer
+            .data_buffer
             .pop_front()
             .expect("pop_from_sector_buffer inserted disk");
 
-        if self.sector_buffer.is_empty() {
+        if self.data_buffer.is_empty() {
             self.address.set_data_request(false);
         }
 
         data
+    }
+
+    pub fn pop_from_audio_buffer(&mut self) -> Option<i16> {
+        // If cdrom is muted then return 0 sample
+        self.audio_buffer
+            .pop_front()
+            .map(|x| if self.audio_muted { 0 } else { x })
     }
 
     fn push_parameter(&mut self, val: u8) {
@@ -141,6 +161,11 @@ impl CdRom {
 
     /// Returns whether the sector was as adpcm or data
     fn process_sector(&mut self, sector: Vec<u8>) -> bool {
+        if self.mode.cdda_enabled {
+            self.push_to_audio_buffer(&sector);
+            return true;
+        }
+
         let sector_mode = sector[0xF];
         let file = sector[0x10];
         let channel = sector[0x11];
@@ -180,7 +205,7 @@ impl CdRom {
             }
         }
 
-        self.replace_sector(sector_data);
+        self.push_to_data_buffer(sector_data);
         false
     }
 
@@ -255,10 +280,10 @@ impl CdRom {
                 };
 
                 let sector = inserted_disk.advance_sector();
-                let sector_pushed_to_adpcm = cdrom.process_sector(sector);
+                let sector_was_audio = cdrom.process_sector(sector);
 
                 // Should not trigger any interrupts
-                if sector_pushed_to_adpcm {
+                if sector_was_audio {
                     return;
                 }
 
@@ -448,11 +473,14 @@ pub enum SectorSize {
     WholeSectorExceptSyncBytes = 1,
 }
 
+#[derive(Debug)]
 struct Mode {
     speed: Speed,
     sector_size: SectorSize,
     adpcm_enabled: bool,
     filter_enabled: bool,
+    cdda_enabled: bool,
+    auto_pause: bool,
 }
 
 impl Mode {
@@ -460,6 +488,8 @@ impl Mode {
         self.speed = Speed::from(data & (1 << 7) != 0);
         self.adpcm_enabled = data & (1 << 6) != 0;
         self.filter_enabled = data & (1 << 3) != 0;
+        self.cdda_enabled = data & 1 != 0;
+        self.auto_pause = data & 2 != 0;
 
         // Set sector size only if ignore bit is 0
         if data & (1 << 4) == 0 {
@@ -475,6 +505,8 @@ impl Default for Mode {
             sector_size: SectorSize::DataOnly,
             adpcm_enabled: false,
             filter_enabled: false,
+            cdda_enabled: false,
+            auto_pause: false,
         }
     }
 }

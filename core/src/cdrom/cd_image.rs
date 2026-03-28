@@ -87,15 +87,6 @@ impl CdImage {
         ]
     }
 
-    pub fn current_sector_type(&self) -> cue::TrackType {
-        let current_track = self
-            .tracks
-            .partition_point(|t| t.indexes[0].lba <= self.read_head)
-            .saturating_sub(1);
-
-        self.tracks[current_track].track_type
-    }
-
     pub const fn seek_location(&mut self, mins: u8, secs: u8, sect: u8) {
         let total_sectors = ((mins as usize) * 60 * 75) + ((secs as usize) * 75) + (sect as usize);
         self.read_head = total_sectors * SECTOR_SIZE;
@@ -108,9 +99,6 @@ impl CdImage {
             read_head = %mm_ss_ff_str(self.read_head),
             "reading sector"
         );
-
-        debug_assert!(self.read_head + SECTOR_SIZE <= self.data.len());
-        debug_assert_ne!(self.current_sector_type(), cue::TrackType::Audio);
 
         let start = self.read_head;
         self.read_head += SECTOR_SIZE;

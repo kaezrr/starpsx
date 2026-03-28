@@ -1,11 +1,11 @@
 use super::GAUSSIAN_TABLE;
-use super::Volume;
+use super::SweepVolume;
 use super::apply_volume;
 use super::envelope::AdsrEnvelope;
 
 #[derive(Default)]
 pub struct Voice {
-    pub volume: Volume,
+    pub volume: SweepVolume,
     pub sample_rate: u16,
 
     pub start_address: u32,

@@ -224,7 +224,7 @@ enum Mode {
 }
 
 #[derive(Default)]
-pub struct SweepVolume {
+pub struct SweepVolumeLR {
     pub register: VolumeRegister,
 
     level: i16,
@@ -232,7 +232,7 @@ pub struct SweepVolume {
     counter: u32,
 }
 
-impl SweepVolume {
+impl SweepVolumeLR {
     pub const fn volume(&self) -> i16 {
         self.level
     }

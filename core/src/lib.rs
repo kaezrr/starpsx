@@ -281,7 +281,7 @@ impl System {
                 Event::CdromResultIrq(x) => CdRom::handle_response(self, x),
                 Event::DsrOff => self.sio0.turn_off_dsr(),
                 Event::SpuTick => {
-                    return Some(self.spu.tick().unwrap_or([0, 0]));
+                    return Some(Spu::tick(self).unwrap_or([0, 0]));
                 }
             }
         }

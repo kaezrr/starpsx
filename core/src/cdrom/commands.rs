@@ -159,7 +159,9 @@ impl CdRom {
 
         debug!(target: "cdrom", "cdrom pause");
 
-        let before = self.status.set_reading(false);
+        let before = self.status.0;
+        self.status.set_reading(false);
+        self.status.set_playing(false);
 
         CommandResponse::new()
             .int3([before], AVG_1ST_RESP_GENERIC)
@@ -205,20 +207,24 @@ impl CdRom {
     pub fn play(&mut self) -> CommandResponse {
         debug!(target: "cdrom", params=?self.parameters, "cdrom play");
 
-        let track = self.parameters.get(0); // Optional
+        let _track = self.parameters.first(); // Optional
 
-        self.status.set_reading(true);
+        self.status.set_playing(true);
 
-        CommandResponse::new().int3([self.status.0], AVG_1ST_RESP_INIT)
+        CommandResponse::new()
+            .int3([self.status.0], AVG_1ST_RESP_INIT)
+            .int1(AVG_RATE_INT1)
     }
 
     // stubbed audio command
-    pub fn demute(&self) -> CommandResponse {
+    pub fn demute(&mut self) -> CommandResponse {
         if !self.parameters.is_empty() {
             return error_response(&self.status, 0x20);
         }
 
         debug!(target: "cdrom", "cdrom demute");
+
+        self.audio_muted = false;
 
         CommandResponse::new().int3([self.status.0], AVG_1ST_RESP_INIT)
     }
