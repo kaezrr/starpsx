@@ -2860,6 +2860,7 @@ dependencies = [
  "cue",
  "derive_more",
  "num_enum",
+ "procmac",
  "starpsx-renderer",
  "tracing",
 ]

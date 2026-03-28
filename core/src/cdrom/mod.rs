@@ -7,10 +7,11 @@ use std::ops::Div;
 use arrayvec::ArrayVec;
 pub use cd_image::CdImage;
 pub use commands::ResponseType;
+use procmac::Boolable;
 use tracing::trace;
+use tracing::warn;
 
 use crate::System;
-use crate::cdrom::cd_image::SectorType;
 use crate::consts::AVG_RATE_INT1;
 use crate::mem::ByteAddressable;
 use crate::sched::Event;
@@ -26,8 +27,7 @@ pub struct CdRom {
     parameters: ArrayVec<u8, 16>,
     results: Vec<u8>,
 
-    speed: Speed,
-    sector_size: SectorSize,
+    mode: Mode,
     sector_buffer: VecDeque<u8>,
 
     disk: Option<CdImage>,
@@ -44,9 +44,8 @@ impl Default for CdRom {
             parameters: ArrayVec::default(),
             results: Vec::new(),
 
-            speed: Speed::Normal,
+            mode: Mode::default(),
             sector_buffer: VecDeque::new(),
-            sector_size: SectorSize::DataOnly,
 
             disk: None,
         }
@@ -134,6 +133,36 @@ impl CdRom {
         val
     }
 
+    fn process_sector(&mut self, sector: Vec<u8>) -> bool {
+        let sector_mode = sector[0xF];
+        let submode = sector[0x12];
+
+        // Check realtime and audio bits
+        let is_realtime_audio = (submode & (1 << 6) != 0) && (submode & (1 << 2) != 0);
+        let deliver_adpcm = self.mode.adpcm_enabled && sector_mode == 0x02 && is_realtime_audio;
+
+        let mut sector_data = VecDeque::from(sector);
+        match self.mode.sector_size {
+            // Data is in the slice 0x18..0x818
+            SectorSize::DataOnly => {
+                sector_data.drain(0x818..);
+                sector_data.drain(..0x18);
+            }
+            // Data is in the slice 0xC..
+            SectorSize::WholeSectorExceptSyncBytes => {
+                sector_data.drain(..0xC);
+            }
+        }
+
+        if deliver_adpcm {
+            warn!("CDXA Audio not yet implemented");
+        } else {
+            self.replace_sector(sector_data);
+        }
+
+        deliver_adpcm
+    }
+
     fn exec_command(system: &mut System, cmd: u8) {
         let cdrom = &mut system.cdrom;
 
@@ -175,7 +204,7 @@ impl CdRom {
             .into_iter()
             .for_each(|(res_type, delay)| {
                 let repeat = match res_type {
-                    ResponseType::INT1 => Some(cdrom.speed.transform(AVG_RATE_INT1)),
+                    ResponseType::INT1 => Some(cdrom.mode.speed.transform(AVG_RATE_INT1)),
                     _ => None,
                 };
                 system
@@ -204,12 +233,12 @@ impl CdRom {
                     panic!("int1 but no inserted disk");
                 };
 
-                let sector = inserted_disk.read_sector_and_advance(cdrom.sector_size);
+                let sector = inserted_disk.advance_sector();
+                let sector_pushed_to_adpcm = cdrom.process_sector(sector);
 
-                // Audio sectors should not trigger interrupts
-                match sector.kind {
-                    SectorType::Video | SectorType::Data => cdrom.replace_sector(sector.bytes),
-                    SectorType::Audio => todo!("CDXA Audio"),
+                // Should not trigger any interrupts
+                if sector_pushed_to_adpcm {
+                    return;
                 }
 
                 results.push(cdrom.status.0);
@@ -354,10 +383,10 @@ impl Status {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Boolable)]
 enum Speed {
-    Normal,
-    Double,
+    Normal = 0,
+    Double = 1,
 }
 
 impl Speed {
@@ -372,8 +401,39 @@ impl Speed {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Boolable)]
 pub enum SectorSize {
-    DataOnly,
-    WholeSectorExceptSyncBytes,
+    DataOnly = 0,
+    WholeSectorExceptSyncBytes = 1,
+}
+
+struct Mode {
+    speed: Speed,
+    sector_size: SectorSize,
+    adpcm_enabled: bool,
+    filter_enabled: bool,
+}
+
+impl Mode {
+    fn set_value(&mut self, data: u8) {
+        self.speed = Speed::from(data & (1 << 7) != 0);
+        self.adpcm_enabled = data & (1 << 6) != 0;
+        self.filter_enabled = data & (1 << 3) != 0;
+
+        // Set sector size only if ignore bit is 0
+        if data & (1 << 4) == 0 {
+            self.sector_size = SectorSize::from(data & (1 << 5) != 0);
+        }
+    }
+}
+
+impl Default for Mode {
+    fn default() -> Self {
+        Self {
+            speed: Speed::Normal,
+            sector_size: SectorSize::DataOnly,
+            adpcm_enabled: false,
+            filter_enabled: false,
+        }
+    }
 }

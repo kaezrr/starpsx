@@ -3,7 +3,6 @@ use tracing::debug;
 use tracing::error;
 
 use super::CdRom;
-use super::SectorSize;
 use super::Speed;
 use super::Status;
 use crate::consts::AVG_1ST_RESP_GENERIC;
@@ -118,22 +117,7 @@ impl CdRom {
 
         debug!(target: "cdrom", params=?self.parameters, "cdrom set mode");
 
-        let mode = self.parameters[0];
-
-        self.speed = if mode & (1 << 7) != 0 {
-            Speed::Double
-        } else {
-            Speed::Normal
-        };
-
-        // Set sector size only if ignore bit is 0
-        if mode & (1 << 4) == 0 {
-            self.sector_size = if mode & (1 << 5) != 0 {
-                SectorSize::WholeSectorExceptSyncBytes
-            } else {
-                SectorSize::DataOnly
-            };
-        }
+        self.mode.set_value(self.parameters[0]);
 
         CommandResponse::new().int3([self.status.0], AVG_1ST_RESP_GENERIC)
     }
@@ -159,7 +143,7 @@ impl CdRom {
 
         CommandResponse::new()
             .int3([self.status.0], AVG_1ST_RESP_GENERIC)
-            .int1(AVG_1ST_RESP_GENERIC + self.speed.transform(AVG_RATE_INT1))
+            .int1(AVG_1ST_RESP_GENERIC + self.mode.speed.transform(AVG_RATE_INT1))
     }
 
     pub fn pause(&mut self) -> CommandResponse {
@@ -175,7 +159,7 @@ impl CdRom {
             .int3([before], AVG_1ST_RESP_GENERIC)
             .int2(
                 [self.status.0],
-                AVG_1ST_RESP_GENERIC + self.speed.transform(AVG_2ND_RESP_PAUSE),
+                AVG_1ST_RESP_GENERIC + self.mode.speed.transform(AVG_2ND_RESP_PAUSE),
             )
     }
 
@@ -186,8 +170,7 @@ impl CdRom {
 
         debug!(target: "cdrom", "cdrom init");
 
-        self.speed = Speed::Normal;
-        self.sector_size = SectorSize::WholeSectorExceptSyncBytes;
+        self.mode.set_value(0x20);
 
         if let Some(disk) = self.disk.as_mut() {
             disk.reset_read_head();
@@ -290,7 +273,7 @@ impl CdRom {
 
         self.status.disable_motor();
 
-        let delay = match self.speed {
+        let delay = match self.mode.speed {
             Speed::Normal => 0x0D3_8ACA,
             Speed::Double => 0x18A_6076,
         };
