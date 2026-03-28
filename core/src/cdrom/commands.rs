@@ -86,27 +86,33 @@ impl CdRom {
         CommandResponse::new().int3([self.status.0], AVG_1ST_RESP_GENERIC)
     }
 
-    pub fn seekl(&self) -> CommandResponse {
+    pub fn seekl(&mut self) -> CommandResponse {
         if !self.parameters.is_empty() {
             return error_response(&self.status, 0x20);
         }
 
         debug!(target: "cdrom", "cdrom seekl");
 
+        self.status.set_seeking(true);
+        let seeking_status = self.status.set_seeking(false);
+
         CommandResponse::new()
-            .int3([self.status.0], AVG_1ST_RESP_GENERIC)
+            .int3([seeking_status], AVG_1ST_RESP_GENERIC)
             .int2([self.status.0], AVG_1ST_RESP_GENERIC + AVG_2ND_RESP_SEEKL)
     }
 
-    pub fn seekp(&self) -> CommandResponse {
+    pub fn seekp(&mut self) -> CommandResponse {
         if !self.parameters.is_empty() {
             return error_response(&self.status, 0x20);
         }
 
         debug!(target: "cdrom", "cdrom seekp");
 
+        self.status.set_seeking(true);
+        let seeking_status = self.status.set_seeking(false);
+
         CommandResponse::new()
-            .int3([self.status.0], AVG_1ST_RESP_GENERIC)
+            .int3([seeking_status], AVG_1ST_RESP_GENERIC)
             .int2([self.status.0], AVG_1ST_RESP_GENERIC + AVG_2ND_RESP_SEEKL)
     }
 
