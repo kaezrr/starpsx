@@ -161,7 +161,8 @@ impl CdRom {
 
     /// Returns whether the sector was as adpcm or data
     fn process_sector(&mut self, sector: Vec<u8>) -> bool {
-        if self.mode.cdda_enabled {
+        if self.status.playing() {
+            assert!(self.mode.cdda_enabled); // CDDA bit should be on during play mode
             self.push_to_audio_buffer(&sector);
             return true;
         }
@@ -395,6 +396,7 @@ bitfield::bitfield! {
 bitfield::bitfield! {
     #[derive(Default)]
     pub struct Status(u8);
+    playing, _: 7;
     _, set_shell_open: 4;
     _, set_motor_on: 1;
     _, set_error: 0;
