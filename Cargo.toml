@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["core", "cue", "frontend", "renderer"]
+members = ["core", "cue", "frontend", "procmac", "renderer"]
 
 [workspace.lints.clippy]
 nursery = { level = "warn", priority = -1 }
