@@ -402,29 +402,34 @@ bitfield::bitfield! {
 
 // Reading/Seeking/Playing bits are mutually exclusive
 impl Status {
+    const STATE_MASK: u8 = (1 << 7) | (1 << 6) | (1 << 5);
+
     pub const fn set_reading(&mut self, value: bool) -> u8 {
         let before = self.0;
-        self.0 &= !((1 << 7) | (1 << 6));
         if value {
-            self.0 |= 1 << 5;
+            self.0 = (self.0 & !Self::STATE_MASK) | (1 << 5);
+        } else {
+            self.0 &= !(1 << 5);
         }
         before
     }
 
     pub const fn set_seeking(&mut self, value: bool) -> u8 {
         let before = self.0;
-        self.0 &= !((1 << 7) | (1 << 5));
         if value {
-            self.0 |= 1 << 6;
+            self.0 = (self.0 & !Self::STATE_MASK) | (1 << 6);
+        } else {
+            self.0 &= !(1 << 6);
         }
         before
     }
 
     pub const fn set_playing(&mut self, value: bool) -> u8 {
         let before = self.0;
-        self.0 &= !((1 << 6) | (1 << 5));
         if value {
-            self.0 |= 1 << 7;
+            self.0 = (self.0 & !Self::STATE_MASK) | (1 << 7);
+        } else {
+            self.0 &= !(1 << 7);
         }
         before
     }
