@@ -371,22 +371,42 @@ bitfield::bitfield! {
     #[derive(Default)]
     pub struct Status(u8);
     _, set_shell_open: 4;
-    _, set_reading: 5;
     _, set_motor_on: 1;
     _, set_error: 0;
 }
 
+// Reading/Seeking/Playing bits are mutually exclusive
 impl Status {
+    pub const fn set_reading(&mut self, value: bool) -> u8 {
+        let before = self.0;
+        self.0 &= !((1 << 7) | (1 << 6));
+        if value {
+            self.0 |= 1 << 5;
+        }
+        before
+    }
+
+    pub const fn set_seeking(&mut self, value: bool) -> u8 {
+        let before = self.0;
+        self.0 &= !((1 << 7) | (1 << 5));
+        if value {
+            self.0 |= 1 << 6;
+        }
+        before
+    }
+
+    pub const fn set_playing(&mut self, value: bool) -> u8 {
+        let before = self.0;
+        self.0 &= !((1 << 6) | (1 << 5));
+        if value {
+            self.0 |= 1 << 7;
+        }
+        before
+    }
+
     /// Returns the status byte with the error bit set, without mutating self.
     pub const fn with_error(&self) -> u8 {
         self.0 | 0x01
-    }
-
-    /// Clears the reading flag and returns the status byte before the change.
-    pub fn clear_reading(&mut self) -> u8 {
-        let before = self.0;
-        self.set_reading(false);
-        before
     }
 
     /// Sets the `motor_on` flag and returns the status byte before the change.

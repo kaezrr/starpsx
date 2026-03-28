@@ -153,7 +153,7 @@ impl CdRom {
 
         debug!(target: "cdrom", "cdrom pause");
 
-        let before = self.status.clear_reading();
+        let before = self.status.set_reading(false);
 
         CommandResponse::new()
             .int3([before], AVG_1ST_RESP_GENERIC)
@@ -196,8 +196,12 @@ impl CdRom {
         CommandResponse::new().int3([self.status.0], AVG_1ST_RESP_INIT)
     }
 
-    pub fn play(&self) -> CommandResponse {
-        debug!(target: "cdrom", "cdrom play");
+    pub fn play(&mut self) -> CommandResponse {
+        debug!(target: "cdrom", params=?self.parameters, "cdrom play");
+
+        let track = self.parameters.get(0); // Optional
+
+        self.status.set_reading(true);
 
         CommandResponse::new().int3([self.status.0], AVG_1ST_RESP_INIT)
     }
@@ -266,7 +270,7 @@ impl CdRom {
 
         debug!(target: "cdrom", "cdrom stop");
 
-        self.status.clear_reading();
+        self.status.set_reading(false);
         let after_reading = self.status.0;
 
         if let Some(cd) = self.disk.as_mut() {
