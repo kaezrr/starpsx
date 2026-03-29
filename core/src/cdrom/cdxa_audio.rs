@@ -10,7 +10,7 @@ pub struct AdpcmHistory {
 pub fn decode_sector(
     sector: &[u8],
     history: &mut [AdpcmHistory; 3],
-    resamplers: &mut [ZigZagResampler; 3],
+    resamplers: &mut [CubicResampler; 3],
 ) -> Vec<i16> {
     let audio_header = AudioHeader(sector[0x13]);
 
@@ -19,11 +19,20 @@ pub fn decode_sector(
     assert_ne!(audio_header.channel(), Channel::Reserved);
 
     let is_stereo = audio_header.channel() == Channel::Stereo;
-    let mut output_samples = Vec::with_capacity(4704);
+    let is_18900 = audio_header.sample_rate() == SampleRate::R18900;
 
-    // Audio data is in the 0x914 byte region.
-    // It is split into 18 * 128 byte sized chunks = 0x900 bytes
-    // Remaining 0x14 bytes are zero-filled
+    // Ensure resamplers match the current sector's rate
+    for r in resamplers.iter_mut() {
+        let expected_step = if is_18900 { 3 } else { 6 };
+        if r.step != expected_step {
+            *r = CubicResampler::new(is_18900);
+        }
+    }
+
+    // 18.9kHz sectors play for twice as long, so they generate twice the output samples
+    let target_capacity = if is_18900 { 9408 } else { 4704 };
+    let mut output_samples = Vec::with_capacity(target_capacity);
+
     for section in sector[0x18..0x92C].chunks_exact(128) {
         for blk in 0..4 {
             if is_stereo {
@@ -31,29 +40,24 @@ pub fn decode_sector(
                 let samples_r = decode_28_nibbles::<1>(section, blk, &mut history[1]);
 
                 for (sample_l, sample_r) in samples_l.into_iter().zip(samples_r) {
-                    let resample_l = resamplers[0].process_sample(sample_l);
-                    let resample_r = resamplers[1].process_sample(sample_r);
+                    let (out_l, count_l) = resamplers[0].process_sample(sample_l);
+                    let (out_r, _count_r) = resamplers[1].process_sample(sample_r);
 
-                    if let (Some(l), Some(r)) = (resample_l, resample_r) {
-                        for i in 0..7 {
-                            output_samples.push(l[i]);
-                            output_samples.push(r[i]);
-                        }
-                    }
+                    (0..count_l).for_each(|i| {
+                        output_samples.push(out_l[i]);
+                        output_samples.push(out_r[i]);
+                    });
                 }
             } else {
-                let samples_mono1 = decode_28_nibbles::<0>(section, blk, &mut history[2]);
-                let samples_mono2 = decode_28_nibbles::<1>(section, blk, &mut history[2]);
+                let samples_m1 = decode_28_nibbles::<0>(section, blk, &mut history[2]);
+                let samples_m2 = decode_28_nibbles::<1>(section, blk, &mut history[2]);
 
-                for sample in samples_mono1 {
-                    if let Some(s) = resamplers[2].process_sample(sample) {
-                        output_samples.extend(s);
-                    }
-                }
-                for sample in samples_mono2 {
-                    if let Some(s) = resamplers[2].process_sample(sample) {
-                        output_samples.extend(s);
-                    }
+                for sample in samples_m1.into_iter().chain(samples_m2) {
+                    let (out, count) = resamplers[2].process_sample(sample);
+
+                    (0..count).for_each(|i| {
+                        output_samples.push(out[i]);
+                    });
                 }
             }
         }
@@ -140,100 +144,51 @@ fn signed4bit(v: u8) -> i32 {
     i32::from((v as i8) << 4 >> 4)
 }
 
-pub struct ZigZagResampler {
-    ringbuf: [i16; 32],
-    p: usize,
-    sixstep: usize,
+pub struct CubicResampler {
+    history: [i16; 4],
+    phase: usize,
+    step: usize, // 3 for 18.9kHz, 6 for 37.8kHz
 }
 
-impl Default for ZigZagResampler {
-    fn default() -> Self {
+impl CubicResampler {
+    pub const fn new(is_18900: bool) -> Self {
         Self {
-            ringbuf: [0; 32],
-            p: 0,
-            sixstep: 6,
+            history: [0; 4],
+            phase: 0,
+            step: if is_18900 { 3 } else { 6 },
         }
+    }
+
+    /// Feeds one native sample and returns a buffer of interpolated 44.1kHz samples.
+    /// Returns (buffer, count) because one input can produce 0, 1, or 2 outputs.
+    #[allow(clippy::many_single_char_names)]
+    pub fn process_sample(&mut self, sample: i16) -> ([i16; 3], usize) {
+        self.history.copy_within(1..4, 0);
+        self.history[3] = sample;
+
+        let mut out_buffer = [0; 3];
+        let mut count = 0;
+
+        let y0 = f32::from(self.history[0]);
+        let y1 = f32::from(self.history[1]);
+        let y2 = f32::from(self.history[2]);
+        let y3 = f32::from(self.history[3]);
+
+        // Catmull-Rom coefficients
+        let a = 0.5f32.mul_add(y3, 1.5f32.mul_add(-y2, (-0.5f32).mul_add(y0, 1.5 * y1)));
+        let b = 0.5f32.mul_add(-y3, 2.0f32.mul_add(y2, 2.5f32.mul_add(-y1, y0)));
+        let c = (-0.5f32).mul_add(y0, 0.5 * y2);
+        let d = y1;
+
+        while self.phase < 7 {
+            let t = self.phase as f32 / 7.0;
+            let res = (a * t + b).mul_add(t, c).mul_add(t, d);
+            out_buffer[count] = res.clamp(-32768.0, 32767.0) as i16;
+            count += 1;
+            self.phase += self.step;
+        }
+
+        self.phase -= 7;
+        (out_buffer, count)
     }
 }
-
-impl ZigZagResampler {
-    /// Resamples 37800Hz to 44100Hz by interpolating 7 samples for every 6 samples
-    fn process_sample(&mut self, sample: i16) -> Option<[i16; 7]> {
-        self.ringbuf[self.p & 0x1F] = sample;
-        self.p = self.p.wrapping_add(1);
-        self.sixstep -= 1;
-
-        if self.sixstep == 0 {
-            self.sixstep = 6;
-            Some([
-                self.interpolate(&XA_RESAMPLE_TABLES[0]),
-                self.interpolate(&XA_RESAMPLE_TABLES[1]),
-                self.interpolate(&XA_RESAMPLE_TABLES[2]),
-                self.interpolate(&XA_RESAMPLE_TABLES[3]),
-                self.interpolate(&XA_RESAMPLE_TABLES[4]),
-                self.interpolate(&XA_RESAMPLE_TABLES[5]),
-                self.interpolate(&XA_RESAMPLE_TABLES[6]),
-            ])
-        } else {
-            None
-        }
-    }
-
-    fn interpolate(&self, table: &[i32; 29]) -> i16 {
-        let mut sum: i32 = 0;
-
-        for i in 1..30 {
-            let idx = self.p.wrapping_sub(i) & 0x1F;
-            sum += (i32::from(self.ringbuf[idx]) * table[i - 1]) / 0x8000;
-        }
-
-        sum.clamp(-0x8000, 0x7FFF) as i16
-    }
-}
-
-/// XA-ADPCM 25-point Zigzag Interpolation Tables
-/// Each sub-array represents one of the 7 phases (Table 1 through Table 7)
-const XA_RESAMPLE_TABLES: [[i32; 29]; 7] = [
-    // Table 1
-    [
-        0x0000, 0x0000, 0x0000, 0x0000, 0x0000, -0x0002, 0x000A, -0x0022, 0x0041, -0x0054, 0x0034,
-        0x0009, -0x010A, 0x0400, -0x0A78, 0x234C, 0x6794, -0x1780, 0x0BCD, -0x0623, 0x0350,
-        -0x016D, 0x006B, 0x000A, -0x0010, 0x0011, -0x0008, 0x0003, -0x0001,
-    ],
-    // Table 2
-    [
-        0x0000, 0x0000, 0x0000, -0x0002, 0x0000, 0x0003, -0x0013, 0x003C, -0x004B, 0x00A2, -0x00E3,
-        0x0132, -0x0043, -0x0267, 0x0C9D, 0x74BB, -0x11B4, 0x09B8, -0x05BF, 0x0372, -0x01A8,
-        0x00A6, -0x001B, 0x0005, 0x0006, -0x0008, 0x0003, -0x0001, 0x0000,
-    ],
-    // Table 3
-    [
-        0x0000, 0x0000, -0x0001, 0x0003, -0x0002, -0x0005, 0x001F, -0x004A, 0x00B3, -0x0192,
-        0x02B1, -0x039E, 0x04F8, -0x05A6, 0x7939, -0x05A6, 0x04F8, -0x039E, 0x02B1, -0x0192,
-        0x00B3, -0x004A, 0x001F, -0x0005, -0x0002, 0x0003, -0x0001, 0x0000, 0x0000,
-    ],
-    // Table 4
-    [
-        0x0000, -0x0001, 0x0003, -0x0008, 0x0006, 0x0005, -0x001B, 0x00A6, -0x01A8, 0x0372,
-        -0x05BF, 0x09B8, -0x11B4, 0x74BB, 0x0C9D, -0x0267, -0x0043, 0x0132, -0x00E3, 0x00A2,
-        -0x004B, 0x003C, -0x001B, 0x0003, 0x0000, -0x0002, 0x0000, 0x0000, 0x0000,
-    ],
-    // Table 5
-    [
-        -0x0001, 0x0003, -0x0008, 0x0011, -0x0010, 0x000A, 0x006B, -0x016D, 0x0350, -0x0623,
-        0x0BCD, -0x1780, 0x6794, 0x234C, -0x0A78, 0x0400, -0x010A, 0x0009, 0x0034, -0x0054, 0x0041,
-        -0x0022, 0x000A, -0x0001, 0x0000, 0x0001, 0x0000, 0x0000, 0x0000,
-    ],
-    // Table 6
-    [
-        0x0002, -0x0008, 0x0010, -0x0023, 0x002B, 0x001A, -0x00EB, 0x027B, -0x0548, 0x0AFA,
-        -0x16FA, 0x53E0, 0x3C07, -0x1249, 0x080E, -0x0347, 0x015B, -0x0044, -0x0017, 0x0046,
-        -0x0023, 0x0011, -0x0005, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
-    ],
-    // Table 7
-    [
-        -0x0005, 0x0011, -0x0023, 0x0046, -0x0017, -0x0044, 0x015B, -0x0347, 0x080E, -0x1249,
-        0x3C07, 0x53E0, -0x16FA, 0x0AFA, -0x0548, 0x027B, -0x00EB, 0x001A, 0x002B, -0x0023, 0x0010,
-        -0x0008, 0x0002, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
-    ],
-];

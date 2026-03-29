@@ -2,6 +2,7 @@ mod cd_image;
 mod cdxa_audio;
 mod commands;
 
+use std::array;
 use std::collections::VecDeque;
 use std::ops::Div;
 
@@ -13,7 +14,7 @@ use tracing::trace;
 
 use crate::System;
 use crate::cdrom::cdxa_audio::AdpcmHistory;
-use crate::cdrom::cdxa_audio::ZigZagResampler;
+use crate::cdrom::cdxa_audio::CubicResampler;
 use crate::consts::AVG_RATE_INT1;
 use crate::mem::ByteAddressable;
 use crate::sched::Event;
@@ -37,7 +38,7 @@ pub struct CdRom {
     /// Left, Right, Mono
     adpcm_history: [AdpcmHistory; 3],
     /// Left, Right, Mono
-    resamplers: [ZigZagResampler; 3],
+    resamplers: [CubicResampler; 3],
 
     filter_file: u8,
     filter_channel: u8,
@@ -62,7 +63,7 @@ impl Default for CdRom {
             audio_muted: false,
 
             adpcm_history: Default::default(),
-            resamplers: Default::default(),
+            resamplers: array::from_fn(|_| CubicResampler::new(false)),
 
             filter_file: 0,
             filter_channel: 0,
