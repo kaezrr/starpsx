@@ -1,4 +1,5 @@
 mod cd_image;
+mod cdxa_audio;
 mod commands;
 
 use std::collections::VecDeque;
@@ -9,9 +10,10 @@ pub use cd_image::CdImage;
 pub use commands::ResponseType;
 use procmac::Boolable;
 use tracing::trace;
-use tracing::warn;
 
 use crate::System;
+use crate::cdrom::cdxa_audio::AdpcmHistory;
+use crate::cdrom::cdxa_audio::ZigZagResampler;
 use crate::consts::AVG_RATE_INT1;
 use crate::mem::ByteAddressable;
 use crate::sched::Event;
@@ -31,6 +33,11 @@ pub struct CdRom {
     data_buffer: VecDeque<u8>,
     audio_buffer: VecDeque<i16>,
     audio_muted: bool,
+
+    /// Left, Right, Mono
+    adpcm_history: [AdpcmHistory; 3],
+    /// Left, Right, Mono
+    resamplers: [ZigZagResampler; 3],
 
     filter_file: u8,
     filter_channel: u8,
@@ -53,6 +60,9 @@ impl Default for CdRom {
             data_buffer: VecDeque::new(),
             audio_buffer: VecDeque::new(),
             audio_muted: false,
+
+            adpcm_history: Default::default(),
+            resamplers: Default::default(),
 
             filter_file: 0,
             filter_channel: 0,
@@ -172,7 +182,34 @@ impl CdRom {
         let channel = sector[0x11];
         let submode = sector[0x12];
         let is_realtime_audio = (submode & 0x44) == 0x44;
+        let is_form2 = submode & (1 << 5) != 0;
         let mode = &self.mode; // cdrom mode
+
+        if sector_mode == 2 {
+            // Filter rejects both ADPCM and data delivery if file/channel doesn't match
+            if mode.filter_enabled && (file != self.filter_file || channel != self.filter_channel) {
+                return false;
+            }
+
+            // ADPCM delivery
+            if mode.adpcm_enabled && is_realtime_audio {
+                assert!(is_form2);
+                let audio_samples = cdxa_audio::decode_sector(
+                    &sector,
+                    &mut self.adpcm_history,
+                    &mut self.resamplers,
+                );
+
+                self.audio_buffer.extend(audio_samples);
+                return true;
+            }
+
+            // Even if ADPCM is disabled, don't deliver realtime audio sectors as data
+            // when filter is enabled
+            if mode.filter_enabled && is_realtime_audio {
+                return false;
+            }
+        }
 
         let mut sector_data = VecDeque::from(sector);
         match mode.sector_size {
@@ -184,25 +221,6 @@ impl CdRom {
             // Data is in the slice 0xC..
             SectorSize::WholeSectorExceptSyncBytes => {
                 sector_data.drain(..0xC);
-            }
-        }
-
-        if sector_mode == 2 {
-            // Filter rejects both ADPCM and data delivery if file/channel doesn't match
-            if mode.filter_enabled && (file != self.filter_file || channel != self.filter_channel) {
-                return false;
-            }
-
-            // ADPCM delivery
-            if mode.adpcm_enabled && is_realtime_audio {
-                warn!("CDXA Audio not yet implemented");
-                return true;
-            }
-
-            // Even if ADPCM is disabled, don't deliver realtime audio sectors as data
-            // when filter is enabled
-            if mode.filter_enabled && is_realtime_audio {
-                return false;
             }
         }
 
