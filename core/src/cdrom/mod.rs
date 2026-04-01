@@ -13,7 +13,12 @@ use tracing::trace;
 
 use crate::System;
 use crate::cdrom::cdxa_audio::AdpcmHistory;
-use crate::cdrom::cdxa_audio::ZigZagResampler;
+use crate::cdrom::cdxa_audio::BitsPerSample;
+use crate::cdrom::cdxa_audio::Channel;
+use crate::cdrom::cdxa_audio::HighResResampler;
+use crate::cdrom::cdxa_audio::LowResResampler;
+use crate::cdrom::cdxa_audio::SampleRate;
+use crate::cdrom::cdxa_audio::decode_audio_sector;
 use crate::consts::AVG_RATE_INT1;
 use crate::mem::ByteAddressable;
 use crate::sched::Event;
@@ -36,8 +41,8 @@ pub struct CdRom {
 
     /// Left, Right, Mono
     adpcm_history: [AdpcmHistory; 3],
-    /// Left, Right, Mono
-    resamplers: [ZigZagResampler; 3],
+    high_res_resamplers: [HighResResampler; 3],
+    low_res_resamplers: [LowResResampler; 3],
 
     filter_file: u8,
     filter_channel: u8,
@@ -62,7 +67,8 @@ impl Default for CdRom {
             audio_muted: false,
 
             adpcm_history: Default::default(),
-            resamplers: Default::default(),
+            high_res_resamplers: Default::default(),
+            low_res_resamplers: Default::default(),
 
             filter_file: 0,
             filter_channel: 0,
@@ -193,12 +199,37 @@ impl CdRom {
 
             // ADPCM delivery
             if mode.adpcm_enabled && is_realtime_audio {
-                assert!(is_form2);
-                let audio_samples = cdxa_audio::decode_sector(
-                    &sector,
-                    &mut self.adpcm_history,
-                    &mut self.resamplers,
-                );
+                let audio_header = cdxa_audio::AudioHeader(sector[0x13]);
+
+                debug_assert!(is_form2);
+                debug_assert_eq!(audio_header.bits_per_channel(), BitsPerSample::Bit4);
+                debug_assert_ne!(audio_header.channel(), Channel::Reserved);
+
+                let audio_samples = match (audio_header.channel(), audio_header.sample_rate()) {
+                    (Channel::Mono, SampleRate::R37800) => decode_audio_sector::<false>(
+                        &sector,
+                        &mut self.adpcm_history,
+                        &mut self.high_res_resamplers,
+                    ),
+                    (Channel::Stereo, SampleRate::R37800) => decode_audio_sector::<true>(
+                        &sector,
+                        &mut self.adpcm_history,
+                        &mut self.high_res_resamplers,
+                    ),
+                    (Channel::Mono, SampleRate::R18900) => decode_audio_sector::<false>(
+                        &sector,
+                        &mut self.adpcm_history,
+                        &mut self.low_res_resamplers,
+                    ),
+                    (Channel::Stereo, SampleRate::R18900) => decode_audio_sector::<true>(
+                        &sector,
+                        &mut self.adpcm_history,
+                        &mut self.low_res_resamplers,
+                    ),
+
+                    (Channel::Reserved, _) => unimplemented!("Reserved cdxa audio num channels"),
+                    (_, SampleRate::Reserved) => unimplemented!("Reserved cdxa sample rate"),
+                };
 
                 self.audio_buffer.extend(audio_samples);
                 return true;
