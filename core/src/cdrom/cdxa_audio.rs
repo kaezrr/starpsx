@@ -80,8 +80,8 @@ fn decode_28_nibbles<const NIBBLE: usize>(
 ) -> [i16; 28] {
     let mut samples = [0; 28];
 
-    let shift_raw = section[4 + blk * 2 + NIBBLE] & 0xF;
-    let shift = 12 - if shift_raw > 12 { 9 } else { shift_raw };
+    let shift = section[4 + blk * 2 + NIBBLE] & 0xF;
+    let shift = 12 - if shift > 12 { 9 } else { shift };
     let filter = (section[4 + blk * 2 + NIBBLE] & 0x30) >> 4;
 
     let f0 = POS_ADPCM_TABLE[usize::from(filter)];
