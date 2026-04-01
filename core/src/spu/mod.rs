@@ -6,7 +6,9 @@ use num_enum::FromPrimitive;
 use num_enum::IntoPrimitive;
 use tracing::debug;
 use tracing::trace;
+use tracing::warn;
 use utils::GAUSSIAN_TABLE;
+pub use utils::signed4bit;
 use utils::write_half;
 use voice::Voice;
 
@@ -405,7 +407,7 @@ pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, val: T) {
         0x1F80_1D9E => {} // voice status (read only)
 
         0x1F80_1E00..=0x1F80_1E7F => {
-            debug!(target: "spu", "spu writing to unknown register");
+            warn!("spu writing to unknown register");
         }
 
         x => unimplemented!("spu write {x:8X}"),

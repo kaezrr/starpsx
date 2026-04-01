@@ -1,3 +1,7 @@
+pub fn signed4bit(v: u8) -> i32 {
+    i32::from((v as i8) << 4 >> 4)
+}
+
 pub fn write_half<const HIGH: bool>(reg: &mut u32, val: u16) {
     let shift = if HIGH { 16 } else { 0 };
     let mask = 0xFFFF << shift;

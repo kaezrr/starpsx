@@ -1,6 +1,10 @@
 use arrayvec::ArrayVec;
 use num_enum::FromPrimitive;
 
+use crate::consts::NEG_ADPCM_TABLE;
+use crate::consts::POS_ADPCM_TABLE;
+use crate::spu::signed4bit;
+
 #[derive(Default)]
 pub struct AdpcmHistory {
     old: i16,
@@ -68,9 +72,6 @@ pub fn decode_audio_sector<const STEREO: bool>(
     output_samples
 }
 
-const POS_XA_ADPCM_TABLE: [i32; 5] = [0, 60, 115, 98, 122];
-const NEG_XA_ADPCM_TABLE: [i32; 5] = [0, 0, -52, -55, -60];
-
 #[must_use]
 fn decode_28_nibbles<const NIBBLE: usize>(
     section: &[u8],
@@ -83,8 +84,8 @@ fn decode_28_nibbles<const NIBBLE: usize>(
     let shift = 12 - if shift_raw > 12 { 9 } else { shift_raw };
     let filter = (section[4 + blk * 2 + NIBBLE] & 0x30) >> 4;
 
-    let f0 = POS_XA_ADPCM_TABLE[usize::from(filter)];
-    let f1 = NEG_XA_ADPCM_TABLE[usize::from(filter)];
+    let f0 = POS_ADPCM_TABLE[usize::from(filter)];
+    let f1 = NEG_ADPCM_TABLE[usize::from(filter)];
 
     for i in 0..28 {
         let t = signed4bit((section[16 + blk + i * 4] >> (NIBBLE * 4)) & 0xF);
@@ -140,10 +141,6 @@ pub enum BitsPerSample {
 
     #[num_enum(alternatives = [3])]
     Reserved = 2,
-}
-
-fn signed4bit(v: u8) -> i32 {
-    i32::from((v as i8) << 4 >> 4)
 }
 
 pub struct HighResResampler {
