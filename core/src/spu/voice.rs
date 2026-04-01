@@ -2,6 +2,9 @@ use super::GAUSSIAN_TABLE;
 use super::SweepVolume;
 use super::apply_volume;
 use super::envelope::AdsrEnvelope;
+use crate::consts::NEG_ADPCM_TABLE;
+use crate::consts::POS_ADPCM_TABLE;
+use crate::spu::utils::signed4bit;
 
 #[derive(Default)]
 pub struct Voice {
@@ -114,34 +117,24 @@ impl Voice {
 
     fn decode_adpcm_block(&mut self, block: &[u8; 16]) {
         let shift = block[0] & 0x0F;
-        let shift = if shift > 12 { 9 } else { shift };
+        let shift = 12 - if shift > 12 { 9 } else { shift };
+        let filter = ((block[0] & 0x70) >> 4).min(4);
 
-        let filter = ((block[0] >> 4) & 0x07).min(4);
+        let f0 = POS_ADPCM_TABLE[usize::from(filter)];
+        let f1 = NEG_ADPCM_TABLE[usize::from(filter)];
 
-        for sample_idx in 0..28 {
-            let sample_byte = block[2 + sample_idx / 2];
-            let sample_nibble = (sample_byte >> (4 * (sample_idx % 2))) & 0x0F;
-
-            let raw_sample: i32 = (((sample_nibble as i8) << 4) >> 4).into();
-
-            let shifted_sample = raw_sample << (12 - shift);
-
+        for i in 0..28 {
             let old = i32::from(self.adpcm_old_sample);
             let older = i32::from(self.adpcm_older_sample);
-            let filtered_sample = match filter {
-                0 => shifted_sample,
-                1 => shifted_sample + (60 * old + 32) / 64,
-                2 => shifted_sample + (115 * old - 52 * older + 32) / 64,
-                3 => shifted_sample + (98 * old - 55 * older + 32) / 64,
-                4 => shifted_sample + (122 * old - 60 * older + 32) / 64,
-                _ => unreachable!("filter was clamped to 0..=4"),
-            };
 
-            let clamped_sample = filtered_sample.clamp(-0x8000, 0x7FFF) as i16;
-            self.decode_buffer[sample_idx] = clamped_sample;
+            let t = signed4bit((block[2 + i / 2] >> (4 * (i & 1))) & 0xF);
+            let s = (t << shift) + (old * f0 + older * f1 + 32) / 64;
+            let s = s.clamp(-0x8000, 0x7FFF) as i16;
 
             self.adpcm_older_sample = self.adpcm_old_sample;
-            self.adpcm_old_sample = clamped_sample;
+            self.adpcm_old_sample = s;
+
+            self.decode_buffer[i] = s;
         }
     }
 
