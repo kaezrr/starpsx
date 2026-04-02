@@ -18,7 +18,6 @@ pub use utils::VramCopyFields;
 
 use crate::System;
 use crate::gpu::utils::PolyLineFn;
-use crate::mem::ByteAddressable;
 
 bitfield::bitfield! {
     #[derive(Clone, Copy)]
@@ -498,10 +497,10 @@ impl Gpu {
     }
 }
 
-pub fn read<T: ByteAddressable>(system: &mut System, offs: u32) -> T {
-    T::from_u32(system.gpu.read_reg(offs))
+pub fn read<const WIDTH: usize>(system: &mut System, offs: u32) -> u32 {
+    system.gpu.read_reg(offs)
 }
 
-pub fn write<T: ByteAddressable>(system: &mut System, offs: u32, data: T) {
-    system.gpu.write_reg(offs, data.to_u32());
+pub fn write<const WIDTH: usize>(system: &mut System, offs: u32, data: u32) {
+    system.gpu.write_reg(offs, data);
 }

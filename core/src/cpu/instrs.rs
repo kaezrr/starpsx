@@ -16,7 +16,7 @@ impl Cpu {
         let im = instr.imm16_se();
 
         let addr = system.cpu.regs[rs].wrapping_add(im);
-        let data = system.read::<u8>(addr)? as i8;
+        let data = system.read::<1>(addr)? as i8;
 
         system.cpu.take_delayed_load(rt, data as u32);
         Ok(())
@@ -29,9 +29,9 @@ impl Cpu {
         let im = instr.imm16_se();
 
         let addr = system.cpu.regs[rs].wrapping_add(im);
-        let data = system.read::<u8>(addr)?;
+        let data = system.read::<1>(addr)?;
 
-        system.cpu.take_delayed_load(rt, u32::from(data));
+        system.cpu.take_delayed_load(rt, data);
         Ok(())
     }
 
@@ -42,7 +42,7 @@ impl Cpu {
         let im = instr.imm16_se();
 
         let addr = system.cpu.regs[rs].wrapping_add(im);
-        let data = system.read::<u16>(addr)? as i16;
+        let data = system.read::<2>(addr)? as i16;
 
         system.cpu.take_delayed_load(rt, data as u32);
         Ok(())
@@ -55,9 +55,9 @@ impl Cpu {
         let im = instr.imm16_se();
 
         let addr = system.cpu.regs[rs].wrapping_add(im);
-        let data = system.read::<u16>(addr)?;
+        let data = system.read::<2>(addr)?;
 
-        system.cpu.take_delayed_load(rt, u32::from(data));
+        system.cpu.take_delayed_load(rt, data);
         Ok(())
     }
 
@@ -73,7 +73,7 @@ impl Cpu {
         let im = instr.imm16_se();
 
         let addr = system.cpu.regs[rs].wrapping_add(im);
-        let data = system.read::<u32>(addr)?;
+        let data = system.read::<4>(addr)?;
 
         system.cpu.take_delayed_load(rt, data);
         Ok(())
@@ -90,9 +90,9 @@ impl Cpu {
         let im = instr.imm16_se();
 
         let addr = system.cpu.regs[rs].wrapping_add(im);
-        let data = system.cpu.regs[rt] as u8;
+        let data = system.cpu.regs[rt];
 
-        system.write::<u8>(addr, data)
+        system.write::<1>(addr, data)
     }
 
     /// Store half word
@@ -106,9 +106,9 @@ impl Cpu {
         let im = instr.imm16_se();
 
         let addr = system.cpu.regs[rs].wrapping_add(im);
-        let data = system.cpu.regs[rt] as u16;
+        let data = system.cpu.regs[rt];
 
-        system.write::<u16>(addr, data)?;
+        system.write::<2>(addr, data)?;
         Ok(())
     }
 
@@ -126,7 +126,7 @@ impl Cpu {
         let addr = system.cpu.regs[rs].wrapping_add(im);
         let data = system.cpu.regs[rt];
 
-        system.write::<u32>(addr, data)?;
+        system.write::<4>(addr, data)?;
         Ok(())
     }
 
@@ -140,7 +140,7 @@ impl Cpu {
         let val = system.cpu.regd[rt];
 
         let aligned_addr = addr & !3;
-        let word = system.read::<u32>(aligned_addr)?;
+        let word = system.read::<4>(aligned_addr)?;
 
         let data = match addr & 3 {
             0 => (val & 0x00FF_FFFF) | (word << 24),
@@ -164,7 +164,7 @@ impl Cpu {
         let val = system.cpu.regd[rt];
 
         let aligned_addr = addr & !3;
-        let word = system.read::<u32>(aligned_addr)?;
+        let word = system.read::<4>(aligned_addr)?;
 
         let data = match addr & 3 {
             0 => word,
@@ -188,7 +188,7 @@ impl Cpu {
         let val = system.cpu.regs[rt];
 
         let aligned_addr = addr & !3;
-        let word = system.read::<u32>(aligned_addr)?;
+        let word = system.read::<4>(aligned_addr)?;
 
         let data = match addr & 3 {
             0 => (word & 0xFFFF_FF00) | (val >> 24),
@@ -198,7 +198,7 @@ impl Cpu {
             _ => unreachable!(),
         };
 
-        system.write::<u32>(aligned_addr, data)?;
+        system.write::<4>(aligned_addr, data)?;
         Ok(())
     }
 
@@ -212,7 +212,7 @@ impl Cpu {
         let val = system.cpu.regs[rt];
 
         let aligned_addr = addr & !3;
-        let word = system.read::<u32>(aligned_addr)?;
+        let word = system.read::<4>(aligned_addr)?;
 
         let data = match addr & 3 {
             0 => val,
@@ -222,7 +222,7 @@ impl Cpu {
             _ => unreachable!(),
         };
 
-        system.write::<u32>(aligned_addr, data)?;
+        system.write::<4>(aligned_addr, data)?;
         Ok(())
     }
 

@@ -3,7 +3,6 @@ use derive_more::IndexMut;
 
 use crate::LINE_DURATION;
 use crate::System;
-use crate::mem::ByteAddressable;
 use crate::sched::Event;
 use crate::sched::TimerInterrupt;
 
@@ -221,7 +220,7 @@ impl Timers {
     }
 }
 
-pub fn read<T: ByteAddressable>(system: &mut System, addr: u32) -> T {
+pub fn read<const WIDTH: usize>(system: &mut System, addr: u32) -> u32 {
     let offs = addr - PADDR_START;
     let which = (offs >> 4) as usize;
     Timers::update_value(system, which);
@@ -235,16 +234,16 @@ pub fn read<T: ByteAddressable>(system: &mut System, addr: u32) -> T {
         n => unimplemented!("timer read {n}"),
     };
 
-    T::from_u32(u32::from(v))
+    u32::from(v)
 }
 
-pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, data: T) {
+pub fn write<const WIDTH: usize>(system: &mut System, addr: u32, data: u32) {
     let offs = addr - PADDR_START;
     let which = (offs >> 4) as usize;
     Timers::update_value(system, which);
 
     let timer = &mut system.timers[which];
-    let data = data.to_u16();
+    let data = data as u16;
 
     match offs & 0xF {
         0 => timer.set_counter(data),

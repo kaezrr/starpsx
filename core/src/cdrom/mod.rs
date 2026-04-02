@@ -21,7 +21,6 @@ use crate::cdrom::cdxa_audio::LowResResampler;
 use crate::cdrom::cdxa_audio::SampleRate;
 use crate::cdrom::cdxa_audio::decode_audio_sector;
 use crate::consts::AVG_RATE_INT1;
-use crate::mem::ByteAddressable;
 use crate::sched::Event;
 
 pub const PADDR_START: u32 = 0x1F80_1800;
@@ -91,10 +90,10 @@ impl CdRom {
         self.address.0
     }
 
-    pub fn read_rddata<T: ByteAddressable>(&mut self) -> u32 {
+    pub fn read_rddata<const WIDTH: usize>(&mut self) -> u32 {
         let mut bytes = [0u8; 4];
 
-        (0..T::LEN).for_each(|i| {
+        (0..WIDTH).for_each(|i| {
             bytes[i] = self.pop_from_data_buffer();
         });
 
@@ -364,26 +363,24 @@ impl CdRom {
     }
 }
 
-pub fn read<T: ByteAddressable>(system: &mut System, addr: u32) -> T {
+pub fn read<const WIDTH: usize>(system: &mut System, addr: u32) -> u32 {
     let offs = addr - PADDR_START;
     let cdrom = &mut system.cdrom;
 
-    let val: u32 = match (cdrom.address.bank(), offs) {
+    match (cdrom.address.bank(), offs) {
         (_, 0) => cdrom.read_addr().into(),
         (_, 1) => cdrom.pop_result().into(),
-        (_, 2) => cdrom.read_rddata::<T>().to_u32(),
+        (_, 2) => cdrom.read_rddata::<WIDTH>(),
         (0 | 2, 3) => cdrom.read_hintmsk().into(),
         (1 | 3, 3) => cdrom.read_hintsts().into(),
         (x, y) => unreachable!("cdrom bank {x} register {y}"),
-    };
-
-    T::from_u32(val)
+    }
 }
 
-pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, data: T) {
+pub fn write<const WIDTH: usize>(system: &mut System, addr: u32, data: u32) {
     let offs = addr - PADDR_START;
     let cdrom = &mut system.cdrom;
-    let val = data.to_u8();
+    let val = data as u8;
 
     match (cdrom.address.bank(), offs) {
         (_, 0) => cdrom.write_addr(val),

@@ -12,7 +12,6 @@ use utils::write_half;
 use voice::Voice;
 
 use crate::System;
-use crate::mem::ByteAddressable;
 use crate::spu::envelope::SweepVolumeLR;
 
 pub const PADDR_START: u32 = 0x1F80_1C00;
@@ -170,12 +169,12 @@ impl Spu {
 }
 
 #[allow(clippy::match_same_arms)]
-pub fn read<T: ByteAddressable>(system: &System, addr: u32) -> T {
+pub fn read<const WIDTH: usize>(system: &System, addr: u32) -> u32 {
     trace!("spu read addr={addr:08x}");
 
     let spu = &system.spu;
 
-    let data = match addr {
+    match addr {
         0x1F80_1D80 => u32::from(spu.main_volume.l.register.0),
         0x1F80_1D82 => u32::from(spu.main_volume.r.register.0),
 
@@ -291,34 +290,31 @@ pub fn read<T: ByteAddressable>(system: &System, addr: u32) -> T {
             0
         }
 
-        x => unimplemented!("spu read {x:8X}, width={}", T::LEN * 8),
-    };
-
-    T::from_u32(data)
+        x => unimplemented!("spu read {x:8X}, width={}", WIDTH * 8),
+    }
 }
 
 #[allow(clippy::match_same_arms)]
-pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, val: T) {
+pub fn write<const WIDTH: usize>(system: &mut System, addr: u32, val: u32) {
     // To make generics more readable
     const HIGH: bool = true;
     const LOW: bool = false;
 
-    trace!("spu write addr={addr:08x}, data={:08x}", val.to_u32());
-    debug_assert_ne!(T::LEN, 1);
+    trace!("spu write addr={addr:08x}, data={:08x}", val);
+    debug_assert_ne!(WIDTH, 1);
 
-    if T::LEN == 4 {
-        let val = val.to_u32();
+    if WIDTH == 4 {
         let lo = val & 0xFFFF;
         let hi = (val >> 16) & 0xFFFF;
 
-        write::<u16>(system, addr, lo as u16);
-        write::<u16>(system, addr + 2, hi as u16);
+        write::<2>(system, addr, lo);
+        write::<2>(system, addr + 2, hi);
 
         return;
     }
 
     let spu = &mut system.spu;
-    let val = val.to_u16();
+    let val = val as u16;
 
     match addr {
         0x1F80_1D80 => spu.main_volume.l.set_volume(val),

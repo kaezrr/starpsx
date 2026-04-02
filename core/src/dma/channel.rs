@@ -1,7 +1,6 @@
 use super::utils::Direction;
 use super::utils::Mode;
 use super::utils::Step;
-use crate::mem::ByteAddressable;
 
 bitfield::bitfield! {
     pub struct Control(u32);
@@ -65,10 +64,9 @@ impl Channel {
         }
     }
 
-    pub fn write<T: ByteAddressable>(&mut self, reg: u32, data: T) {
-        assert_eq!(T::LEN, 4);
+    pub fn write<const WIDTH: usize>(&mut self, reg: u32, data: u32) {
+        assert_eq!(WIDTH, 4);
 
-        let data = data.to_u32();
         match reg {
             0 => self.base = data & 0xFF_FFFF,
             4 => self.block_ctl.0 = data,

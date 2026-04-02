@@ -11,7 +11,6 @@ use crate::mdec::util::level_shift_8bpp;
 use crate::mdec::util::signed10bit;
 use crate::mdec::util::yuv_to_rgb15_block;
 use crate::mdec::util::yuv_to_rgb24_block;
-use crate::mem::ByteAddressable;
 
 pub const PADDR_START: u32 = 0x1F80_1820;
 pub const PADDR_END: u32 = 0x1F80_1828;
@@ -384,19 +383,15 @@ impl MacroDecoder {
     }
 }
 
-pub fn read<T: ByteAddressable>(system: &mut System, addr: u32) -> T {
-    let data = match addr {
+pub fn read<const WIDTH: usize>(system: &mut System, addr: u32) -> u32 {
+    match addr {
         0x1F80_1820 => system.mdec.response(),
         0x1F80_1824 => system.mdec.status(),
         _ => unimplemented!("MDEC read {addr:x}"),
-    };
-
-    T::from_u32(data)
+    }
 }
 
-pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, data: T) {
-    let data = data.to_u32();
-
+pub fn write<const WIDTH: usize>(system: &mut System, addr: u32, data: u32) {
     match addr {
         0x1F80_1820 => system.mdec.command_or_param(data),
         0x1F80_1824 => system.mdec.write_control(data),

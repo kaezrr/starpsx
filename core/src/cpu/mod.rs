@@ -62,7 +62,7 @@ impl Default for Cpu {
 
 impl Cpu {
     pub fn run_next_instruction(system: &mut System) {
-        let instr = Instruction(match system.read::<u32>(system.cpu.pc) {
+        let instr = Instruction(match system.read::<4>(system.cpu.pc) {
             Ok(v) => v,
             Err(e) => return system.cpu.handle_exception(&e, false),
         });

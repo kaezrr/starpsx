@@ -1,6 +1,3 @@
-use std::fmt::Display;
-use std::fmt::LowerHex;
-
 use tracing::trace;
 
 use crate::System;
@@ -14,66 +11,8 @@ use crate::sio;
 use crate::spu;
 use crate::timers;
 
-pub trait ByteAddressable: Copy + LowerHex + Display {
-    const LEN: usize;
-
-    type Bytes: for<'a> TryFrom<&'a [u8], Error: core::fmt::Debug> + AsRef<[u8]>;
-
-    fn from_le_bytes(bytes: Self::Bytes) -> Self;
-
-    fn to_le_bytes(self) -> Self::Bytes;
-
-    fn from_u32(val: u32) -> Self;
-
-    fn to_u32(self) -> u32;
-
-    fn to_u16(self) -> u16;
-
-    fn to_u8(self) -> u8;
-}
-
-macro_rules! int_impl {
-    ($int:ty) => {
-        impl ByteAddressable for $int {
-            const LEN: usize = size_of::<Self>();
-
-            type Bytes = [u8; Self::LEN];
-
-            fn from_le_bytes(bytes: Self::Bytes) -> Self {
-                <$int>::from_le_bytes(bytes)
-            }
-
-            fn to_le_bytes(self) -> Self::Bytes {
-                self.to_le_bytes()
-            }
-
-            fn from_u32(val: u32) -> Self {
-                val as Self
-            }
-
-            fn to_u32(self) -> u32 {
-                u32::from(self)
-            }
-
-            #[allow(clippy::cast_lossless)]
-            fn to_u16(self) -> u16 {
-                self as u16
-            }
-
-            fn to_u8(self) -> u8 {
-                self as u8
-            }
-        }
-    };
-}
-
-int_impl!(u8);
-int_impl!(u16);
-int_impl!(u32);
-
 pub mod bios {
 
-    use super::ByteAddressable;
     pub const PADDR_START: u32 = 0x1FC0_0000;
     pub const PADDR_END: u32 = 0x1FC8_0000;
 
@@ -90,19 +29,18 @@ pub mod bios {
             Ok(Self { bytes: box_bytes })
         }
 
-        pub fn read<T: ByteAddressable>(&self, addr: u32) -> T {
+        pub fn read<const WIDTH: usize>(&self, addr: u32) -> u32 {
             let addr = (addr - PADDR_START) as usize;
-            T::from_le_bytes(
-                self.bytes[addr..addr + size_of::<T>()]
-                    .try_into()
-                    .expect("read bytes"),
-            )
+            let mut buffer = [0u8; 4];
+
+            buffer[..WIDTH].copy_from_slice(&self.bytes[addr..addr + WIDTH]);
+
+            u32::from_le_bytes(buffer)
         }
     }
 }
 
 pub mod ram {
-    use super::ByteAddressable;
     pub const PADDR_START: u32 = 0x0000_0000;
     pub const PADDR_END: u32 = 0x0080_0000;
 
@@ -119,24 +57,25 @@ pub mod ram {
     }
 
     impl Ram {
-        pub fn read<T: ByteAddressable>(&self, addr: u32) -> T {
+        pub fn read<const WIDTH: usize>(&self, addr: u32) -> u32 {
             let addr = (addr & 0x1FF_FFF) as usize;
-            T::from_le_bytes(
-                self.bytes[addr..addr + T::LEN]
-                    .try_into()
-                    .expect("read bytes"),
-            )
+            let mut buffer = [0u8; 4];
+
+            buffer[..WIDTH].copy_from_slice(&self.bytes[addr..addr + WIDTH]);
+
+            u32::from_le_bytes(buffer)
         }
 
-        pub fn write<T: ByteAddressable>(&mut self, addr: u32, val: T) {
+        pub fn write<const WIDTH: usize>(&mut self, addr: u32, val: u32) {
             let addr = (addr & 0x1FF_FFF) as usize;
-            self.bytes[addr..addr + T::LEN].copy_from_slice(val.to_le_bytes().as_ref());
+            let bytes = val.to_le_bytes(); // Convert u32 to [u8; 4]
+
+            self.bytes[addr..addr + WIDTH].copy_from_slice(&bytes[..WIDTH]);
         }
     }
 }
 
 pub mod scratch {
-    use super::ByteAddressable;
     pub const PADDR_START: u32 = 0x1F80_0000;
     pub const PADDR_END: u32 = 0x1F80_0400;
 
@@ -153,18 +92,20 @@ pub mod scratch {
     }
 
     impl Scratch {
-        pub fn read<T: ByteAddressable>(&self, addr: u32) -> T {
+        pub fn read<const WIDTH: usize>(&self, addr: u32) -> u32 {
             let addr = (addr - PADDR_START) as usize;
-            T::from_le_bytes(
-                self.bytes[addr..addr + size_of::<T>()]
-                    .try_into()
-                    .expect("read bytes"),
-            )
+            let mut buffer = [0u8; 4];
+
+            buffer[..WIDTH].copy_from_slice(&self.bytes[addr..addr + WIDTH]);
+
+            u32::from_le_bytes(buffer)
         }
 
-        pub fn write<T: ByteAddressable>(&mut self, addr: u32, val: T) {
+        pub fn write<const WIDTH: usize>(&mut self, addr: u32, val: u32) {
             let addr = (addr - PADDR_START) as usize;
-            self.bytes[addr..addr + size_of::<T>()].copy_from_slice(val.to_le_bytes().as_ref());
+            let bytes = val.to_le_bytes(); // Convert u32 to [u8; 4]
+
+            self.bytes[addr..addr + WIDTH].copy_from_slice(&bytes[..WIDTH]);
         }
     }
 }
@@ -172,7 +113,7 @@ pub mod scratch {
 macro_rules! stubbed {
     ($region:expr, $at:expr) => {{
         trace!(target:"mem", region = $region, "stubbed read addr={:#08x}", $at);
-        T::from_u32(0xFF)
+        0xFF
     }};
 }
 
@@ -191,48 +132,48 @@ impl System {
         let addr = mask_region(addr);
 
         match addr {
-            ram::PADDR_START..ram::PADDR_END => self.ram.read(addr),
-            bios::PADDR_START..bios::PADDR_END => self.bios.read(addr),
-            scratch::PADDR_START..scratch::PADDR_END => self.scratch.read(addr),
+            ram::PADDR_START..ram::PADDR_END => self.ram.read::<4>(addr),
+            bios::PADDR_START..bios::PADDR_END => self.bios.read::<4>(addr),
+            scratch::PADDR_START..scratch::PADDR_END => self.scratch.read::<4>(addr),
             _ => 0xFFFF_FFFF,
         }
     }
 
     /// # Errors
     /// Returns an error if the address is not properly aligned
-    pub fn read<T: ByteAddressable>(&mut self, addr: u32) -> Result<T, Exception> {
-        if !addr.is_multiple_of(T::LEN as u32) {
+    pub fn read<const WIDTH: usize>(&mut self, addr: u32) -> Result<u32, Exception> {
+        if !addr.is_multiple_of(WIDTH as u32) {
             return Err(Exception::LoadAddressError(addr));
         }
 
         let addr = mask_region(addr);
 
         let data = match addr {
-            ram::PADDR_START..ram::PADDR_END => self.ram.read(addr),
+            ram::PADDR_START..ram::PADDR_END => self.ram.read::<WIDTH>(addr),
 
-            bios::PADDR_START..bios::PADDR_END => self.bios.read(addr),
+            bios::PADDR_START..bios::PADDR_END => self.bios.read::<WIDTH>(addr),
 
-            scratch::PADDR_START..scratch::PADDR_END => self.scratch.read(addr),
+            scratch::PADDR_START..scratch::PADDR_END => self.scratch.read::<WIDTH>(addr),
 
-            gpu::PADDR_START..gpu::PADDR_END => gpu::read(self, addr),
+            gpu::PADDR_START..gpu::PADDR_END => gpu::read::<WIDTH>(self, addr),
 
-            dma::PADDR_START..dma::PADDR_END => dma::read(self, addr),
+            dma::PADDR_START..dma::PADDR_END => dma::read::<WIDTH>(self, addr),
 
-            irq::PADDR_START..irq::PADDR_END => irq::read(self, addr),
+            irq::PADDR_START..irq::PADDR_END => irq::read::<WIDTH>(self, addr),
 
-            timers::PADDR_START..timers::PADDR_END => timers::read(self, addr),
+            timers::PADDR_START..timers::PADDR_END => timers::read::<WIDTH>(self, addr),
 
-            cdrom::PADDR_START..cdrom::PADDR_END => cdrom::read(self, addr),
+            cdrom::PADDR_START..cdrom::PADDR_END => cdrom::read::<WIDTH>(self, addr),
 
-            sio::PADDR_START..sio::PADDR_END => sio::read(self, addr),
+            sio::PADDR_START..sio::PADDR_END => sio::read::<WIDTH>(self, addr),
 
-            spu::PADDR_START..spu::PADDR_END => spu::read(self, addr),
+            spu::PADDR_START..spu::PADDR_END => spu::read::<WIDTH>(self, addr),
 
-            mdec::PADDR_START..mdec::PADDR_END => mdec::read(self, addr),
+            mdec::PADDR_START..mdec::PADDR_END => mdec::read::<WIDTH>(self, addr),
 
             0x1F80_1000..0x1F80_1024 => stubbed!("memctl", addr),
 
-            0x1F80_1060..0x1F80_1064 => T::from_u32(0xB88), // 2MB Ram Size
+            0x1F80_1060..0x1F80_1064 => 0xB88, // 2MB Ram Size
 
             0xFFFE_0130..0xFFFE_0134 => unimplemented!("read to cachectl"),
 
@@ -248,32 +189,32 @@ impl System {
 
     /// # Errors
     /// Returns an error if the address is not properly aligned
-    pub fn write<T: ByteAddressable>(&mut self, addr: u32, data: T) -> Result<(), Exception> {
-        if !addr.is_multiple_of(T::LEN as u32) {
+    pub fn write<const WIDTH: usize>(&mut self, addr: u32, data: u32) -> Result<(), Exception> {
+        if !addr.is_multiple_of(WIDTH as u32) {
             return Err(Exception::StoreAddressError(addr));
         }
         let addr = mask_region(addr);
 
         match addr {
-            ram::PADDR_START..ram::PADDR_END => self.ram.write(addr, data),
+            ram::PADDR_START..ram::PADDR_END => self.ram.write::<WIDTH>(addr, data),
 
-            scratch::PADDR_START..scratch::PADDR_END => self.scratch.write(addr, data),
+            scratch::PADDR_START..scratch::PADDR_END => self.scratch.write::<WIDTH>(addr, data),
 
-            gpu::PADDR_START..gpu::PADDR_END => gpu::write(self, addr, data),
+            gpu::PADDR_START..gpu::PADDR_END => gpu::write::<WIDTH>(self, addr, data),
 
-            dma::PADDR_START..dma::PADDR_END => dma::write(self, addr, data),
+            dma::PADDR_START..dma::PADDR_END => dma::write::<WIDTH>(self, addr, data),
 
-            irq::PADDR_START..irq::PADDR_END => irq::write(self, addr, data),
+            irq::PADDR_START..irq::PADDR_END => irq::write::<WIDTH>(self, addr, data),
 
-            timers::PADDR_START..timers::PADDR_END => timers::write(self, addr, data),
+            timers::PADDR_START..timers::PADDR_END => timers::write::<WIDTH>(self, addr, data),
 
-            cdrom::PADDR_START..cdrom::PADDR_END => cdrom::write(self, addr, data),
+            cdrom::PADDR_START..cdrom::PADDR_END => cdrom::write::<WIDTH>(self, addr, data),
 
-            sio::PADDR_START..sio::PADDR_END => sio::write(self, addr, data),
+            sio::PADDR_START..sio::PADDR_END => sio::write::<WIDTH>(self, addr, data),
 
-            spu::PADDR_START..spu::PADDR_END => spu::write(self, addr, data),
+            spu::PADDR_START..spu::PADDR_END => spu::write::<WIDTH>(self, addr, data),
 
-            mdec::PADDR_START..mdec::PADDR_END => mdec::write(self, addr, data),
+            mdec::PADDR_START..mdec::PADDR_END => mdec::write::<WIDTH>(self, addr, data),
 
             0x1F80_1000..0x1F80_1024 => {
                 trace!(target: "mem", region = "memctl", "stubbed write addr={:#08x}", addr);
