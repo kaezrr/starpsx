@@ -188,6 +188,7 @@ impl Emulator {
 
     fn main_loop(mut self, audio_stream: &cpal::Stream, mut prod: AudioProducer) {
         let mut last_paused = true;
+        let mut wave_samples = Vec::new();
 
         loop {
             if self.process_commands() {
@@ -224,6 +225,8 @@ impl Emulator {
                 self.system.run_frame(self.show_vram);
             } else {
                 let samples = self.system.run_one_spu_tick(self.show_vram);
+                wave_samples.push(samples[0]);
+                wave_samples.push(samples[1]);
                 prod.push(samples).expect("send audio samples"); // Blocking send
             }
 
@@ -233,6 +236,8 @@ impl Emulator {
                 self.send_frame_buffer(fb);
             }
         }
+
+        write_to_wave_file("bios_sound.wav", wave_samples);
 
         info!("emulator thread stopped!");
     }
@@ -328,4 +333,47 @@ fn build_system(
 
     let system = starpsx_core::System::build(bios, run_type, memory_card)?;
     Ok(system)
+}
+
+use std::fs::File;
+use std::io::Write;
+
+#[allow(warnings)]
+fn write_to_wave_file(name: impl AsRef<Path>, samples: Vec<i16>) {
+    let mut file = File::create(name).expect("Unable to create file");
+
+    // Metadata constants
+    let sample_rate: u32 = 44100;
+    let num_channels: u16 = 2; // Stereo
+    let bits_per_sample: u16 = 16;
+
+    // Calculations
+    let num_samples = samples.len() as u32;
+    let data_size = num_samples * 2; // 2 bytes per i16 sample
+    let byte_rate = sample_rate * num_channels as u32 * (bits_per_sample / 8) as u32;
+    let block_align = num_channels * (bits_per_sample / 8);
+
+    // --- RIFF Header ---
+    file.write_all(b"RIFF").unwrap();
+    file.write_all(&(36 + data_size).to_le_bytes()).unwrap();
+    file.write_all(b"WAVE").unwrap();
+
+    // --- Format Chunk ("fmt ") ---
+    file.write_all(b"fmt ").unwrap();
+    file.write_all(&16u32.to_le_bytes()).unwrap();
+    file.write_all(&1u16.to_le_bytes()).unwrap(); // PCM Format
+    file.write_all(&num_channels.to_le_bytes()).unwrap();
+    file.write_all(&sample_rate.to_le_bytes()).unwrap();
+    file.write_all(&byte_rate.to_le_bytes()).unwrap();
+    file.write_all(&block_align.to_le_bytes()).unwrap();
+    file.write_all(&bits_per_sample.to_le_bytes()).unwrap();
+
+    // --- Data Chunk ---
+    file.write_all(b"data").unwrap();
+    file.write_all(&data_size.to_le_bytes()).unwrap();
+
+    // Convert i16 samples to Little-Endian bytes
+    for sample in samples {
+        file.write_all(&sample.to_le_bytes()).unwrap();
+    }
 }

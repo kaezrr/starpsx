@@ -280,9 +280,7 @@ impl System {
                 Event::SerialSend => Sio0::process_serial_send(self),
                 Event::CdromResultIrq(x) => CdRom::handle_response(self, x),
                 Event::DsrOff => self.sio0.turn_off_dsr(),
-                Event::SpuTick => {
-                    return Some(Spu::tick(self).unwrap_or([0, 0]));
-                }
+                Event::SpuTick => return Some(Spu::tick(self)),
             }
         }
 
