@@ -10,6 +10,7 @@ pub use cd_image::CdImage;
 pub use commands::ResponseType;
 use procmac::Boolable;
 use tracing::trace;
+use tracing::warn;
 
 use crate::System;
 use crate::cdrom::cdxa_audio::AdpcmHistory;
@@ -136,10 +137,10 @@ impl CdRom {
     }
 
     fn pop_from_data_buffer(&mut self) -> u8 {
-        let data = self
-            .data_buffer
-            .pop_front()
-            .expect("pop_from_sector_buffer inserted disk");
+        let data = self.data_buffer.pop_front().unwrap_or_else(|| {
+            warn!("cdrom pop from empty buffer");
+            0
+        });
 
         if self.data_buffer.is_empty() {
             self.address.set_data_request(false);
