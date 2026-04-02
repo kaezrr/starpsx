@@ -34,11 +34,7 @@ impl Channel {
     }
 
     pub fn active(&self) -> bool {
-        let trigger = match self.ctl.mode() {
-            Mode::Burst => self.ctl.forced(),
-            _ => true,
-        };
-        self.ctl.enabled() && trigger
+        self.ctl.enabled()
     }
 
     /// Get DMA transfer size in words

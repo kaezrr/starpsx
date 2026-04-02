@@ -4,6 +4,7 @@ pub mod utils;
 use std::array::from_fn;
 
 use channel::Channel;
+use tracing::debug;
 use utils::Direction;
 use utils::Mode;
 use utils::Port;
@@ -121,7 +122,7 @@ impl DMAController {
             (step, channel.ctl.dir(), channel.base, size)
         };
 
-        tracing::debug!(target: "dma", ?port, size, "dma");
+        debug!(target: "dma", ?port, size, ?dir, ?step, "dma addr={base:x}");
 
         let mut addr = base;
         for s in (0..size).rev() {
@@ -199,6 +200,8 @@ pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, data: T) {
     let channel = (((addr >> 4) & 0xF) - 8) as usize;
     let register = addr & 0xF;
 
+    debug!(target: "dma", "dma write {addr:x} {data:08x}");
+
     match addr {
         0x1F80_1080..0x1F80_10F0 => {
             let port = Port::from(channel);
@@ -215,7 +218,9 @@ pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, data: T) {
                 DMAController::do_dma(system, port);
             }
         }
+
         0x1F80_10F0 => system.dma.write_dpcr(data),
+
         0x1F80_10F4 => {
             if system.dma.write_dicr(data.to_u32()) {
                 system.irqctl.stat().set_dma(true);
