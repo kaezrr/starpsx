@@ -1,4 +1,5 @@
 mod snapshot;
+mod voice;
 
 pub use snapshot::AdsrPhase;
 pub use snapshot::Snapshot;
@@ -6,6 +7,7 @@ pub use snapshot::VoiceSnapshot;
 use tracing::warn;
 
 use crate::System;
+use crate::spu::voice::Voice;
 
 pub const PADDR_START: u32 = 0x1F80_1C00;
 pub const PADDR_END: u32 = 0x1F80_1E80;
@@ -32,9 +34,11 @@ pub struct Spu {
     ram_data_transfer_address: u16,
 
     voice_key_off: u32,
+    voice_key_on: u32,
 
     // Internal registers
     current_address: usize,
+    voices: [Voice; 24],
 
     sound_ram: Box<[u8; 0x80000]>,
 }
@@ -56,8 +60,10 @@ impl Default for Spu {
             ram_data_transfer_address: 0,
 
             voice_key_off: 0,
+            voice_key_on: 0,
 
             current_address: 0,
+            voices: Default::default(),
 
             sound_ram: vec![0; 0x80000].try_into().expect("alloc sound ram"),
         }
@@ -103,6 +109,12 @@ impl Spu {
         // TODO: Loop through voices and key them off
     }
 
+    const fn write_key_on<const HIGH: usize>(&mut self, val: u16) {
+        write_half::<HIGH>(&mut self.voice_key_on, val);
+
+        // TODO: Loop through voices and key them on
+    }
+
     const fn write_pitch_enable<const HIGH: usize>(&mut self, val: u16) {
         write_half::<HIGH>(&mut self.voice_pitch_enable, val);
 
@@ -131,14 +143,30 @@ impl Spu {
 pub fn read<const WIDTH: usize>(system: &System, addr: u32) -> u32 {
     let spu = &system.spu;
 
-    let data = match addr {
-        0x1F80_1DAA => spu.control.0,
-        0x1F80_1DAE => spu.status(),
+    match addr {
+        // 24 Voices
+        0x1F80_1C00..=0x1F80_1D7F => {
+            let i = ((addr - 0x1F80_1C00) / 0x10) as usize;
+            let r = ((addr - 0x1F80_1C00) % 0x10) as usize;
+
+            match r {
+                0xC => 0, // TODO: Current ADSR Volume
+                _ => unimplemented!("read voice {i} register {r:x}"),
+            }
+        }
+
+        0x1F80_1D88 => spu.voice_key_on,
+        0x1F80_1D8A => spu.voice_key_on >> 16,
+
+        0x1F80_1D8C => spu.voice_key_off,
+        0x1F80_1D8E => spu.voice_key_off >> 16,
+
+        0x1F80_1DAA => u32::from(spu.control.0),
+        0x1F80_1DAC => u32::from(spu.ram_data_transfer_control), // should be 0x0004
+        0x1F80_1DAE => u32::from(spu.status()),
 
         x => unimplemented!("spu read {x:8X}, width={}", WIDTH * 8),
-    };
-
-    u32::from(data)
+    }
 }
 
 ///  16bit writes are suppored,
@@ -164,32 +192,53 @@ pub fn write<const WIDTH: usize>(system: &mut System, addr: u32, val: u32) {
     let val = val as u16;
 
     match addr {
+        // 24 Voices
+        0x1F80_1C00..=0x1F80_1D7F => {
+            let i = ((addr - 0x1F80_1C00) / 0x10) as usize;
+            let r = ((addr - 0x1F80_1C00) % 0x10) as usize;
+
+            match r {
+                0x0 => spu.voices[i].volume.set_l(val),
+                0x2 => spu.voices[i].volume.set_r(val),
+                0x4 => spu.voices[i].set_sample_rate(val),
+                0x6 => spu.voices[i].set_start_address(val),
+                0x8 => warn!("Voice {i} ADSR high"),
+                0xA => warn!("Voice {i} ADSR low"),
+                0xE => spu.voices[i].repeat_address = val,
+
+                _ => unimplemented!("write voice {i} register {r:x} {val:x}"),
+            }
+        }
+
         0x1F80_1D80 => spu.main_volume.set_l(val),
         0x1F80_1D82 => spu.main_volume.set_r(val),
 
-        0x1F80_1D8C => spu.write_key_off::<1>(val),
-        0x1F80_1D8E => spu.write_key_off::<0>(val),
+        0x1F80_1D88 => spu.write_key_on::<0>(val),
+        0x1F80_1D8A => spu.write_key_on::<1>(val),
 
-        0x1F80_1D90 => spu.write_pitch_enable::<1>(val),
-        0x1F80_1D92 => spu.write_pitch_enable::<0>(val),
+        0x1F80_1D8C => spu.write_key_off::<0>(val),
+        0x1F80_1D8E => spu.write_key_off::<1>(val),
 
-        0x1F80_1D94 => spu.write_noise_enable::<1>(val),
-        0x1F80_1D96 => spu.write_noise_enable::<0>(val),
+        0x1F80_1D90 => spu.write_pitch_enable::<0>(val),
+        0x1F80_1D92 => spu.write_pitch_enable::<1>(val),
 
-        0x1F80_1D98 => spu.write_reverb_enable::<1>(val),
-        0x1F80_1D9A => spu.write_reverb_enable::<0>(val),
+        0x1F80_1D94 => spu.write_noise_enable::<0>(val),
+        0x1F80_1D96 => spu.write_noise_enable::<1>(val),
+
+        0x1F80_1D98 => spu.write_reverb_enable::<0>(val),
+        0x1F80_1D9A => spu.write_reverb_enable::<1>(val),
 
         0x1F80_1DAA => spu.write_control(val),
+
+        0x1F80_1DA6 => spu.write_transfer_address(val),
+        0x1F80_1DA8 => spu.ram_write::<2>(u32::from(val)),
+        0x1F80_1DAC => spu.ram_data_transfer_control = val, // should be 0x0004
 
         0x1F80_1DB0 => spu.cd_volume.set_l(val),
         0x1F80_1DB2 => spu.cd_volume.set_r(val),
 
         0x1F80_1DB4 => spu.ex_volume.set_l(val),
         0x1F80_1DB6 => spu.ex_volume.set_r(val),
-
-        0x1F80_1DA6 => spu.write_transfer_address(val),
-        0x1F80_1DA8 => spu.ram_write::<2>(u32::from(val)),
-        0x1F80_1DAC => spu.ram_data_transfer_control = val, // should be 0x0004
 
         // Reverb stuff is stubbed out for now
         0x1F80_1D84 | 0x1F80_1D86 => warn!("writing reverb volume"),

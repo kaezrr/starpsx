@@ -4,26 +4,25 @@ use super::Spu;
 
 impl Spu {
     pub fn snapshot(&self) -> Snapshot {
-        // Snapshot {
-        //     enabled: self.control.enabled(),
-        //     muted: !self.control.unmuted(),
-        //     main_volume_left: i16_volume_to_percent(self.main_volume.l.volume()),
-        //     main_volume_right: i16_volume_to_percent(self.main_volume.r.volume()),
-        //     voices: std::array::from_fn(|i| {
-        //         let v = &self.voices[i];
-        //         VoiceSnapshot {
-        //             start_address: (v.start_address >> 3) as u16,
-        //             repeat_address: (v.repeat_address >> 3) as u16,
-        //             current_address: v.current_address >> 3,
-        //             sample_rate: sample_rate_to_hz(v.sample_rate),
-        //             volume_left: i16_volume_to_percent(v.volume.l.volume()),
-        //             volume_right: i16_volume_to_percent(v.volume.r.volume()),
-        //             adsr_phase: v.envelope.phase(),
-        //             adsr_volume: i16_volume_to_percent(v.envelope.volume()),
-        //         }
-        //     }),
-        // }
-        Snapshot::default()
+        Snapshot {
+            enabled: self.control.enabled(),
+            muted: !self.control.unmuted(),
+            main_volume_left: i16_volume_to_percent(self.main_volume.l.0),
+            main_volume_right: i16_volume_to_percent(self.main_volume.r.0),
+            voices: std::array::from_fn(|i| {
+                let v = &self.voices[i];
+                VoiceSnapshot {
+                    start_address: v.start_address,
+                    repeat_address: v.repeat_address,
+                    current_address: v.current_address / 8,
+                    sample_rate: sample_rate_to_hz(v.sample_rate),
+                    volume_left: i16_volume_to_percent(v.volume.l.0),
+                    volume_right: i16_volume_to_percent(v.volume.r.0),
+                    adsr_phase: AdsrPhase::Off, // TODO
+                    adsr_volume: 0.,            // TODO
+                }
+            }),
+        }
     }
 }
 
