@@ -134,7 +134,7 @@ impl DMAController {
                             _ => addr.wrapping_sub(4) & 0x1F_FFFC,
                         },
                         Port::Gpu => system.gpu.read(),
-                        Port::Spu => system.spu.dma_read(),
+                        Port::Spu => system.spu.ram_read::<4>(),
                         Port::CdRom => system.cdrom.read_rddata::<4>(),
                         Port::MdecOut => system.mdec.response(),
                         _ => todo!("DMA source {port:?}"),
@@ -145,7 +145,7 @@ impl DMAController {
                     let src_word = system.ram.read::<4>(cur_addr);
                     match port {
                         Port::Gpu => system.gpu.gp0(src_word),
-                        Port::Spu => system.spu.dma_write(src_word),
+                        Port::Spu => system.spu.ram_write::<4>(src_word),
                         Port::MdecIn => system.mdec.command_or_param(src_word),
                         _ => todo!("DMA destination {port:?}"),
                     }
