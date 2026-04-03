@@ -96,21 +96,18 @@ impl Spu {
             return [0, 0];
         }
 
-        // Clock all the voices
-        for v in &mut spu.voices {
-            v.tick(spu.sound_ram.as_ref());
-        }
-
         let mut mixed_l = 0i32;
         let mut mixed_r = 0i32;
 
         for v in &mut spu.voices {
-            if v.keyed_off {
+            let samples = v.tick(spu.sound_ram.as_ref());
+
+            if !v.keyed_on {
                 continue;
             }
 
-            mixed_l += i32::from(v.current_sample) / 4;
-            mixed_r += i32::from(v.current_sample) / 4;
+            mixed_l += i32::from(samples[0]) / 4;
+            mixed_r += i32::from(samples[1]) / 4;
         }
 
         if !spu.control.unmuted() {
@@ -159,10 +156,15 @@ impl Spu {
         }
     }
 
-    const fn write_pitch_enable<const HIGH: usize>(&mut self, val: u16) {
+    fn write_pitch_enable<const HIGH: usize>(&mut self, val: u16) {
         write_half::<HIGH>(&mut self.voice_pitch_enable, val);
 
-        // TODO: Loop through voices modify their pitch flags
+        let base = HIGH * 16;
+        let count = if HIGH == 1 { 8 } else { 16 };
+
+        for i in 0..count {
+            self.voices[base + i].pulse_modulation_enabled = (val >> i) & 1 != 0;
+        }
     }
 
     const fn write_noise_enable<const HIGH: usize>(&mut self, val: u16) {
@@ -209,6 +211,11 @@ pub fn read<const WIDTH: usize>(system: &System, addr: u32) -> u32 {
         0x1F80_1DAC => u32::from(spu.ram_data_transfer_control), // should be 0x0004
         0x1F80_1DAE => u32::from(spu.status()),
 
+        0x1F80_1DA6 => u32::from(spu.ram_data_transfer_address),
+
+        0x1F80_1DB8 => spu.main_volume.l.0 as u32, // TODO: current
+        0x1F80_1DBA => spu.main_volume.r.0 as u32, // TODO: current
+
         x => unimplemented!("spu read {x:8X}, width={}", WIDTH * 8),
     }
 }
@@ -248,6 +255,7 @@ pub fn write<const WIDTH: usize>(system: &mut System, addr: u32, val: u32) {
                 0x6 => spu.voices[i].set_start_address(val),
                 0x8 => warn!("Voice {i} ADSR high"),
                 0xA => warn!("Voice {i} ADSR low"),
+                0xC => {} // TODO: Current ADSR Volume
                 0xE => spu.voices[i].set_repeat_address(val),
 
                 _ => unimplemented!("write voice {i} register {r:x} {val:x}"),
@@ -286,6 +294,8 @@ pub fn write<const WIDTH: usize>(system: &mut System, addr: u32, val: u32) {
 
         // Reverb stuff is stubbed out for now
         0x1F80_1D84 | 0x1F80_1D86 => warn!("writing reverb volume"),
+        0x1F80_1D9C | 0x1F80_1D9E => {} // ENDX Read only
+
         0x1F80_1DA2 => warn!("writing reverb work area start address"),
         0x1F80_1DC0..=0x1F80_1DFE => warn!("writing reverb configuration"),
 

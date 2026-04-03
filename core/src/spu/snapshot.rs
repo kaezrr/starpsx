@@ -18,10 +18,10 @@ impl Spu {
                     sample_rate: sample_rate_to_hz(v.sample_rate),
                     volume_left: i16_volume_to_percent(v.volume.l.0),
                     volume_right: i16_volume_to_percent(v.volume.r.0),
-                    adsr_phase: if v.keyed_off {
-                        AdsrPhase::Off
-                    } else {
+                    adsr_phase: if v.keyed_on {
                         AdsrPhase::Attack
+                    } else {
+                        AdsrPhase::Off
                     }, // TODO
                     adsr_volume: 0., // TODO
                 }
