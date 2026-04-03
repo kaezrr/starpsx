@@ -90,7 +90,37 @@ impl Spu {
     }
 
     pub fn tick(system: &mut System) -> [i16; 2] {
-        [0, 0]
+        let spu = &mut system.spu;
+
+        if !spu.control.enabled() {
+            return [0, 0];
+        }
+
+        // Clock all the voices
+        for v in &mut spu.voices {
+            v.tick(spu.sound_ram.as_ref());
+        }
+
+        let mut mixed_l = 0i32;
+        let mut mixed_r = 0i32;
+
+        for v in &mut spu.voices {
+            if v.keyed_off {
+                continue;
+            }
+
+            mixed_l += i32::from(v.current_sample) / 4;
+            mixed_r += i32::from(v.current_sample) / 4;
+        }
+
+        if !spu.control.unmuted() {
+            return [0, 0];
+        }
+
+        let clamped_sample_l = mixed_l.clamp(-0x7FFF, 0x8000) as i16;
+        let clamped_sample_r = mixed_r.clamp(-0x7FFF, 0x8000) as i16;
+
+        [clamped_sample_l, clamped_sample_r]
     }
 
     const fn write_control(&mut self, value: u16) {
@@ -103,16 +133,30 @@ impl Spu {
         self.control.0 & 0x3F
     }
 
-    const fn write_key_off<const HIGH: usize>(&mut self, val: u16) {
+    fn write_key_off<const HIGH: usize>(&mut self, val: u16) {
         write_half::<HIGH>(&mut self.voice_key_off, val);
 
-        // TODO: Loop through voices and key them off
+        let base = HIGH * 16;
+        let count = if HIGH == 1 { 8 } else { 16 };
+
+        for i in 0..count {
+            if (val >> i) & 1 != 0 {
+                self.voices[base + i].key_off();
+            }
+        }
     }
 
-    const fn write_key_on<const HIGH: usize>(&mut self, val: u16) {
+    fn write_key_on<const HIGH: usize>(&mut self, val: u16) {
         write_half::<HIGH>(&mut self.voice_key_on, val);
 
-        // TODO: Loop through voices and key them on
+        let base = HIGH * 16;
+        let count = if HIGH == 1 { 8 } else { 16 };
+
+        for i in 0..count {
+            if (val >> i) & 1 != 0 {
+                self.voices[base + i].key_on(self.sound_ram.as_ref());
+            }
+        }
     }
 
     const fn write_pitch_enable<const HIGH: usize>(&mut self, val: u16) {
@@ -204,7 +248,7 @@ pub fn write<const WIDTH: usize>(system: &mut System, addr: u32, val: u32) {
                 0x6 => spu.voices[i].set_start_address(val),
                 0x8 => warn!("Voice {i} ADSR high"),
                 0xA => warn!("Voice {i} ADSR low"),
-                0xE => spu.voices[i].repeat_address = val,
+                0xE => spu.voices[i].set_repeat_address(val),
 
                 _ => unimplemented!("write voice {i} register {r:x} {val:x}"),
             }

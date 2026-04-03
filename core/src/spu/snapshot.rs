@@ -12,14 +12,18 @@ impl Spu {
             voices: std::array::from_fn(|i| {
                 let v = &self.voices[i];
                 VoiceSnapshot {
-                    start_address: v.start_address,
-                    repeat_address: v.repeat_address,
+                    start_address: (v.start_address / 8) as u16,
+                    repeat_address: (v.repeat_address / 8) as u16,
                     current_address: v.current_address / 8,
                     sample_rate: sample_rate_to_hz(v.sample_rate),
                     volume_left: i16_volume_to_percent(v.volume.l.0),
                     volume_right: i16_volume_to_percent(v.volume.r.0),
-                    adsr_phase: AdsrPhase::Off, // TODO
-                    adsr_volume: 0.,            // TODO
+                    adsr_phase: if v.keyed_off {
+                        AdsrPhase::Off
+                    } else {
+                        AdsrPhase::Attack
+                    }, // TODO
+                    adsr_volume: 0., // TODO
                 }
             }),
         }
@@ -39,7 +43,7 @@ pub struct Snapshot {
 pub struct VoiceSnapshot {
     pub start_address: u16,
     pub repeat_address: u16,
-    pub current_address: usize,
+    pub current_address: u32,
     pub sample_rate: f32,
     pub volume_left: f32,
     pub volume_right: f32,
