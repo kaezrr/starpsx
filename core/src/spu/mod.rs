@@ -4,6 +4,7 @@ mod voice;
 pub use snapshot::AdsrPhase;
 pub use snapshot::Snapshot;
 pub use snapshot::VoiceSnapshot;
+use tracing::debug;
 use tracing::warn;
 
 use crate::System;
@@ -106,8 +107,8 @@ impl Spu {
                 continue;
             }
 
-            mixed_l += i32::from(samples[0]) / 4;
-            mixed_r += i32::from(samples[1]) / 4;
+            mixed_l += i32::from(samples[0]);
+            mixed_r += i32::from(samples[1]);
         }
 
         if !spu.control.unmuted() {
@@ -117,7 +118,10 @@ impl Spu {
         let clamped_sample_l = mixed_l.clamp(-0x7FFF, 0x8000) as i16;
         let clamped_sample_r = mixed_r.clamp(-0x7FFF, 0x8000) as i16;
 
-        [clamped_sample_l, clamped_sample_r]
+        let output_l = apply_volume(clamped_sample_l, spu.main_volume.l.0);
+        let output_r = apply_volume(clamped_sample_r, spu.main_volume.r.0);
+
+        [output_l, output_r]
     }
 
     const fn write_control(&mut self, value: u16) {
@@ -189,6 +193,8 @@ impl Spu {
 pub fn read<const WIDTH: usize>(system: &System, addr: u32) -> u32 {
     let spu = &system.spu;
 
+    debug!("spu read {addr:08x}");
+
     match addr {
         // 24 Voices
         0x1F80_1C00..=0x1F80_1D7F => {
@@ -196,7 +202,13 @@ pub fn read<const WIDTH: usize>(system: &System, addr: u32) -> u32 {
             let r = ((addr - 0x1F80_1C00) % 0x10) as usize;
 
             match r {
-                0xC => 0, // TODO: Current ADSR Volume
+                0xC => {
+                    if spu.voices[i].keyed_on {
+                        0x7FFF
+                    } else {
+                        0
+                    }
+                }
                 _ => unimplemented!("read voice {i} register {r:x}"),
             }
         }
@@ -226,7 +238,7 @@ pub fn write<const WIDTH: usize>(system: &mut System, addr: u32, val: u32) {
     //  So they are split into 2 16bit writes instead
     if WIDTH == 4 {
         write::<2>(system, addr, val);
-        write::<2>(system, addr, val);
+        write::<2>(system, addr + 2, val);
         return;
     }
 
@@ -242,6 +254,8 @@ pub fn write<const WIDTH: usize>(system: &mut System, addr: u32, val: u32) {
     let spu = &mut system.spu;
     let val = val as u16;
 
+    debug!("spu write {addr:08x} <- {val:04x}");
+
     match addr {
         // 24 Voices
         0x1F80_1C00..=0x1F80_1D7F => {
@@ -253,9 +267,9 @@ pub fn write<const WIDTH: usize>(system: &mut System, addr: u32, val: u32) {
                 0x2 => spu.voices[i].volume.set_r(val),
                 0x4 => spu.voices[i].set_sample_rate(val),
                 0x6 => spu.voices[i].set_start_address(val),
-                0x8 => warn!("Voice {i} ADSR high"),
-                0xA => warn!("Voice {i} ADSR low"),
-                0xC => {} // TODO: Current ADSR Volume
+                0x8 => warn!("set voice {i} ADSR low"),
+                0xA => warn!("set voice {i} ADSR high"),
+                0xC => spu.voices[i].adsr_volume = val.cast_signed(),
                 0xE => spu.voices[i].set_repeat_address(val),
 
                 _ => unimplemented!("write voice {i} register {r:x} {val:x}"),
@@ -346,3 +360,7 @@ impl Volume<i16> {
 
 #[derive(Default)]
 struct Sweep(i16);
+
+fn apply_volume(sample: i16, volume: i16) -> i16 {
+    ((i32::from(sample) * i32::from(volume)) >> 15) as i16
+}

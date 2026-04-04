@@ -2,6 +2,7 @@ use crate::consts::NEG_ADPCM_TABLE;
 use crate::consts::POS_ADPCM_TABLE;
 use crate::spu::Sweep;
 use crate::spu::Volume;
+use crate::spu::apply_volume;
 
 #[derive(Default)]
 pub struct Voice {
@@ -23,6 +24,8 @@ pub struct Voice {
     pub keyed_on: bool,
     pub pulse_modulation_enabled: bool,
 
+    pub adsr_volume: i16,
+
     decode_buffer: [i16; 28],
     current_buffer_idx: usize,
 
@@ -34,7 +37,7 @@ pub struct Voice {
     samples_history: [i16; 4],
 
     ignore_loop_address: bool,
-    is_first_block: bool,
+    reached_loop_end: bool,
 }
 
 impl Voice {
@@ -49,7 +52,7 @@ impl Voice {
 
     pub fn set_repeat_address(&mut self, val: u16) {
         self.repeat_address = u32::from(val) * 8;
-        self.ignore_loop_address |= !self.keyed_on || !self.is_first_block;
+        self.ignore_loop_address = true;
     }
 
     pub fn key_on(&mut self, sound_ram: &[u8]) {
@@ -63,7 +66,7 @@ impl Voice {
 
         self.keyed_on = true;
         self.ignore_loop_address = false;
-        self.is_first_block = true;
+        self.reached_loop_end = false;
 
         self.decode_next_block(sound_ram);
     }
@@ -101,8 +104,12 @@ impl Voice {
         interpolated += (GAUSSIAN_TABLE[0x100 + i] * samples[2]) >> 15;
         interpolated += (GAUSSIAN_TABLE[i] * samples[3]) >> 15;
 
-        // Sample interpolation and voice volume here
-        [interpolated as i16, interpolated as i16]
+        let clamped = interpolated.clamp(-0x8000, 0x7FFF) as i16;
+
+        let output_l = apply_volume(clamped, self.volume.l.0);
+        let output_r = apply_volume(clamped, self.volume.r.0);
+
+        [output_l, output_r]
     }
 
     fn decode_next_block(&mut self, sound_ram: &[u8]) {
@@ -110,7 +117,6 @@ impl Voice {
         let block = &sound_ram[addr..addr + 16];
 
         self.decode_adpcm_block(block);
-        self.is_first_block = false;
 
         let loop_end = block[1] & 1 != 0;
         let loop_repeat = block[1] & 2 != 0;
@@ -121,8 +127,8 @@ impl Voice {
         }
 
         if loop_end {
-            // Set ENDX bit here
             self.current_address = self.repeat_address;
+            self.reached_loop_end = true;
 
             if !loop_repeat {
                 // FORCED KEY OFF

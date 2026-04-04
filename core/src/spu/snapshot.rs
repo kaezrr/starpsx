@@ -23,7 +23,7 @@ impl Spu {
                     } else {
                         AdsrPhase::Off
                     }, // TODO
-                    adsr_volume: 0., // TODO
+                    adsr_volume: i16_volume_to_percent(v.adsr_volume),
                 }
             }),
         }
