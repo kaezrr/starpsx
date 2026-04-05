@@ -95,21 +95,22 @@ impl Voice {
                 self.current_buffer_idx = 0;
                 self.decode_next_block(sound_ram);
             }
-        }
 
-        // Shift the 4-sample window forward
-        self.samples_history[0] = self.decode_buffer[self.current_buffer_idx];
-        self.samples_history.rotate_left(1);
+            // Move this INSIDE the loop!
+            self.samples_history[0] = self.decode_buffer[self.current_buffer_idx];
+            self.samples_history.rotate_left(1);
+        }
 
         // i = bit 4-11 of the pitch counter (8-bit index)
         let i = ((self.pitch_counter >> 4) & 0xFF) as usize;
         let samples = self.samples_history.map(i32::from);
 
         // Apply the Gaussian interpolation
-        let mut interpolated = (GAUSSIAN_TABLE[0x0FF - i] * samples[0]) >> 15;
-        interpolated += (GAUSSIAN_TABLE[0x1FF - i] * samples[1]) >> 15;
-        interpolated += (GAUSSIAN_TABLE[0x100 + i] * samples[2]) >> 15;
-        interpolated += (GAUSSIAN_TABLE[i] * samples[3]) >> 15;
+        let mut interpolated = GAUSSIAN_TABLE[0x0FF - i] * samples[0];
+        interpolated += GAUSSIAN_TABLE[0x1FF - i] * samples[1];
+        interpolated += GAUSSIAN_TABLE[0x100 + i] * samples[2];
+        interpolated += GAUSSIAN_TABLE[i] * samples[3];
+        interpolated >>= 15; // Shift at the very end
 
         self.envelope.tick();
         let envelope_sample = apply_volume(interpolated as i16, self.envelope.volume as i16);

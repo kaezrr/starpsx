@@ -224,6 +224,12 @@ pub fn read<const WIDTH: usize>(system: &System, addr: u32) -> u32 {
         0x1F80_1DB8 => spu.main_volume.l.0 as u32, // TODO: current
         0x1F80_1DBA => spu.main_volume.r.0 as u32, // TODO: current
 
+        0x1F80_1D94 => spu.voice_noise_enable,
+        0x1F80_1D96 => spu.voice_noise_enable >> 16,
+
+        0x1F80_1D98 => spu.voice_reverb_enable,
+        0x1F80_1D9A => spu.voice_reverb_enable >> 16,
+
         x => unimplemented!("spu read {x:8X}, width={}", WIDTH * 8),
     }
 }
