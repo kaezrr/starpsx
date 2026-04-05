@@ -19,6 +19,8 @@ bitfield::bitfield! {
     struct Control(u16);
     enabled, _ : 15; // Doesn't affect CD Audio
     unmuted, _ : 14; // Doesn't affect CD Audio
+    u8, noise_shift, _: 13, 10;
+    u8, noise_step, _: 9, 8;
 }
 
 pub struct Spu {
@@ -43,6 +45,7 @@ pub struct Spu {
     voices: [Voice; 24],
 
     sound_ram: Box<[u8; 0x80000]>,
+    noise_generator: NoiseGenerator,
 }
 
 impl Default for Spu {
@@ -68,6 +71,7 @@ impl Default for Spu {
             voices: Default::default(),
 
             sound_ram: vec![0; 0x80000].try_into().expect("alloc sound ram"),
+            noise_generator: NoiseGenerator::default(),
         }
     }
 }
@@ -91,6 +95,7 @@ impl Spu {
         self.current_address += WIDTH;
     }
 
+    // Ticked at 44100 Hz
     pub fn tick(system: &mut System) -> [i16; 2] {
         let spu = &mut system.spu;
 
@@ -104,12 +109,20 @@ impl Spu {
             return [cd_l as i16, cd_r as i16];
         }
 
+        spu.noise_generator.tick();
+        let noise_sample = spu.noise_generator.lfsr.cast_signed();
+
         let mut mixed_l = cd_l;
         let mut mixed_r = cd_r;
 
         let mut prev: i16 = 0;
         for voice in &mut spu.voices {
-            let samples = voice.tick(spu.sound_ram.as_ref(), prev);
+            let samples = if voice.noise_enabled {
+                voice.tick::<true>(spu.sound_ram.as_ref(), prev, noise_sample)
+            } else {
+                voice.tick::<false>(spu.sound_ram.as_ref(), prev, noise_sample)
+            };
+
             prev = voice.samples_history[3]; // Latest sample
 
             mixed_l += i32::from(samples[0]);
@@ -129,8 +142,13 @@ impl Spu {
         [output_l, output_r]
     }
 
-    const fn write_control(&mut self, value: u16) {
+    fn write_control(&mut self, value: u16) {
         self.control.0 = value;
+
+        let step = self.control.noise_step();
+        let shift = self.control.noise_shift();
+
+        self.noise_generator.update_frequency(step, shift);
     }
 
     /// Bits 0-5 of the control register mirror the status register
@@ -180,13 +198,23 @@ impl Spu {
     fn write_noise_enable<const HIGH: usize>(&mut self, val: u16) {
         write_half::<HIGH>(&mut self.voice_noise_enable, val);
 
-        // todo!("voice noise")
+        let base = HIGH * 16;
+        let count = if HIGH == 1 { 8 } else { 16 };
+
+        for i in 0..count {
+            self.voices[base + i].noise_enabled = (val >> i) & 1 != 0;
+        }
     }
 
     fn write_reverb_enable<const HIGH: usize>(&mut self, val: u16) {
         write_half::<HIGH>(&mut self.voice_reverb_enable, val);
 
-        // todo!("voice reverb")
+        let base = HIGH * 16;
+        let count = if HIGH == 1 { 8 } else { 16 };
+
+        for i in 0..count {
+            self.voices[base + i].reverb_enabled = (val >> i) & 1 != 0;
+        }
     }
 
     fn write_transfer_address(&mut self, val: u16) {
@@ -402,4 +430,48 @@ struct Sweep(i16);
 
 fn apply_volume(sample: i16, volume: i16) -> i16 {
     ((i32::from(sample) * i32::from(volume)) >> 15) as i16
+}
+
+#[derive(Default)]
+struct NoiseGenerator {
+    lfsr: u16,
+    step: u8,
+    shift: u8,
+    timer: i32,
+}
+
+impl NoiseGenerator {
+    // Ticked at 44100 Hz
+    fn tick(&mut self) {
+        self.timer -= i32::from(self.step + 4);
+        if self.timer > 0 {
+            return;
+        }
+
+        self.tick_lfsr();
+
+        while self.timer < 0 {
+            self.timer += 0x20000 >> self.shift;
+        }
+    }
+
+    const fn tick_lfsr(&mut self) {
+        let parity = ((self.lfsr >> 15) & 1)
+            ^ ((self.lfsr >> 12) & 1)
+            ^ ((self.lfsr >> 11) & 1)
+            ^ ((self.lfsr >> 10) & 1)
+            ^ 1;
+
+        self.lfsr = (self.lfsr << 1) | parity;
+    }
+
+    const fn update_frequency(&mut self, step: u8, shift: u8) {
+        if shift != self.shift {
+            // Reset timer
+            self.timer = 0x20000 >> shift;
+        }
+
+        self.step = step;
+        self.shift = shift;
+    }
 }

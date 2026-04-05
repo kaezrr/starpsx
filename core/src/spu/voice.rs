@@ -24,6 +24,8 @@ pub struct Voice {
 
     pub current_address: u32,
     pub pitch_modulation_enabled: bool,
+    pub noise_enabled: bool,
+    pub reverb_enabled: bool,
 
     pub envelope: AdsrEnvelope,
 
@@ -82,7 +84,13 @@ impl Voice {
         self.envelope.key_off();
     }
 
-    pub fn tick(&mut self, sound_ram: &[u8], previous_voice_output: i16) -> [i16; 2] {
+    // Ticked at 44100 Hz
+    pub fn tick<const NOISE: bool>(
+        &mut self,
+        sound_ram: &[u8],
+        previous_voice_output: i16,
+        noise_sample: i16,
+    ) -> [i16; 2] {
         let mut pitch_counter_step = self.sample_rate;
 
         if self.pitch_modulation_enabled {
@@ -102,10 +110,17 @@ impl Voice {
 
             if self.current_buffer_idx == 28 {
                 self.current_buffer_idx = 0;
-                self.decode_next_block(sound_ram);
+                if !NOISE {
+                    self.decode_next_block(sound_ram);
+                }
             }
 
-            self.samples_history[0] = self.decode_buffer[self.current_buffer_idx];
+            self.samples_history[0] = if NOISE {
+                noise_sample
+            } else {
+                self.decode_buffer[self.current_buffer_idx]
+            };
+
             self.samples_history.rotate_left(1);
         }
 
