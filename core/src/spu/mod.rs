@@ -213,7 +213,14 @@ pub fn read<const WIDTH: usize>(system: &System, addr: u32) -> u32 {
             let r = ((addr - 0x1F80_1C00) % 0x10) as usize;
 
             match r {
+                0x0 => spu.voices[i].volume.l.0 as u32,
+                0x2 => spu.voices[i].volume.r.0 as u32,
+                0x4 => u32::from(spu.voices[i].sample_rate),
+                0x6 => spu.voices[i].start_address / 8,
                 0xC => spu.voices[i].envelope.volume as u32,
+                0x8 => spu.voices[i].envelope.register.0,
+                0xA => spu.voices[i].envelope.register.0 >> 16,
+                0xE => spu.voices[i].repeat_address / 8,
                 _ => unimplemented!("read voice {i} register {r:x}"),
             }
         }
@@ -241,6 +248,17 @@ pub fn read<const WIDTH: usize>(system: &System, addr: u32) -> u32 {
 
         0x1F80_1D9C => spu.endx::<0>(),
         0x1F80_1D9E => spu.endx::<1>(),
+
+        0x1F80_1E00..=0x1F80_1E5F => {
+            let i = ((addr - 0x1F80_1E00) / 0x4) as usize;
+            let r = ((addr - 0x1F80_1E00) % 0x4) as usize;
+
+            match r {
+                0 => spu.voices[i].volume.l.0 as u32,
+                2 => spu.voices[i].volume.r.0 as u32,
+                _ => unimplemented!("read voice {i} volume {r}"),
+            }
+        }
 
         x => unimplemented!("spu read {x:8X}, width={}", WIDTH * 8),
     }
