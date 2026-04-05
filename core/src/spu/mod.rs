@@ -107,8 +107,11 @@ impl Spu {
         let mut mixed_l = cd_l;
         let mut mixed_r = cd_r;
 
-        for v in &mut spu.voices {
-            let samples = v.tick(spu.sound_ram.as_ref());
+        let mut prev: i16 = 0;
+        for voice in &mut spu.voices {
+            let samples = voice.tick(spu.sound_ram.as_ref(), prev);
+            prev = voice.samples_history[3]; // Latest sample
+
             mixed_l += i32::from(samples[0]);
             mixed_r += i32::from(samples[1]);
         }
@@ -168,21 +171,22 @@ impl Spu {
         let base = HIGH * 16;
         let count = if HIGH == 1 { 8 } else { 16 };
 
-        for i in 0..count {
-            self.voices[base + i].pulse_modulation_enabled = (val >> i) & 1 != 0;
+        // Pitch modulation not possible for voice 0
+        for i in 1..count {
+            self.voices[base + i].pitch_modulation_enabled = (val >> i) & 1 != 0;
         }
     }
 
-    const fn write_noise_enable<const HIGH: usize>(&mut self, val: u16) {
+    fn write_noise_enable<const HIGH: usize>(&mut self, val: u16) {
         write_half::<HIGH>(&mut self.voice_noise_enable, val);
 
-        // TODO: Loop through voices modify their noise flags
+        // todo!("voice noise")
     }
 
-    const fn write_reverb_enable<const HIGH: usize>(&mut self, val: u16) {
+    fn write_reverb_enable<const HIGH: usize>(&mut self, val: u16) {
         write_half::<HIGH>(&mut self.voice_reverb_enable, val);
 
-        // TODO: Loop through voices modify their reverb flags
+        // todo!("voice reverb")
     }
 
     fn write_transfer_address(&mut self, val: u16) {
@@ -239,6 +243,9 @@ pub fn read<const WIDTH: usize>(system: &System, addr: u32) -> u32 {
 
         0x1F80_1DB8 => spu.main_volume.l.0 as u32, // TODO: current
         0x1F80_1DBA => spu.main_volume.r.0 as u32, // TODO: current
+
+        0x1F80_1D90 => spu.voice_pitch_enable,
+        0x1F80_1D92 => spu.voice_pitch_enable >> 16,
 
         0x1F80_1D94 => spu.voice_noise_enable,
         0x1F80_1D96 => spu.voice_noise_enable >> 16,

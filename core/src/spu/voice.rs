@@ -23,7 +23,7 @@ pub struct Voice {
     pub repeat_address: u32,
 
     pub current_address: u32,
-    pub pulse_modulation_enabled: bool,
+    pub pitch_modulation_enabled: bool,
 
     pub envelope: AdsrEnvelope,
 
@@ -35,7 +35,7 @@ pub struct Voice {
 
     pitch_counter: u16,
 
-    samples_history: [i16; 4],
+    pub samples_history: [i16; 4],
 
     ignore_loop_address: bool,
     pub reached_loop_end: bool,
@@ -82,10 +82,19 @@ impl Voice {
         self.envelope.key_off();
     }
 
-    pub fn tick(&mut self, sound_ram: &[u8]) -> [i16; 2] {
-        let pitch_counter_step = self.sample_rate.min(0x4000);
-        assert!(!self.pulse_modulation_enabled); // TODO:
-        self.pitch_counter += pitch_counter_step;
+    pub fn tick(&mut self, sound_ram: &[u8], previous_voice_output: i16) -> [i16; 2] {
+        let mut pitch_counter_step = self.sample_rate;
+
+        if self.pitch_modulation_enabled {
+            // Convert previous voice output from i16 range to u16 range
+            let multiplier = i32::from(previous_voice_output) + 0x8000;
+
+            // Apply previous voice output as a multiplier to step, N/0x8000
+            let adjusted_step = (i32::from(pitch_counter_step) * multiplier) >> 15;
+            pitch_counter_step = adjusted_step as u16;
+        }
+
+        self.pitch_counter += pitch_counter_step.min(0x4000);
 
         while self.pitch_counter >= 0x1000 {
             self.pitch_counter -= 0x1000;
