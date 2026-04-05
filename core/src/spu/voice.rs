@@ -1,5 +1,6 @@
 use crate::consts::NEG_ADPCM_TABLE;
 use crate::consts::POS_ADPCM_TABLE;
+use crate::spu::SoundRam;
 use crate::spu::Sweep;
 use crate::spu::Volume;
 use crate::spu::apply_volume;
@@ -63,7 +64,7 @@ impl Voice {
         self.ignore_loop_address = true;
     }
 
-    pub fn key_on(&mut self, sound_ram: &[u8]) {
+    pub fn key_on(&mut self, sound_ram: &SoundRam) {
         self.envelope.key_on();
 
         self.current_address = self.start_address;
@@ -87,7 +88,7 @@ impl Voice {
     // Ticked at 44100 Hz
     pub fn tick<const NOISE: bool>(
         &mut self,
-        sound_ram: &[u8],
+        sound_ram: &SoundRam,
         previous_voice_output: i16,
         noise_sample: i16,
     ) -> [i16; 2] {
@@ -143,15 +144,13 @@ impl Voice {
         [output_l, output_r]
     }
 
-    fn decode_next_block(&mut self, sound_ram: &[u8]) {
+    fn decode_next_block(&mut self, sound_ram: &SoundRam) {
         let addr = self.current_address as usize;
-        let block = &sound_ram[addr..addr + 16];
+        self.decode_adpcm_block(sound_ram);
 
-        self.decode_adpcm_block(block);
-
-        let loop_end = block[1] & 1 != 0;
-        let loop_repeat = block[1] & 2 != 0;
-        let loop_start = block[1] & 4 != 0;
+        let loop_end = sound_ram[addr + 1] & 1 != 0;
+        let loop_repeat = sound_ram[addr + 1] & 2 != 0;
+        let loop_start = sound_ram[addr + 1] & 4 != 0;
 
         if loop_start && !self.ignore_loop_address {
             self.repeat_address = self.current_address;
@@ -171,10 +170,12 @@ impl Voice {
         }
     }
 
-    fn decode_adpcm_block(&mut self, block: &[u8]) {
-        let shift = block[0] & 0x0F;
+    fn decode_adpcm_block(&mut self, sound_ram: &SoundRam) {
+        let addr = self.current_address as usize;
+
+        let shift = sound_ram[addr] & 0x0F;
         let shift = 12 - if shift > 12 { 9 } else { shift };
-        let filter = (block[0] & 0x70) >> 4;
+        let filter = (sound_ram[addr] & 0x70) >> 4;
 
         let f0 = POS_ADPCM_TABLE[usize::from(filter)];
         let f1 = NEG_ADPCM_TABLE[usize::from(filter)];
@@ -183,7 +184,7 @@ impl Voice {
             let old = i32::from(self.adpcm_old_sample);
             let older = i32::from(self.adpcm_older_sample);
 
-            let t = super::signed4bit((block[2 + i / 2] >> (4 * (i & 1))) & 0xF);
+            let t = super::signed4bit((sound_ram[addr + 2 + i / 2] >> (4 * (i & 1))) & 0xF);
             let s = (t << shift) + (old * f0 + older * f1 + 32) / 64;
             let s = s.clamp(-0x8000, 0x7FFF) as i16;
 

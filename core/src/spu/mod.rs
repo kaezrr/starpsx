@@ -106,9 +106,9 @@ impl Spu {
         let mut prev: i16 = 0;
         for voice in &mut spu.voices {
             let samples = if voice.noise_enabled {
-                voice.tick::<true>(spu.sound_ram.as_ref(), prev, noise_sample)
+                voice.tick::<true>(&spu.sound_ram, prev, noise_sample)
             } else {
-                voice.tick::<false>(spu.sound_ram.as_ref(), prev, noise_sample)
+                voice.tick::<false>(&spu.sound_ram, prev, noise_sample)
             };
 
             prev = voice.samples_history[3]; // Latest sample
@@ -180,7 +180,7 @@ impl Spu {
 
         for i in 0..count {
             if (val >> i) & 1 != 0 {
-                self.voices[base + i].key_on(self.sound_ram.as_ref());
+                self.voices[base + i].key_on(&self.sound_ram);
             }
         }
     }
@@ -496,12 +496,6 @@ impl Default for SoundRam {
             irq_address: 0,
             irq: Cell::new(false),
         }
-    }
-}
-
-impl AsRef<[u8]> for SoundRam {
-    fn as_ref(&self) -> &[u8] {
-        self.ram.as_ref()
     }
 }
 
