@@ -2,6 +2,10 @@ mod envelope;
 mod snapshot;
 mod voice;
 
+use std::cell::Cell;
+use std::ops::Index;
+use std::ops::IndexMut;
+
 pub use envelope::AdsrPhase;
 pub use snapshot::Snapshot;
 pub use snapshot::VoiceSnapshot;
@@ -21,8 +25,11 @@ bitfield::bitfield! {
     unmuted, _ : 14; // Doesn't affect CD Audio
     u8, noise_shift, _: 13, 10;
     u8, noise_step, _: 9, 8;
+    reverb_enabled, _: 7;
+    irq_enabled, _: 6;
 }
 
+#[derive(Default)]
 pub struct Spu {
     control: Control,
 
@@ -44,36 +51,11 @@ pub struct Spu {
     current_address: usize,
     voices: [Voice; 24],
 
-    sound_ram: Box<[u8; 0x80000]>,
+    sound_ram: SoundRam,
+    last_irq_line: bool,
+    irq_requested: bool,
+
     noise_generator: NoiseGenerator,
-}
-
-impl Default for Spu {
-    fn default() -> Self {
-        Self {
-            control: Control::default(),
-
-            main_volume: Volume::default(),
-            cd_volume: Volume::default(),
-            ex_volume: Volume::default(),
-
-            voice_pitch_enable: 0,
-            voice_noise_enable: 0,
-            voice_reverb_enable: 0,
-
-            ram_data_transfer_control: 0,
-            ram_data_transfer_address: 0,
-
-            voice_key_off: 0,
-            voice_key_on: 0,
-
-            current_address: 0,
-            voices: Default::default(),
-
-            sound_ram: vec![0; 0x80000].try_into().expect("alloc sound ram"),
-            noise_generator: NoiseGenerator::default(),
-        }
-    }
 }
 
 impl Spu {
@@ -81,7 +63,10 @@ impl Spu {
         let addr = self.current_address & 0x7FFFF;
         let mut buffer = [0u8; 4];
 
-        buffer[..WIDTH].copy_from_slice(&self.sound_ram[addr..addr + WIDTH]);
+        (0..WIDTH).for_each(|i| {
+            buffer[i] = self.sound_ram[addr + i];
+        });
+
         self.current_address += WIDTH;
 
         u32::from_le_bytes(buffer)
@@ -91,7 +76,10 @@ impl Spu {
         let addr = self.current_address & 0x7FFFF;
         let bytes = word.to_le_bytes();
 
-        self.sound_ram[addr..addr + WIDTH].copy_from_slice(&bytes[..WIDTH]);
+        (0..WIDTH).for_each(|i| {
+            self.sound_ram[addr + i] = bytes[i];
+        });
+
         self.current_address += WIDTH;
     }
 
@@ -129,6 +117,14 @@ impl Spu {
             mixed_r += i32::from(samples[1]);
         }
 
+        // Trigger SPU interrupt if irq address was accessed
+        let irq_line = spu.sound_ram.irq.get();
+        if !spu.last_irq_line && irq_line {
+            spu.irq_requested = true;
+            system.irqctl.stat().set_spu(true);
+        }
+        spu.last_irq_line = irq_line;
+
         if !spu.control.unmuted() {
             return [cd_l as i16, cd_r as i16];
         }
@@ -149,12 +145,18 @@ impl Spu {
         let shift = self.control.noise_shift();
 
         self.noise_generator.update_frequency(step, shift);
+        self.sound_ram.irq_enabled = self.control.irq_enabled();
+
+        // Acknowledge internal irq flag
+        if !self.control.irq_enabled() {
+            self.irq_requested = false;
+        }
     }
 
     /// Bits 0-5 of the control register mirror the status register
     /// Other bits not emulated
     const fn status(&self) -> u16 {
-        self.control.0 & 0x3F
+        self.control.0 & 0x3F | ((self.irq_requested as u16) << 6)
     }
 
     fn write_key_off<const HIGH: usize>(&mut self, val: u16) {
@@ -378,6 +380,9 @@ pub fn write<const WIDTH: usize>(system: &mut System, addr: u32, val: u32) {
         0x1F80_1D9C | 0x1F80_1D9E => {} // ENDX Read only
 
         0x1F80_1DA2 => warn!("writing reverb work area start address"),
+
+        0x1F80_1DA4 => spu.sound_ram.irq_address = usize::from(val) * 8,
+
         0x1F80_1DC0..=0x1F80_1DFE => warn!("writing reverb configuration"),
 
         x => unimplemented!("spu write {x:8X} {val:x}"),
@@ -473,5 +478,51 @@ impl NoiseGenerator {
 
         self.step = step;
         self.shift = shift;
+    }
+}
+
+struct SoundRam {
+    ram: Box<[u8; 0x80000]>, // 512 KiB
+    irq_enabled: bool,
+    irq_address: usize,
+    irq: Cell<bool>,
+}
+
+impl Default for SoundRam {
+    fn default() -> Self {
+        Self {
+            ram: vec![0; 0x80000].try_into().expect("sound ram alloc"),
+            irq_enabled: false,
+            irq_address: 0,
+            irq: Cell::new(false),
+        }
+    }
+}
+
+impl AsRef<[u8]> for SoundRam {
+    fn as_ref(&self) -> &[u8] {
+        self.ram.as_ref()
+    }
+}
+
+impl Index<usize> for SoundRam {
+    type Output = u8;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        if self.irq_enabled && index == self.irq_address {
+            self.irq.set(true);
+        }
+
+        &self.ram[index]
+    }
+}
+
+impl IndexMut<usize> for SoundRam {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        if self.irq_enabled && index == self.irq_address {
+            self.irq.set(true);
+        }
+
+        &mut self.ram[index]
     }
 }
