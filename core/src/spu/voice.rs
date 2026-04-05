@@ -128,12 +128,11 @@ impl Voice {
         let i = ((self.pitch_counter >> 4) & 0xFF) as usize;
         let samples = self.samples_history.map(i32::from);
 
-        // Apply the Gaussian interpolation
-        let mut interpolated = GAUSSIAN_TABLE[0x0FF - i] * samples[0];
-        interpolated += GAUSSIAN_TABLE[0x1FF - i] * samples[1];
-        interpolated += GAUSSIAN_TABLE[0x100 + i] * samples[2];
-        interpolated += GAUSSIAN_TABLE[i] * samples[3];
-        interpolated >>= 15;
+        // Apply the Gaussian interpolation (not sure if it applies to noise too)
+        let mut interpolated = (GAUSSIAN_TABLE[0x0FF - i] * samples[0]) >> 15;
+        interpolated += (GAUSSIAN_TABLE[0x1FF - i] * samples[1]) >> 15;
+        interpolated += (GAUSSIAN_TABLE[0x100 + i] * samples[2]) >> 15;
+        interpolated += (GAUSSIAN_TABLE[i] * samples[3]) >> 15;
 
         self.envelope.tick();
         let envelope_sample = apply_volume(interpolated as i16, self.envelope.volume as i16);
