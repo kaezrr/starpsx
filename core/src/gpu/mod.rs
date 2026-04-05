@@ -238,6 +238,16 @@ impl Gpu {
         self.renderer.ctx.line_counter += 1;
     }
 
+    pub const fn texture_window_setting(&self) -> u32 {
+        let mask_x = self.renderer.ctx.texture_window_mask.x.cast_unsigned();
+        let mask_y = self.renderer.ctx.texture_window_mask.y.cast_unsigned();
+
+        let offs_x = self.renderer.ctx.texture_window_offset.x.cast_unsigned();
+        let offs_y = self.renderer.ctx.texture_window_offset.y.cast_unsigned();
+
+        (mask_x & 31) | ((mask_y & 31) << 5) | ((offs_x & 31) << 10) | ((offs_y & 31) << 15)
+    }
+
     pub const fn draw_area_top_left(&self) -> u32 {
         let d = self.renderer.ctx.drawing_area_top_left;
         let (x, y) = (d.x as u32, d.y as u32);
