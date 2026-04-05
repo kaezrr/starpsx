@@ -88,7 +88,7 @@ impl Debugger {
         }
 
         egui::SidePanel::left("debug_view")
-            .width_range(500.0..=800.0)
+            .width_range(550.0..=800.0)
             .show(ctx, |ui| {
                 ui.vertical(|ui| {
                     self.components_state_view(ui);
@@ -246,6 +246,17 @@ impl Debugger {
             return;
         };
         let spu = &snapshot.spu;
+        let (cd_audio_text, cd_audio_color) = if spu.cd_audio_enabled {
+            ("ON", Color32::GREEN)
+        } else {
+            ("OFF", Color32::RED)
+        };
+        let irq_state = if spu.irq_enabled {
+            "Enabled"
+        } else {
+            "Disabled"
+        };
+        let irq_address = spu.irq_address_actual / 8;
 
         // Global SPU status
         ui.horizontal(|ui| {
@@ -281,6 +292,30 @@ impl Debugger {
             ui.separator();
             ui.label("Vol R:");
             ui.monospace(format!("{:.1}%", spu.main_volume_right));
+        });
+
+        ui.horizontal(|ui| {
+            ui.label("CD Audio:");
+            ui.label(
+                RichText::new(cd_audio_text)
+                    .monospace()
+                    .strong()
+                    .color(cd_audio_color),
+            );
+            ui.separator();
+            ui.label("CD Vol L:");
+            ui.monospace(format!("{:.1}%", spu.cd_volume_left));
+            ui.separator();
+            ui.label("CD Vol R:");
+            ui.monospace(format!("{:.1}%", spu.cd_volume_right));
+        });
+
+        ui.horizontal(|ui| {
+            ui.label("Interrupt:");
+            ui.monospace(format!(
+                "{irq_state} @ 0x{irq_address:04X} (Actual 0x{:08X})",
+                spu.irq_address_actual
+            ));
         });
 
         ui.separator();
