@@ -1,6 +1,7 @@
 use core::fmt;
 
 use super::Spu;
+use crate::spu::envelope::AdsrPhase;
 
 impl Spu {
     pub fn snapshot(&self) -> Snapshot {
@@ -18,12 +19,8 @@ impl Spu {
                     sample_rate: sample_rate_to_hz(v.sample_rate),
                     volume_left: i16_volume_to_percent(v.volume.l.0),
                     volume_right: i16_volume_to_percent(v.volume.r.0),
-                    adsr_phase: if v.keyed_on {
-                        AdsrPhase::Attack
-                    } else {
-                        AdsrPhase::Off
-                    }, // TODO
-                    adsr_volume: i16_volume_to_percent(v.adsr_volume),
+                    adsr_phase: v.envelope.phase,
+                    adsr_volume: i16_volume_to_percent(v.envelope.volume as i16),
                 }
             }),
         }
@@ -49,16 +46,6 @@ pub struct VoiceSnapshot {
     pub volume_right: f32,
     pub adsr_phase: AdsrPhase,
     pub adsr_volume: f32,
-}
-
-#[derive(Default, PartialEq, Eq, Clone, Copy)]
-pub enum AdsrPhase {
-    #[default]
-    Off,
-    Attack,
-    Decay,
-    Sustain,
-    Release,
 }
 
 impl fmt::Display for AdsrPhase {

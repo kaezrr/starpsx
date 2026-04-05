@@ -3,6 +3,8 @@ use crate::consts::POS_ADPCM_TABLE;
 use crate::spu::Sweep;
 use crate::spu::Volume;
 use crate::spu::apply_volume;
+use crate::spu::envelope::AdsrEnvelope;
+use crate::spu::write_half;
 
 #[derive(Default)]
 pub struct Voice {
@@ -21,10 +23,9 @@ pub struct Voice {
     pub repeat_address: u32,
 
     pub current_address: u32,
-    pub keyed_on: bool,
     pub pulse_modulation_enabled: bool,
 
-    pub adsr_volume: i16,
+    pub envelope: AdsrEnvelope,
 
     decode_buffer: [i16; 28],
     current_buffer_idx: usize,
@@ -41,6 +42,11 @@ pub struct Voice {
 }
 
 impl Voice {
+    pub fn set_adsr<const HIGH: usize>(&mut self, val: u16) {
+        write_half::<HIGH>(&mut self.envelope.register.0, val);
+        self.envelope.update_sustain_level();
+    }
+
     /// (0=stop, 4000h=fastest, 4001h..FFFFh=usually same as 4000h)
     pub const fn set_sample_rate(&mut self, val: u16) {
         self.sample_rate = val;
@@ -56,6 +62,8 @@ impl Voice {
     }
 
     pub fn key_on(&mut self, sound_ram: &[u8]) {
+        self.envelope.key_on();
+
         self.current_address = self.start_address;
         self.current_buffer_idx = 0;
         self.pitch_counter = 0;
@@ -64,15 +72,14 @@ impl Voice {
         self.adpcm_older_sample = 0;
         self.adpcm_old_sample = 0;
 
-        self.keyed_on = true;
         self.ignore_loop_address = false;
         self.reached_loop_end = false;
 
         self.decode_next_block(sound_ram);
     }
 
-    pub const fn key_off(&mut self) {
-        self.keyed_on = false;
+    pub fn key_off(&mut self) {
+        self.envelope.key_off();
     }
 
     pub fn tick(&mut self, sound_ram: &[u8]) -> [i16; 2] {
@@ -104,10 +111,11 @@ impl Voice {
         interpolated += (GAUSSIAN_TABLE[0x100 + i] * samples[2]) >> 15;
         interpolated += (GAUSSIAN_TABLE[i] * samples[3]) >> 15;
 
-        let clamped = interpolated.clamp(-0x8000, 0x7FFF) as i16;
+        self.envelope.tick();
+        let envelope_sample = apply_volume(interpolated as i16, self.envelope.volume as i16);
 
-        let output_l = apply_volume(clamped, self.volume.l.0);
-        let output_r = apply_volume(clamped, self.volume.r.0);
+        let output_l = apply_volume(envelope_sample, self.volume.l.0);
+        let output_r = apply_volume(envelope_sample, self.volume.r.0);
 
         [output_l, output_r]
     }
@@ -131,8 +139,9 @@ impl Voice {
             self.reached_loop_end = true;
 
             if !loop_repeat {
-                // FORCED KEY OFF
-                self.key_off();
+                // Forced key off
+                self.envelope.volume = 0;
+                self.envelope.key_off();
             }
         } else {
             self.current_address += 16;
