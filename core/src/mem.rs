@@ -184,7 +184,14 @@ impl System {
             _ => unimplemented!("read at {addr:#08X}"),
         };
 
-        Ok(data)
+        // Mask the output so lbu/lhu get clean values
+        let mask = match WIDTH {
+            1 => 0xFF,
+            2 => 0xFFFF,
+            _ => 0xFFFF_FFFF,
+        };
+
+        Ok(data & mask)
     }
 
     /// # Errors
