@@ -251,7 +251,7 @@ pub fn read<const WIDTH: usize>(system: &System, addr: u32) -> u32 {
                 0x2 => spu.voices[i].volume.r.0 as u32,
                 0x4 => u32::from(spu.voices[i].sample_rate),
                 0x6 => spu.voices[i].start_address / 8,
-                0xC => spu.voices[i].envelope.volume as u32,
+                0xC => u32::from(spu.voices[i].envelope.volume),
                 0x8 => spu.voices[i].envelope.register.0,
                 0xA => spu.voices[i].envelope.register.0 >> 16,
                 0xE => spu.voices[i].repeat_address / 8,
@@ -338,7 +338,7 @@ pub fn write<const WIDTH: usize>(system: &mut System, addr: u32, val: u32) {
                 0x6 => spu.voices[i].set_start_address(val),
                 0x8 => spu.voices[i].set_adsr::<0>(val),
                 0xA => spu.voices[i].set_adsr::<1>(val),
-                0xC => spu.voices[i].envelope.volume = i32::from(val.cast_signed()),
+                0xC => spu.voices[i].envelope.volume = val,
                 0xE => spu.voices[i].set_repeat_address(val),
 
                 _ => unimplemented!("write voice {i} register {r:x} {val:x}"),

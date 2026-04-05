@@ -42,39 +42,36 @@ bitfield::bitfield! {
     u8, attack_step, _: 9, 8;
 
     u8, decay_shift, _: 7, 4;
-    u8, sustain_level, _ :3, 0;
+    u16, sustain_level, _ :3, 0;
 }
 
 #[derive(Default)]
 pub struct AdsrEnvelope {
     pub phase: AdsrPhase,
-    pub volume: i32,
+    pub volume: u16,
     pub register: AdsrConfiguration,
 
-    counter: i32,
-    counter_reload: i32,
-    step: i32,
+    counter: u32,
+    counter_reload: u32,
+    step: i16,
 
     exponential: bool,
     decreasing: bool,
-    negative: bool,
 
     shift: u8,
     step_index: u8,
 
-    sustain_level: i32,
+    sustain_level: u16,
 }
 
 impl AdsrEnvelope {
     fn calc(&mut self) {
-        const DIRTABLE: [[i32; 4]; 2] = [[7, 6, 5, 4], [-8, -7, -6, -5]];
+        const DIRTABLE: [[i16; 4]; 2] = [[7, 6, 5, 4], [-8, -7, -6, -5]];
 
         let mut step = DIRTABLE[usize::from(self.decreasing)][self.step_index as usize];
+        step <<= 11u8.saturating_sub(self.shift);
 
-        let r = (11i32 - i32::from(self.shift)).max(0);
-        step <<= r;
-
-        let mut counter = 1 << (i32::from(self.shift) - 11).max(0);
+        let mut counter = 1 << self.shift.saturating_sub(11);
 
         if self.exponential && !self.decreasing && self.volume > 0x6000 {
             if self.shift < 10 {
@@ -86,7 +83,7 @@ impl AdsrEnvelope {
                 counter <<= 2;
             }
         } else if self.exponential && self.decreasing {
-            step = (step * self.volume) >> 15;
+            step = ((i32::from(step) * i32::from(self.volume)) >> 15) as i16;
         }
 
         self.step = step;
@@ -150,15 +147,8 @@ impl AdsrEnvelope {
         }
 
         self.counter = self.counter_reload;
-        self.volume += self.step;
-
-        if !self.decreasing {
-            self.volume = self.volume.clamp(-0x8000, 0x7FFF);
-        } else if self.negative {
-            self.volume = self.volume.clamp(-0x8000, 0);
-        } else {
-            self.volume = self.volume.max(0);
-        }
+        self.volume = self.volume.saturating_add_signed(self.step);
+        self.volume = self.volume.clamp(0, 0x7FFF);
 
         // Recalculate step sizes for exponential steps
         self.calc();
@@ -189,6 +179,7 @@ impl AdsrEnvelope {
     }
 
     pub fn update_sustain_level(&mut self) {
-        self.sustain_level = (i32::from(self.register.sustain_level()) + 1) * 0x800;
+        self.sustain_level = (self.register.sustain_level() + 1) * 0x800;
+        self.sustain_level = self.sustain_level.min(0x7FFF);
     }
 }
