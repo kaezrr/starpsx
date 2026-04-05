@@ -160,6 +160,9 @@ impl AdsrEnvelope {
             self.volume = self.volume.max(0);
         }
 
+        // Recalculate step sizes for exponential steps
+        self.calc();
+
         match self.phase {
             AdsrPhase::Attack if self.volume >= 0x7FFF => {
                 self.load_decay();
