@@ -27,6 +27,8 @@ bitfield::bitfield! {
     u8, noise_step, _: 9, 8;
     reverb_enabled, _: 7;
     irq_enabled, _: 6;
+    cd_reverb_enabled, _: 2;
+    cd_enabled, _: 0;
 }
 
 #[derive(Default)]
@@ -87,21 +89,26 @@ impl Spu {
     pub fn tick(system: &mut System) -> [i16; 2] {
         let spu = &mut system.spu;
 
-        let cd_l = system.cdrom.pop_from_audio_buffer().unwrap_or(0);
-        let cd_r = system.cdrom.pop_from_audio_buffer().unwrap_or(0);
+        let mut cd_l = 0;
+        let mut cd_r = 0;
 
-        let cd_l = i32::from(apply_volume(cd_l, spu.cd_volume.l));
-        let cd_r = i32::from(apply_volume(cd_r, spu.cd_volume.l));
+        if spu.control.cd_enabled() {
+            cd_l = system.cdrom.pop_from_audio_buffer().unwrap_or(0);
+            cd_r = system.cdrom.pop_from_audio_buffer().unwrap_or(0);
+
+            cd_l = apply_volume(cd_l, spu.cd_volume.l);
+            cd_r = apply_volume(cd_r, spu.cd_volume.l);
+        }
 
         if !spu.control.enabled() {
-            return [cd_l as i16, cd_r as i16];
+            return [cd_l, cd_r];
         }
 
         spu.noise_generator.tick();
         let noise_sample = spu.noise_generator.lfsr.cast_signed();
 
-        let mut mixed_l = cd_l;
-        let mut mixed_r = cd_r;
+        let mut mixed_l = i32::from(cd_l);
+        let mut mixed_r = i32::from(cd_r);
 
         let mut prev: i16 = 0;
         for voice in &mut spu.voices {
@@ -126,7 +133,7 @@ impl Spu {
         spu.last_irq_line = irq_line;
 
         if !spu.control.unmuted() {
-            return [cd_l as i16, cd_r as i16];
+            return [cd_l, cd_r];
         }
 
         let clamped_sample_l = mixed_l.clamp(-0x8000, 0x7FFF) as i16;
@@ -259,6 +266,9 @@ pub fn read<const WIDTH: usize>(system: &System, addr: u32) -> u32 {
             }
         }
 
+        0x1F80_1D80 => spu.main_volume.l.0 as u32,
+        0x1F80_1D82 => spu.main_volume.r.0 as u32,
+
         0x1F80_1D88 => spu.voice_key_on,
         0x1F80_1D8A => spu.voice_key_on >> 16,
 
@@ -270,6 +280,12 @@ pub fn read<const WIDTH: usize>(system: &System, addr: u32) -> u32 {
         0x1F80_1DAE => u32::from(spu.status()),
 
         0x1F80_1DA6 => u32::from(spu.ram_data_transfer_address),
+
+        0x1F80_1DB0 => spu.cd_volume.l as u32,
+        0x1F80_1DB2 => spu.cd_volume.r as u32,
+
+        0x1F80_1DB4 => spu.ex_volume.l as u32,
+        0x1F80_1DB6 => spu.ex_volume.r as u32,
 
         0x1F80_1DB8 => spu.main_volume.l.0 as u32, // TODO: current
         0x1F80_1DBA => spu.main_volume.r.0 as u32, // TODO: current
