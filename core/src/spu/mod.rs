@@ -182,12 +182,21 @@ impl Spu {
     const fn write_reverb_enable<const HIGH: usize>(&mut self, val: u16) {
         write_half::<HIGH>(&mut self.voice_reverb_enable, val);
 
-        // TODO: Loop through voices modify their noise flags
+        // TODO: Loop through voices modify their reverb flags
     }
 
     fn write_transfer_address(&mut self, val: u16) {
         self.ram_data_transfer_address = val;
         self.current_address = usize::from(val) * 8;
+    }
+
+    fn endx<const HIGH: usize>(&self) -> u32 {
+        let base = HIGH * 16;
+        let count = if HIGH == 1 { 8 } else { 16 };
+
+        (0..count).fold(0, |acc, i| {
+            acc | (u32::from(self.voices[base + i].reached_loop_end) << i)
+        })
     }
 }
 
@@ -229,6 +238,9 @@ pub fn read<const WIDTH: usize>(system: &System, addr: u32) -> u32 {
 
         0x1F80_1D98 => spu.voice_reverb_enable,
         0x1F80_1D9A => spu.voice_reverb_enable >> 16,
+
+        0x1F80_1D9C => spu.endx::<0>(),
+        0x1F80_1D9E => spu.endx::<1>(),
 
         x => unimplemented!("spu read {x:8X}, width={}", WIDTH * 8),
     }

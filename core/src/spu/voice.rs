@@ -38,7 +38,7 @@ pub struct Voice {
     samples_history: [i16; 4],
 
     ignore_loop_address: bool,
-    reached_loop_end: bool,
+    pub reached_loop_end: bool,
 }
 
 impl Voice {
@@ -96,7 +96,6 @@ impl Voice {
                 self.decode_next_block(sound_ram);
             }
 
-            // Move this INSIDE the loop!
             self.samples_history[0] = self.decode_buffer[self.current_buffer_idx];
             self.samples_history.rotate_left(1);
         }
@@ -110,7 +109,7 @@ impl Voice {
         interpolated += GAUSSIAN_TABLE[0x1FF - i] * samples[1];
         interpolated += GAUSSIAN_TABLE[0x100 + i] * samples[2];
         interpolated += GAUSSIAN_TABLE[i] * samples[3];
-        interpolated >>= 15; // Shift at the very end
+        interpolated >>= 15;
 
         self.envelope.tick();
         let envelope_sample = apply_volume(interpolated as i16, self.envelope.volume as i16);
