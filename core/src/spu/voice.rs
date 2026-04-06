@@ -3,7 +3,6 @@ use crate::consts::POS_ADPCM_TABLE;
 use crate::spu::SoundRam;
 use crate::spu::Sweep;
 use crate::spu::Volume;
-use crate::spu::apply_volume;
 use crate::spu::envelope::AdsrEnvelope;
 use crate::spu::write_half;
 
@@ -30,14 +29,13 @@ pub struct Voice {
 
     pub envelope: AdsrEnvelope,
 
-    decode_buffer: [i16; 28],
-    current_buffer_idx: usize,
+    pub decode_buffer: [i16; 28],
+    pub current_buffer_idx: usize,
 
     adpcm_old_sample: i16,
     adpcm_older_sample: i16,
 
-    pitch_counter: u16,
-
+    pub pitch_counter: u16,
     pub samples_history: [i16; 4],
 
     ignore_loop_address: bool,
@@ -85,66 +83,7 @@ impl Voice {
         self.envelope.key_off();
     }
 
-    // Ticked at 44100 Hz
-    pub fn tick<const NOISE: bool>(
-        &mut self,
-        sound_ram: &SoundRam,
-        previous_voice_output: i16,
-        noise_sample: i16,
-    ) -> [i16; 2] {
-        let mut pitch_counter_step = self.sample_rate;
-
-        if self.pitch_modulation_enabled {
-            // Convert previous voice output from i16 range to u16 range
-            let multiplier = i32::from(previous_voice_output) + 0x8000;
-
-            // Apply previous voice output as a multiplier to step, N/0x8000
-            let adjusted_step = (i32::from(pitch_counter_step) * multiplier) >> 15;
-            pitch_counter_step = adjusted_step as u16;
-        }
-
-        self.pitch_counter += pitch_counter_step.min(0x4000);
-
-        while self.pitch_counter >= 0x1000 {
-            self.pitch_counter -= 0x1000;
-            self.current_buffer_idx += 1;
-
-            if self.current_buffer_idx == 28 {
-                self.current_buffer_idx = 0;
-                if !NOISE {
-                    self.decode_next_block(sound_ram);
-                }
-            }
-
-            self.samples_history[0] = if NOISE {
-                noise_sample
-            } else {
-                self.decode_buffer[self.current_buffer_idx]
-            };
-
-            self.samples_history.rotate_left(1);
-        }
-
-        // i = bit 4-11 of the pitch counter (8-bit index)
-        let i = ((self.pitch_counter >> 4) & 0xFF) as usize;
-        let samples = self.samples_history.map(i32::from);
-
-        // Apply the Gaussian interpolation (not sure if it applies to noise too)
-        let mut interpolated = (GAUSSIAN_TABLE[0x0FF - i] * samples[0]) >> 15;
-        interpolated += (GAUSSIAN_TABLE[0x1FF - i] * samples[1]) >> 15;
-        interpolated += (GAUSSIAN_TABLE[0x100 + i] * samples[2]) >> 15;
-        interpolated += (GAUSSIAN_TABLE[i] * samples[3]) >> 15;
-
-        self.envelope.tick();
-        let envelope_sample = apply_volume(interpolated as i16, self.envelope.volume as i16);
-
-        let output_l = apply_volume(envelope_sample, self.volume.l.0);
-        let output_r = apply_volume(envelope_sample, self.volume.r.0);
-
-        [output_l, output_r]
-    }
-
-    fn decode_next_block(&mut self, sound_ram: &SoundRam) {
+    pub fn decode_next_block(&mut self, sound_ram: &SoundRam) {
         let addr = self.current_address as usize;
         self.decode_adpcm_block(sound_ram);
 

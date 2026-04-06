@@ -13,6 +13,7 @@ use tracing::debug;
 use tracing::warn;
 
 use crate::System;
+use crate::spu::voice::GAUSSIAN_TABLE;
 use crate::spu::voice::Voice;
 
 pub const PADDR_START: u32 = 0x1F80_1C00;
@@ -58,6 +59,7 @@ pub struct Spu {
     irq_requested: bool,
 
     noise_generator: NoiseGenerator,
+    capture_buffer_ptr: usize,
 }
 
 impl Spu {
@@ -87,42 +89,34 @@ impl Spu {
 
     // Ticked at 44100 Hz
     pub fn tick(system: &mut System) -> [i16; 2] {
+        let cdrom = &mut system.cdrom;
         let spu = &mut system.spu;
 
-        let mut cd_l = 0;
-        let mut cd_r = 0;
+        let (cd_l, cd_r) = if spu.control.cd_enabled() {
+            (cdrom.get_audio_sample(), cdrom.get_audio_sample())
+        } else {
+            (0, 0)
+        };
 
-        if spu.control.cd_enabled() {
-            cd_l = system.cdrom.pop_from_audio_buffer().unwrap_or(0);
-            cd_r = system.cdrom.pop_from_audio_buffer().unwrap_or(0);
+        spu.write_capture_buffer(cd_l, 0x000);
+        spu.write_capture_buffer(cd_r, 0x400);
 
-            cd_l = apply_volume(cd_l, spu.cd_volume.l);
-            cd_r = apply_volume(cd_r, spu.cd_volume.l);
-        }
+        let cd_l = apply_volume(cd_l, spu.cd_volume.l);
+        let cd_r = apply_volume(cd_r, spu.cd_volume.r);
 
         if !spu.control.enabled() {
             return [cd_l, cd_r];
         }
 
         spu.noise_generator.tick();
-        let noise_sample = spu.noise_generator.lfsr.cast_signed();
 
-        let mut mixed_l = i32::from(cd_l);
-        let mut mixed_r = i32::from(cd_r);
+        let mixed_voice = spu.tick_all_voices();
 
-        let mut prev: i16 = 0;
-        for voice in &mut spu.voices {
-            let samples = if voice.noise_enabled {
-                voice.tick::<true>(&spu.sound_ram, prev, noise_sample)
-            } else {
-                voice.tick::<false>(&spu.sound_ram, prev, noise_sample)
-            };
+        let mixed_l = mixed_voice[0] + i32::from(cd_l);
+        let mixed_r = mixed_voice[1] + i32::from(cd_r);
 
-            prev = voice.samples_history[3]; // Latest sample
-
-            mixed_l += i32::from(samples[0]);
-            mixed_r += i32::from(samples[1]);
-        }
+        // Incrementing capture buffer pointer, should wrap in 0..0x3FF
+        spu.capture_buffer_ptr = (spu.capture_buffer_ptr + 2) & 0x3FF;
 
         // Trigger SPU interrupt if irq address was accessed
         let irq_line = spu.sound_ram.irq.get();
@@ -145,6 +139,70 @@ impl Spu {
         [output_l, output_r]
     }
 
+    /// Tick all voices and get a mixed left and right sample
+    fn tick_all_voices(&mut self) -> [i32; 2] {
+        let noise_sample = self.noise_generator.lfsr.cast_signed();
+        let mut mixed = [0i32; 2];
+        let mut prev: i16 = 0;
+
+        for i in 0..24 {
+            let voice = &mut self.voices[i];
+
+            let pitch_counter_step = if voice.pitch_modulation_enabled {
+                let multiplier = i32::from(prev) + 0x8000;
+                ((i32::from(voice.sample_rate) * multiplier) >> 15) as u16
+            } else {
+                voice.sample_rate
+            }
+            .min(0x4000);
+
+            voice.pitch_counter += pitch_counter_step;
+
+            while voice.pitch_counter >= 0x1000 {
+                voice.pitch_counter -= 0x1000;
+                voice.current_buffer_idx += 1;
+
+                if voice.current_buffer_idx == 28 {
+                    voice.current_buffer_idx = 0;
+                    voice.decode_next_block(&self.sound_ram);
+                }
+
+                voice.samples_history[0] = if voice.noise_enabled {
+                    noise_sample
+                } else {
+                    voice.decode_buffer[voice.current_buffer_idx]
+                };
+
+                voice.samples_history.rotate_left(1);
+            }
+
+            let gi = ((voice.pitch_counter >> 4) & 0xFF) as usize;
+            let [s0, s1, s2, s3] = voice.samples_history.map(i32::from);
+
+            let interpolated = ((GAUSSIAN_TABLE[0x0FF - gi] * s0) >> 15)
+                + ((GAUSSIAN_TABLE[0x1FF - gi] * s1) >> 15)
+                + ((GAUSSIAN_TABLE[0x100 + gi] * s2) >> 15)
+                + ((GAUSSIAN_TABLE[gi] * s3) >> 15);
+
+            voice.envelope.tick();
+            let envelope_sample = apply_volume(interpolated as i16, voice.envelope.volume as i16);
+
+            mixed[0] += i32::from(apply_volume(envelope_sample, voice.volume.l.0));
+            mixed[1] += i32::from(apply_volume(envelope_sample, voice.volume.r.0));
+
+            prev = voice.samples_history[3];
+
+            // Volume 1 and 3 samples are written to capture buffers
+            match i {
+                1 => self.write_capture_buffer(envelope_sample, 0x800),
+                3 => self.write_capture_buffer(envelope_sample, 0xC00),
+                _ => {}
+            }
+        }
+
+        mixed
+    }
+
     fn write_control(&mut self, value: u16) {
         self.control.0 = value;
 
@@ -160,10 +218,13 @@ impl Spu {
         }
     }
 
-    /// Bits 0-5 of the control register mirror the status register
-    /// Other bits not emulated
     const fn status(&self) -> u16 {
-        self.control.0 & 0x3F | ((self.irq_requested as u16) << 6)
+        // Current SPU Mode   (same as SPUCNT.Bit5-0, but, applied a bit delayed)
+        self.control.0 & 0x3F
+        // IRQ9 Flag (0=No, 1=Interrupt Request)
+            | ((self.irq_requested as u16) << 6)
+        // Writing to First/Second half of Capture Buffers (0=First, 1=Second)
+            | (((self.capture_buffer_ptr >= 0x200) as u16) << 11)
     }
 
     fn write_key_off<const HIGH: usize>(&mut self, val: u16) {
@@ -238,6 +299,19 @@ impl Spu {
         (0..count).fold(0, |acc, i| {
             acc | (u32::from(self.voices[base + i].reached_loop_end) << i)
         })
+    }
+
+    /// # Capture Buffers
+    /// 0x00000..0x003FF: CD L capture buffer
+    /// 0x00400..0x007FF: CD R capture buffer
+    /// 0x00800..0x00BFF: Voice 1 capture buffer
+    /// 0x00C00..0x00FFF: Voice 3 capture buffer
+    ///
+    /// capture buffers are written to before volume is applied but after envelope is applied
+    fn write_capture_buffer(&mut self, sample: i16, offset: usize) {
+        let bytes = sample.to_le_bytes();
+        self.sound_ram[offset + self.capture_buffer_ptr] = bytes[0];
+        self.sound_ram[offset + self.capture_buffer_ptr + 1] = bytes[1];
     }
 }
 

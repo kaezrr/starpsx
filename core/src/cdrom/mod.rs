@@ -148,11 +148,10 @@ impl CdRom {
         data
     }
 
-    pub fn pop_from_audio_buffer(&mut self) -> Option<i16> {
+    pub fn get_audio_sample(&mut self) -> i16 {
+        let sample = self.audio_buffer.pop_front().unwrap_or(0);
         // If cdrom is muted then return 0 sample
-        self.audio_buffer
-            .pop_front()
-            .map(|x| if self.audio_muted { 0 } else { x })
+        if self.audio_muted { 0 } else { sample }
     }
 
     fn push_parameter(&mut self, val: u8) {
