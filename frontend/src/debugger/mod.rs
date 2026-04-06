@@ -257,6 +257,9 @@ impl Debugger {
             "Disabled"
         };
         let irq_address = spu.irq_address_actual / 8;
+        let status = spu.status;
+        let capture_half_second = status & (1 << 11) != 0;
+        let irq9_requested = status & (1 << 6) != 0;
 
         // Global SPU status
         ui.horizontal(|ui| {
@@ -316,6 +319,34 @@ impl Debugger {
                 "{irq_state} @ 0x{irq_address:04X} (Actual 0x{:08X})",
                 spu.irq_address_actual
             ));
+        });
+
+        ui.horizontal(|ui| {
+            let active = Color32::WHITE;
+            let inactive = if ui.visuals().dark_mode {
+                Color32::from_gray(90)
+            } else {
+                Color32::from_gray(170)
+            };
+
+            ui.label("Status:");
+            ui.monospace(format!("0x{status:04X}"));
+            ui.separator();
+            ui.label(
+                RichText::new("Second")
+                    .monospace()
+                    .color(if capture_half_second {
+                        active
+                    } else {
+                        inactive
+                    }),
+            );
+            ui.separator();
+            ui.label(
+                RichText::new("Interrupt Request")
+                    .monospace()
+                    .color(if irq9_requested { active } else { inactive }),
+            );
         });
 
         ui.separator();

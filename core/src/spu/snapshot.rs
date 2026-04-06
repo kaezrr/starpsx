@@ -13,6 +13,7 @@ impl Spu {
             cd_audio_enabled: self.control.cd_enabled(),
             cd_volume_left: i16_volume_to_percent(self.cd_volume.l),
             cd_volume_right: i16_volume_to_percent(self.cd_volume.r),
+            status: self.status(),
             irq_enabled: self.control.irq_enabled(),
             irq_address_actual: self.sound_ram.irq_address as u32,
             voices: std::array::from_fn(|i| {
@@ -41,6 +42,7 @@ pub struct Snapshot {
     pub cd_audio_enabled: bool,
     pub cd_volume_left: f32,
     pub cd_volume_right: f32,
+    pub status: u16,
     pub irq_enabled: bool,
     pub irq_address_actual: u32,
     pub voices: [VoiceSnapshot; 24],
