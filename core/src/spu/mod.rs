@@ -215,6 +215,7 @@ impl Spu {
         // Acknowledge internal irq flag
         if !self.control.irq_enabled() {
             self.irq_requested = false;
+            self.sound_ram.irq.set(false);
         }
     }
 

@@ -114,7 +114,7 @@ impl Voice {
 
         let shift = sound_ram[addr] & 0x0F;
         let shift = 12 - if shift > 12 { 9 } else { shift };
-        let filter = (sound_ram[addr] & 0x70) >> 4;
+        let filter = ((sound_ram[addr] & 0x70) >> 4).min(4);
 
         let f0 = POS_ADPCM_TABLE[usize::from(filter)];
         let f1 = NEG_ADPCM_TABLE[usize::from(filter)];
