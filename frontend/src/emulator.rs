@@ -203,18 +203,20 @@ impl Emulator {
             }
 
             if paused {
-                std::thread::sleep(Duration::from_millis(16));
+                std::thread::sleep(Duration::from_millis(50));
                 continue;
             }
 
+            let system = &mut self.system;
+
             if !self.breakpoints.is_empty() {
-                self.system.run_till_breakpoint(&self.breakpoints);
+                system.run_till_breakpoint(&self.breakpoints, self.show_vram);
                 self.send_debug_snapshot();
                 self.shared_state.pause();
                 continue;
             }
 
-            let samples = self.system.run_frame(self.show_vram);
+            let samples = system.run_frame(self.show_vram);
 
             // Blocking send
             if !self.full_speed {
@@ -225,7 +227,7 @@ impl Emulator {
             }
 
             // Try to save memory_card to disk at the same frequency
-            if let Some(fb) = self.system.frame_buffer.take() {
+            if let Some(fb) = system.frame_buffer.take() {
                 self.save_memory_card_to_disk();
                 self.send_frame_buffer(fb);
             }

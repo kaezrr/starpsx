@@ -333,7 +333,7 @@ impl Debugger {
             ui.monospace(format!("0x{status:04X}"));
             ui.separator();
             ui.label(
-                RichText::new("Second")
+                RichText::new("Second Half")
                     .monospace()
                     .color(if capture_half_second {
                         active

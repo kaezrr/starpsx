@@ -269,7 +269,41 @@ impl System {
         SystemSnapshot { cpu, spu, gpu, ins }
     }
 
-    pub fn step_instruction(&mut self, show_vram: bool) -> Option<[i16; 2]> {
+    // Run emulator for one frame
+    pub fn run_frame(&mut self, show_vram: bool) -> Vec<i16> {
+        const SAMPLES_PER_FRAME: usize = 735 * 2;
+        let mut samples = Vec::with_capacity(SAMPLES_PER_FRAME);
+
+        while samples.len() != SAMPLES_PER_FRAME {
+            if let Some(event) = self.scheduler.get_next_event() {
+                match event {
+                    Event::VBlankStart => self.frame_buffer = Some(self.enter_vsync(show_vram)),
+                    Event::VBlankEnd => self.exit_vsync(),
+                    Event::HBlankStart => self.enter_hsync(),
+                    Event::HBlankEnd => Timers::exit_hsync(self),
+                    Event::Timer(x) => Timers::process_interrupt(self, x),
+                    Event::SerialSend => Sio0::process_serial_send(self),
+                    Event::CdromResultIrq(x) => CdRom::handle_response(self, x),
+                    Event::DsrOff => self.sio0.turn_off_dsr(),
+                    Event::SpuTick => samples.extend(Spu::tick(self)),
+                }
+            }
+
+            // Run instructions in blocks of 20
+            for _ in 0..20 {
+                Cpu::run_next_instruction(self);
+            }
+
+            // Fixed 2 CPI right now
+            self.scheduler.advance(40);
+
+            self.check_for_tty_output();
+        }
+
+        samples
+    }
+
+    pub fn step_instruction(&mut self, show_vram: bool) {
         if let Some(event) = self.scheduler.get_next_event() {
             match event {
                 Event::VBlankStart => self.frame_buffer = Some(self.enter_vsync(show_vram)),
@@ -280,7 +314,10 @@ impl System {
                 Event::SerialSend => Sio0::process_serial_send(self),
                 Event::CdromResultIrq(x) => CdRom::handle_response(self, x),
                 Event::DsrOff => self.sio0.turn_off_dsr(),
-                Event::SpuTick => return Some(Spu::tick(self)),
+                Event::SpuTick => {
+                    // Tick the spu but ignore the samples
+                    let _ = Spu::tick(self);
+                }
             }
         }
 
@@ -289,32 +326,16 @@ impl System {
         self.scheduler.advance(2);
 
         self.check_for_tty_output();
-        None
-    }
-
-    // Run emulator for one frame
-    pub fn run_frame(&mut self, show_vram: bool) -> Vec<i16> {
-        const SAMPLES_PER_FRAME: usize = 735 * 2;
-        let mut samples = Vec::with_capacity(SAMPLES_PER_FRAME);
-
-        while samples.len() != SAMPLES_PER_FRAME {
-            let Some(s) = self.step_instruction(show_vram) else {
-                continue;
-            };
-
-            samples.extend(s);
-        }
-
-        samples
     }
 
     // Run emulator until it generates a frame or hits a breakpoint
-    pub fn run_till_breakpoint(&mut self, breakpoints: &HashSet<u32>) {
+    pub fn run_till_breakpoint(&mut self, breakpoints: &HashSet<u32>, show_vram: bool) {
         loop {
             if breakpoints.contains(&self.cpu.pc) {
                 return;
             }
-            let _ = self.step_instruction(false);
+
+            self.step_instruction(show_vram);
         }
     }
 }
