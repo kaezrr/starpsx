@@ -292,19 +292,20 @@ impl System {
         None
     }
 
-    pub fn run_one_spu_tick(&mut self, show_vram: bool) -> [i16; 2] {
-        loop {
-            if let Some(sample) = self.step_instruction(show_vram) {
-                break sample;
-            }
-        }
-    }
-
     // Run emulator for one frame
-    pub fn run_frame(&mut self, show_vram: bool) {
-        for _ in (0..565_053).step_by(2) {
-            let _ = self.step_instruction(show_vram);
+    pub fn run_frame(&mut self, show_vram: bool) -> Vec<i16> {
+        const SAMPLES_PER_FRAME: usize = 735 * 2;
+        let mut samples = Vec::with_capacity(SAMPLES_PER_FRAME);
+
+        while samples.len() != SAMPLES_PER_FRAME {
+            let Some(s) = self.step_instruction(show_vram) else {
+                continue;
+            };
+
+            samples.extend(s);
         }
+
+        samples
     }
 
     // Run emulator until it generates a frame or hits a breakpoint
