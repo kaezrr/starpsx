@@ -292,12 +292,11 @@ impl System {
             // Run instructions in blocks of 20
             for _ in 0..20 {
                 Cpu::run_next_instruction(self);
+                self.check_for_tty_output();
             }
 
             // Fixed 2 CPI right now
             self.scheduler.advance(40);
-
-            self.check_for_tty_output();
         }
 
         samples
