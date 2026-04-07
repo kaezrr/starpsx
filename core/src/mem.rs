@@ -181,6 +181,9 @@ impl System {
 
             0x1F80_2000..0x1F80_2042 => unimplemented!("read to expansion2"),
 
+            // Garbage area, Gran Turismo 2 reads from here for some reason
+            0x1F80_1130 => 0xDEAD_BEEF,
+
             _ => unimplemented!("read at {addr:#08X}"),
         };
 
@@ -226,15 +229,19 @@ impl System {
             0x1F80_1000..0x1F80_1024 => {
                 trace!(target: "mem", region = "memctl", "stubbed write addr={:#08x}", addr);
             }
+
             0x1F80_1060..0x1F80_1064 => {
                 trace!(target: "mem", region = "ramsize", "stubbed write addr={:#08x}", addr);
             }
+
             0xFFFE_0130..0xFFFE_0134 => {
                 trace!(target: "mem", region = "cachectl", "stubbed write addr={:#08x}", addr);
             }
+
             0x1F00_0000..0x1F00_0100 => {
                 trace!(target: "mem", region = "expansion1", "stubbed write addr={:#08x}", addr);
             }
+
             0x1F80_2000..0x1F80_2042 => {
                 trace!(target: "mem", region = "expansion2", "stubbed write addr={:#08x}", addr);
             }
