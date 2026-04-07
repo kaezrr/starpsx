@@ -192,7 +192,7 @@ impl CdRom {
     }
 
     pub fn set_filter(&mut self) -> CommandResponse {
-        if !self.parameters.len() != 2 {
+        if self.parameters.len() != 2 {
             return error_response(&self.status, 0x20);
         }
 
