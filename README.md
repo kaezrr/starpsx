@@ -2,10 +2,6 @@
 
 StarPSX is a free, open-source PlayStation 1 emulator written in Rust. It features a native **cross-platform GUI** (`eframe`/`egui`) with a built-in debugger.
 
-> [!WARNING]
->
-> This project is currently **highly work in progress** and is not yet suitable for playing games end-to-end. Many features are incomplete or missing.
-
 <div align="center">
   <img src="/showcase/mk2-logo.png" width="45%" alt="Mortal Kombat 2"/>
   <img src="/showcase/spyro.png" width="45%" alt="Spyro"/>
@@ -66,23 +62,23 @@ Options:
 
 ## Component Status
 
-| Component   | Status         | Notes                                   |
-| ----------- | -------------- | --------------------------------------- |
-| CPU         | 🟢 Done        | passes most test ROMs                   |
-| GPU         | 🟢 Done        | works well with some bugs               |
-| DMA         | 🟡 Partial     | burst and linked-list DMA supported     |
-| Timers      | 🟢 Done        | functional but may contain inaccuracies |
-| CDROM       | 🟡 Partial     | boots a few games                       |
-| GTE         | 🟢 Done        | passes all tests                        |
-| Gamepad     | 🟢 Done        | full analog pad support                 |
-| Memory Card | 🟢 Done        | per-title and shared modes available    |
-| MDEC        | 🟢 Done        | pass most test ROMs                     |
-| SPU         | 🔴 Not started |                                         |
+| Component   | Status | Notes                                             |
+| ----------- | :----: | ------------------------------------------------- |
+| CPU         |   🟢   | Passes most test ROMs                             |
+| GPU         |   🟢   | Works well with some minor bugs                   |
+| DMA         |   🟡   | Issues with IRQ timings and infinite linked lists |
+| Timers      |   🟢   | Functional but may contain inaccuracies           |
+| CDROM       |   🟡   | Some unimplemented commands and timing issues     |
+| GTE         |   🟢   | Passes all tests                                  |
+| Gamepad     |   🟢   | Full analog pad support                           |
+| Memory Card |   🟢   | Per-title and shared modes available              |
+| MDEC        |   🟢   | Pass most test ROMs                               |
+| SPU         |   🟡   | No reverb or sweep implementation                 |
 
 ## Acknowledgements
 
 - psx-spx for PlayStation documentation
 - jsgroth’s PSX emulator blog posts
 - duckstation for behavior comparison
-- The folks over at the EmuDev Discord
+- the folks over at the EmuDev Discord
 - Lionel Flandrin's Rustation for GTE reference
