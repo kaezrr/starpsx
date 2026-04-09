@@ -80,10 +80,9 @@ impl System {
     /// # Errors
     ///
     /// This function will return an error if:
-    /// * Bios file is not valid
     /// * Runnable file is not valid
     pub fn build(
-        bios: Vec<u8>,
+        bios: Box<[u8; 0x80000]>,
         runnable: Option<RunType>,
         memory_card: Option<Box<[u8; 0x20000]>>,
     ) -> anyhow::Result<Self> {
@@ -93,7 +92,7 @@ impl System {
             spu: Spu::default(),
 
             ram: Ram::default(),
-            bios: Bios::new(bios)?,
+            bios: Bios::new(bios),
             scratch: Scratch::default(),
 
             dma: DMAController::default(),

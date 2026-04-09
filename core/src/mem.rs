@@ -17,16 +17,12 @@ pub mod bios {
     pub const PADDR_END: u32 = 0x1FC8_0000;
 
     pub struct Bios {
-        bytes: Box<[u8; 512 * 1024]>,
+        bytes: Box<[u8; 0x80000]>,
     }
 
     impl Bios {
-        pub fn new(bytes: Vec<u8>) -> anyhow::Result<Self> {
-            let box_bytes = bytes
-                .try_into()
-                .map_err(|_| anyhow::anyhow!("invalid bios image"))?;
-
-            Ok(Self { bytes: box_bytes })
+        pub const fn new(bytes: Box<[u8; 0x80000]>) -> Self {
+            Self { bytes }
         }
 
         pub fn read<const WIDTH: usize>(&self, addr: u32) -> u32 {

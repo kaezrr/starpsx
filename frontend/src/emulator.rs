@@ -293,7 +293,10 @@ fn build_system(
     file_path: Option<&RunnablePath>,
     memory_card: Option<&Path>,
 ) -> anyhow::Result<starpsx_core::System> {
-    let bios = std::fs::read(bios_path)?;
+    let bios: Box<[u8; 0x80000]> = std::fs::read(bios_path)?
+        .try_into()
+        .map_err(|_| anyhow::anyhow!("bios is wrong size"))?;
+
     let run_type = file_path
         .map(|run_type| -> anyhow::Result<RunType> {
             let bytes = match run_type {

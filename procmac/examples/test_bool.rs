@@ -27,5 +27,5 @@ fn main() {
     assert!(b_true);
     assert!(!b_false);
 
-    println!("All tests passed! Your macro is working.");
+    println!("All tests passed!");
 }
