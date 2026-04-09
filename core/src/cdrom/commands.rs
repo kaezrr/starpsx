@@ -32,8 +32,14 @@ impl CdRom {
                 CommandResponse::new().int3([0], AVG_1ST_RESP_GENERIC)
             }
 
+            0x77..=0xFF => error_response(&self.status, 0x10, "unknown test command"),
+
             _ => unimplemented!("cdrom command Test {cmd:02x}"),
         }
+    }
+
+    pub fn invalid(&self) -> CommandResponse {
+        error_response(&self.status, 0x40, "invalid command")
     }
 
     pub fn nop(&self) -> CommandResponse {
@@ -311,10 +317,30 @@ impl CdRom {
         let disk = self.disk.as_ref().expect("get_locp inserted disk");
 
         CommandResponse::new().int3(
-            disk.position_info()
+            disk.current_position_info()
                 .map(|x| to_bcd(x).expect("track position is valid bcd")),
             AVG_1ST_RESP_GENERIC,
         )
+    }
+
+    pub fn get_locl(&self) -> CommandResponse {
+        if !self.parameters.is_empty() {
+            return error_response(&self.status, 0x20, "get_locl takes no parameters");
+        }
+
+        if self.status.seeking() {
+            return error_response(&self.status, 0x80, "get_locl while seeking");
+        }
+
+        if self.mode.cdda_enabled {
+            return error_response(&self.status, 0x80, "get_locl on audio sector");
+        }
+
+        debug!(target: "cdrom", "cdrom getlocl");
+
+        let disk = self.disk.as_ref().expect("get_locl inserted disk");
+
+        CommandResponse::new().int3(disk.current_header_info(), AVG_1ST_RESP_GENERIC)
     }
 }
 

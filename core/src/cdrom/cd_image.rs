@@ -57,7 +57,7 @@ impl CdImage {
         self.read_head = SECTOR_SIZE * 75 * 2; // 2 seconds
     }
 
-    pub fn position_info(&self) -> [u8; 8] {
+    pub fn current_position_info(&self) -> [u8; 8] {
         let current_track = self
             .tracks
             .partition_point(|t| t.indexes[0].lba <= self.read_head)
@@ -85,6 +85,15 @@ impl CdImage {
             disk_pos.1,
             disk_pos.2,
         ]
+    }
+
+    pub fn current_header_info(&self) -> [u8; 8] {
+        let current_sector = &self.data[self.read_head..self.read_head + SECTOR_SIZE];
+
+        // Copy of header and subheader
+        current_sector[0xC..0xC + 8]
+            .try_into()
+            .expect("header_info")
     }
 
     pub const fn seek_location(&mut self, mins: u8, secs: u8, sect: u8) {

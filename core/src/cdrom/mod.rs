@@ -269,6 +269,7 @@ impl CdRom {
         }
 
         let response = match cmd {
+            0x00 => cdrom.invalid(),
             0x01 => cdrom.nop(),
             0x02 => cdrom.set_loc(),
             0x03 => cdrom.play(),
@@ -279,6 +280,7 @@ impl CdRom {
             0x0C => cdrom.demute(),
             0x0D => cdrom.set_filter(),
             0x0E => cdrom.setmode(),
+            0x10 => cdrom.get_locl(),
             0x11 => cdrom.get_locp(),
             0x13 => cdrom.get_tn(),
             0x14 => cdrom.get_td(),
@@ -443,6 +445,8 @@ bitfield::bitfield! {
     #[derive(Default)]
     pub struct Status(u8);
     playing, _: 7;
+    seeking, _: 6;
+    reading, _: 5;
     _, set_shell_open: 4;
     _, set_motor_on: 1;
     _, set_error: 0;
