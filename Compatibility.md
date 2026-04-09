@@ -5,12 +5,14 @@ Below is a list of games that I test for compatibility, getting these games work
 
 | Name                                    | Status | Notes                                                                |
 | --------------------------------------- | :----: | -------------------------------------------------------------------- |
+| Ape Escape                              |   🔴   | Unimplemented SPU write                                              |
 | Castlevania - Symphony of the Night     |   🔴   | Gets stuck at Konami logo                                            |
 | Crash Bandicoot                         |   🟢   |                                                                      |
 | Crash Bandicoot 2 - Cortex Strikes Back |   🟢   |                                                                      |
 | CTR - Crash Team Racing                 |   🔴   | Gets stuck after Sony screen, due to some CDROM issue                |
 | Dead or Alive                           |   🟢   |                                                                      |
-| Dino Crisis                             |   🔴   | Gets stuck after at the gore disclaimer screen                       |
+| Dino Crisis                             |   🔴   | Gets stuck at the gore disclaimer screen                             |
+| Doom                                    |   🔴   | Gets stuck after Sony screen                                         |
 | Earthworm Jim 2                         |   🟢   |                                                                      |
 | Einhaender                              |   🔴   | Index out of bounds in renderer                                      |
 | Final Fantasy IX                        |   🔴   | Gets stuck after Sony screen                                         |
@@ -24,7 +26,7 @@ Below is a list of games that I test for compatibility, getting these games work
 | Mortal Kombat II                        |   🟢   |                                                                      |
 | Parasite Eve                            |   🟢   |                                                                      |
 | Puzzle Bobble 2                         |   🟢   |                                                                      |
-| Resident Evil                           |   🟢   |                                                                      |
+| Resident Evil                           |   🟢   | Audio issues                                                         |
 | Resident Evil 2                         |   🟡   | Gets stuck after starting a new game                                 |
 | Resident Evil 3 - Nemesis               |   🟢   |                                                                      |
 | Ridge Racer                             |   🟢   |                                                                      |
@@ -32,7 +34,9 @@ Below is a list of games that I test for compatibility, getting these games work
 | Spyro the Dragon                        |   🟢   | Random heavy stutters in pause menu and while unlocking dragons      |
 | Street Fighter Alpha 3                  |   🟢   |                                                                      |
 | Tekken                                  |   🟡   | Some CDDA issues, first few seconds of audio track repeats endlessly |
-| Tekken 3                                |   🟡   | Laggy asf due to infinite Linked List DMA                            |
+| Tekken 2                                |   🔴   | Stuck due to infinite Linked List DMA                                |
+| Tekken 3                                |   🟡   | Laggy asf due to large DMA transfers                                 |
+| Tomb Raider                             |   🔴   | Broken, some illegal instruction                                     |
 | Tony Hawks Pro Skater 2                 |   🔴   | Unimplemented CDROM command 0Bh                                      |
 | Valkyrie Profile                        |   🟡   | Battles are extremely laggy due to DMA timing                        |
 | WipEout                                 |   🔴   | Gets stuck after the Sony logo                                       |
