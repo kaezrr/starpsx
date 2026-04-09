@@ -2,13 +2,13 @@ use tracing::debug;
 
 use crate::consts::SECTOR_SIZE;
 
-pub struct CdImage {
+pub struct Image {
     read_head: usize,
     data: Box<[u8]>,
     tracks: Box<[cue::Track]>,
 }
 
-impl CdImage {
+impl Image {
     pub fn from_bytes(bytes: Vec<u8>) -> Self {
         // Add 2 seconds of zero padding to disk image (missing in rips)
         let mut data = vec![0u8; 2 * 75 * SECTOR_SIZE];
@@ -21,11 +21,11 @@ impl CdImage {
         }
     }
 
-    pub fn from_disk(disk: cue::CdDisk) -> Self {
+    pub fn from_disc(disc: cue::Disc) -> Self {
         Self {
             read_head: SECTOR_SIZE * 75 * 2, // 2 seconds,
-            data: disk.sectors,
-            tracks: disk.tracks,
+            data: disc.sectors,
+            tracks: disc.tracks,
         }
     }
 

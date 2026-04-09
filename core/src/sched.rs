@@ -1,6 +1,8 @@
 use arrayvec::ArrayVec;
 
 use crate::cdrom::ResponseType;
+use crate::consts::HBLANK_DURATION;
+use crate::consts::LINE_DURATION;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct TimerInterrupt {
@@ -80,5 +82,30 @@ impl EventScheduler {
                 repeat,
             },
         );
+    }
+
+    pub fn init_with_events(&mut self) {
+        self.schedule(
+            Event::VBlankStart,
+            LINE_DURATION * 240,
+            Some(LINE_DURATION * 263),
+        );
+
+        self.schedule(
+            Event::VBlankEnd,
+            LINE_DURATION * 263,
+            Some(LINE_DURATION * 263),
+        );
+
+        self.schedule(
+            Event::HBlankStart,
+            LINE_DURATION - HBLANK_DURATION,
+            Some(LINE_DURATION),
+        );
+
+        self.schedule(Event::HBlankEnd, LINE_DURATION, Some(LINE_DURATION));
+
+        // SPU clocks at 44100Hz, which translates to 768 cycles
+        self.schedule(Event::SpuTick, 768, Some(768));
     }
 }

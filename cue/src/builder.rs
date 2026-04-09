@@ -26,7 +26,7 @@ impl<'a> CueBuilder<'a> {
         }
     }
 
-    pub fn build_disk(mut self, cue_sheet: CueSheet) -> anyhow::Result<CdDisk> {
+    pub fn build_disk(mut self, cue_sheet: CueSheet) -> anyhow::Result<Disc> {
         self.current += SEC_2;
         self.sectors.extend_from_slice(&vec![0; SEC_2]);
 
@@ -34,7 +34,7 @@ impl<'a> CueBuilder<'a> {
             self.insert_file(file)?;
         }
 
-        Ok(CdDisk {
+        Ok(Disc {
             sectors: self.sectors.into_boxed_slice(),
             tracks: self.tracks.into_boxed_slice(),
         })
@@ -62,12 +62,12 @@ impl<'a> CueBuilder<'a> {
     }
 }
 
-pub struct CdDisk {
+pub struct Disc {
     pub sectors: Box<[u8]>,
     pub tracks: Box<[Track]>,
 }
 
-impl Debug for CdDisk {
+impl Debug for Disc {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         fn lba_to_msf(lba: usize) -> String {
             let frames = lba % 75;

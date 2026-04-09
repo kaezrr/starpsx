@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::io::ErrorKind;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -15,14 +16,13 @@ use cpal::default_host;
 use cpal::traits::DeviceTrait;
 use cpal::traits::HostTrait;
 use cpal::traits::StreamTrait;
-use starpsx_core::RunType;
 use starpsx_core::SystemSnapshot;
 use starpsx_renderer::FrameBuffer;
 use tracing::error;
 use tracing::info;
 use tracing::warn;
 
-use crate::config::RunnablePath;
+use crate::config::MediaPath;
 use crate::input::GamepadState;
 
 const SAMPLES_PER_FRAME: u32 = 735;
@@ -57,7 +57,7 @@ pub struct Emulator {
     system: starpsx_core::System,
     breakpoints: HashSet<u32>,
     bios_path: PathBuf,
-    file_path: Option<RunnablePath>,
+    file_path: Option<MediaPath>,
     memory_card: Option<PathBuf>,
     show_vram: bool,
     full_speed: bool,
@@ -68,7 +68,7 @@ impl Emulator {
         channels: UiChannels,
         shared_state: Arc<SharedState>,
         bios_path: PathBuf,
-        file_path: Option<RunnablePath>,
+        file_path: Option<MediaPath>,
         memory_card: Option<PathBuf>,
         show_vram: bool,
         full_speed: bool,
@@ -279,58 +279,61 @@ impl SharedState {
     }
 }
 
-pub fn parse_runnable(path: PathBuf) -> anyhow::Result<RunnablePath> {
+pub fn parse_runnable(path: PathBuf) -> anyhow::Result<MediaPath> {
     match path.extension().and_then(|e| e.to_str()) {
-        Some("exe" | "ps-exe") => Ok(RunnablePath::Exe(path)),
-        Some("bin") => Ok(RunnablePath::Bin(path)),
-        Some("cue") => Ok(RunnablePath::Cue(path)),
+        Some("exe" | "ps-exe") => Ok(MediaPath::Exe(path)),
+        Some("bin") => Ok(MediaPath::Bin(path)),
+        Some("cue") => Ok(MediaPath::Cue(path)),
         _ => anyhow::bail!("unsupported file format"),
     }
 }
 
 fn build_system(
     bios_path: &Path,
-    file_path: Option<&RunnablePath>,
+    file_path: Option<&MediaPath>,
     memory_card: Option<&Path>,
 ) -> anyhow::Result<starpsx_core::System> {
     let bios: Box<[u8; 0x80000]> = std::fs::read(bios_path)?
         .try_into()
         .map_err(|_| anyhow::anyhow!("bios is wrong size"))?;
 
-    let run_type = file_path
-        .map(|run_type| -> anyhow::Result<RunType> {
-            let bytes = match run_type {
-                RunnablePath::Exe(path) => RunType::Executable(std::fs::read(path)?),
-                RunnablePath::Bin(path) => RunType::Binary(std::fs::read(path)?),
-                RunnablePath::Cue(path) => RunType::Disk(cue::build_disk(path)?),
-            };
-            Ok(bytes)
-        })
-        .transpose()?;
+    let mut builder = starpsx_core::PSXBuilder::new(bios);
 
-    let memory_card = memory_card
-        .as_ref()
-        .map(|path| -> anyhow::Result<Box<[u8; 0x20000]>> {
-            let bytes = if path.exists() {
-                let bytes = std::fs::read(path)?;
-                bytes
-                    .try_into()
-                    .map_err(|_| anyhow::anyhow!("memory card is wrong size"))?
-            } else {
-                if let Some(parent) = path.parent() {
-                    std::fs::create_dir_all(parent)?;
-                }
-                let blank = Box::new(*include_bytes!("blank.mcd"));
-                std::fs::write(path, blank.as_ref())?;
-                blank
-            };
-            info!(?path, "Using memory card");
-            Ok(bytes)
-        })
-        .transpose()?;
+    if let Some(path) = file_path {
+        builder = builder.with_media(path.load()?);
+    }
 
-    let system = starpsx_core::System::build(bios, run_type, memory_card)?;
-    Ok(system)
+    if let Some(path) = memory_card {
+        builder = builder.with_card(load_or_create_card(path)?);
+    }
+
+    builder.build()
+}
+
+fn load_or_create_card(path: &Path) -> anyhow::Result<Box<[u8; 0x20000]>> {
+    match std::fs::read(path) {
+        Ok(bytes) => {
+            let bytes = bytes
+                .try_into()
+                .map_err(|_| anyhow::anyhow!("memory card is wrong size"))?;
+
+            info!(?path, "using existing memory card at");
+            Ok(bytes)
+        }
+
+        Err(e) if e.kind() == ErrorKind::NotFound => {
+            if let Some(parent) = path.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            let blank = Box::new(*include_bytes!("blank.mcd"));
+            std::fs::write(path, blank.as_ref())?;
+
+            info!(?path, "created new memory card at");
+            Ok(blank)
+        }
+
+        Err(e) => Err(e.into()),
+    }
 }
 
 use std::fs::File;

@@ -1,8 +1,8 @@
 use derive_more::Index;
 use derive_more::IndexMut;
 
-use crate::LINE_DURATION;
 use crate::System;
+use crate::consts::LINE_DURATION;
 use crate::sched::Event;
 use crate::sched::TimerInterrupt;
 

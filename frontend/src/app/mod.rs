@@ -27,7 +27,7 @@ use crate::app::app_state::AppState;
 use crate::app::util::MetricsSnapshot;
 use crate::app::util::PendingDialog;
 use crate::config::LaunchConfig;
-use crate::config::RunnablePath;
+use crate::config::MediaPath;
 use crate::config::{self};
 use crate::debugger::Debugger;
 use crate::emulator::SharedState;
@@ -286,7 +286,7 @@ impl Application {
             .is_some_and(|a| a.debugger.is_paused())
     }
 
-    fn start_emulator(&mut self, runnable_path: Option<RunnablePath>) -> anyhow::Result<()> {
+    fn start_emulator(&mut self, runnable_path: Option<MediaPath>) -> anyhow::Result<()> {
         let bios_path = self
             .app_config
             .bios_path
@@ -305,7 +305,7 @@ impl Application {
             match self.app_config.memory_card_type {
                 config::MemoryCardType::PerTitle => runnable_path
                     .as_ref()
-                    .filter(|f| matches!(f, RunnablePath::Cue(_)))
+                    .filter(|f| matches!(f, MediaPath::Cue(_)))
                     .map(|f| {
                         self.memory_cards_path
                             .join(f.file_prefix())

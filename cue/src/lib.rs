@@ -5,8 +5,8 @@ mod scanner;
 use std::path::Path;
 use std::path::PathBuf;
 
-pub use builder::CdDisk;
 use builder::CueBuilder;
+pub use builder::Disc;
 use parser::CueParser;
 use scanner::Scanner;
 
@@ -16,7 +16,7 @@ use scanner::Scanner;
 /// * The CUE file or its referenced binary tracks cannot be read.
 /// * The file content contains invalid tokens or malformed syntax.
 /// * The disk layout is invalid or references missing resources.
-pub fn build_disk<P: AsRef<Path>>(cue_path: P) -> anyhow::Result<CdDisk> {
+pub fn build_disk<P: AsRef<Path>>(cue_path: P) -> anyhow::Result<Disc> {
     let cue_file = std::fs::read(cue_path.as_ref())?;
     let tokens = Scanner::with_source(cue_file).tokenize()?;
     let cue_sheet = CueParser::new(tokens).parse_cuesheet()?;

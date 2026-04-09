@@ -14,10 +14,8 @@ mod timers;
 use std::collections::HashSet;
 
 use anyhow::Context;
-use cdrom::CdImage;
 use cdrom::CdRom;
-use consts::HBLANK_DURATION;
-use consts::LINE_DURATION;
+use cdrom::Image;
 use cpu::Cpu;
 use dma::DMAController;
 use gpu::Gpu;
@@ -44,8 +42,8 @@ use crate::sio::gamepad::Gamepad;
 use crate::sio::memory_card::MemoryCard;
 use crate::spu::Spu;
 
-pub enum RunType {
-    Disk(cue::CdDisk),
+pub enum Media {
+    Disc(cue::Disc),
     Binary(Vec<u8>),
     Executable(Vec<u8>),
 }
@@ -77,88 +75,6 @@ pub struct System {
 }
 
 impl System {
-    /// # Errors
-    ///
-    /// This function will return an error if:
-    /// * Runnable file is not valid
-    pub fn build(
-        bios: Box<[u8; 0x80000]>,
-        runnable: Option<RunType>,
-        memory_card: Option<Box<[u8; 0x20000]>>,
-    ) -> anyhow::Result<Self> {
-        let mut psx = Self {
-            cpu: Cpu::default(),
-            gpu: Gpu::default(),
-            spu: Spu::default(),
-
-            ram: Ram::default(),
-            bios: Bios::new(bios),
-            scratch: Scratch::default(),
-
-            dma: DMAController::default(),
-            timers: Timers::default(),
-            irqctl: InterruptController::default(),
-            cdrom: CdRom::default(),
-            mdec: MacroDecoder::default(),
-
-            tty: Vec::new(),
-            scheduler: EventScheduler::default(),
-
-            // Only 1 gamepad and memory card  for now
-            sio0: Sio0::new(
-                [Some(Gamepad::default()), None],
-                [memory_card.map(MemoryCard::from_bytes), None],
-            ),
-            sio1: Sio1, // Does nothing
-
-            frame_buffer: None,
-        };
-
-        // Load game or exe
-        if let Some(run_type) = runnable {
-            // Do not open the shell after bios start
-            match run_type {
-                RunType::Disk(disk) => psx.cdrom.insert_disc(CdImage::from_disk(disk)),
-                RunType::Binary(bytes) => psx.cdrom.insert_disc(CdImage::from_bytes(bytes)),
-                RunType::Executable(bytes) => psx.sideload_exe(&bytes)?,
-            }
-        } else {
-            psx.cdrom.open_shell();
-        }
-
-        // // -------------------CDROM TESTING ONLY-----------------------
-        // psx.cdrom.insert_disc(CdImage::from_disk(
-        //     cue::build_disk("../dev/pcsx_redux_cdrom_tests/test.cue").unwrap(),
-        // ));
-        // // ------------------------------------------------------------
-
-        // Schedule some initial events
-        psx.scheduler.schedule(
-            Event::VBlankStart,
-            LINE_DURATION * 240,
-            Some(LINE_DURATION * 263),
-        );
-
-        psx.scheduler.schedule(
-            Event::VBlankEnd,
-            LINE_DURATION * 263,
-            Some(LINE_DURATION * 263),
-        );
-
-        psx.scheduler.schedule(
-            Event::HBlankStart,
-            LINE_DURATION - HBLANK_DURATION,
-            Some(LINE_DURATION),
-        );
-
-        psx.scheduler
-            .schedule(Event::HBlankEnd, LINE_DURATION, Some(LINE_DURATION));
-
-        psx.scheduler.schedule(Event::SpuTick, 768, Some(768));
-
-        Ok(psx)
-    }
-
     fn sideload_exe(&mut self, exe: &[u8]) -> anyhow::Result<()> {
         while self.cpu.pc != 0x8003_0000 {
             Cpu::run_next_instruction(self);
@@ -345,4 +261,87 @@ pub struct SystemSnapshot {
 
     /// cpu.pc +- 100
     pub ins: [(u32, u32); 200],
+}
+
+pub struct PSXBuilder {
+    bios: Bios,
+    disc: Option<Image>,
+    exec: Option<Vec<u8>>,
+    card: Option<MemoryCard>,
+}
+
+impl PSXBuilder {
+    #[must_use]
+    pub const fn new(bios: Box<[u8; 0x80000]>) -> Self {
+        Self {
+            bios: Bios::new(bios),
+            disc: None,
+            exec: None,
+            card: None,
+        }
+    }
+
+    #[must_use]
+    pub fn with_media(mut self, media: Media) -> Self {
+        match media {
+            Media::Disc(disc) => self.disc = Some(Image::from_disc(disc)),
+            Media::Binary(bytes) => self.disc = Some(Image::from_bytes(bytes)),
+            Media::Executable(bytes) => self.exec = Some(bytes),
+        }
+
+        self
+    }
+
+    #[must_use]
+    pub fn with_card(mut self, card: Box<[u8; 0x20000]>) -> Self {
+        self.card = Some(MemoryCard::from_bytes(card));
+        self
+    }
+
+    /// # Errors
+    ///
+    /// Returns an error if provided ps-exe file is of invalid format
+    pub fn build(self) -> anyhow::Result<System> {
+        let mut psx = System {
+            cpu: Cpu::default(),
+            gpu: Gpu::default(),
+            spu: Spu::default(),
+
+            ram: Ram::default(),
+            bios: self.bios,
+            scratch: Scratch::default(),
+
+            dma: DMAController::default(),
+            timers: Timers::default(),
+            irqctl: InterruptController::default(),
+            cdrom: CdRom::default(),
+            mdec: MacroDecoder::default(),
+
+            tty: Vec::new(),
+            scheduler: EventScheduler::default(),
+
+            // Only 1 gamepad and memory card  for now
+            sio0: Sio0::new([Some(Gamepad::default()), None], [self.card, None]),
+            sio1: Sio1, // Does nothing
+
+            frame_buffer: None,
+        };
+
+        // Open the shell if nothing is loaded
+        if self.exec.is_none() && self.disc.is_none() {
+            psx.cdrom.open_shell();
+        }
+
+        if let Some(exe) = self.exec {
+            psx.sideload_exe(&exe)?;
+        }
+
+        if let Some(image) = self.disc {
+            psx.cdrom.insert_disc(image);
+        }
+
+        psx.scheduler.init_with_events();
+
+        Ok(psx)
+    }
 }

@@ -6,7 +6,7 @@ use std::collections::VecDeque;
 use std::ops::Div;
 
 use arrayvec::ArrayVec;
-pub use cd_image::CdImage;
+pub use cd_image::Image;
 pub use commands::ResponseType;
 use procmac::Boolable;
 use tracing::trace;
@@ -47,7 +47,7 @@ pub struct CdRom {
     filter_file: u8,
     filter_channel: u8,
 
-    disk: Option<CdImage>,
+    disk: Option<Image>,
 }
 
 impl Default for CdRom {
@@ -351,7 +351,7 @@ impl CdRom {
         }
     }
 
-    pub fn insert_disc(&mut self, image: CdImage) {
+    pub fn insert_disc(&mut self, image: Image) {
         self.disk = Some(image);
 
         // Reset cdrom state
