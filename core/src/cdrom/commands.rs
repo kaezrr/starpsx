@@ -15,7 +15,7 @@ use crate::consts::AVG_RATE_INT1;
 impl CdRom {
     pub fn test(&self) -> CommandResponse {
         if self.parameters.len() != 1 {
-            return error_response(&self.status, 0x20);
+            return error_response(&self.status, 0x20, "test expects 1 parameter");
         }
 
         let cmd = self.parameters[0];
@@ -38,7 +38,7 @@ impl CdRom {
 
     pub fn nop(&self) -> CommandResponse {
         if !self.parameters.is_empty() {
-            return error_response(&self.status, 0x20);
+            return error_response(&self.status, 0x20, "nop takes no parameters");
         }
 
         debug!(target: "cdrom", status=?self.status.0, "cdrom nop command");
@@ -48,7 +48,7 @@ impl CdRom {
 
     pub fn get_id(&self) -> CommandResponse {
         if !self.parameters.is_empty() {
-            return error_response(&self.status, 0x20);
+            return error_response(&self.status, 0x20, "get_id takes no parameters");
         }
 
         debug!(target: "cdrom", "cdrom get id");
@@ -63,7 +63,7 @@ impl CdRom {
 
     pub fn set_loc(&mut self) -> CommandResponse {
         if self.parameters.len() != 3 {
-            return error_response(&self.status, 0x20);
+            return error_response(&self.status, 0x20, "set_loc expects 3 parameters");
         }
 
         debug!(target: "cdrom", params=?self.parameters, "cdrom set loc");
@@ -88,7 +88,7 @@ impl CdRom {
 
     pub fn seekl(&mut self) -> CommandResponse {
         if !self.parameters.is_empty() {
-            return error_response(&self.status, 0x20);
+            return error_response(&self.status, 0x20, "seekl takes no parameters");
         }
 
         debug!(target: "cdrom", "cdrom seekl");
@@ -103,7 +103,7 @@ impl CdRom {
 
     pub fn seekp(&mut self) -> CommandResponse {
         if !self.parameters.is_empty() {
-            return error_response(&self.status, 0x20);
+            return error_response(&self.status, 0x20, "seekp takes no parameters");
         }
 
         debug!(target: "cdrom", "cdrom seekp");
@@ -118,7 +118,7 @@ impl CdRom {
 
     pub fn setmode(&mut self) -> CommandResponse {
         if self.parameters.len() != 1 {
-            return error_response(&self.status, 0x20);
+            return error_response(&self.status, 0x20, "setmode expects 1 parameter");
         }
 
         debug!(target: "cdrom", params=?self.parameters, "cdrom set mode");
@@ -130,7 +130,7 @@ impl CdRom {
 
     pub fn reads(&mut self) -> CommandResponse {
         if !self.parameters.is_empty() {
-            return error_response(&self.status, 0x20);
+            return error_response(&self.status, 0x20, "reads takes no parameters");
         }
 
         debug!(target: "cdrom", "cdrom reads");
@@ -140,7 +140,7 @@ impl CdRom {
 
     pub fn readn(&mut self) -> CommandResponse {
         if !self.parameters.is_empty() {
-            return error_response(&self.status, 0x20);
+            return error_response(&self.status, 0x20, "readn takes no parameters");
         }
 
         debug!(target: "cdrom", "cdrom readn");
@@ -154,7 +154,7 @@ impl CdRom {
 
     pub fn pause(&mut self) -> CommandResponse {
         if !self.parameters.is_empty() {
-            return error_response(&self.status, 0x20);
+            return error_response(&self.status, 0x20, "pause takes no parameters");
         }
 
         debug!(target: "cdrom", "cdrom pause");
@@ -173,7 +173,7 @@ impl CdRom {
 
     pub fn init(&mut self) -> CommandResponse {
         if !self.parameters.is_empty() {
-            return error_response(&self.status, 0x20);
+            return error_response(&self.status, 0x20, "init takes no parameters");
         }
 
         debug!(target: "cdrom", "cdrom init");
@@ -193,7 +193,7 @@ impl CdRom {
 
     pub fn set_filter(&mut self) -> CommandResponse {
         if self.parameters.len() != 2 {
-            return error_response(&self.status, 0x20);
+            return error_response(&self.status, 0x20, "set_filter expects 2 parameters");
         }
 
         debug!(target: "cdrom", "cdrom set filter");
@@ -219,7 +219,7 @@ impl CdRom {
     // stubbed audio command
     pub fn demute(&mut self) -> CommandResponse {
         if !self.parameters.is_empty() {
-            return error_response(&self.status, 0x20);
+            return error_response(&self.status, 0x20, "demute takes no parameters");
         }
 
         debug!(target: "cdrom", "cdrom demute");
@@ -231,7 +231,7 @@ impl CdRom {
 
     pub fn get_tn(&self) -> CommandResponse {
         if !self.parameters.is_empty() {
-            return error_response(&self.status, 0x20);
+            return error_response(&self.status, 0x20, "get_tn takes no parameters");
         }
 
         debug!(target: "cdrom", "cdrom get tn");
@@ -246,7 +246,7 @@ impl CdRom {
 
     pub fn get_td(&self) -> CommandResponse {
         if self.parameters.len() != 1 {
-            return error_response(&self.status, 0x20);
+            return error_response(&self.status, 0x20, "get_td expects 1 parameter");
         }
 
         debug!(target: "cdrom", "cdrom get td");
@@ -277,7 +277,7 @@ impl CdRom {
 
     pub fn stop(&mut self) -> CommandResponse {
         if !self.parameters.is_empty() {
-            return error_response(&self.status, 0x20);
+            return error_response(&self.status, 0x20, "stop takes no parameters");
         }
 
         debug!(target: "cdrom", "cdrom stop");
@@ -303,7 +303,7 @@ impl CdRom {
 
     pub fn get_locp(&self) -> CommandResponse {
         if !self.parameters.is_empty() {
-            return error_response(&self.status, 0x20);
+            return error_response(&self.status, 0x20, "get_locp takes no parameters");
         }
 
         debug!(target: "cdrom", "cdrom getlocp");
@@ -318,7 +318,8 @@ impl CdRom {
     }
 }
 
-fn error_response(stat: &Status, err_byte: u8) -> CommandResponse {
+fn error_response(stat: &Status, err_byte: u8, err: &str) -> CommandResponse {
+    error!(err, "CDROM error");
     CommandResponse::new().int5([stat.with_error(), err_byte], AVG_1ST_RESP_INIT)
 }
 
