@@ -1,3 +1,4 @@
+use tracing::info;
 use tracing::trace;
 
 use crate::System;
@@ -194,6 +195,7 @@ impl System {
     }
 
     /// # Errors
+    ///
     /// Returns an error if the address is not properly aligned
     pub fn write<const WIDTH: usize>(&mut self, addr: u32, data: u32) -> Result<(), Exception> {
         if !addr.is_multiple_of(WIDTH as u32) {
@@ -241,6 +243,8 @@ impl System {
             0x1F80_2000..0x1F80_2042 => {
                 trace!(target: "mem", region = "expansion2", "stubbed write addr={:#08x}", addr);
             }
+
+            0x1F80_2082 => info!(exit_code = data, "pcsx-redux exit code"),
 
             _ => unimplemented!("write at {addr:#08X}"),
         }
