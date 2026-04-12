@@ -18,7 +18,6 @@ pub use utils::VramCopyFields;
 
 use crate::System;
 use crate::gpu::utils::PolyLineFn;
-use crate::mem::ByteAddressable;
 
 bitfield::bitfield! {
     #[derive(Clone, Copy)]
@@ -122,6 +121,36 @@ bitfield::bitfield! {
     display_off, _ : 0;
 }
 
+pub struct Snapshot {
+    pub vmode: VMode,
+    pub display_depth: DisplayDepth,
+    pub display_disabled: bool,
+
+    pub drawing_area_top_left: (i32, i32),
+    pub drawing_area_bottom_right: (i32, i32),
+    pub drawing_area_offset: (i32, i32),
+
+    pub dithering: bool,
+    pub transparency_weights: (f32, f32),
+
+    pub texture_window_mask: (i32, i32),
+    pub texture_window_offset: (i32, i32),
+
+    pub display_vram_start: (i32, i32),
+    pub display_width: u16,
+    pub display_height: u16,
+    pub display_hor_range: u16,
+    pub display_ver_range: u16,
+
+    pub preserve_masked_pixels: bool,
+    pub force_set_masked_bit: bool,
+
+    pub interlaced: bool,
+
+    pub frame_counter: u32,
+    pub line_counter: u32,
+}
+
 pub const PADDR_START: u32 = 0x1F80_1810;
 pub const PADDR_END: u32 = 0x1F80_1818;
 
@@ -156,6 +185,45 @@ const QUAD: bool = true;
 const TRI: bool = false;
 
 impl Gpu {
+    pub fn snapshot(&self) -> Snapshot {
+        let ctx = &self.renderer.ctx;
+        Snapshot {
+            vmode: self.status.vmode(),
+            display_depth: ctx.display_depth,
+            display_disabled: ctx.display_disabled,
+
+            drawing_area_top_left: (ctx.drawing_area_top_left.x, ctx.drawing_area_top_left.y),
+            drawing_area_bottom_right: (
+                ctx.drawing_area_bottom_right.x,
+                ctx.drawing_area_bottom_right.y,
+            ),
+            drawing_area_offset: (ctx.drawing_area_offset.x, ctx.drawing_area_offset.y),
+
+            dithering: ctx.dithering,
+            transparency_weights: (
+                ctx.transparency_weights.0 as f32 / 4.,
+                ctx.transparency_weights.1 as f32 / 4.,
+            ),
+
+            texture_window_mask: (ctx.texture_window_mask.x, ctx.texture_window_mask.y),
+            texture_window_offset: (ctx.texture_window_offset.x, ctx.texture_window_offset.y),
+
+            display_vram_start: (ctx.display_vram_start.x, ctx.display_vram_start.y),
+            display_width: ctx.display_width,
+            display_height: ctx.display_height,
+            display_hor_range: ctx.display_hor_range,
+            display_ver_range: ctx.display_ver_range,
+
+            preserve_masked_pixels: ctx.preserve_masked_pixels,
+            force_set_masked_bit: ctx.force_set_masked_bit,
+
+            interlaced: ctx.interlaced,
+
+            frame_counter: ctx.frame_counter,
+            line_counter: ctx.line_counter,
+        }
+    }
+
     pub const fn enter_vsync(&mut self) {
         self.renderer.ctx.frame_counter += 1;
         self.in_vsync = false;
@@ -168,6 +236,16 @@ impl Gpu {
 
     pub const fn enter_hsync(&mut self) {
         self.renderer.ctx.line_counter += 1;
+    }
+
+    pub const fn texture_window_setting(&self) -> u32 {
+        let mask_x = self.renderer.ctx.texture_window_mask.x.cast_unsigned();
+        let mask_y = self.renderer.ctx.texture_window_mask.y.cast_unsigned();
+
+        let offs_x = self.renderer.ctx.texture_window_offset.x.cast_unsigned();
+        let offs_y = self.renderer.ctx.texture_window_offset.y.cast_unsigned();
+
+        (mask_x & 31) | ((mask_y & 31) << 5) | ((offs_x & 31) << 10) | ((offs_y & 31) << 15)
     }
 
     pub const fn draw_area_top_left(&self) -> u32 {
@@ -429,10 +507,10 @@ impl Gpu {
     }
 }
 
-pub fn read<T: ByteAddressable>(system: &mut System, offs: u32) -> T {
-    T::from_u32(system.gpu.read_reg(offs))
+pub fn read<const WIDTH: usize>(system: &mut System, offs: u32) -> u32 {
+    system.gpu.read_reg(offs)
 }
 
-pub fn write<T: ByteAddressable>(system: &mut System, offs: u32, data: T) {
-    system.gpu.write_reg(offs, data.to_u32());
+pub fn write<const WIDTH: usize>(system: &mut System, offs: u32, data: u32) {
+    system.gpu.write_reg(offs, data);
 }

@@ -190,12 +190,14 @@ impl Clut {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, IntoPrimitive, FromPrimitive)]
+#[repr(u8)]
 pub enum PageColor {
     #[default]
-    Bit4,
-    Bit8,
-    Bit15,
+    Bit4 = 0,
+    Bit8 = 1,
+    #[num_enum(alternatives = [3])]
+    Bit15 = 2,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -211,12 +213,7 @@ impl Texture {
     pub fn new(data: u16, clut: Option<Clut>) -> Self {
         let base_x = ((data & 0xF) << 6).into();
         let base_y = (((data >> 4) & 1) << 8).into();
-        let depth = match (data >> 7) & 3 {
-            0 => PageColor::Bit4,
-            1 => PageColor::Bit8,
-            2 | 3 => PageColor::Bit15,
-            _ => unreachable!(),
-        };
+        let depth = PageColor::from(((data >> 7) & 3) as u8);
         Self {
             page_x: base_x,
             page_y: base_y,
@@ -294,6 +291,6 @@ pub struct RectTextureOptions {
 #[repr(u8)]
 pub enum DisplayDepth {
     #[default]
-    D15,
-    D24,
+    D15 = 0,
+    D24 = 1,
 }

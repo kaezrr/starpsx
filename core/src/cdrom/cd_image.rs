@@ -1,17 +1,14 @@
-use std::collections::VecDeque;
-
 use tracing::debug;
 
-use super::SectorSize;
 use crate::consts::SECTOR_SIZE;
 
-pub struct CdImage {
+pub struct Image {
     read_head: usize,
     data: Box<[u8]>,
     tracks: Box<[cue::Track]>,
 }
 
-impl CdImage {
+impl Image {
     pub fn from_bytes(bytes: Vec<u8>) -> Self {
         // Add 2 seconds of zero padding to disk image (missing in rips)
         let mut data = vec![0u8; 2 * 75 * SECTOR_SIZE];
@@ -24,11 +21,11 @@ impl CdImage {
         }
     }
 
-    pub fn from_disk(disk: cue::CdDisk) -> Self {
+    pub fn from_disc(disc: cue::Disc) -> Self {
         Self {
             read_head: SECTOR_SIZE * 75 * 2, // 2 seconds,
-            data: disk.sectors,
-            tracks: disk.tracks,
+            data: disc.sectors,
+            tracks: disc.tracks,
         }
     }
 
@@ -60,7 +57,7 @@ impl CdImage {
         self.read_head = SECTOR_SIZE * 75 * 2; // 2 seconds
     }
 
-    pub fn position_info(&self) -> [u8; 8] {
+    pub fn current_position_info(&self) -> [u8; 8] {
         let current_track = self
             .tracks
             .partition_point(|t| t.indexes[0].lba <= self.read_head)
@@ -90,13 +87,13 @@ impl CdImage {
         ]
     }
 
-    pub fn current_sector_type(&self) -> cue::TrackType {
-        let current_track = self
-            .tracks
-            .partition_point(|t| t.indexes[0].lba <= self.read_head)
-            .saturating_sub(1);
+    pub fn current_header_info(&self) -> [u8; 8] {
+        let current_sector = &self.data[self.read_head..self.read_head + SECTOR_SIZE];
 
-        self.tracks[current_track].track_type
+        // Copy of header and subheader
+        current_sector[0xC..0xC + 8]
+            .try_into()
+            .expect("header_info")
     }
 
     pub const fn seek_location(&mut self, mins: u8, secs: u8, sect: u8) {
@@ -104,27 +101,17 @@ impl CdImage {
         self.read_head = total_sectors * SECTOR_SIZE;
     }
 
-    pub fn read_sector_and_advance(&mut self, sect_size: SectorSize) -> VecDeque<u8> {
+    pub fn advance_sector(&mut self) -> Vec<u8> {
         debug!(
             target: "cdrom",
             LBA = self.read_head / SECTOR_SIZE,
             read_head = %mm_ss_ff_str(self.read_head),
-            ?sect_size,
             "reading sector"
         );
 
-        debug_assert!(self.read_head + SECTOR_SIZE <= self.data.len());
-        debug_assert_ne!(self.current_sector_type(), cue::TrackType::Audio);
-
-        let sector = &self.data[self.read_head..self.read_head + SECTOR_SIZE];
+        let start = self.read_head;
         self.read_head += SECTOR_SIZE;
-
-        let sector_read = match sect_size {
-            SectorSize::DataOnly => &sector[0x18..0x818],
-            SectorSize::WholeSectorExceptSyncBytes => &sector[0xC..],
-        };
-
-        sector_read.iter().copied().collect()
+        self.data[start..self.read_head].to_vec()
     }
 }
 

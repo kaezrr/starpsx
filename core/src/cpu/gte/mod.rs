@@ -338,7 +338,7 @@ pub fn lwc2(system: &mut System, instr: Instruction) -> Result<(), Exception> {
     let im = instr.imm16_se();
 
     let addr = system.cpu.regs[rs].wrapping_add(im);
-    let data = system.read::<u32>(addr)?;
+    let data = system.read::<4>(addr)?;
 
     // Needs load delay
     system.cpu.gte.write_reg(rt, data);
@@ -356,7 +356,7 @@ pub fn swc2(system: &mut System, instr: Instruction) -> Result<(), Exception> {
     let addr = system.cpu.regs[rs].wrapping_add(im);
     let data = system.cpu.gte.read_reg(rt);
 
-    system.write::<u32>(addr, data)?;
+    system.write::<4>(addr, data)?;
     Ok(())
 }
 

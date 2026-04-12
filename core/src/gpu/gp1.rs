@@ -69,8 +69,7 @@ impl Gpu {
         let y1 = command.vertical_y1();
         let y2 = command.vertical_y2();
 
-        let mul = if self.renderer.ctx.interlaced { 2 } else { 1 };
-        self.renderer.ctx.display_ver_range = (y2 - y1) * mul;
+        self.renderer.ctx.display_ver_range = y2 - y1;
     }
 
     pub fn gp1_display_enable(&mut self, command: Command) {
@@ -90,7 +89,7 @@ impl Gpu {
     pub fn gp1_read_internal_reg(&mut self, command: Command) {
         self.read = match command.register_index() & 0x7 {
             0x00 | 0x01 | 0x07 | 0x06 => self.read,
-            0x02 => todo!("Read texture window setting"),
+            0x02 => self.texture_window_setting(),
             0x03 => self.draw_area_top_left(),
             0x04 => self.draw_area_bottom_right(),
             0x05 => self.draw_offset(),

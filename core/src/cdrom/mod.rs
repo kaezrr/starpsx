@@ -1,17 +1,26 @@
 mod cd_image;
+mod cdxa_audio;
 mod commands;
 
 use std::collections::VecDeque;
 use std::ops::Div;
 
 use arrayvec::ArrayVec;
-pub use cd_image::CdImage;
+pub use cd_image::Image;
 pub use commands::ResponseType;
+use procmac::Boolable;
 use tracing::trace;
+use tracing::warn;
 
 use crate::System;
+use crate::cdrom::cdxa_audio::AdpcmHistory;
+use crate::cdrom::cdxa_audio::BitsPerSample;
+use crate::cdrom::cdxa_audio::Channel;
+use crate::cdrom::cdxa_audio::HighResResampler;
+use crate::cdrom::cdxa_audio::LowResResampler;
+use crate::cdrom::cdxa_audio::SampleRate;
+use crate::cdrom::cdxa_audio::decode_audio_sector;
 use crate::consts::AVG_RATE_INT1;
-use crate::mem::ByteAddressable;
 use crate::sched::Event;
 
 pub const PADDR_START: u32 = 0x1F80_1800;
@@ -25,11 +34,20 @@ pub struct CdRom {
     parameters: ArrayVec<u8, 16>,
     results: Vec<u8>,
 
-    speed: Speed,
-    sector_size: SectorSize,
-    sector_buffer: VecDeque<u8>,
+    mode: Mode,
+    data_buffer: VecDeque<u8>,
+    audio_buffer: VecDeque<i16>,
+    audio_muted: bool,
 
-    disk: Option<CdImage>,
+    /// Left, Right, Mono
+    adpcm_history: [AdpcmHistory; 3],
+    high_res_resamplers: [HighResResampler; 3],
+    low_res_resamplers: [LowResResampler; 3],
+
+    filter_file: u8,
+    filter_channel: u8,
+
+    disk: Option<Image>,
 }
 
 impl Default for CdRom {
@@ -43,9 +61,17 @@ impl Default for CdRom {
             parameters: ArrayVec::default(),
             results: Vec::new(),
 
-            speed: Speed::Normal,
-            sector_buffer: VecDeque::new(),
-            sector_size: SectorSize::DataOnly,
+            mode: Mode::default(),
+            data_buffer: VecDeque::new(),
+            audio_buffer: VecDeque::new(),
+            audio_muted: false,
+
+            adpcm_history: Default::default(),
+            high_res_resamplers: Default::default(),
+            low_res_resamplers: Default::default(),
+
+            filter_file: 0,
+            filter_channel: 0,
 
             disk: None,
         }
@@ -64,11 +90,11 @@ impl CdRom {
         self.address.0
     }
 
-    pub fn read_rddata<T: ByteAddressable>(&mut self) -> u32 {
+    pub fn read_rddata<const WIDTH: usize>(&mut self) -> u32 {
         let mut bytes = [0u8; 4];
 
-        (0..T::LEN).for_each(|i| {
-            bytes[i] = self.pop_from_sector_buffer();
+        (0..WIDTH).for_each(|i| {
+            bytes[i] = self.pop_from_data_buffer();
         });
 
         u32::from_le_bytes(bytes)
@@ -95,22 +121,37 @@ impl CdRom {
         self.hintmsk.0 | 0xE0 // Bits 5-7 are always 1 on read
     }
 
-    fn replace_sector_buffer(&mut self, new_buffer: VecDeque<u8>) {
-        self.sector_buffer = new_buffer;
+    fn push_to_data_buffer(&mut self, new_buffer: VecDeque<u8>) {
+        self.data_buffer = new_buffer;
         self.address.set_data_request(true);
     }
 
-    fn pop_from_sector_buffer(&mut self) -> u8 {
-        let data = self
-            .sector_buffer
-            .pop_front()
-            .expect("pop_from_sector_buffer inserted disk");
+    fn push_to_audio_buffer(&mut self, data: &[u8]) {
+        let samples: Vec<i16> = data
+            .chunks_exact(2)
+            .map(|c| i16::from_le_bytes([c[0], c[1]]))
+            .collect();
 
-        if self.sector_buffer.is_empty() {
+        self.audio_buffer.extend(samples);
+    }
+
+    fn pop_from_data_buffer(&mut self) -> u8 {
+        let data = self.data_buffer.pop_front().unwrap_or_else(|| {
+            warn!("cdrom pop from empty buffer");
+            0
+        });
+
+        if self.data_buffer.is_empty() {
             self.address.set_data_request(false);
         }
 
         data
+    }
+
+    pub fn get_audio_sample(&mut self) -> i16 {
+        let sample = self.audio_buffer.pop_front().unwrap_or(0);
+        // If cdrom is muted then return 0 sample
+        if self.audio_muted { 0 } else { sample }
     }
 
     fn push_parameter(&mut self, val: u8) {
@@ -133,6 +174,90 @@ impl CdRom {
         val
     }
 
+    /// Returns whether the sector was as adpcm or data
+    fn process_sector(&mut self, sector: Vec<u8>) -> bool {
+        if self.status.playing() {
+            assert!(self.mode.cdda_enabled); // CDDA bit should be on during play mode
+            self.push_to_audio_buffer(&sector);
+            return true;
+        }
+
+        let sector_mode = sector[0xF];
+        let file = sector[0x10];
+        let channel = sector[0x11];
+        let submode = sector[0x12];
+        let is_realtime_audio = (submode & 0x44) == 0x44;
+        let is_form2 = submode & (1 << 5) != 0;
+        let mode = &self.mode; // cdrom mode
+
+        if sector_mode == 2 {
+            // Filter rejects both ADPCM and data delivery if file/channel doesn't match
+            if mode.filter_enabled && (file != self.filter_file || channel != self.filter_channel) {
+                return false;
+            }
+
+            // ADPCM delivery
+            if mode.adpcm_enabled && is_realtime_audio {
+                let audio_header = cdxa_audio::AudioHeader(sector[0x13]);
+
+                debug_assert!(is_form2);
+                debug_assert_eq!(audio_header.bits_per_channel(), BitsPerSample::Bit4);
+                debug_assert_ne!(audio_header.channel(), Channel::Reserved);
+
+                let audio_samples = match (audio_header.channel(), audio_header.sample_rate()) {
+                    (Channel::Mono, SampleRate::R37800) => decode_audio_sector::<false>(
+                        &sector,
+                        &mut self.adpcm_history,
+                        &mut self.high_res_resamplers,
+                    ),
+                    (Channel::Stereo, SampleRate::R37800) => decode_audio_sector::<true>(
+                        &sector,
+                        &mut self.adpcm_history,
+                        &mut self.high_res_resamplers,
+                    ),
+                    (Channel::Mono, SampleRate::R18900) => decode_audio_sector::<false>(
+                        &sector,
+                        &mut self.adpcm_history,
+                        &mut self.low_res_resamplers,
+                    ),
+                    (Channel::Stereo, SampleRate::R18900) => decode_audio_sector::<true>(
+                        &sector,
+                        &mut self.adpcm_history,
+                        &mut self.low_res_resamplers,
+                    ),
+
+                    (Channel::Reserved, _) => unimplemented!("Reserved cdxa audio num channels"),
+                    (_, SampleRate::Reserved) => unimplemented!("Reserved cdxa sample rate"),
+                };
+
+                self.audio_buffer.extend(audio_samples);
+                return true;
+            }
+
+            // Even if ADPCM is disabled, don't deliver realtime audio sectors as data
+            // when filter is enabled
+            if mode.filter_enabled && is_realtime_audio {
+                return false;
+            }
+        }
+
+        let mut sector_data = VecDeque::from(sector);
+        match mode.sector_size {
+            // Data is in the slice 0x18..0x818
+            SectorSize::DataOnly => {
+                sector_data.drain(0x818..);
+                sector_data.drain(..0x18);
+            }
+            // Data is in the slice 0xC..
+            SectorSize::WholeSectorExceptSyncBytes => {
+                sector_data.drain(..0xC);
+            }
+        }
+
+        self.push_to_data_buffer(sector_data);
+        false
+    }
+
     fn exec_command(system: &mut System, cmd: u8) {
         let cdrom = &mut system.cdrom;
 
@@ -144,6 +269,7 @@ impl CdRom {
         }
 
         let response = match cmd {
+            0x00 => cdrom.invalid(),
             0x01 => cdrom.nop(),
             0x02 => cdrom.set_loc(),
             0x03 => cdrom.play(),
@@ -154,6 +280,7 @@ impl CdRom {
             0x0C => cdrom.demute(),
             0x0D => cdrom.set_filter(),
             0x0E => cdrom.setmode(),
+            0x10 => cdrom.get_locl(),
             0x11 => cdrom.get_locp(),
             0x13 => cdrom.get_tn(),
             0x14 => cdrom.get_td(),
@@ -174,7 +301,7 @@ impl CdRom {
             .into_iter()
             .for_each(|(res_type, delay)| {
                 let repeat = match res_type {
-                    ResponseType::INT1 => Some(cdrom.speed.transform(AVG_RATE_INT1)),
+                    ResponseType::INT1 => Some(cdrom.mode.speed.transform(AVG_RATE_INT1)),
                     _ => None,
                 };
                 system
@@ -186,37 +313,36 @@ impl CdRom {
     pub fn handle_response(system: &mut System, response: ResponseType) {
         let cdrom = &mut system.cdrom;
 
-        cdrom.results.clear();
-        let irq = match response {
-            ResponseType::INT3(response) => {
-                cdrom.results.extend(response);
-                3
+        let irq = u8::from(&response);
+        let mut results = Vec::new();
+
+        match response {
+            ResponseType::INT5(response) => {
+                results.extend(response);
             }
 
-            ResponseType::INT2(response) => {
-                cdrom.results.extend(response);
-                2
+            ResponseType::INT3(response) | ResponseType::INT2(response) => {
+                results.extend(response);
             }
 
             ResponseType::INT1 => {
-                let sector_data = cdrom
-                    .disk
-                    .as_mut()
-                    .expect("int1 inserted disk")
-                    .read_sector_and_advance(cdrom.sector_size);
+                let Some(inserted_disk) = cdrom.disk.as_mut() else {
+                    panic!("int1 but no inserted disk");
+                };
 
-                cdrom.replace_sector_buffer(sector_data);
-                cdrom.results.extend(vec![cdrom.status.0]);
-                1
+                let sector = inserted_disk.advance_sector();
+                let sector_was_audio = cdrom.process_sector(sector);
+
+                // Should not trigger any interrupts
+                if sector_was_audio {
+                    return;
+                }
+
+                results.push(cdrom.status.0);
             }
+        }
 
-            ResponseType::INT5([status, error_code]) => {
-                cdrom.results.push(status);
-                cdrom.results.push(error_code);
-                5
-            }
-        };
-
+        cdrom.results = results;
         cdrom.hintsts.set_interrupt(irq);
         cdrom.address.set_result_read_ready(true);
 
@@ -225,7 +351,7 @@ impl CdRom {
         }
     }
 
-    pub fn insert_disc(&mut self, image: CdImage) {
+    pub fn insert_disc(&mut self, image: Image) {
         self.disk = Some(image);
 
         // Reset cdrom state
@@ -238,26 +364,24 @@ impl CdRom {
     }
 }
 
-pub fn read<T: ByteAddressable>(system: &mut System, addr: u32) -> T {
+pub fn read<const WIDTH: usize>(system: &mut System, addr: u32) -> u32 {
     let offs = addr - PADDR_START;
     let cdrom = &mut system.cdrom;
 
-    let val: u32 = match (cdrom.address.bank(), offs) {
+    match (cdrom.address.bank(), offs) {
         (_, 0) => cdrom.read_addr().into(),
         (_, 1) => cdrom.pop_result().into(),
-        (_, 2) => cdrom.read_rddata::<T>().to_u32(),
+        (_, 2) => cdrom.read_rddata::<WIDTH>(),
         (0 | 2, 3) => cdrom.read_hintmsk().into(),
         (1 | 3, 3) => cdrom.read_hintsts().into(),
         (x, y) => unreachable!("cdrom bank {x} register {y}"),
-    };
-
-    T::from_u32(val)
+    }
 }
 
-pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, data: T) {
+pub fn write<const WIDTH: usize>(system: &mut System, addr: u32, data: u32) {
     let offs = addr - PADDR_START;
     let cdrom = &mut system.cdrom;
-    let val = data.to_u8();
+    let val = data as u8;
 
     match (cdrom.address.bank(), offs) {
         (_, 0) => cdrom.write_addr(val),
@@ -320,23 +444,51 @@ bitfield::bitfield! {
 bitfield::bitfield! {
     #[derive(Default)]
     pub struct Status(u8);
+    playing, _: 7;
+    seeking, _: 6;
+    reading, _: 5;
     _, set_shell_open: 4;
-    _, set_reading: 5;
     _, set_motor_on: 1;
     _, set_error: 0;
 }
 
+// Reading/Seeking/Playing bits are mutually exclusive
 impl Status {
+    const STATE_MASK: u8 = (1 << 7) | (1 << 6) | (1 << 5);
+
+    pub const fn set_reading(&mut self, value: bool) -> u8 {
+        let before = self.0;
+        if value {
+            self.0 = (self.0 & !Self::STATE_MASK) | (1 << 5);
+        } else {
+            self.0 &= !(1 << 5);
+        }
+        before
+    }
+
+    pub const fn set_seeking(&mut self, value: bool) -> u8 {
+        let before = self.0;
+        if value {
+            self.0 = (self.0 & !Self::STATE_MASK) | (1 << 6);
+        } else {
+            self.0 &= !(1 << 6);
+        }
+        before
+    }
+
+    pub const fn set_playing(&mut self, value: bool) -> u8 {
+        let before = self.0;
+        if value {
+            self.0 = (self.0 & !Self::STATE_MASK) | (1 << 7);
+        } else {
+            self.0 &= !(1 << 7);
+        }
+        before
+    }
+
     /// Returns the status byte with the error bit set, without mutating self.
     pub const fn with_error(&self) -> u8 {
         self.0 | 0x01
-    }
-
-    /// Clears the reading flag and returns the status byte before the change.
-    pub fn clear_reading(&mut self) -> u8 {
-        let before = self.0;
-        self.set_reading(false);
-        before
     }
 
     /// Sets the `motor_on` flag and returns the status byte before the change.
@@ -354,10 +506,10 @@ impl Status {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Boolable)]
 enum Speed {
-    Normal,
-    Double,
+    Normal = 0,
+    Double = 1,
 }
 
 impl Speed {
@@ -372,8 +524,46 @@ impl Speed {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Boolable)]
 pub enum SectorSize {
-    DataOnly,
-    WholeSectorExceptSyncBytes,
+    DataOnly = 0,
+    WholeSectorExceptSyncBytes = 1,
+}
+
+#[derive(Debug)]
+struct Mode {
+    speed: Speed,
+    sector_size: SectorSize,
+    adpcm_enabled: bool,
+    filter_enabled: bool,
+    cdda_enabled: bool,
+    auto_pause: bool,
+}
+
+impl Mode {
+    fn set_value(&mut self, data: u8) {
+        self.speed = Speed::from(data & (1 << 7) != 0);
+        self.adpcm_enabled = data & (1 << 6) != 0;
+        self.filter_enabled = data & (1 << 3) != 0;
+        self.cdda_enabled = data & 1 != 0;
+        self.auto_pause = data & 2 != 0;
+
+        // Set sector size only if ignore bit is 0
+        if data & (1 << 4) == 0 {
+            self.sector_size = SectorSize::from(data & (1 << 5) != 0);
+        }
+    }
+}
+
+impl Default for Mode {
+    fn default() -> Self {
+        Self {
+            speed: Speed::Normal,
+            sector_size: SectorSize::DataOnly,
+            adpcm_enabled: false,
+            filter_enabled: false,
+            cdda_enabled: false,
+            auto_pause: false,
+        }
+    }
 }

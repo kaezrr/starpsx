@@ -72,15 +72,16 @@ pub fn show_top_menu(app: &mut Application, ctx: &egui::Context) {
                     }
 
                     if ui.button("Restart").clicked() {
-                        emu.restart();
+                        emu.debugger.restart();
                     }
 
                     if ui.button("Stop").clicked() {
                         emu.shutdown();
                         ctx.send_viewport_cmd(egui::ViewportCommand::Title("StarPSX".to_string()));
-                    } else {
-                        app.app_state = Some(emu);
+                        return;
                     }
+
+                    app.app_state = Some(emu);
                 }
 
                 if ui.button("Exit").clicked() {
@@ -186,18 +187,14 @@ pub fn show_info_modal(show_modal: &mut bool, ctx: &egui::Context) {
     }
 }
 
-pub fn show_performance_panel(app: &mut Application, ctx: &egui::Context) {
+pub fn show_performance_panel(app: &Application, ctx: &egui::Context) {
     egui::TopBottomPanel::bottom("bottom_panel").show(ctx, |ui| {
-        let m = app.get_metrics();
         ui.horizontal(|ui| {
-            ui.label(format!("FPS: {}", m.fps));
-            ui.separator();
-            ui.label(format!("Core: {:.2} ms ({} FPS)", m.core_ms, m.core_fps));
-
+            ui.label(format!("FPS: {:.1}", app.displayed_metrics.fps));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.label("Software Renderer");
                 ui.separator();
-                ui.label(match m.last_frame_data {
+                ui.label(match app.displayed_metrics.last_frame_data {
                     None => "Display Off".into(),
                     Some(([w, h], is_interlaced)) => {
                         if is_interlaced {

@@ -4,14 +4,13 @@ pub mod utils;
 use std::array::from_fn;
 
 use channel::Channel;
-use tracing::trace;
+use tracing::debug;
 use utils::Direction;
 use utils::Mode;
 use utils::Port;
 use utils::Step;
 
 use crate::System;
-use crate::mem::ByteAddressable;
 
 bitfield::bitfield! {
     #[derive(Copy, Clone)]
@@ -93,8 +92,8 @@ impl DMAController {
         }
     }
 
-    fn write_dpcr<T: ByteAddressable>(&mut self, data: T) {
-        self.dpcr = data.to_u32();
+    const fn write_dpcr<const WIDTH: usize>(&mut self, data: u32) {
+        self.dpcr = data;
     }
 
     fn write_dicr(&mut self, data: u32) -> bool {
@@ -122,7 +121,7 @@ impl DMAController {
             (step, channel.ctl.dir(), channel.base, size)
         };
 
-        tracing::debug!(?port, size, "dma");
+        debug!(target: "dma", ?port, size, ?dir, ?step, "dma addr={base:x}");
 
         let mut addr = base;
         for s in (0..size).rev() {
@@ -135,18 +134,19 @@ impl DMAController {
                             _ => addr.wrapping_sub(4) & 0x1F_FFFC,
                         },
                         Port::Gpu => system.gpu.read(),
-                        Port::CdRom => system.cdrom.read_rddata::<u32>(),
+                        Port::Spu => system.spu.ram_read::<4>(),
+                        Port::CdRom => system.cdrom.read_rddata::<4>(),
                         Port::MdecOut => system.mdec.response(),
                         _ => todo!("DMA source {port:?}"),
                     };
-                    system.ram.write::<u32>(cur_addr, src_word);
+                    system.ram.write::<4>(cur_addr, src_word);
                 }
                 Direction::FromRam => {
-                    let src_word = system.ram.read::<u32>(cur_addr);
+                    let src_word = system.ram.read::<4>(cur_addr);
                     match port {
                         Port::Gpu => system.gpu.gp0(src_word),
+                        Port::Spu => system.spu.ram_write::<4>(src_word),
                         Port::MdecIn => system.mdec.command_or_param(src_word),
-                        Port::Spu => trace!(target:"dma", "dma ignoring transfer from ram to spu"),
                         _ => todo!("DMA destination {port:?}"),
                     }
                 }
@@ -161,11 +161,11 @@ impl DMAController {
         let mut addr = channel.base & 0x1F_FFFC;
 
         loop {
-            let header = system.ram.read::<u32>(addr);
+            let header = system.ram.read::<4>(addr);
             let size = header >> 24;
 
             for i in 0..size {
-                let data = system.ram.read::<u32>((addr + 4 * (i + 1)) & 0x1F_FFFC);
+                let data = system.ram.read::<4>((addr + 4 * (i + 1)) & 0x1F_FFFC);
                 system.gpu.gp0(data);
             }
 
@@ -180,29 +180,29 @@ impl DMAController {
     }
 }
 
-pub fn read<T: ByteAddressable>(system: &System, addr: u32) -> T {
+pub fn read<const WIDTH: usize>(system: &System, addr: u32) -> u32 {
     let channel = (((addr >> 4) & 0xF) - 8) as usize;
     let register = addr & 0xF;
 
-    let data = match addr {
+    match addr {
         0x1F80_1080..0x1F80_10F0 => system.dma.channels[channel].read(register),
         0x1F80_10F0 => system.dma.dpcr,
         0x1F80_10F4 => system.dma.dicr.0,
         0x1F80_10F6 => system.dma.dicr.0 >> 16,
         _ => unimplemented!("dma read {addr:x}"),
-    };
-
-    T::from_u32(data)
+    }
 }
 
-pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, data: T) {
+pub fn write<const WIDTH: usize>(system: &mut System, addr: u32, data: u32) {
     let channel = (((addr >> 4) & 0xF) - 8) as usize;
     let register = addr & 0xF;
+
+    debug!(target: "dma", "dma write {addr:x} {data:08x}");
 
     match addr {
         0x1F80_1080..0x1F80_10F0 => {
             let port = Port::from(channel);
-            system.dma.channels[channel].write(register, data);
+            system.dma.channels[channel].write::<WIDTH>(register, data);
 
             // OTC only supports backwards transfer to RAM; force control bits
             if port == Port::Otc && register == 8 {
@@ -215,17 +215,21 @@ pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, data: T) {
                 DMAController::do_dma(system, port);
             }
         }
-        0x1F80_10F0 => system.dma.write_dpcr(data),
+
+        0x1F80_10F0 => system.dma.write_dpcr::<WIDTH>(data),
+
         0x1F80_10F4 => {
-            if system.dma.write_dicr(data.to_u32()) {
+            if system.dma.write_dicr(data) {
                 system.irqctl.stat().set_dma(true);
             }
         }
+
         0x1F80_10F6 => {
-            if system.dma.write_dicr(data.to_u32() << 16) {
+            if system.dma.write_dicr(data << 16) {
                 system.irqctl.stat().set_dma(true);
             }
         }
+
         _ => unimplemented!("dma write {addr:x} = {data:x}"),
     }
 }

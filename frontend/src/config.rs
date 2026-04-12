@@ -8,6 +8,7 @@ use gilrs::Axis as GAxis;
 use gilrs::Button as GButton;
 use serde::Deserialize;
 use serde::Serialize;
+use starpsx_core::Media;
 use starpsx_core::gamepad;
 use tracing::error;
 use tracing::info;
@@ -17,24 +18,33 @@ use crate::input;
 use crate::input::Action;
 use crate::input::PhysicalInput;
 
-pub enum RunnablePath {
+#[derive(Clone)]
+pub enum MediaPath {
     Exe(PathBuf),
     Bin(PathBuf),
     Cue(PathBuf),
 }
 
-impl RunnablePath {
+impl MediaPath {
     pub fn file_prefix(&self) -> String {
         let buf = match self {
-            Self::Exe(path_buf)
-            | Self::Bin(path_buf)
-            | Self::Cue(path_buf) => path_buf,
+            Self::Exe(path_buf) | Self::Bin(path_buf) | Self::Cue(path_buf) => path_buf,
         };
 
         buf.file_prefix()
             .expect("file prefix")
             .to_string_lossy()
             .into_owned()
+    }
+
+    pub fn load(&self) -> anyhow::Result<Media> {
+        let media = match self {
+            Self::Exe(path) => Media::Executable(std::fs::read(path)?),
+            Self::Bin(path) => Media::Binary(std::fs::read(path)?),
+            Self::Cue(path) => Media::Disc(cue::build_disk(path)?),
+        };
+
+        Ok(media)
     }
 }
 

@@ -1,28 +1,29 @@
 use num_enum::FromPrimitive;
+use num_enum::IntoPrimitive;
 
-#[derive(PartialEq, Eq, Clone, Copy, Debug, FromPrimitive)]
+#[derive(PartialEq, Eq, Clone, Copy, Debug, FromPrimitive, IntoPrimitive)]
 #[repr(u8)]
 pub enum Direction {
     #[default]
-    ToRam,
-    FromRam,
+    ToRam = 0,
+    FromRam = 1,
 }
 
-#[derive(PartialEq, Eq, Clone, Copy, FromPrimitive)]
+#[derive(PartialEq, Eq, Clone, Copy, FromPrimitive, IntoPrimitive)]
 #[repr(u8)]
 pub enum Step {
     #[default]
-    Increment,
-    Decrement,
+    Increment = 0,
+    Decrement = 1,
 }
 
-#[derive(PartialEq, Eq, Clone, Copy, FromPrimitive)]
+#[derive(PartialEq, Eq, Clone, Copy, FromPrimitive, IntoPrimitive)]
 #[repr(u8)]
 pub enum Mode {
     #[default]
-    Burst,
-    Slice,
-    LinkedList,
+    Burst = 0,
+    Slice = 1,
+    LinkedList = 2,
 }
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug, FromPrimitive)]

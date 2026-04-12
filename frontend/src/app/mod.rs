@@ -9,7 +9,6 @@ use std::task::Context;
 use std::task::Poll;
 use std::task::Waker;
 use std::time::Duration;
-use std::time::Instant;
 
 use anyhow::anyhow;
 use eframe::egui::Color32;
@@ -18,6 +17,7 @@ use eframe::egui::ViewportCommand;
 use eframe::egui::vec2;
 use eframe::egui::{self};
 use egui_notify::Toasts;
+use starpsx_core::SystemSnapshot;
 use starpsx_renderer::FrameBuffer;
 use tracing::error;
 use tracing::info;
@@ -27,15 +27,15 @@ use crate::app::app_state::AppState;
 use crate::app::util::MetricsSnapshot;
 use crate::app::util::PendingDialog;
 use crate::config::LaunchConfig;
-use crate::config::RunnablePath;
+use crate::config::MediaPath;
 use crate::config::{self};
 use crate::debugger::Debugger;
-use crate::debugger::snapshot::DebugSnapshot;
 use crate::emulator::SharedState;
 use crate::emulator::UiChannels;
 use crate::emulator::UiCommand;
 use crate::emulator::{self};
 use crate::input::ActionValue;
+use crate::input::GamepadState;
 use crate::input::PhysicalInput;
 use crate::input::{self};
 
@@ -62,8 +62,6 @@ pub struct Application {
     full_speed: bool,
 
     pending_dialog: Option<PendingDialog>,
-
-    last_metrics_update: std::time::Instant,
     displayed_metrics: MetricsSnapshot,
 }
 
@@ -120,8 +118,7 @@ impl eframe::App for Application {
                 }
 
                 if input_dirty {
-                    emu.debugger
-                        .send(UiCommand::NewInputState(self.input_state.clone()));
+                    let _ = emu.input_tx.try_send(self.input_state.clone());
                 }
             }
 
@@ -129,12 +126,14 @@ impl eframe::App for Application {
             match emu.frame_rx.try_recv() {
                 Ok(fb) => {
                     emu.present_frame_buffer(&fb);
+                    self.displayed_metrics.capture_frame_data(&fb);
                 }
+
+                Err(TryRecvError::Empty) => (), // Do nothing
                 Err(TryRecvError::Disconnected) => {
                     info!("emulator thread exited, closing UI");
                     return ctx.send_viewport_cmd(ViewportCommand::Close);
                 }
-                Err(TryRecvError::Empty) => (), // Do nothing
             }
 
             if self.app_config.debugger_view {
@@ -188,7 +187,6 @@ impl Application {
             pending_dialog: None,
 
             displayed_metrics: MetricsSnapshot::default(),
-            last_metrics_update: Instant::now(),
         };
 
         if launch_config.auto_run {
@@ -282,29 +280,13 @@ impl Application {
         changed
     }
 
-    fn get_metrics(&mut self) -> &MetricsSnapshot {
-        if self.last_metrics_update.elapsed() >= std::time::Duration::from_millis(100) {
-            if let Some(ref emu) = self.app_state {
-                let (frame_ms, core_ms) = emu.debugger.load_metrics();
-                self.displayed_metrics = MetricsSnapshot {
-                    fps: (1.0 / frame_ms).round() as u32,
-                    core_fps: (1.0 / core_ms).round() as u32,
-                    core_ms: core_ms * 1000.0,
-                    last_frame_data: emu.last_frame_state,
-                };
-            }
-            self.last_metrics_update = std::time::Instant::now();
-        }
-        &self.displayed_metrics
-    }
-
     fn is_paused(&self) -> bool {
         self.app_state
             .as_ref()
             .is_some_and(|a| a.debugger.is_paused())
     }
 
-    fn start_emulator(&mut self, runnable_path: Option<RunnablePath>) -> anyhow::Result<()> {
+    fn start_emulator(&mut self, runnable_path: Option<MediaPath>) -> anyhow::Result<()> {
         let bios_path = self
             .app_config
             .bios_path
@@ -313,8 +295,9 @@ impl Application {
 
         // Message channels for thread communication
         let (frame_tx, frame_rx) = std::sync::mpsc::sync_channel::<FrameBuffer>(1);
-        let (input_tx, input_rx) = std::sync::mpsc::sync_channel::<UiCommand>(2);
-        let (snapshot_tx, snapshot_rx) = std::sync::mpsc::sync_channel::<DebugSnapshot>(1);
+        let (ui_command_tx, ui_command_rx) = std::sync::mpsc::sync_channel::<UiCommand>(2);
+        let (input_tx, input_rx) = std::sync::mpsc::sync_channel::<GamepadState>(2);
+        let (snapshot_tx, snapshot_rx) = std::sync::mpsc::sync_channel::<SystemSnapshot>(1);
 
         let shared_state = Arc::new(SharedState::default());
 
@@ -322,7 +305,7 @@ impl Application {
             match self.app_config.memory_card_type {
                 config::MemoryCardType::PerTitle => runnable_path
                     .as_ref()
-                    .filter(|f| matches!(f, RunnablePath::Cue(_)))
+                    .filter(|f| matches!(f, MediaPath::Cue(_)))
                     .map(|f| {
                         self.memory_cards_path
                             .join(f.file_prefix())
@@ -339,6 +322,7 @@ impl Application {
         let emulator = emulator::Emulator::build(
             UiChannels {
                 frame_tx,
+                ui_command_rx,
                 input_rx,
                 snapshot_tx,
             },
@@ -351,20 +335,17 @@ impl Application {
         )?;
 
         self.app_state = Some(AppState {
-            debugger: Debugger::new(shared_state, input_tx, snapshot_rx),
-
+            debugger: Debugger::new(shared_state, ui_command_tx, snapshot_rx),
+            input_tx,
             frame_rx,
             texture: self.egui_ctx.load_texture(
                 "frame buffer",
                 ColorImage::filled([100, 100], Color32::BLACK),
                 egui::TextureOptions::NEAREST,
             ),
-
-            last_frame_state: None,
         });
 
-        emulator.run();
-        Ok(())
+        emulator.run()
     }
 
     fn start_bios(&mut self) -> anyhow::Result<()> {

@@ -11,7 +11,7 @@ use eframe::egui::Color32;
 use eframe::egui::RichText;
 use eframe::egui::{self};
 use egui_extras::Column;
-use snapshot::DebugSnapshot;
+use starpsx_core::SystemSnapshot;
 
 use crate::emulator::SharedState;
 use crate::emulator::UiCommand;
@@ -23,10 +23,10 @@ pub struct Debugger {
 
     shared_state: Arc<SharedState>,
     input_tx: SyncSender<UiCommand>,
-    snapshot_rx: Receiver<DebugSnapshot>,
+    snapshot_rx: Receiver<SystemSnapshot>,
 
-    prev_snapshot: Option<DebugSnapshot>,
-    curr_snapshot: Option<DebugSnapshot>,
+    prev_snapshot: Option<SystemSnapshot>,
+    curr_snapshot: Option<SystemSnapshot>,
 
     pc_changed: bool,
 }
@@ -35,7 +35,7 @@ impl Debugger {
     pub fn new(
         shared_state: Arc<SharedState>,
         input_tx: SyncSender<UiCommand>,
-        snapshot_rx: Receiver<DebugSnapshot>,
+        snapshot_rx: Receiver<SystemSnapshot>,
     ) -> Self {
         Self {
             shared_state,
@@ -72,8 +72,8 @@ impl Debugger {
         }
     }
 
-    pub fn load_metrics(&self) -> (f32, f32) {
-        self.shared_state.load()
+    pub fn restart(&self) {
+        self.sync_send(UiCommand::Restart);
     }
 
     pub fn show_ui(&mut self, ctx: &egui::Context) {
@@ -87,20 +87,13 @@ impl Debugger {
             self.pc_changed = true;
         }
 
-        egui::SidePanel::left("debug_left")
-            .resizable(false)
-            .min_width(400.0)
+        egui::SidePanel::left("debug_view")
+            .width_range(550.0..=800.0)
             .show(ctx, |ui| {
-                self.disassembly_view(ui);
+                ui.vertical(|ui| {
+                    self.components_state_view(ui);
+                });
             });
-
-        egui::TopBottomPanel::bottom("debug_bottom").show(ctx, |ui| {
-            ui.horizontal_centered(|ui| {
-                self.breakpoints_ui(ui);
-                ui.separator();
-                self.components_state_view(ui);
-            })
-        });
     }
 
     fn request_snapshot(&self) {
@@ -108,25 +101,64 @@ impl Debugger {
     }
 
     fn components_state_view(&mut self, ui: &mut egui::Ui) {
-        ui.vertical(|ui| {
-            ui.horizontal(|ui| {
-                ui.selectable_value(&mut self.state_view, StateView::Cpu, "CPU");
-                ui.add_enabled_ui(false, |ui| {
-                    ui.selectable_value(&mut self.state_view, StateView::Gpu, "GPU");
-                    ui.selectable_value(&mut self.state_view, StateView::Irq, "IRQ");
-                    ui.selectable_value(&mut self.state_view, StateView::Spu, "SPU");
-                    ui.selectable_value(&mut self.state_view, StateView::Sio0, "SIO0");
-                    ui.selectable_value(&mut self.state_view, StateView::Cdrom, "CDROM");
+        let mut state_view = self.state_view;
+        egui::Sides::new().show(
+            ui,
+            |ui| {
+                ui.selectable_value(&mut state_view, StateView::Cpu, "CPU");
+                ui.selectable_value(&mut state_view, StateView::Spu, "SPU");
+                ui.selectable_value(&mut state_view, StateView::Gpu, "GPU");
+            },
+            |ui| {
+                let is_paused = self.shared_state.is_paused();
+                ui.add_enabled_ui(is_paused && self.state_view == StateView::Cpu, |ui| {
+                    if ui.button("Step").clicked() {
+                        self.sync_send(UiCommand::DebugStep);
+                    }
                 });
+
+                if ui.button("Restart").clicked() {
+                    self.restart();
+                }
+
+                let label = if is_paused { "Resume" } else { "Pause" };
+                if ui.button(label).clicked() {
+                    self.toggle_pause();
+                }
+            },
+        );
+
+        self.state_view = state_view;
+
+        ui.separator();
+
+        match self.state_view {
+            StateView::Cpu => self.cpu_state_view(ui),
+            StateView::Gpu => self.gpu_state_view(ui),
+            StateView::Spu => self.spu_state_view(ui),
+        }
+    }
+
+    fn cpu_state_view(&mut self, ui: &mut egui::Ui) {
+        egui::ScrollArea::vertical()
+            .id_salt("disassembly_scroll")
+            .max_height(ui.available_height() * 0.5)
+            .show(ui, |ui| {
+                self.disassembly_view(ui);
             });
 
-            ui.separator();
+        ui.separator();
 
-            match self.state_view {
-                StateView::Cpu => self.cpu_register_view(ui),
-                _ => todo!("view not implemented"),
-            }
-        });
+        egui::ScrollArea::vertical()
+            .id_salt("registers_scroll")
+            .max_height(ui.available_height() - 220.0) // leave room for breakpoints
+            .show(ui, |ui| {
+                self.cpu_register_view(ui);
+            });
+
+        ui.separator();
+
+        self.breakpoints_ui(ui);
     }
 
     const fn cpu_register_changed(&self, i: usize) -> bool {
@@ -138,10 +170,10 @@ impl Debugger {
         };
 
         match i {
-            32 => c.hi != p.hi,
-            33 => c.lo != p.lo,
-            34 => c.pc != p.pc,
-            i => c.cpu_regs[i] != p.cpu_regs[i],
+            32 => c.cpu.hi != p.cpu.hi,
+            33 => c.cpu.lo != p.cpu.lo,
+            34 => c.cpu.pc != p.cpu.pc,
+            i => c.cpu.regs[i] != p.cpu.regs[i],
         }
     }
 
@@ -155,9 +187,9 @@ impl Debugger {
             .striped(true)
             .resizable(false)
             .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
-            .column(Column::auto())
             .column(Column::remainder())
-            .column(Column::auto())
+            .column(Column::remainder())
+            .column(Column::remainder())
             .column(Column::remainder())
             .header(20.0, |mut header| {
                 header.col(|ui| {
@@ -174,7 +206,7 @@ impl Debugger {
                 });
             })
             .body(|body| {
-                let regs = snapshot.get_cpu_state();
+                let regs = snapshot::get_cpu_state(snapshot);
                 let rows = regs.len().div_ceil(2);
 
                 body.rows(20.0, rows, |mut row| {
@@ -209,25 +241,312 @@ impl Debugger {
             });
     }
 
+    fn spu_state_view(&self, ui: &mut egui::Ui) {
+        let Some(ref snapshot) = self.curr_snapshot else {
+            return;
+        };
+        let spu = &snapshot.spu;
+        let (cd_audio_text, cd_audio_color) = if spu.cd_audio_enabled {
+            ("ON", Color32::GREEN)
+        } else {
+            ("OFF", Color32::RED)
+        };
+        let irq_state = if spu.irq_enabled {
+            "Enabled"
+        } else {
+            "Disabled"
+        };
+        let irq_address = spu.irq_address_actual / 8;
+        let status = spu.status;
+        let capture_half_second = status & (1 << 11) != 0;
+        let irq9_requested = status & (1 << 6) != 0;
+
+        // Global SPU status
+        ui.horizontal(|ui| {
+            let (enabled_text, enabled_color) = if spu.enabled {
+                ("ON", Color32::GREEN)
+            } else {
+                ("OFF", Color32::RED)
+            };
+            let (muted_text, muted_color) = if spu.muted {
+                ("YES", Color32::RED)
+            } else {
+                ("NO", Color32::GREEN)
+            };
+
+            ui.label("Enabled:");
+            ui.label(
+                RichText::new(enabled_text)
+                    .monospace()
+                    .strong()
+                    .color(enabled_color),
+            );
+            ui.separator();
+            ui.label("Muted:");
+            ui.label(
+                RichText::new(muted_text)
+                    .monospace()
+                    .strong()
+                    .color(muted_color),
+            );
+            ui.separator();
+            ui.label("Vol L:");
+            ui.monospace(format!("{:.1}%", spu.main_volume_left));
+            ui.separator();
+            ui.label("Vol R:");
+            ui.monospace(format!("{:.1}%", spu.main_volume_right));
+        });
+
+        ui.horizontal(|ui| {
+            ui.label("CD Audio:");
+            ui.label(
+                RichText::new(cd_audio_text)
+                    .monospace()
+                    .strong()
+                    .color(cd_audio_color),
+            );
+            ui.separator();
+            ui.label("CD Vol L:");
+            ui.monospace(format!("{:.1}%", spu.cd_volume_left));
+            ui.separator();
+            ui.label("CD Vol R:");
+            ui.monospace(format!("{:.1}%", spu.cd_volume_right));
+        });
+
+        ui.horizontal(|ui| {
+            ui.label("Interrupt:");
+            ui.monospace(format!(
+                "{irq_state} @ 0x{irq_address:04X} (Actual 0x{:08X})",
+                spu.irq_address_actual
+            ));
+        });
+
+        ui.horizontal(|ui| {
+            let active = Color32::WHITE;
+            let inactive = if ui.visuals().dark_mode {
+                Color32::from_gray(90)
+            } else {
+                Color32::from_gray(170)
+            };
+
+            ui.label("Status:");
+            ui.monospace(format!("0x{status:04X}"));
+            ui.separator();
+            ui.label(
+                RichText::new("Second Half")
+                    .monospace()
+                    .color(if capture_half_second {
+                        active
+                    } else {
+                        inactive
+                    }),
+            );
+            ui.separator();
+            ui.label(
+                RichText::new("Interrupt Request")
+                    .monospace()
+                    .color(if irq9_requested { active } else { inactive }),
+            );
+        });
+
+        ui.separator();
+
+        // Voice table
+        let dim_color = if ui.visuals().dark_mode {
+            Color32::from_gray(100)
+        } else {
+            Color32::from_gray(160)
+        };
+
+        egui_extras::TableBuilder::new(ui)
+            .id_salt("spu_voices")
+            .striped(true)
+            .resizable(false)
+            .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
+            .column(Column::auto()) // #
+            .column(Column::remainder()) // Phase
+            .column(Column::remainder()) // Start
+            .column(Column::remainder()) // Repeat
+            .column(Column::remainder()) // Current
+            .column(Column::remainder()) // Rate (Hz)
+            .column(Column::remainder()) // Vol L
+            .column(Column::remainder()) // Vol R
+            .column(Column::remainder()) // ADSR Vol
+            .header(20.0, |mut header| {
+                header.col(|ui| {
+                    ui.strong("#");
+                });
+                header.col(|ui| {
+                    ui.strong("Phase");
+                });
+                header.col(|ui| {
+                    ui.strong("Start");
+                });
+                header.col(|ui| {
+                    ui.strong("Repeat");
+                });
+                header.col(|ui| {
+                    ui.strong("Current");
+                });
+                header.col(|ui| {
+                    ui.strong("Rate (Hz)");
+                });
+                header.col(|ui| {
+                    ui.strong("Vol L");
+                });
+                header.col(|ui| {
+                    ui.strong("Vol R");
+                });
+                header.col(|ui| {
+                    ui.strong("ADSR Vol");
+                });
+            })
+            .body(|body| {
+                body.rows(20.0, 24, |mut row| {
+                    let i = row.index();
+                    let v = &spu.voices[i];
+                    let is_off = v.adsr_phase == starpsx_core::AdsrPhase::Off;
+
+                    let mono = |text: String| -> RichText {
+                        let rt = RichText::new(text).monospace();
+                        if is_off { rt.color(dim_color) } else { rt }
+                    };
+
+                    row.col(|ui| {
+                        ui.label(mono(format!("{i:2}")));
+                    });
+                    row.col(|ui| {
+                        ui.label(mono(format!("{}", v.adsr_phase)));
+                    });
+                    row.col(|ui| {
+                        ui.label(mono(format!("0x{:04X}", v.start_address)));
+                    });
+                    row.col(|ui| {
+                        ui.label(mono(format!("0x{:04X}", v.repeat_address)));
+                    });
+                    row.col(|ui| {
+                        ui.label(mono(format!("0x{:04X}", v.current_address)));
+                    });
+                    row.col(|ui| {
+                        ui.label(mono(format!("{:.1}", v.sample_rate)));
+                    });
+                    row.col(|ui| {
+                        ui.label(mono(format!("{:.1}%", v.volume_left)));
+                    });
+                    row.col(|ui| {
+                        ui.label(mono(format!("{:.1}%", v.volume_right)));
+                    });
+                    row.col(|ui| {
+                        ui.label(mono(format!("{:.1}%", v.adsr_volume)));
+                    });
+                });
+            });
+    }
+
+    fn gpu_state_view(&self, ui: &mut egui::Ui) {
+        let Some(ref snapshot) = self.curr_snapshot else {
+            return;
+        };
+        let gpu = &snapshot.gpu;
+
+        let bool_str = |b: bool| if b { "Yes" } else { "No" };
+        let coord = |p: (i32, i32)| format!("({}, {})", p.0, p.1);
+
+        let rows: Vec<(&str, String)> = vec![
+            // Display
+            ("", "Display".into()),
+            (
+                "Video Mode",
+                match gpu.vmode {
+                    starpsx_core::VMode::Ntsc => "NTSC".into(),
+                    starpsx_core::VMode::Pal => "PAL".into(),
+                },
+            ),
+            ("Display Depth", format!("{:?}", gpu.display_depth)),
+            ("Display Disabled", bool_str(gpu.display_disabled).into()),
+            ("Interlaced", bool_str(gpu.interlaced).into()),
+            ("VRAM Start", coord(gpu.display_vram_start)),
+            (
+                "Display Size",
+                format!("{}x{}", gpu.display_width, gpu.display_height),
+            ),
+            ("Hor Range", format!("{}", gpu.display_hor_range)),
+            ("Ver Range", format!("{}", gpu.display_ver_range)),
+            // Drawing Area
+            ("", "Drawing Area".into()),
+            ("Top Left", coord(gpu.drawing_area_top_left)),
+            ("Bottom Right", coord(gpu.drawing_area_bottom_right)),
+            ("Offset", coord(gpu.drawing_area_offset)),
+            // Texturing
+            ("", "Texturing".into()),
+            ("Dithering", bool_str(gpu.dithering).into()),
+            (
+                "Semi-Transparency",
+                format!(
+                    "({:.2}, {:.2})",
+                    gpu.transparency_weights.0, gpu.transparency_weights.1
+                ),
+            ),
+            ("Tex Window Mask", coord(gpu.texture_window_mask)),
+            ("Tex Window Offset", coord(gpu.texture_window_offset)),
+            // Masking
+            ("", "Masking".into()),
+            (
+                "Preserve Masked",
+                bool_str(gpu.preserve_masked_pixels).into(),
+            ),
+            (
+                "Force Set Mask Bit",
+                bool_str(gpu.force_set_masked_bit).into(),
+            ),
+            // Counters
+            ("", "Counters".into()),
+            ("Frame", format!("{}", gpu.frame_counter)),
+            ("Line", format!("{}", gpu.line_counter)),
+        ];
+
+        egui_extras::TableBuilder::new(ui)
+            .id_salt("gpu_state")
+            .striped(true)
+            .resizable(false)
+            .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
+            .column(Column::remainder())
+            .column(Column::remainder())
+            .header(20.0, |mut header| {
+                header.col(|ui| {
+                    ui.strong("Property");
+                });
+                header.col(|ui| {
+                    ui.strong("Value");
+                });
+            })
+            .body(|body| {
+                body.rows(20.0, rows.len(), |mut row| {
+                    let (label, value) = &rows[row.index()];
+                    let is_section = label.is_empty();
+
+                    row.col(|ui| {
+                        if is_section {
+                            ui.strong(value.as_str());
+                        } else {
+                            ui.label(*label);
+                        }
+                    });
+                    row.col(|ui| {
+                        if !is_section {
+                            ui.monospace(value.as_str());
+                        }
+                    });
+                });
+            });
+    }
+
     fn disassembly_view(&mut self, ui: &mut egui::Ui) {
         let Some(snapshot) = self.curr_snapshot.take() else {
             return;
         };
         let is_paused = self.shared_state.is_paused();
         ui.vertical(|ui| {
-            ui.horizontal(|ui| {
-                let label = if is_paused { "Resume" } else { "Pause" };
-                if ui.button(label).clicked() {
-                    self.toggle_pause();
-                }
-                ui.add_enabled_ui(is_paused, |ui| {
-                    if ui.button("Step").clicked() {
-                        self.sync_send(UiCommand::DebugStep);
-                    }
-                });
-            });
-            ui.separator();
-
             // Define highlight color based on theme
             let item_spacing = ui.spacing().item_spacing;
             let pc_highlight = if ui.visuals().dark_mode {
@@ -269,7 +588,7 @@ impl Debugger {
                     });
                 })
                 .body(|body| {
-                    let diassembly = snapshot.get_disassembly();
+                    let diassembly = snapshot::get_disassembly(&snapshot);
                     let breakpoint_set: HashSet<u32> = self
                         .breakpoints
                         .iter()
@@ -280,7 +599,7 @@ impl Debugger {
                     body.rows(20.0, diassembly.len(), |mut row| {
                         let i = row.index();
                         let (addr, word, disasm) = &diassembly[i];
-                        let is_current_pc = snapshot.pc == *addr;
+                        let is_current_pc = snapshot.cpu.pc == *addr;
 
                         let paint_bg = |ui: &mut egui::Ui| {
                             let gapless_rect = ui.max_rect().expand2(0.5 * item_spacing);
@@ -291,7 +610,7 @@ impl Debugger {
                             if is_current_pc {
                                 paint_bg(ui);
                             }
-                            line_indicator(ui, snapshot.pc, *addr, &breakpoint_set);
+                            line_indicator(ui, snapshot.cpu.pc, *addr, &breakpoint_set);
                         });
                         row.col(|ui| {
                             if is_current_pc {
@@ -319,7 +638,7 @@ impl Debugger {
 
     fn breakpoints_ui(&mut self, ui: &mut egui::Ui) {
         ui.vertical(|ui| {
-            ui.set_max_width(200.0);
+            ui.set_min_height(100.0);
             ui.horizontal(|ui| {
                 ui.label("Add Breakpoint:");
 
@@ -355,16 +674,16 @@ impl Debugger {
                 .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
                 .column(Column::auto())
                 .column(Column::remainder())
-                .column(Column::auto())
+                .column(Column::remainder())
                 .header(20.0, |mut header| {
                     header.col(|ui| {
-                        ui.strong("");
+                        ui.strong("Enabled");
                     });
                     header.col(|ui| {
                         ui.strong("Address");
                     });
                     header.col(|ui| {
-                        ui.strong("");
+                        ui.strong("Action");
                     });
                 })
                 .body(|body| {
@@ -421,15 +740,12 @@ fn monospace_hex_change(ui: &mut egui::Ui, val: u32) {
     );
 }
 
-#[derive(PartialEq, Default)]
+#[derive(PartialEq, Default, Clone, Copy)]
 enum StateView {
     #[default]
     Cpu,
-    Gpu,
-    Irq,
-    Sio0,
     Spu,
-    Cdrom,
+    Gpu,
 }
 
 struct Breakpoint {

@@ -5,7 +5,6 @@ pub mod memory_card;
 use arrayvec::ArrayVec;
 
 use crate::System;
-use crate::mem::ByteAddressable;
 use crate::sched::Event;
 use crate::sio::device_manager::DeviceManager;
 use crate::sio::gamepad::Gamepad;
@@ -213,24 +212,22 @@ impl Sio0 {
     }
 }
 
-pub fn read<T: ByteAddressable>(system: &mut System, addr: u32) -> T {
-    let offs = addr - PADDR_START;
-
-    let data = match (offs & 0x10) >> 4 {
-        0 => system.sio0.read(offs % 0x10),
-        1 => system.sio1.read(offs % 0x10),
-        _ => unreachable!(),
-    };
-
-    T::from_u32(data)
-}
-
-pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, val: T) {
+pub fn read<const WIDTH: usize>(system: &mut System, addr: u32) -> u32 {
     let offs = addr - PADDR_START;
 
     match (offs & 0x10) >> 4 {
-        0 => Sio0::write(system, offs % 0x10, val.to_u32()),
-        1 => Sio1::write(system, offs % 0x10, val.to_u32()),
+        0 => system.sio0.read(offs % 0x10),
+        1 => system.sio1.read(offs % 0x10),
+        _ => unreachable!(),
+    }
+}
+
+pub fn write<const WIDTH: usize>(system: &mut System, addr: u32, val: u32) {
+    let offs = addr - PADDR_START;
+
+    match (offs & 0x10) >> 4 {
+        0 => Sio0::write(system, offs % 0x10, val),
+        1 => Sio1::write(system, offs % 0x10, val),
         _ => unreachable!(),
     }
 }

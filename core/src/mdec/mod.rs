@@ -3,7 +3,6 @@ mod util;
 use std::collections::VecDeque;
 
 use num_enum::FromPrimitive;
-use tracing::debug;
 
 use crate::System;
 use crate::mdec::util::ZAG_ZIG;
@@ -12,7 +11,6 @@ use crate::mdec::util::level_shift_8bpp;
 use crate::mdec::util::signed10bit;
 use crate::mdec::util::yuv_to_rgb15_block;
 use crate::mdec::util::yuv_to_rgb24_block;
-use crate::mem::ByteAddressable;
 
 pub const PADDR_START: u32 = 0x1F80_1820;
 pub const PADDR_END: u32 = 0x1F80_1828;
@@ -126,7 +124,6 @@ impl MacroDecoder {
         match cmd.command() {
             // No Function
             0 | 4..8 => {
-                debug!("no function");
                 // Doesn't have the "minus 1" effect
                 self.params_remaining = cmd.params_len() + 1;
             }
@@ -135,14 +132,6 @@ impl MacroDecoder {
                 let depth = cmd.output_depth();
                 let is_signed = cmd.output_signed();
                 let b15_set = cmd.output_bit15();
-
-                debug!(
-                    ?depth,
-                    is_signed,
-                    b15_set,
-                    len = cmd.params_len(),
-                    "decode macroblock"
-                );
 
                 self.status.set_busy(true);
                 self.params_remaining = cmd.params_len();
@@ -158,7 +147,6 @@ impl MacroDecoder {
 
             2 => {
                 let color = cmd.color();
-                debug!(?color, "set quant table with");
 
                 self.status.set_busy(true);
                 self.params_remaining = match color {
@@ -172,7 +160,6 @@ impl MacroDecoder {
             }
 
             3 => {
-                debug!("set scale table");
                 self.status.set_busy(true);
                 self.params_remaining = 32; // 64 signed halfwords
                 self.collecting = Some(Command {
@@ -192,8 +179,6 @@ impl MacroDecoder {
                 is_signed,
                 b15,
             } => {
-                debug!(?depth, is_signed, b15, "handle command decode macroblock");
-
                 let raw: &[u16] = bytemuck::cast_slice(collected.parameters.as_slice());
                 let mut source: VecDeque<u16> = raw.iter().copied().collect();
 
@@ -398,23 +383,15 @@ impl MacroDecoder {
     }
 }
 
-pub fn read<T: ByteAddressable>(system: &mut System, addr: u32) -> T {
-    let data = match addr {
+pub fn read<const WIDTH: usize>(system: &mut System, addr: u32) -> u32 {
+    match addr {
         0x1F80_1820 => system.mdec.response(),
         0x1F80_1824 => system.mdec.status(),
         _ => unimplemented!("MDEC read {addr:x}"),
-    };
-
-    debug!("mdec read {addr:x}={data:x}");
-
-    T::from_u32(data)
+    }
 }
 
-pub fn write<T: ByteAddressable>(system: &mut System, addr: u32, data: T) {
-    let data = data.to_u32();
-
-    debug!("mdec write {addr:x}={data:x}");
-
+pub fn write<const WIDTH: usize>(system: &mut System, addr: u32, data: u32) {
     match addr {
         0x1F80_1820 => system.mdec.command_or_param(data),
         0x1F80_1824 => system.mdec.write_control(data),

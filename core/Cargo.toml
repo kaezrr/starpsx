@@ -11,6 +11,7 @@ bytemuck = "1.24.0"
 cue = { path = "../cue" }
 derive_more = { version = "2.1.1", features = ["index", "index_mut"] }
 num_enum = "0.7.5"
+procmac = { path = "../procmac" }
 starpsx-renderer = { path = "../renderer" }
 tracing = "0.1.43"
 

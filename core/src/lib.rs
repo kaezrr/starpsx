@@ -14,13 +14,13 @@ mod timers;
 use std::collections::HashSet;
 
 use anyhow::Context;
-use cdrom::CdImage;
 use cdrom::CdRom;
-use consts::HBLANK_DURATION;
-use consts::LINE_DURATION;
+use cdrom::Image;
 use cpu::Cpu;
 use dma::DMAController;
 use gpu::Gpu;
+pub use gpu::Snapshot as GpuSnapshot;
+pub use gpu::VMode;
 use irq::InterruptController;
 use mem::bios::Bios;
 use mem::ram::Ram;
@@ -29,6 +29,9 @@ use sched::Event;
 use sched::EventScheduler;
 use sio::Sio0;
 pub use sio::gamepad;
+pub use spu::AdsrPhase;
+pub use spu::Snapshot as SpuSnapshot;
+pub use spu::VoiceSnapshot;
 use starpsx_renderer::FrameBuffer;
 use timers::Timers;
 use tracing::info;
@@ -39,8 +42,8 @@ use crate::sio::gamepad::Gamepad;
 use crate::sio::memory_card::MemoryCard;
 use crate::spu::Spu;
 
-pub enum RunType {
-    Disk(cue::CdDisk),
+pub enum Media {
+    Disc(cue::Disc),
     Binary(Vec<u8>),
     Executable(Vec<u8>),
 }
@@ -68,85 +71,10 @@ pub struct System {
     scheduler: EventScheduler,
 
     // RGBA frame buffer
-    pub produced_frame_buffer: Option<FrameBuffer>,
+    pub frame_buffer: Option<FrameBuffer>,
 }
 
 impl System {
-    /// # Errors
-    ///
-    /// This function will return an error if:
-    /// * Bios file is not valid
-    /// * Runnable file is not valid
-    pub fn build(
-        bios: Vec<u8>,
-        runnable: Option<RunType>,
-        memory_card: Option<Box<[u8; 0x20000]>>,
-    ) -> anyhow::Result<Self> {
-        let mut psx = Self {
-            cpu: Cpu::default(),
-            gpu: Gpu::default(),
-            spu: Spu::default(),
-
-            ram: Ram::default(),
-            bios: Bios::new(bios)?,
-            scratch: Scratch::default(),
-
-            dma: DMAController::default(),
-            timers: Timers::default(),
-            irqctl: InterruptController::default(),
-            cdrom: CdRom::default(),
-            mdec: MacroDecoder::default(),
-
-            tty: Vec::new(),
-            scheduler: EventScheduler::default(),
-
-            // Only 1 gamepad and memory card  for now
-            sio0: Sio0::new(
-                [Some(Gamepad::default()), None],
-                [memory_card.map(MemoryCard::from_bytes), None],
-            ),
-            sio1: Sio1, // Does nothing
-
-            produced_frame_buffer: None,
-        };
-
-        // Load game or exe
-        if let Some(run_type) = runnable {
-            // Do not open the shell after bios start
-            match run_type {
-                RunType::Disk(disk) => psx.cdrom.insert_disc(CdImage::from_disk(disk)),
-                RunType::Binary(bytes) => psx.cdrom.insert_disc(CdImage::from_bytes(bytes)),
-                RunType::Executable(bytes) => psx.sideload_exe(&bytes)?,
-            }
-        } else {
-            psx.cdrom.open_shell();
-        }
-
-        // Schedule some initial events
-        psx.scheduler.schedule(
-            Event::VBlankStart,
-            LINE_DURATION * 240,
-            Some(LINE_DURATION * 263),
-        );
-
-        psx.scheduler.schedule(
-            Event::VBlankEnd,
-            LINE_DURATION * 263,
-            Some(LINE_DURATION * 263),
-        );
-
-        psx.scheduler.schedule(
-            Event::HBlankStart,
-            LINE_DURATION - HBLANK_DURATION,
-            Some(LINE_DURATION),
-        );
-
-        psx.scheduler
-            .schedule(Event::HBlankEnd, LINE_DURATION, Some(LINE_DURATION));
-
-        Ok(psx)
-    }
-
     fn sideload_exe(&mut self, exe: &[u8]) -> anyhow::Result<()> {
         while self.cpu.pc != 0x8003_0000 {
             Cpu::run_next_instruction(self);
@@ -250,14 +178,49 @@ impl System {
             (addr, inst)
         });
 
-        SystemSnapshot { cpu, ins }
+        let spu = self.spu.snapshot();
+        let gpu = self.gpu.snapshot();
+
+        SystemSnapshot { cpu, spu, gpu, ins }
     }
 
-    pub fn step_instruction(&mut self, show_vram: bool) -> Option<FrameBuffer> {
+    // Run emulator for one frame
+    pub fn run_frame(&mut self, show_vram: bool) -> Vec<i16> {
+        const SAMPLES_PER_FRAME: usize = 735 * 2;
+        let mut samples = Vec::with_capacity(SAMPLES_PER_FRAME);
+
+        while samples.len() != SAMPLES_PER_FRAME {
+            if let Some(event) = self.scheduler.get_next_event() {
+                match event {
+                    Event::VBlankStart => self.frame_buffer = Some(self.enter_vsync(show_vram)),
+                    Event::VBlankEnd => self.exit_vsync(),
+                    Event::HBlankStart => self.enter_hsync(),
+                    Event::HBlankEnd => Timers::exit_hsync(self),
+                    Event::Timer(x) => Timers::process_interrupt(self, x),
+                    Event::SerialSend => Sio0::process_serial_send(self),
+                    Event::CdromResultIrq(x) => CdRom::handle_response(self, x),
+                    Event::DsrOff => self.sio0.turn_off_dsr(),
+                    Event::SpuTick => samples.extend(Spu::tick(self)),
+                }
+            }
+
+            // Run instructions in blocks of 20
+            for _ in 0..20 {
+                Cpu::run_next_instruction(self);
+                self.check_for_tty_output();
+            }
+
+            // Fixed 2 CPI right now
+            self.scheduler.advance(40);
+        }
+
+        samples
+    }
+
+    pub fn step_instruction(&mut self, show_vram: bool) {
         if let Some(event) = self.scheduler.get_next_event() {
             match event {
-                // Frame completes just before entering vsync
-                Event::VBlankStart => return Some(self.enter_vsync(show_vram)),
+                Event::VBlankStart => self.frame_buffer = Some(self.enter_vsync(show_vram)),
                 Event::VBlankEnd => self.exit_vsync(),
                 Event::HBlankStart => self.enter_hsync(),
                 Event::HBlankEnd => Timers::exit_hsync(self),
@@ -265,6 +228,10 @@ impl System {
                 Event::SerialSend => Sio0::process_serial_send(self),
                 Event::CdromResultIrq(x) => CdRom::handle_response(self, x),
                 Event::DsrOff => self.sio0.turn_off_dsr(),
+                Event::SpuTick => {
+                    // Tick the spu but ignore the samples
+                    let _ = Spu::tick(self);
+                }
             }
         }
 
@@ -273,39 +240,108 @@ impl System {
         self.scheduler.advance(2);
 
         self.check_for_tty_output();
-        None
-    }
-
-    // Run emulator for one frame and return the generated frame
-    pub fn run_frame(&mut self, show_vram: bool) -> FrameBuffer {
-        loop {
-            if let Some(fb) = self.step_instruction(show_vram) {
-                break fb;
-            }
-        }
     }
 
     // Run emulator until it generates a frame or hits a breakpoint
-    pub fn run_breakpoint(
-        &mut self,
-        breakpoints: &HashSet<u32>,
-        show_vram: bool,
-    ) -> Option<FrameBuffer> {
+    pub fn run_till_breakpoint(&mut self, breakpoints: &HashSet<u32>, show_vram: bool) {
         loop {
             if breakpoints.contains(&self.cpu.pc) {
-                return None;
+                return;
             }
 
-            if let Some(fb) = self.step_instruction(show_vram) {
-                break Some(fb);
-            }
+            self.step_instruction(show_vram);
         }
     }
 }
 
 pub struct SystemSnapshot {
     pub cpu: cpu::Snapshot,
+    pub spu: spu::Snapshot,
+    pub gpu: gpu::Snapshot,
 
     /// cpu.pc +- 100
     pub ins: [(u32, u32); 200],
+}
+
+pub struct PSXBuilder {
+    bios: Bios,
+    disc: Option<Image>,
+    exec: Option<Vec<u8>>,
+    card: Option<MemoryCard>,
+}
+
+impl PSXBuilder {
+    #[must_use]
+    pub const fn new(bios: Box<[u8; 0x80000]>) -> Self {
+        Self {
+            bios: Bios::new(bios),
+            disc: None,
+            exec: None,
+            card: None,
+        }
+    }
+
+    #[must_use]
+    pub fn with_media(mut self, media: Media) -> Self {
+        match media {
+            Media::Disc(disc) => self.disc = Some(Image::from_disc(disc)),
+            Media::Binary(bytes) => self.disc = Some(Image::from_bytes(bytes)),
+            Media::Executable(bytes) => self.exec = Some(bytes),
+        }
+
+        self
+    }
+
+    #[must_use]
+    pub fn with_card(mut self, card: Box<[u8; 0x20000]>) -> Self {
+        self.card = Some(MemoryCard::from_bytes(card));
+        self
+    }
+
+    /// # Errors
+    ///
+    /// Returns an error if provided ps-exe file is of invalid format
+    pub fn build(self) -> anyhow::Result<System> {
+        let mut psx = System {
+            cpu: Cpu::default(),
+            gpu: Gpu::default(),
+            spu: Spu::default(),
+
+            ram: Ram::default(),
+            bios: self.bios,
+            scratch: Scratch::default(),
+
+            dma: DMAController::default(),
+            timers: Timers::default(),
+            irqctl: InterruptController::default(),
+            cdrom: CdRom::default(),
+            mdec: MacroDecoder::default(),
+
+            tty: Vec::new(),
+            scheduler: EventScheduler::default(),
+
+            // Only 1 gamepad and memory card  for now
+            sio0: Sio0::new([Some(Gamepad::default()), None], [self.card, None]),
+            sio1: Sio1, // Does nothing
+
+            frame_buffer: None,
+        };
+
+        // Open the shell if nothing is loaded
+        if self.exec.is_none() && self.disc.is_none() {
+            psx.cdrom.open_shell();
+        }
+
+        if let Some(exe) = self.exec {
+            psx.sideload_exe(&exe)?;
+        }
+
+        if let Some(image) = self.disc {
+            psx.cdrom.insert_disc(image);
+        }
+
+        psx.scheduler.init_with_events();
+
+        Ok(psx)
+    }
 }

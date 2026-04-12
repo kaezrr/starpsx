@@ -1,4 +1,4 @@
-pub const LINE_DURATION: u64 = 2143;
+pub const LINE_DURATION: u64 = 2172;
 pub const HBLANK_DURATION: u64 = 390;
 
 pub const SECTOR_SIZE: usize = 0x930;
@@ -11,3 +11,6 @@ pub const AVG_2ND_RESP_PAUSE: u64 = 0x0021_181C;
 pub const AVG_2ND_RESP_SEEKL: u64 = 0x6E1CD;
 
 pub const AVG_RATE_INT1: u64 = 0x6E1CD;
+
+pub const POS_ADPCM_TABLE: [i32; 5] = [0, 60, 115, 98, 122];
+pub const NEG_ADPCM_TABLE: [i32; 5] = [0, 0, -52, -55, -60];

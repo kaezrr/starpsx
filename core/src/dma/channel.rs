@@ -1,12 +1,11 @@
 use super::utils::Direction;
 use super::utils::Mode;
 use super::utils::Step;
-use crate::mem::ByteAddressable;
 
 bitfield::bitfield! {
     pub struct Control(u32);
-    enable, set_enable : 24;
-    trigger, set_trigger: 28;
+    enabled, set_enabled : 24;
+    forced, set_forced: 28;
     pub u8, into Direction, dir, _ : 0, 0;
     pub u8, into Step, step, _ : 1, 1;
     pub u8, into Mode, mode, _ : 10, 9;
@@ -34,29 +33,26 @@ impl Channel {
     }
 
     pub fn active(&self) -> bool {
-        let trigger = match self.ctl.mode() {
-            Mode::Burst => self.ctl.trigger(),
-            _ => true,
-        };
-        self.ctl.enable() && trigger
+        self.ctl.enabled()
     }
 
     /// Get DMA transfer size in words
     pub fn transfer_size(&self) -> Option<u32> {
         let bs = self.block_ctl.block_size();
-        let bc = self.block_ctl.block_count();
+        let block_size = if bs == 0 { 0x10000 } else { bs };
+        let block_count = self.block_ctl.block_count().max(1);
 
         match self.ctl.mode() {
-            Mode::Burst => Some(if bs == 0 { 0x10000 } else { bs }),
-            Mode::Slice => Some(bc.max(1) * bs),
+            Mode::Burst => Some(block_size),
+            Mode::Slice => Some(block_count * block_size),
             Mode::LinkedList => None,
         }
     }
 
     /// Set the channel status to "completed" state
     pub fn done(&mut self) {
-        self.ctl.set_enable(false);
-        self.ctl.set_trigger(false);
+        self.ctl.set_enabled(false);
+        self.ctl.set_forced(false);
     }
 
     pub fn read(&self, reg: u32) -> u32 {
@@ -68,10 +64,9 @@ impl Channel {
         }
     }
 
-    pub fn write<T: ByteAddressable>(&mut self, reg: u32, data: T) {
-        assert_eq!(T::LEN, 4);
+    pub fn write<const WIDTH: usize>(&mut self, reg: u32, data: u32) {
+        assert_eq!(WIDTH, 4);
 
-        let data = data.to_u32();
         match reg {
             0 => self.base = data & 0xFF_FFFF,
             4 => self.block_ctl.0 = data,
