@@ -1,6 +1,6 @@
 [package]
 name = "starpsx"
-version = "0.8.0"
+version = "0.8.1"
 edition = "2024"
 
 [dependencies]
@@ -20,6 +20,7 @@ egui_extras = "0.33.3"
 egui-notify = "0.21.0"
 gilrs = "0.11.0"
 rfd = "0.17.2"
+ringbuf = "0.4.8"
 serde = { version = "1.0.228", features = ["derive"] }
 spin_sleep = "1.3.3"
 starpsx-core = { path = "../core" }

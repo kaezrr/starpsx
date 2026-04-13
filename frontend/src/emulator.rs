@@ -7,7 +7,6 @@ use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 use std::sync::mpsc::Receiver;
 use std::sync::mpsc::SyncSender;
-use std::sync::mpsc::sync_channel;
 use std::time::Duration;
 
 use anyhow::Context;
@@ -16,6 +15,11 @@ use cpal::default_host;
 use cpal::traits::DeviceTrait;
 use cpal::traits::HostTrait;
 use cpal::traits::StreamTrait;
+use ringbuf::HeapCons;
+use ringbuf::HeapProd;
+use ringbuf::traits::Consumer;
+use ringbuf::traits::Producer;
+use ringbuf::traits::Split;
 use starpsx_core::SystemSnapshot;
 use starpsx_renderer::FrameBuffer;
 use tracing::error;
@@ -25,12 +29,10 @@ use tracing::warn;
 use crate::config::MediaPath;
 use crate::input::GamepadState;
 
-const SAMPLES_PER_FRAME: u32 = 735;
-
 const AUDIO_STREAM_CONFIG: StreamConfig = StreamConfig {
     channels: 2,
     sample_rate: 44100_u32,
-    buffer_size: cpal::BufferSize::Fixed(SAMPLES_PER_FRAME),
+    buffer_size: cpal::BufferSize::Default,
 };
 
 pub enum UiCommand {
@@ -87,12 +89,12 @@ impl Emulator {
     }
 
     pub fn run(self) -> anyhow::Result<()> {
-        let (prod, cons) = sync_channel(3); // 3 Frames
+        let (prod, cons) = ringbuf::HeapRb::new(0x1000).split();
         let audio_stream = build_audio_stream(cons)?;
 
         std::thread::spawn(move || {
             info!("emulator thread started...");
-            self.main_loop(&audio_stream, &prod);
+            self.main_loop(&audio_stream, prod);
         });
 
         Ok(())
@@ -180,7 +182,7 @@ impl Emulator {
         false
     }
 
-    fn main_loop(mut self, audio_stream: &cpal::Stream, prod: &SyncSender<Vec<i16>>) {
+    fn main_loop(mut self, audio_stream: &cpal::Stream, mut prod: HeapProd<i16>) {
         let mut last_paused = true;
 
         loop {
@@ -220,9 +222,15 @@ impl Emulator {
 
             // Blocking send
             if !self.full_speed {
-                match prod.send(samples) {
-                    Ok(()) => (),
-                    Err(e) => break error!(err=%e,"emulator thread error"),
+                let mut audio = samples.as_slice();
+
+                while !audio.is_empty() {
+                    let written = prod.push_slice(audio);
+                    audio = &audio[written..];
+
+                    if written == 0 {
+                        std::thread::sleep(Duration::from_micros(200));
+                    }
                 }
             }
 
@@ -237,7 +245,7 @@ impl Emulator {
     }
 }
 
-fn build_audio_stream(cons: Receiver<Vec<i16>>) -> anyhow::Result<cpal::Stream> {
+fn build_audio_stream(mut cons: HeapCons<i16>) -> anyhow::Result<cpal::Stream> {
     let device = default_host()
         .default_output_device()
         .context("no output device available")?;
@@ -245,15 +253,15 @@ fn build_audio_stream(cons: Receiver<Vec<i16>>) -> anyhow::Result<cpal::Stream> 
     let stream = device.build_output_stream(
         &AUDIO_STREAM_CONFIG,
         move |data: &mut [i16], _: &cpal::OutputCallbackInfo| {
-            let recv_samples = cons.recv().expect("recv on audio channel");
+            let written = cons.pop_slice(data);
 
-            for (i, sample) in data.iter_mut().enumerate() {
-                *sample = recv_samples[i];
+            // Fill the rest with silence
+            if written < data.len() {
+                warn!("audio buffer underrun");
+                data[written..].fill(0);
             }
         },
-        move |err| {
-            error!("an error occurred on the output audio stream: {err}");
-        },
+        move |err| error!("an error occurred on the output audio stream: {err}"),
         None,
     )?;
 
@@ -333,48 +341,5 @@ fn load_or_create_card(path: &Path) -> anyhow::Result<Box<[u8; 0x20000]>> {
         }
 
         Err(e) => Err(e.into()),
-    }
-}
-
-use std::fs::File;
-use std::io::Write;
-
-#[allow(warnings)]
-fn write_to_wave_file(name: impl AsRef<Path>, samples: Vec<i16>) {
-    let mut file = File::create(name).expect("Unable to create file");
-
-    // Metadata constants
-    let sample_rate: u32 = 44100;
-    let num_channels: u16 = 2; // Stereo
-    let bits_per_sample: u16 = 16;
-
-    // Calculations
-    let num_samples = samples.len() as u32;
-    let data_size = num_samples * 2; // 2 bytes per i16 sample
-    let byte_rate = sample_rate * num_channels as u32 * (bits_per_sample / 8) as u32;
-    let block_align = num_channels * (bits_per_sample / 8);
-
-    // --- RIFF Header ---
-    file.write_all(b"RIFF").unwrap();
-    file.write_all(&(36 + data_size).to_le_bytes()).unwrap();
-    file.write_all(b"WAVE").unwrap();
-
-    // --- Format Chunk ("fmt ") ---
-    file.write_all(b"fmt ").unwrap();
-    file.write_all(&16u32.to_le_bytes()).unwrap();
-    file.write_all(&1u16.to_le_bytes()).unwrap(); // PCM Format
-    file.write_all(&num_channels.to_le_bytes()).unwrap();
-    file.write_all(&sample_rate.to_le_bytes()).unwrap();
-    file.write_all(&byte_rate.to_le_bytes()).unwrap();
-    file.write_all(&block_align.to_le_bytes()).unwrap();
-    file.write_all(&bits_per_sample.to_le_bytes()).unwrap();
-
-    // --- Data Chunk ---
-    file.write_all(b"data").unwrap();
-    file.write_all(&data_size.to_le_bytes()).unwrap();
-
-    // Convert i16 samples to Little-Endian bytes
-    for sample in samples {
-        file.write_all(&sample.to_le_bytes()).unwrap();
     }
 }
