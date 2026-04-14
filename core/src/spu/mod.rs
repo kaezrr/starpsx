@@ -113,41 +113,15 @@ impl Spu {
 
         spu.noise_generator.tick();
 
-        let mixed_voice = spu.tick_all_voices();
+        let noise_sample = spu.noise_generator.lfsr.cast_signed();
 
-        let mixed_l = mixed_voice[0] + i32::from(cd_l);
-        let mixed_r = mixed_voice[1] + i32::from(cd_r);
-
-        // Incrementing capture buffer pointer, should wrap in 0..0x3FF
-        spu.capture_buffer_ptr = (spu.capture_buffer_ptr + 2) & 0x3FF;
-
-        // Trigger SPU interrupt if irq address was accessed
-        let irq_line = spu.sound_ram.irq.get();
-        if !spu.last_irq_line && irq_line {
-            spu.irq_requested = true;
-            system.irqctl.stat().set_spu(true);
-        }
-        spu.last_irq_line = irq_line;
-
-        if !spu.control.unmuted() {
-            return [cd_l, cd_r];
-        }
-
-        let output_l = apply_volume(clamped_i16(mixed_l), spu.main_volume.l.0);
-        let output_r = apply_volume(clamped_i16(mixed_r), spu.main_volume.r.0);
-
-        [output_l, output_r]
-    }
-
-    /// Tick all voices and get a mixed left and right sample combined with reverb
-    fn tick_all_voices(&mut self) -> [i32; 2] {
-        let noise_sample = self.noise_generator.lfsr.cast_signed();
         let mut mixed = [0i32; 2];
         let mut mixed_reverb = [0i32, 2];
+
         let mut prev: i16 = 0;
 
         for i in 0..24 {
-            let voice = &mut self.voices[i];
+            let voice = &mut spu.voices[i];
 
             let pitch_counter_step = if voice.pitch_modulation_enabled {
                 let multiplier = i32::from(prev) + 0x8000;
@@ -165,7 +139,7 @@ impl Spu {
 
                 if voice.current_buffer_idx == 28 {
                     voice.current_buffer_idx = 0;
-                    voice.decode_next_block(&self.sound_ram);
+                    voice.decode_next_block(&spu.sound_ram);
                 }
 
                 voice.samples_history[0] = if voice.noise_enabled {
@@ -200,15 +174,42 @@ impl Spu {
 
             // Volume 1 and 3 samples are written to capture buffers
             match i {
-                1 => self.write_capture_buffer(envelope_sample, 0x800),
-                3 => self.write_capture_buffer(envelope_sample, 0xC00),
+                1 => spu.write_capture_buffer(envelope_sample, 0x800),
+                3 => spu.write_capture_buffer(envelope_sample, 0xC00),
                 _ => {}
             }
         }
 
+        if spu.control.cd_reverb_enabled() {
+            mixed_reverb[0] += i32::from(cd_l);
+            mixed_reverb[1] += i32::from(cd_r);
+        }
+
         // Tick reverb and add it to output
-        self.reverb.tick(mixed_reverb, &mut self.sound_ram);
-        [mixed[0] + self.reverb.l_out, mixed[1] + self.reverb.r_out]
+        spu.reverb.tick(mixed_reverb, &mut spu.sound_ram);
+
+        mixed[0] += i32::from(cd_l);
+        mixed[1] += i32::from(cd_r);
+
+        // Incrementing capture buffer pointer, should wrap in 0..0x3FF
+        spu.capture_buffer_ptr = (spu.capture_buffer_ptr + 2) & 0x3FF;
+
+        // Trigger SPU interrupt if irq address was accessed
+        let irq_line = spu.sound_ram.irq.get();
+        if !spu.last_irq_line && irq_line {
+            spu.irq_requested = true;
+            system.irqctl.stat().set_spu(true);
+        }
+        spu.last_irq_line = irq_line;
+
+        if !spu.control.unmuted() {
+            return [cd_l, cd_r];
+        }
+
+        let output_l = apply_volume(clamped_i16(mixed[0]), spu.main_volume.l.0);
+        let output_r = apply_volume(clamped_i16(mixed[0]), spu.main_volume.r.0);
+
+        [output_l, output_r]
     }
 
     fn write_control(&mut self, value: u16) {
