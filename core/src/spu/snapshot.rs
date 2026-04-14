@@ -29,6 +29,12 @@ impl Spu {
                     adsr_volume: i16_volume_to_percent(v.envelope.volume as i16),
                 }
             }),
+
+            voice_reverb: std::array::from_fn(|i| self.voices[i].reverb_enabled),
+            reverb_base: self.reverb.base_addr,
+            reverb_curr: self.reverb.current_buffer_addr,
+            master_reverb_enable: self.control.reverb_enabled(),
+            cd_reverb_enable: self.control.cd_reverb_enabled(),
         }
     }
 }
@@ -46,6 +52,12 @@ pub struct Snapshot {
     pub irq_enabled: bool,
     pub irq_address_actual: u32,
     pub voices: [VoiceSnapshot; 24],
+
+    pub voice_reverb: [bool; 24],
+    pub reverb_base: usize,
+    pub reverb_curr: usize,
+    pub master_reverb_enable: bool,
+    pub cd_reverb_enable: bool,
 }
 
 #[derive(Default)]

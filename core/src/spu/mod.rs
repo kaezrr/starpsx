@@ -186,7 +186,11 @@ impl Spu {
         }
 
         // Tick reverb and add it to output
-        spu.reverb.tick(mixed_reverb, &mut spu.sound_ram);
+        spu.reverb.tick(
+            mixed_reverb,
+            &mut spu.sound_ram,
+            spu.control.reverb_enabled(),
+        );
 
         mixed[0] += i32::from(cd_l) + i32::from(spu.reverb.l_out);
         mixed[1] += i32::from(cd_r) + i32::from(spu.reverb.r_out);
@@ -207,7 +211,7 @@ impl Spu {
         }
 
         let output_l = apply_volume(clamped_i16(mixed[0]), spu.main_volume.l.0);
-        let output_r = apply_volume(clamped_i16(mixed[0]), spu.main_volume.r.0);
+        let output_r = apply_volume(clamped_i16(mixed[1]), spu.main_volume.r.0);
 
         [output_l, output_r]
     }

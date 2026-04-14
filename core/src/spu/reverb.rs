@@ -54,8 +54,8 @@ pub struct Reverb {
     pub apf2_addr_l: usize,
     pub apf2_addr_r: usize,
 
-    half_tick: bool,
-    current_buffer_addr: usize,
+    pub half_tick: bool,
+    pub current_buffer_addr: usize,
 
     pub l_out: i16,
     pub r_out: i16,
@@ -67,7 +67,7 @@ impl Reverb {
         self.current_buffer_addr = self.base_addr;
     }
 
-    pub fn tick(&mut self, mixed: [i32; 2], ram: &mut SoundRam) {
+    pub fn tick(&mut self, mixed: [i32; 2], ram: &mut SoundRam, write_to_ram: bool) {
         self.half_tick = !self.half_tick;
 
         // The reverb hardware ticks at 22.05 KHz
@@ -106,9 +106,11 @@ impl Reverb {
         let l_to_l = mul_16(l_in + mul_16(dl_sample, v_wall) - ml_sample, v_iir) + ml_sample;
         let r_to_r = mul_16(r_in + mul_16(dr_sample, v_wall) - mr_sample, v_iir) + mr_sample;
 
-        // The values written to memory are saturated to -8000h..+7FFFh.
-        ram.write_sample(m_lsame, clamped_i16(l_to_l));
-        ram.write_sample(m_rsame, clamped_i16(r_to_r));
+        if write_to_ram {
+            // The values written to memory are saturated to -8000h..+7FFFh.
+            ram.write_sample(m_lsame, clamped_i16(l_to_l));
+            ram.write_sample(m_rsame, clamped_i16(r_to_r));
+        }
 
         // ___Different Side Reflection (left-to-right and right-to-left)_______________
         // [mLDIFF] = (Lin + [dRDIFF]*vWALL - [mLDIFF-2])*vIIR + [mLDIFF-2]  ;R-to-L
@@ -134,9 +136,11 @@ impl Reverb {
         let r_to_l = mul_16(l_in + mul_16(dr_sample, v_wall) - ml_sample, v_iir) + ml_sample;
         let l_to_r = mul_16(r_in + mul_16(dl_sample, v_wall) - mr_sample, v_iir) + mr_sample;
 
-        // The values written to memory are saturated to -8000h..+7FFFh.
-        ram.write_sample(m_ldiff, clamped_i16(r_to_l));
-        ram.write_sample(m_rdiff, clamped_i16(l_to_r));
+        if write_to_ram {
+            // The values written to memory are saturated to -8000h..+7FFFh.
+            ram.write_sample(m_ldiff, clamped_i16(r_to_l));
+            ram.write_sample(m_rdiff, clamped_i16(l_to_r));
+        }
 
         // ___Early Echo (Comb Filter, with input from buffer)__________________________
         // Lout=vCOMB1*[mLCOMB1]+vCOMB2*[mLCOMB2]+vCOMB3*[mLCOMB3]+vCOMB4*[mLCOMB4]
@@ -177,9 +181,11 @@ impl Reverb {
         let l_out = clamped_i16(l_out);
         let r_out = clamped_i16(r_out);
 
-        // The values written to memory are saturated to -8000h..+7FFFh.
-        ram.write_sample(m_lapf1, l_out);
-        ram.write_sample(m_rapf1, r_out);
+        if write_to_ram {
+            // The values written to memory are saturated to -8000h..+7FFFh.
+            ram.write_sample(m_lapf1, l_out);
+            ram.write_sample(m_rapf1, r_out);
+        }
 
         let mut l_out = apply_gain(self.apf1_gain, l_out) + i32::from(ram.read_sample(ml_addr));
         let mut r_out = apply_gain(self.apf1_gain, r_out) + i32::from(ram.read_sample(mr_addr));
@@ -199,9 +205,11 @@ impl Reverb {
         let l_out = clamped_i16(l_out);
         let r_out = clamped_i16(r_out);
 
-        // The values written to memory are saturated to -8000h..+7FFFh.
-        ram.write_sample(m_lapf2, l_out);
-        ram.write_sample(m_rapf2, r_out);
+        if write_to_ram {
+            // The values written to memory are saturated to -8000h..+7FFFh.
+            ram.write_sample(m_lapf2, l_out);
+            ram.write_sample(m_rapf2, r_out);
+        }
 
         let l_out = apply_gain(self.apf2_gain, l_out) + i32::from(ram.read_sample(ml_addr));
         let r_out = apply_gain(self.apf2_gain, r_out) + i32::from(ram.read_sample(mr_addr));

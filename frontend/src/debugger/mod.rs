@@ -246,16 +246,19 @@ impl Debugger {
             return;
         };
         let spu = &snapshot.spu;
+
         let (cd_audio_text, cd_audio_color) = if spu.cd_audio_enabled {
             ("ON", Color32::GREEN)
         } else {
             ("OFF", Color32::RED)
         };
+
         let irq_state = if spu.irq_enabled {
             "Enabled"
         } else {
             "Disabled"
         };
+
         let irq_address = spu.irq_address_actual / 8;
         let status = spu.status;
         let capture_half_second = status & (1 << 11) != 0;
@@ -268,6 +271,7 @@ impl Debugger {
             } else {
                 ("OFF", Color32::RED)
             };
+
             let (muted_text, muted_color) = if spu.muted {
                 ("YES", Color32::RED)
             } else {
@@ -281,6 +285,7 @@ impl Debugger {
                     .strong()
                     .color(enabled_color),
             );
+
             ui.separator();
             ui.label("Muted:");
             ui.label(
@@ -441,6 +446,74 @@ impl Debugger {
                     });
                 });
             });
+
+        ui.separator();
+
+        ui.horizontal(|ui| {
+            ui.label("Master Reverb:");
+            ui.label(
+                RichText::new(if spu.master_reverb_enable {
+                    "ON"
+                } else {
+                    "OFF"
+                })
+                .monospace()
+                .strong()
+                .color(if spu.master_reverb_enable {
+                    Color32::GREEN
+                } else {
+                    Color32::RED
+                }),
+            );
+
+            ui.separator();
+
+            ui.label("CD Reverb:");
+            ui.label(
+                RichText::new(if spu.cd_reverb_enable { "ON" } else { "OFF" })
+                    .monospace()
+                    .strong()
+                    .color(if spu.cd_reverb_enable {
+                        Color32::GREEN
+                    } else {
+                        Color32::RED
+                    }),
+            );
+        });
+
+        ui.horizontal(|ui| {
+            ui.label("Reverb Base:");
+            ui.monospace(format!("0x{:08X}", spu.reverb_base));
+
+            ui.separator();
+
+            ui.label("Reverb Curr:");
+            ui.monospace(format!("0x{:08X}", spu.reverb_curr));
+        });
+
+        ui.add_space(6.0);
+
+        ui.label("Voice Reverb Status");
+
+        let active = Color32::WHITE;
+        let inactive = if ui.visuals().dark_mode {
+            Color32::from_gray(80)
+        } else {
+            Color32::from_gray(160)
+        };
+
+        ui.horizontal(|ui| {
+            for i in 0..24 {
+                let enabled = spu.voice_reverb[i];
+
+                ui.label(
+                    RichText::new(format!("{i:02}"))
+                        .monospace()
+                        .strong()
+                        .color(if enabled { active } else { inactive }),
+                );
+            }
+        });
     }
 
     fn gpu_state_view(&self, ui: &mut egui::Ui) {
