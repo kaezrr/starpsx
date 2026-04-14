@@ -128,10 +128,14 @@ pub fn show_top_menu(app: &mut Application, ctx: &egui::Context) {
             });
 
             ui.menu_button("Help", |ui| {
-                ui.hyperlink_to("Source Code", "https://github.com/kaezrr/starpsx");
+                ui.hyperlink_to("Source code", "https://github.com/kaezrr/starpsx");
                 ui.hyperlink_to(
-                    "Report an Issue",
-                    "https://github.com/kaezrr/starpsx/issues/new",
+                    "Report a bug",
+                    "https://github.com/kaezrr/starpsx/issues/new?template=bug_report.yml",
+                );
+                ui.hyperlink_to(
+                    "Suggest a new feature",
+                    "https://github.com/kaezrr/starpsx/issues/new?template=feature_request.yml",
                 );
 
                 ui.separator();
