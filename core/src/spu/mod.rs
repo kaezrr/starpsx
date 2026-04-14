@@ -192,8 +192,8 @@ impl Spu {
             spu.control.reverb_enabled(),
         );
 
-        mixed[0] += i32::from(cd_l) + i32::from(spu.reverb.l_out);
-        mixed[1] += i32::from(cd_r) + i32::from(spu.reverb.r_out);
+        mixed[0] += i32::from(cd_l) + spu.reverb.l_out;
+        mixed[1] += i32::from(cd_r) + spu.reverb.r_out;
 
         // Incrementing capture buffer pointer, should wrap in 0..0x3FF
         spu.capture_buffer_ptr = (spu.capture_buffer_ptr + 2) & 0x3FF;
@@ -491,17 +491,17 @@ pub fn write<const WIDTH: usize>(system: &mut System, addr: u32, val: u32) {
         0x1F80_1DC0 => spu.reverb.d_apf1 = usize::from(val) * 8,
         0x1F80_1DC2 => spu.reverb.d_apf2 = usize::from(val) * 8,
 
-        0x1F80_1DC4 => spu.reverb.v_iir = val.cast_signed(),
+        0x1F80_1DC4 => spu.reverb.v_iir = i32::from(val.cast_signed()),
 
-        0x1F80_1DC6 => spu.reverb.v_comb1 = val.cast_signed(),
-        0x1F80_1DC8 => spu.reverb.v_comb2 = val.cast_signed(),
-        0x1F80_1DCA => spu.reverb.v_comb3 = val.cast_signed(),
-        0x1F80_1DCC => spu.reverb.v_comb4 = val.cast_signed(),
+        0x1F80_1DC6 => spu.reverb.v_comb1 = i32::from(val.cast_signed()),
+        0x1F80_1DC8 => spu.reverb.v_comb2 = i32::from(val.cast_signed()),
+        0x1F80_1DCA => spu.reverb.v_comb3 = i32::from(val.cast_signed()),
+        0x1F80_1DCC => spu.reverb.v_comb4 = i32::from(val.cast_signed()),
 
-        0x1F80_1DCE => spu.reverb.v_wall = val.cast_signed(),
+        0x1F80_1DCE => spu.reverb.v_wall = i32::from(val.cast_signed()),
 
-        0x1F80_1DD0 => spu.reverb.v_apf1 = val.cast_signed(),
-        0x1F80_1DD2 => spu.reverb.v_apf2 = val.cast_signed(),
+        0x1F80_1DD0 => spu.reverb.v_apf1 = i32::from(val.cast_signed()),
+        0x1F80_1DD2 => spu.reverb.v_apf2 = i32::from(val.cast_signed()),
 
         0x1F80_1DD4 => spu.reverb.m_lsame = usize::from(val) * 8,
         0x1F80_1DD6 => spu.reverb.m_rsame = usize::from(val) * 8,
