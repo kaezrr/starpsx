@@ -1,4 +1,5 @@
 mod envelope;
+mod reverb;
 mod snapshot;
 mod voice;
 
@@ -10,9 +11,9 @@ pub use envelope::AdsrPhase;
 pub use snapshot::Snapshot;
 pub use snapshot::VoiceSnapshot;
 use tracing::debug;
-use tracing::warn;
 
 use crate::System;
+use crate::spu::reverb::Reverb;
 use crate::spu::voice::GAUSSIAN_TABLE;
 use crate::spu::voice::Voice;
 
@@ -60,6 +61,8 @@ pub struct Spu {
 
     noise_generator: NoiseGenerator,
     capture_buffer_ptr: usize,
+
+    reverb: Reverb,
 }
 
 impl Spu {
@@ -439,6 +442,9 @@ pub fn write<const WIDTH: usize>(system: &mut System, addr: u32, val: u32) {
         0x1F80_1D80 => spu.main_volume.set_l(val),
         0x1F80_1D82 => spu.main_volume.set_r(val),
 
+        0x1F80_1D84 => spu.reverb.vol_out.set_l(val),
+        0x1F80_1D86 => spu.reverb.vol_out.set_r(val),
+
         0x1F80_1D88 => spu.write_key_on::<0>(val),
         0x1F80_1D8A => spu.write_key_on::<1>(val),
 
@@ -454,6 +460,12 @@ pub fn write<const WIDTH: usize>(system: &mut System, addr: u32, val: u32) {
         0x1F80_1D98 => spu.write_reverb_enable::<0>(val),
         0x1F80_1D9A => spu.write_reverb_enable::<1>(val),
 
+        // Reverb stuff is stubbed out for now
+        0x1F80_1D9C | 0x1F80_1D9E => {} // ENDX Read only
+
+        0x1F80_1DA2 => spu.reverb.base_addr = usize::from(val) * 8,
+        0x1F80_1DA4 => spu.sound_ram.irq_address = usize::from(val) * 8,
+
         0x1F80_1DAA => spu.write_control(val),
 
         0x1F80_1DA6 => spu.write_transfer_address(val),
@@ -466,15 +478,50 @@ pub fn write<const WIDTH: usize>(system: &mut System, addr: u32, val: u32) {
         0x1F80_1DB4 => spu.ex_volume.set_l(val),
         0x1F80_1DB6 => spu.ex_volume.set_r(val),
 
-        // Reverb stuff is stubbed out for now
-        0x1F80_1D84 | 0x1F80_1D86 => warn!("writing reverb volume"),
-        0x1F80_1D9C | 0x1F80_1D9E => {} // ENDX Read only
+        0x1F80_1DC0 => spu.reverb.apf1_delay = usize::from(val) * 8,
+        0x1F80_1DC2 => spu.reverb.apf2_delay = usize::from(val) * 8,
 
-        0x1F80_1DA2 => warn!("writing reverb work area start address"),
+        0x1F80_1DC4 => spu.reverb.iir_reflection_gain = val.cast_signed(),
 
-        0x1F80_1DA4 => spu.sound_ram.irq_address = usize::from(val) * 8,
+        0x1F80_1DC6 => spu.reverb.comb1_gain = val.cast_signed(),
+        0x1F80_1DC8 => spu.reverb.comb2_gain = val.cast_signed(),
+        0x1F80_1DCA => spu.reverb.comb3_gain = val.cast_signed(),
+        0x1F80_1DCC => spu.reverb.comb4_gain = val.cast_signed(),
 
-        0x1F80_1DC0..=0x1F80_1DFE => warn!("writing reverb configuration"),
+        0x1F80_1DCE => spu.reverb.wall_reflection_gain = val.cast_signed(),
+
+        0x1F80_1DD0 => spu.reverb.apf1_gain = val.cast_signed(),
+        0x1F80_1DD2 => spu.reverb.apf2_gain = val.cast_signed(),
+
+        0x1F80_1DD4 => spu.reverb.same_reflection_addr1_l = usize::from(val) * 8,
+        0x1F80_1DD6 => spu.reverb.same_reflection_addr1_r = usize::from(val) * 8,
+
+        0x1F80_1DD8 => spu.reverb.comb1_addr_l = usize::from(val) * 8,
+        0x1F80_1DDA => spu.reverb.comb1_addr_r = usize::from(val) * 8,
+        0x1F80_1DDC => spu.reverb.comb2_addr_l = usize::from(val) * 8,
+        0x1F80_1DDE => spu.reverb.comb2_addr_r = usize::from(val) * 8,
+
+        0x1F80_1DE0 => spu.reverb.same_reflection_addr2_l = usize::from(val) * 8,
+        0x1F80_1DE2 => spu.reverb.same_reflection_addr2_r = usize::from(val) * 8,
+
+        0x1F80_1DE4 => spu.reverb.cross_reflection_addr1_l = usize::from(val) * 8,
+        0x1F80_1DE6 => spu.reverb.cross_reflection_addr1_r = usize::from(val) * 8,
+
+        0x1F80_1DE8 => spu.reverb.comb3_addr_l = usize::from(val) * 8,
+        0x1F80_1DEA => spu.reverb.comb3_addr_r = usize::from(val) * 8,
+        0x1F80_1DEC => spu.reverb.comb4_addr_l = usize::from(val) * 8,
+        0x1F80_1DEE => spu.reverb.comb4_addr_r = usize::from(val) * 8,
+
+        0x1F80_1DF0 => spu.reverb.cross_reflection_addr2_l = usize::from(val) * 8,
+        0x1F80_1DF2 => spu.reverb.cross_reflection_addr2_r = usize::from(val) * 8,
+
+        0x1F80_1DF4 => spu.reverb.apf1_addr_l = usize::from(val) * 8,
+        0x1F80_1DF6 => spu.reverb.apf1_addr_r = usize::from(val) * 8,
+        0x1F80_1DF8 => spu.reverb.apf2_addr_l = usize::from(val) * 8,
+        0x1F80_1DFA => spu.reverb.apf2_addr_r = usize::from(val) * 8,
+
+        0x1F80_1DFC => spu.reverb.vol_in.set_l(val),
+        0x1F80_1DFE => spu.reverb.vol_in.set_r(val),
 
         x => unimplemented!("spu write {x:8X} {val:x}"),
     }
