@@ -31,7 +31,7 @@ impl Spu {
             }),
 
             voice_reverb: std::array::from_fn(|i| self.voices[i].reverb_enabled),
-            reverb_base: self.reverb.base_addr,
+            reverb_base: self.reverb.m_base,
             reverb_curr: self.reverb.current_buffer_addr,
             master_reverb_enable: self.control.reverb_enabled(),
             cd_reverb_enable: self.control.cd_reverb_enabled(),

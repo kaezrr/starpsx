@@ -452,8 +452,8 @@ pub fn write<const WIDTH: usize>(system: &mut System, addr: u32, val: u32) {
         0x1F80_1D80 => spu.main_volume.set_l(val),
         0x1F80_1D82 => spu.main_volume.set_r(val),
 
-        0x1F80_1D84 => spu.reverb.vol_out.set_l(val),
-        0x1F80_1D86 => spu.reverb.vol_out.set_r(val),
+        0x1F80_1D84 => spu.reverb.v_out.set_l(val),
+        0x1F80_1D86 => spu.reverb.v_out.set_r(val),
 
         0x1F80_1D88 => spu.write_key_on::<0>(val),
         0x1F80_1D8A => spu.write_key_on::<1>(val),
@@ -488,50 +488,50 @@ pub fn write<const WIDTH: usize>(system: &mut System, addr: u32, val: u32) {
         0x1F80_1DB4 => spu.ex_volume.set_l(val),
         0x1F80_1DB6 => spu.ex_volume.set_r(val),
 
-        0x1F80_1DC0 => spu.reverb.apf1_offset = usize::from(val) * 8,
-        0x1F80_1DC2 => spu.reverb.apf2_offset = usize::from(val) * 8,
+        0x1F80_1DC0 => spu.reverb.d_apf1 = usize::from(val) * 8,
+        0x1F80_1DC2 => spu.reverb.d_apf2 = usize::from(val) * 8,
 
-        0x1F80_1DC4 => spu.reverb.iir_reflection_gain = val.cast_signed(),
+        0x1F80_1DC4 => spu.reverb.v_iir = val.cast_signed(),
 
-        0x1F80_1DC6 => spu.reverb.comb1_gain = val.cast_signed(),
-        0x1F80_1DC8 => spu.reverb.comb2_gain = val.cast_signed(),
-        0x1F80_1DCA => spu.reverb.comb3_gain = val.cast_signed(),
-        0x1F80_1DCC => spu.reverb.comb4_gain = val.cast_signed(),
+        0x1F80_1DC6 => spu.reverb.v_comb1 = val.cast_signed(),
+        0x1F80_1DC8 => spu.reverb.v_comb2 = val.cast_signed(),
+        0x1F80_1DCA => spu.reverb.v_comb3 = val.cast_signed(),
+        0x1F80_1DCC => spu.reverb.v_comb4 = val.cast_signed(),
 
-        0x1F80_1DCE => spu.reverb.wall_reflection_gain = val.cast_signed(),
+        0x1F80_1DCE => spu.reverb.v_wall = val.cast_signed(),
 
-        0x1F80_1DD0 => spu.reverb.apf1_gain = val.cast_signed(),
-        0x1F80_1DD2 => spu.reverb.apf2_gain = val.cast_signed(),
+        0x1F80_1DD0 => spu.reverb.v_apf1 = val.cast_signed(),
+        0x1F80_1DD2 => spu.reverb.v_apf2 = val.cast_signed(),
 
-        0x1F80_1DD4 => spu.reverb.same_reflection_addr1_l = usize::from(val) * 8,
-        0x1F80_1DD6 => spu.reverb.same_reflection_addr1_r = usize::from(val) * 8,
+        0x1F80_1DD4 => spu.reverb.m_lsame = usize::from(val) * 8,
+        0x1F80_1DD6 => spu.reverb.m_rsame = usize::from(val) * 8,
 
-        0x1F80_1DD8 => spu.reverb.comb1_addr_l = usize::from(val) * 8,
-        0x1F80_1DDA => spu.reverb.comb1_addr_r = usize::from(val) * 8,
-        0x1F80_1DDC => spu.reverb.comb2_addr_l = usize::from(val) * 8,
-        0x1F80_1DDE => spu.reverb.comb2_addr_r = usize::from(val) * 8,
+        0x1F80_1DD8 => spu.reverb.m_lcomb1 = usize::from(val) * 8,
+        0x1F80_1DDA => spu.reverb.m_rcomb1 = usize::from(val) * 8,
+        0x1F80_1DDC => spu.reverb.m_lcomb2 = usize::from(val) * 8,
+        0x1F80_1DDE => spu.reverb.m_rcomb2 = usize::from(val) * 8,
 
-        0x1F80_1DE0 => spu.reverb.same_reflection_addr2_l = usize::from(val) * 8,
-        0x1F80_1DE2 => spu.reverb.same_reflection_addr2_r = usize::from(val) * 8,
+        0x1F80_1DE0 => spu.reverb.d_lsame = usize::from(val) * 8,
+        0x1F80_1DE2 => spu.reverb.d_rsame = usize::from(val) * 8,
 
-        0x1F80_1DE4 => spu.reverb.diff_reflection_addr1_l = usize::from(val) * 8,
-        0x1F80_1DE6 => spu.reverb.diff_reflection_addr1_r = usize::from(val) * 8,
+        0x1F80_1DE4 => spu.reverb.m_ldiff = usize::from(val) * 8,
+        0x1F80_1DE6 => spu.reverb.m_rdiff = usize::from(val) * 8,
 
-        0x1F80_1DE8 => spu.reverb.comb3_addr_l = usize::from(val) * 8,
-        0x1F80_1DEA => spu.reverb.comb3_addr_r = usize::from(val) * 8,
-        0x1F80_1DEC => spu.reverb.comb4_addr_l = usize::from(val) * 8,
-        0x1F80_1DEE => spu.reverb.comb4_addr_r = usize::from(val) * 8,
+        0x1F80_1DE8 => spu.reverb.m_lcomb3 = usize::from(val) * 8,
+        0x1F80_1DEA => spu.reverb.m_rcomb3 = usize::from(val) * 8,
+        0x1F80_1DEC => spu.reverb.m_lcomb4 = usize::from(val) * 8,
+        0x1F80_1DEE => spu.reverb.m_rcomb4 = usize::from(val) * 8,
 
-        0x1F80_1DF0 => spu.reverb.diff_reflection_addr2_l = usize::from(val) * 8,
-        0x1F80_1DF2 => spu.reverb.diff_reflection_addr2_r = usize::from(val) * 8,
+        0x1F80_1DF0 => spu.reverb.d_ldiff = usize::from(val) * 8,
+        0x1F80_1DF2 => spu.reverb.d_rdiff = usize::from(val) * 8,
 
-        0x1F80_1DF4 => spu.reverb.apf1_addr_l = usize::from(val) * 8,
-        0x1F80_1DF6 => spu.reverb.apf1_addr_r = usize::from(val) * 8,
-        0x1F80_1DF8 => spu.reverb.apf2_addr_l = usize::from(val) * 8,
-        0x1F80_1DFA => spu.reverb.apf2_addr_r = usize::from(val) * 8,
+        0x1F80_1DF4 => spu.reverb.m_lapf1 = usize::from(val) * 8,
+        0x1F80_1DF6 => spu.reverb.m_rapf1 = usize::from(val) * 8,
+        0x1F80_1DF8 => spu.reverb.m_lapf2 = usize::from(val) * 8,
+        0x1F80_1DFA => spu.reverb.m_rapf2 = usize::from(val) * 8,
 
-        0x1F80_1DFC => spu.reverb.vol_in.set_l(val),
-        0x1F80_1DFE => spu.reverb.vol_in.set_r(val),
+        0x1F80_1DFC => spu.reverb.v_in.set_l(val),
+        0x1F80_1DFE => spu.reverb.v_in.set_r(val),
 
         x => unimplemented!("spu write {x:8X} {val:x}"),
     }
@@ -666,19 +666,6 @@ impl IndexMut<usize> for SoundRam {
         }
 
         &mut self.ram[index]
-    }
-}
-
-impl SoundRam {
-    fn read_sample(&self, pos: usize) -> i16 {
-        let bytes = [self[pos], self[pos + 1]];
-        i16::from_le_bytes(bytes)
-    }
-
-    fn write_sample(&mut self, pos: usize, val: i16) {
-        let bytes = val.to_le_bytes();
-        self[pos] = bytes[0];
-        self[pos + 1] = bytes[1];
     }
 }
 
