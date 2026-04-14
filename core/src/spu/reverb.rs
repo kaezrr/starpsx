@@ -78,8 +78,8 @@ impl Reverb {
         // Lin = vLIN * LeftInput    ;from any channels that have Reverb enabled
         // Rin = vRIN * RightInput   ;from any channels that have Reverb enabled
 
-        let l_in = mixed[0].saturating_mul(i32::from(self.v_out.l)) >> 15;
-        let r_in = mixed[1].saturating_mul(i32::from(self.v_out.l)) >> 15;
+        let l_in = mixed[0].saturating_mul(i32::from(self.v_in.l)) >> 15;
+        let r_in = mixed[1].saturating_mul(i32::from(self.v_in.r)) >> 15;
 
         // ____Same Side Reflection (left-to-left and right-to-right)___________________
         // [mLSAME] = (Lin + [dLSAME]*vWALL - [mLSAME-2])*vIIR + [mLSAME-2]  ;L-to-L
@@ -113,14 +113,14 @@ impl Reverb {
         ) + self.read_sample(ram, self.m_ldiff.saturating_sub(2));
 
         let ltor = mul_16(
-            r_in + mul_16(self.read_sample(ram, self.d_rdiff), self.v_wall)
-                - self.read_sample(ram, self.m_ldiff.saturating_sub(2)),
+            r_in + mul_16(self.read_sample(ram, self.d_ldiff), self.v_wall)
+                - self.read_sample(ram, self.m_rdiff.saturating_sub(2)),
             self.v_iir,
-        ) + self.read_sample(ram, self.m_ldiff.saturating_sub(2));
+        ) + self.read_sample(ram, self.m_rdiff.saturating_sub(2));
 
         if write_to_ram {
-            self.write_sample(ram, self.m_lsame, rtol);
-            self.write_sample(ram, self.m_rsame, ltor);
+            self.write_sample(ram, self.m_ldiff, rtol);
+            self.write_sample(ram, self.m_rdiff, ltor);
         }
 
         // ___Early Echo (Comb Filter, with input from buffer)__________________________
@@ -153,7 +153,7 @@ impl Reverb {
 
         if write_to_ram {
             self.write_sample(ram, self.m_lapf1, l_out);
-            self.write_sample(ram, self.m_lapf1, r_out);
+            self.write_sample(ram, self.m_rapf1, r_out);
         }
 
         l_out = mul_16(l_out, self.v_apf1) + self.read_sample(ram, self.m_lapf1 - self.d_apf1);
@@ -164,18 +164,18 @@ impl Reverb {
         // Rout=Rout-vAPF2*[mRAPF2-dAPF2], [mRAPF2]=Rout, Rout=Rout*vAPF2+[mRAPF2-dAPF2]
 
         l_out -= mul_16(
-            self.v_apf1,
+            self.v_apf2,
             self.read_sample(ram, self.m_lapf2 - self.d_apf2),
         );
 
         r_out -= mul_16(
-            self.v_apf1,
+            self.v_apf2,
             self.read_sample(ram, self.m_rapf2 - self.d_apf2),
         );
 
         if write_to_ram {
             self.write_sample(ram, self.m_lapf2, l_out);
-            self.write_sample(ram, self.m_lapf2, r_out);
+            self.write_sample(ram, self.m_rapf2, r_out);
         }
 
         l_out = mul_16(l_out, self.v_apf2) + self.read_sample(ram, self.m_lapf2 - self.d_apf2);
