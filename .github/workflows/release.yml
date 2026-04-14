@@ -64,6 +64,8 @@ jobs:
       # ---------- Linux ----------
       - name: Build AppImage
         if: runner.os == 'Linux'
+        env:
+          BUILD_TARGET: ${{ matrix.target }}
         run: |
           wget -q -O appimagetool https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
           chmod +x appimagetool
@@ -77,6 +79,8 @@ jobs:
       # ---------- macOS ----------
       - name: Build macOS bundle
         if: runner.os == 'macOS'
+        env:
+          BUILD_TARGET: ${{ matrix.target }}
         run: |
           bash scripts/build_macapp.sh
 
