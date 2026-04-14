@@ -3,6 +3,7 @@ use crate::consts::POS_ADPCM_TABLE;
 use crate::spu::SoundRam;
 use crate::spu::Sweep;
 use crate::spu::Volume;
+use crate::spu::clamped_i16;
 use crate::spu::envelope::AdsrEnvelope;
 use crate::spu::write_half;
 
@@ -124,8 +125,7 @@ impl Voice {
             let older = i32::from(self.adpcm_older_sample);
 
             let t = super::signed4bit((sound_ram[addr + 2 + i / 2] >> (4 * (i & 1))) & 0xF);
-            let s = (t << shift) + (old * f0 + older * f1 + 32) / 64;
-            let s = s.clamp(-0x8000, 0x7FFF) as i16;
+            let s = clamped_i16((t << shift) + (old * f0 + older * f1 + 32) / 64);
 
             self.adpcm_older_sample = self.adpcm_old_sample;
             self.adpcm_old_sample = s;

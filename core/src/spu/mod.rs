@@ -133,19 +133,17 @@ impl Spu {
             return [cd_l, cd_r];
         }
 
-        let clamped_sample_l = mixed_l.clamp(-0x8000, 0x7FFF) as i16;
-        let clamped_sample_r = mixed_r.clamp(-0x8000, 0x7FFF) as i16;
-
-        let output_l = apply_volume(clamped_sample_l, spu.main_volume.l.0);
-        let output_r = apply_volume(clamped_sample_r, spu.main_volume.r.0);
+        let output_l = apply_volume(clamped_i16(mixed_l), spu.main_volume.l.0);
+        let output_r = apply_volume(clamped_i16(mixed_r), spu.main_volume.r.0);
 
         [output_l, output_r]
     }
 
-    /// Tick all voices and get a mixed left and right sample
+    /// Tick all voices and get a mixed left and right sample combined with reverb
     fn tick_all_voices(&mut self) -> [i32; 2] {
         let noise_sample = self.noise_generator.lfsr.cast_signed();
         let mut mixed = [0i32; 2];
+        let mut mixed_reverb = [0i32, 2];
         let mut prev: i16 = 0;
 
         for i in 0..24 {
@@ -193,6 +191,11 @@ impl Spu {
             mixed[0] += i32::from(apply_volume(envelope_sample, voice.volume.l.0));
             mixed[1] += i32::from(apply_volume(envelope_sample, voice.volume.r.0));
 
+            if voice.reverb_enabled {
+                mixed_reverb[0] += i32::from(apply_volume(envelope_sample, voice.volume.l.0));
+                mixed_reverb[1] += i32::from(apply_volume(envelope_sample, voice.volume.r.0));
+            }
+
             prev = voice.samples_history[3];
 
             // Volume 1 and 3 samples are written to capture buffers
@@ -203,7 +206,9 @@ impl Spu {
             }
         }
 
-        mixed
+        // Tick reverb and add it to output
+        self.reverb.tick(mixed_reverb, &mut self.sound_ram);
+        [mixed[0] + self.reverb.l_out, mixed[1] + self.reverb.r_out]
     }
 
     fn write_control(&mut self, value: u16) {
@@ -463,7 +468,7 @@ pub fn write<const WIDTH: usize>(system: &mut System, addr: u32, val: u32) {
         // Reverb stuff is stubbed out for now
         0x1F80_1D9C | 0x1F80_1D9E => {} // ENDX Read only
 
-        0x1F80_1DA2 => spu.reverb.base_addr = usize::from(val) * 8,
+        0x1F80_1DA2 => spu.reverb.set_base_addr(val),
         0x1F80_1DA4 => spu.sound_ram.irq_address = usize::from(val) * 8,
 
         0x1F80_1DAA => spu.write_control(val),
@@ -478,8 +483,8 @@ pub fn write<const WIDTH: usize>(system: &mut System, addr: u32, val: u32) {
         0x1F80_1DB4 => spu.ex_volume.set_l(val),
         0x1F80_1DB6 => spu.ex_volume.set_r(val),
 
-        0x1F80_1DC0 => spu.reverb.apf1_delay = usize::from(val) * 8,
-        0x1F80_1DC2 => spu.reverb.apf2_delay = usize::from(val) * 8,
+        0x1F80_1DC0 => spu.reverb.apf1_offset = usize::from(val) * 8,
+        0x1F80_1DC2 => spu.reverb.apf2_offset = usize::from(val) * 8,
 
         0x1F80_1DC4 => spu.reverb.iir_reflection_gain = val.cast_signed(),
 
@@ -504,16 +509,16 @@ pub fn write<const WIDTH: usize>(system: &mut System, addr: u32, val: u32) {
         0x1F80_1DE0 => spu.reverb.same_reflection_addr2_l = usize::from(val) * 8,
         0x1F80_1DE2 => spu.reverb.same_reflection_addr2_r = usize::from(val) * 8,
 
-        0x1F80_1DE4 => spu.reverb.cross_reflection_addr1_l = usize::from(val) * 8,
-        0x1F80_1DE6 => spu.reverb.cross_reflection_addr1_r = usize::from(val) * 8,
+        0x1F80_1DE4 => spu.reverb.diff_reflection_addr1_l = usize::from(val) * 8,
+        0x1F80_1DE6 => spu.reverb.diff_reflection_addr1_r = usize::from(val) * 8,
 
         0x1F80_1DE8 => spu.reverb.comb3_addr_l = usize::from(val) * 8,
         0x1F80_1DEA => spu.reverb.comb3_addr_r = usize::from(val) * 8,
         0x1F80_1DEC => spu.reverb.comb4_addr_l = usize::from(val) * 8,
         0x1F80_1DEE => spu.reverb.comb4_addr_r = usize::from(val) * 8,
 
-        0x1F80_1DF0 => spu.reverb.cross_reflection_addr2_l = usize::from(val) * 8,
-        0x1F80_1DF2 => spu.reverb.cross_reflection_addr2_r = usize::from(val) * 8,
+        0x1F80_1DF0 => spu.reverb.diff_reflection_addr2_l = usize::from(val) * 8,
+        0x1F80_1DF2 => spu.reverb.diff_reflection_addr2_r = usize::from(val) * 8,
 
         0x1F80_1DF4 => spu.reverb.apf1_addr_l = usize::from(val) * 8,
         0x1F80_1DF6 => spu.reverb.apf1_addr_r = usize::from(val) * 8,
@@ -657,4 +662,21 @@ impl IndexMut<usize> for SoundRam {
 
         &mut self.ram[index]
     }
+}
+
+impl SoundRam {
+    fn read_sample(&self, pos: usize) -> i16 {
+        let bytes = [self[pos], self[pos + 1]];
+        i16::from_le_bytes(bytes)
+    }
+
+    fn write_sample(&mut self, pos: usize, val: i16) {
+        let bytes = val.to_le_bytes();
+        self[pos] = bytes[0];
+        self[pos + 1] = bytes[1];
+    }
+}
+
+fn clamped_i16(a: i32) -> i16 {
+    a.clamp(-0x8000, 0x7FFF) as i16
 }
