@@ -1,6 +1,8 @@
 name: Bug Report
 description: Report a bug or unexpected behavior
 labels: ["bug"]
+assignees:
+  - kaezrr
 body:
   - type: textarea
     id: description
