@@ -57,8 +57,8 @@ pub struct Reverb {
     half_tick: bool,
     current_buffer_addr: usize,
 
-    pub l_out: i32,
-    pub r_out: i32,
+    pub l_out: i16,
+    pub r_out: i16,
 }
 
 impl Reverb {
@@ -86,14 +86,14 @@ impl Reverb {
         // [mLSAME] = (Lin + [dLSAME]*vWALL - [mLSAME-2])*vIIR + [mLSAME-2]  ;L-to-L
         // [mRSAME] = (Rin + [dRSAME]*vWALL - [mRSAME-2])*vIIR + [mRSAME-2]  ;R-to-R
 
-        let m_lsame = self.true_addr(self.same_reflection_addr1_l);
-        let m_rsame = self.true_addr(self.same_reflection_addr1_r);
+        let m_lsame = self.wrapped_offset_sub(self.same_reflection_addr1_l, 0);
+        let m_rsame = self.wrapped_offset_sub(self.same_reflection_addr1_r, 0);
 
-        let m_lsame_sub_2 = self.true_addr(self.same_reflection_addr1_l - 2);
-        let m_rsame_sub_2 = self.true_addr(self.same_reflection_addr1_r - 2);
+        let m_lsame_sub_2 = self.wrapped_offset_sub(self.same_reflection_addr1_l, 2);
+        let m_rsame_sub_2 = self.wrapped_offset_sub(self.same_reflection_addr1_r, 2);
 
-        let d_lsame = self.true_addr(self.same_reflection_addr2_l);
-        let d_rsame = self.true_addr(self.same_reflection_addr2_r);
+        let d_lsame = self.wrapped_offset_sub(self.same_reflection_addr2_l, 0);
+        let d_rsame = self.wrapped_offset_sub(self.same_reflection_addr2_r, 0);
 
         let dl_sample = i32::from(ram.read_sample(d_lsame));
         let dr_sample = i32::from(ram.read_sample(d_rsame));
@@ -114,14 +114,14 @@ impl Reverb {
         // [mLDIFF] = (Lin + [dRDIFF]*vWALL - [mLDIFF-2])*vIIR + [mLDIFF-2]  ;R-to-L
         // [mRDIFF] = (Rin + [dLDIFF]*vWALL - [mRDIFF-2])*vIIR + [mRDIFF-2]  ;L-to-R
 
-        let m_ldiff = self.true_addr(self.diff_reflection_addr1_l);
-        let m_rdiff = self.true_addr(self.diff_reflection_addr1_r);
+        let m_ldiff = self.wrapped_offset_sub(self.diff_reflection_addr1_l, 0);
+        let m_rdiff = self.wrapped_offset_sub(self.diff_reflection_addr1_r, 0);
 
-        let m_ldiff_sub_2 = self.true_addr(self.diff_reflection_addr1_l - 2);
-        let m_rdiff_sub_2 = self.true_addr(self.diff_reflection_addr1_r - 2);
+        let m_ldiff_sub_2 = self.wrapped_offset_sub(self.diff_reflection_addr1_l, 2);
+        let m_rdiff_sub_2 = self.wrapped_offset_sub(self.diff_reflection_addr1_r, 2);
 
-        let d_ldiff = self.true_addr(self.diff_reflection_addr2_l);
-        let d_rdiff = self.true_addr(self.diff_reflection_addr2_r);
+        let d_ldiff = self.wrapped_offset_sub(self.diff_reflection_addr2_l, 0);
+        let d_rdiff = self.wrapped_offset_sub(self.diff_reflection_addr2_r, 0);
 
         let dl_sample = i32::from(ram.read_sample(d_ldiff));
         let dr_sample = i32::from(ram.read_sample(d_rdiff));
@@ -142,15 +142,15 @@ impl Reverb {
         // Lout=vCOMB1*[mLCOMB1]+vCOMB2*[mLCOMB2]+vCOMB3*[mLCOMB3]+vCOMB4*[mLCOMB4]
         // Rout=vCOMB1*[mRCOMB1]+vCOMB2*[mRCOMB2]+vCOMB3*[mRCOMB3]+vCOMB4*[mRCOMB4]
 
-        let ml_comb1 = ram.read_sample(self.true_addr(self.comb1_addr_l));
-        let ml_comb2 = ram.read_sample(self.true_addr(self.comb2_addr_l));
-        let ml_comb3 = ram.read_sample(self.true_addr(self.comb3_addr_l));
-        let ml_comb4 = ram.read_sample(self.true_addr(self.comb4_addr_l));
+        let ml_comb1 = ram.read_sample(self.wrapped_offset_sub(self.comb1_addr_l, 0));
+        let ml_comb2 = ram.read_sample(self.wrapped_offset_sub(self.comb2_addr_l, 0));
+        let ml_comb3 = ram.read_sample(self.wrapped_offset_sub(self.comb3_addr_l, 0));
+        let ml_comb4 = ram.read_sample(self.wrapped_offset_sub(self.comb4_addr_l, 0));
 
-        let mr_comb1 = ram.read_sample(self.true_addr(self.comb1_addr_r));
-        let mr_comb2 = ram.read_sample(self.true_addr(self.comb2_addr_r));
-        let mr_comb3 = ram.read_sample(self.true_addr(self.comb3_addr_r));
-        let mr_comb4 = ram.read_sample(self.true_addr(self.comb4_addr_r));
+        let mr_comb1 = ram.read_sample(self.wrapped_offset_sub(self.comb1_addr_r, 0));
+        let mr_comb2 = ram.read_sample(self.wrapped_offset_sub(self.comb2_addr_r, 0));
+        let mr_comb3 = ram.read_sample(self.wrapped_offset_sub(self.comb3_addr_r, 0));
+        let mr_comb4 = ram.read_sample(self.wrapped_offset_sub(self.comb4_addr_r, 0));
 
         let mut l_out = apply_gain(self.comb1_gain, ml_comb1)
             + apply_gain(self.comb2_gain, ml_comb2)
@@ -166,59 +166,71 @@ impl Reverb {
         // Lout=Lout-vAPF1*[mLAPF1-dAPF1], [mLAPF1]=Lout, Lout=Lout*vAPF1+[mLAPF1-dAPF1]
         // Rout=Rout-vAPF1*[mRAPF1-dAPF1], [mRAPF1]=Rout, Rout=Rout*vAPF1+[mRAPF1-dAPF1]
 
-        let m_lapf1 = self.true_addr(self.apf1_addr_l);
-        let m_rapf1 = self.true_addr(self.apf1_addr_r);
-        let ml_addr = self.true_addr(self.apf1_addr_l - self.apf1_offset);
-        let mr_addr = self.true_addr(self.apf1_addr_r - self.apf1_offset);
+        let m_lapf1 = self.wrapped_offset_sub(self.apf1_addr_l, 0);
+        let m_rapf1 = self.wrapped_offset_sub(self.apf1_addr_r, 0);
+        let ml_addr = self.wrapped_offset_sub(self.apf1_addr_l, self.apf1_offset);
+        let mr_addr = self.wrapped_offset_sub(self.apf1_addr_r, self.apf1_offset);
 
         l_out -= apply_gain(self.apf1_gain, ram.read_sample(ml_addr));
         r_out -= apply_gain(self.apf1_gain, ram.read_sample(mr_addr));
 
-        // The values written to memory are saturated to -8000h..+7FFFh.
-        ram.write_sample(m_lapf1, clamped_i16(l_out));
-        ram.write_sample(m_rapf1, clamped_i16(r_out));
+        let l_out = clamped_i16(l_out);
+        let r_out = clamped_i16(r_out);
 
-        l_out = ((i32::from(self.apf1_gain) * l_out) >> 15) + i32::from(ram.read_sample(ml_addr));
-        r_out = ((i32::from(self.apf1_gain) * r_out) >> 15) + i32::from(ram.read_sample(mr_addr));
+        // The values written to memory are saturated to -8000h..+7FFFh.
+        ram.write_sample(m_lapf1, l_out);
+        ram.write_sample(m_rapf1, r_out);
+
+        let mut l_out = apply_gain(self.apf1_gain, l_out) + i32::from(ram.read_sample(ml_addr));
+        let mut r_out = apply_gain(self.apf1_gain, r_out) + i32::from(ram.read_sample(mr_addr));
 
         //   ___Late Reverb APF2 (All Pass Filter 2, with input from APF1)________________
         // Lout=Lout-vAPF2*[mLAPF2-dAPF2], [mLAPF2]=Lout, Lout=Lout*vAPF2+[mLAPF2-dAPF2]
         // Rout=Rout-vAPF2*[mRAPF2-dAPF2], [mRAPF2]=Rout, Rout=Rout*vAPF2+[mRAPF2-dAPF2]
 
-        let m_lapf2 = self.true_addr(self.apf2_addr_l);
-        let m_rapf2 = self.true_addr(self.apf2_addr_r);
-        let ml_addr = self.true_addr(self.apf2_addr_l - self.apf2_offset);
-        let mr_addr = self.true_addr(self.apf2_addr_r - self.apf2_offset);
+        let m_lapf2 = self.wrapped_offset_sub(self.apf2_addr_l, 0);
+        let m_rapf2 = self.wrapped_offset_sub(self.apf2_addr_r, 0);
+        let ml_addr = self.wrapped_offset_sub(self.apf2_addr_l, self.apf2_offset);
+        let mr_addr = self.wrapped_offset_sub(self.apf2_addr_r, self.apf2_offset);
 
         l_out -= apply_gain(self.apf2_gain, ram.read_sample(ml_addr));
         r_out -= apply_gain(self.apf2_gain, ram.read_sample(mr_addr));
 
-        // The values written to memory are saturated to -8000h..+7FFFh.
-        ram.write_sample(m_lapf2, clamped_i16(l_out));
-        ram.write_sample(m_rapf2, clamped_i16(r_out));
+        let l_out = clamped_i16(l_out);
+        let r_out = clamped_i16(r_out);
 
-        l_out = ((i32::from(self.apf2_gain) * l_out) >> 15) + i32::from(ram.read_sample(ml_addr));
-        r_out = ((i32::from(self.apf2_gain) * r_out) >> 15) + i32::from(ram.read_sample(mr_addr));
+        // The values written to memory are saturated to -8000h..+7FFFh.
+        ram.write_sample(m_lapf2, l_out);
+        ram.write_sample(m_rapf2, r_out);
+
+        let l_out = apply_gain(self.apf2_gain, l_out) + i32::from(ram.read_sample(ml_addr));
+        let r_out = apply_gain(self.apf2_gain, r_out) + i32::from(ram.read_sample(mr_addr));
+
+        let l_out = clamped_i16(l_out);
+        let r_out = clamped_i16(r_out);
 
         // ___Output to Mixer (Output volume multiplied with input from APF2)___________
         // LeftOutput  = Lout*vLOUT
         // RightOutput = Rout*vROUT
 
-        self.l_out = (l_out * i32::from(self.vol_out.l)) >> 15;
-        self.r_out = (r_out * i32::from(self.vol_out.r)) >> 15;
+        self.l_out = apply_volume(l_out, self.vol_out.l);
+        self.r_out = apply_volume(r_out, self.vol_out.r);
 
         // BufferAddress = MAX(mBASE, (BufferAddress+2) AND 7FFFEh)
         self.current_buffer_addr = ((self.current_buffer_addr + 2) & 0x7FFFE).max(self.base_addr);
     }
 
     /// All memory addresses are relative to `current_buffer_addr`,
-    /// and wrapped within `base_addr`..7FFFEh when exceeding that region.
-    const fn true_addr(&self, pos: usize) -> usize {
+    /// and wrapped within `base_addr`..=0x7FFFE when exceeding that region.
+    const fn wrapped_offset_sub(&self, pos: usize, sub: usize) -> usize {
         let base = self.base_addr;
         let curr = self.current_buffer_addr;
-        let offset = (curr - base + pos) % (0x7FFFE - base + 1);
+        let range = 0x7FFFE - base + 1;
 
-        self.base_addr + offset
+        let rel = (curr + range - base) % range;
+        let offset = (rel + pos + range - (sub % range)) % range;
+
+        base + offset
     }
 }
 

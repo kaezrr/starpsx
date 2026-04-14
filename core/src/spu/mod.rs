@@ -188,8 +188,8 @@ impl Spu {
         // Tick reverb and add it to output
         spu.reverb.tick(mixed_reverb, &mut spu.sound_ram);
 
-        mixed[0] += i32::from(cd_l);
-        mixed[1] += i32::from(cd_r);
+        mixed[0] += i32::from(cd_l) + i32::from(spu.reverb.l_out);
+        mixed[1] += i32::from(cd_r) + i32::from(spu.reverb.r_out);
 
         // Incrementing capture buffer pointer, should wrap in 0..0x3FF
         spu.capture_buffer_ptr = (spu.capture_buffer_ptr + 2) & 0x3FF;
