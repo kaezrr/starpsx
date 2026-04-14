@@ -105,7 +105,7 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: starpsx-${{ matrix.arch }}-${{ steps.version.outputs.value }}
+          name: starpsx-${{ steps.version.outputs.value }}-${{ matrix.target }}
           path: |
             *.AppImage
             *.zip
