@@ -5,6 +5,7 @@ StarPSX is a fast, cross-platform PlayStation 1 emulator written entirely in Rus
 I primarily develop on Linux, so other platform support may be rough at times; feel free to open an issue.
 
 ## Showcase
+
 <p align="center">
   <img src="/showcase/crash2.png" width="48%" />
   <img src="/showcase/deadoralive.png" width="48%" /><br/>
@@ -33,7 +34,7 @@ cargo build --release
 On Linux, ensure the following development packages are installed:
 
 ```sh
-sudo apt install libudev-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev libssl-dev libasound2-dev
+sudo apt install libudev-dev libasound2-dev
 ```
 
 ## Running
@@ -89,6 +90,7 @@ Options:
 | SPU         |   🟡   | No reverb or sweep implementation                    |
 
 ## Acknowledgements
+
 - [psx-spx](https://psx-spx.consoledev.net/) for PlayStation documentation
 - [jsgroth's PSX emulator blog posts](https://jsgroth.dev/blog/posts/)
 - [Duckstation](https://github.com/stenzek/duckstation) for behavior comparison

@@ -1,8 +1,7 @@
 name: Build & Release
-
 on:
   push:
-    branches: ["main"]
+    branches: ["main", "ci-test"]
     tags: ["v*"]
   pull_request:
   workflow_dispatch:
@@ -22,12 +21,15 @@ jobs:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             archive: starpsx-linux-x86_64
+            binary: starpsx
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             archive: starpsx-windows-x86_64
+            binary: starpsx.exe
           - os: macos-latest
             target: aarch64-apple-darwin
             archive: starpsx-macos-arm64
+            binary: starpsx
 
     runs-on: ${{ matrix.os }}
 
@@ -37,60 +39,110 @@ jobs:
 
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
-        run: sudo apt-get update -y && sudo apt-get install -y libudev-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev libssl-dev libasound2-dev
+        run: sudo apt-get update -y && sudo apt-get install -y libudev-dev libasound2-dev libfuse2
 
       - name: Set Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
 
       - name: Verify Rust version
         run: rustc --version
 
       - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
 
       - name: Build binary
-        run: cargo build --release
+        run: cargo build --release --locked --target ${{ matrix.target }}
 
-      # Prepare folder for packaging
-      - name: Prepare package folder (Unix)
-        if: runner.os != 'Windows'
+      - name: Resolve version string
+        id: version
+        shell: bash
         run: |
-          mkdir ${{ matrix.archive }}
-          cp target/release/starpsx ${{ matrix.archive }}/
-          cp LICENSE ${{ matrix.archive }}/
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            VERSION="${{ github.ref_name }}"
+            VERSION="${VERSION#v}"
+            echo "value=$VERSION" >> $GITHUB_OUTPUT
+          else
+            echo "value=dev" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Download appimagetool
+        if: runner.os == 'Linux'
+        run: |
+          wget -q -O appimagetool "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage"
+          chmod +x appimagetool
+          sudo mv appimagetool /usr/local/bin/appimagetool
+
+      - name: Build AppImage
+        if: runner.os == 'Linux'
+        env:
+          BUILD_TARGET: ${{ matrix.target }}
+        run: bash scripts/build_appimage.sh
+
+      - name: Rename AppImage with version
+        if: runner.os == 'Linux'
+        run: mv StarPSX-x86_64.AppImage StarPSX-${{ steps.version.outputs.value }}.AppImage
+
+      - name: Build macOS app bundle
+        if: runner.os == 'macOS'
+        env:
+          BUILD_TARGET: ${{ matrix.target }}
+          VERSION: ${{ steps.version.outputs.value }}
+        run: bash scripts/build_macapp.sh
+
+      - name: Ad-hoc sign macOS app
+        if: runner.os == 'macOS'
+        run: codesign --deep --force --sign - StarPSX.app
 
       - name: Prepare package folder (Windows)
         if: runner.os == 'Windows'
         run: |
           New-Item -ItemType Directory -Path $env:ARCHIVE
-          Copy-Item target/release/starpsx.exe $env:ARCHIVE/
+          Copy-Item target/$env:TARGET/release/$env:BINARY $env:ARCHIVE/
           Copy-Item LICENSE $env:ARCHIVE/
         env:
           ARCHIVE: ${{ matrix.archive }}
+          TARGET: ${{ matrix.target }}
+          BINARY: ${{ matrix.binary }}
 
-      # Zip the folder
-      - name: Zip package (Unix)
-        if: runner.os != 'Windows'
-        run: zip -r ${{ matrix.archive }}.zip ${{ matrix.archive }}
+      - name: Zip macOS app
+        if: runner.os == 'macOS'
+        run: zip -r StarPSX-${{ steps.version.outputs.value }}-macos.zip StarPSX.app
 
       - name: Zip package (Windows)
         if: runner.os == 'Windows'
-        run: |
-          powershell Compress-Archive -Path $env:ARCHIVE -DestinationPath "$env:ARCHIVE.zip"
+        run: powershell Compress-Archive -Path $env:ARCHIVE -DestinationPath "$env:ARCHIVE-$env:VERSION.zip"
         env:
           ARCHIVE: ${{ matrix.archive }}
+          VERSION: ${{ steps.version.outputs.value }}
 
-      # Upload artifact (for every run)
-      - name: Upload build artifact
+      - name: Upload AppImage artifact
+        if: runner.os == 'Linux'
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.archive }}
-          path: ${{ matrix.archive }}.zip
+          name: ${{ matrix.archive }}-${{ steps.version.outputs.value }}
+          path: StarPSX-${{ steps.version.outputs.value }}.AppImage
+
+      - name: Upload macOS artifact
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v4
+        with:
+          name: starpsx-macos-${{ steps.version.outputs.value }}
+          path: StarPSX-${{ steps.version.outputs.value }}-macos.zip
+
+      - name: Upload Windows artifact
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.archive }}-${{ steps.version.outputs.value }}
+          path: ${{ matrix.archive }}-${{ steps.version.outputs.value }}.zip
 
   release:
     needs: build
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
-
     steps:
       - name: Download artifacts
         uses: actions/download-artifact@v4
@@ -100,6 +152,8 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          files: artifacts/**/*.zip
+          files: |
+            artifacts/**/*.zip
+            artifacts/**/*.AppImage
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
