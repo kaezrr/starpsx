@@ -1,0 +1,36 @@
+name: Bug Report
+description: Report a bug or unexpected behavior
+labels: ["bug"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      placeholder: A short description of the bug and what you expected instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: specs
+    attributes:
+      label: System Info
+      placeholder: |
+        OS: (e.g. Windows 11, macOS 14.4, Ubuntu 22.04)
+        CPU: (e.g. Intel i5-12400)
+        GPU: (e.g. NVIDIA RTX 3060)
+        RAM: (e.g. 16GB)
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log File
+      description: |
+        Attach or paste your log file. Find it at:
+        - **Windows:** `%LOCALAPPDATA%\StarPSX\logs\`
+        - **macOS:** `~/Library/Application Support/StarPSX/logs/`
+        - **Linux:** `~/.local/share/StarPSX/logs/`
+      placeholder: Paste log contents here, or drag and drop the file above.
+    validations:
+      required: false
