@@ -42,6 +42,8 @@ use crate::sio::gamepad::Gamepad;
 use crate::sio::memory_card::MemoryCard;
 use crate::spu::Spu;
 
+const SAMPLES_PER_FRAME: usize = 735 * 2;
+
 pub enum Media {
     Disc(cue::Disc),
     Binary(Vec<u8>),
@@ -72,6 +74,7 @@ pub struct System {
 
     // RGBA frame buffer
     pub frame_buffer: Option<FrameBuffer>,
+    pub audio_samples: Vec<i16>,
 }
 
 impl System {
@@ -185,11 +188,10 @@ impl System {
     }
 
     // Run emulator for one frame
-    pub fn run_frame(&mut self, show_vram: bool) -> Vec<i16> {
-        const SAMPLES_PER_FRAME: usize = 735 * 2;
-        let mut samples = Vec::with_capacity(SAMPLES_PER_FRAME);
+    pub fn run_frame(&mut self, show_vram: bool) {
+        self.audio_samples.clear();
 
-        while samples.len() != SAMPLES_PER_FRAME {
+        while self.audio_samples.len() != SAMPLES_PER_FRAME {
             if let Some(event) = self.scheduler.get_next_event() {
                 match event {
                     Event::VBlankStart => self.frame_buffer = Some(self.enter_vsync(show_vram)),
@@ -200,7 +202,10 @@ impl System {
                     Event::SerialSend => Sio0::process_serial_send(self),
                     Event::CdromResultIrq(x) => CdRom::handle_response(self, x),
                     Event::DsrOff => self.sio0.turn_off_dsr(),
-                    Event::SpuTick => samples.extend(Spu::tick(self)),
+                    Event::SpuTick => {
+                        let samples = Spu::tick(self);
+                        self.audio_samples.extend(samples);
+                    }
                 }
             }
 
@@ -213,8 +218,6 @@ impl System {
             // Fixed 2 CPI right now
             self.scheduler.advance(40);
         }
-
-        samples
     }
 
     pub fn step_instruction(&mut self, show_vram: bool) {
@@ -325,6 +328,7 @@ impl PSXBuilder {
             sio1: Sio1, // Does nothing
 
             frame_buffer: None,
+            audio_samples: Vec::with_capacity(SAMPLES_PER_FRAME),
         };
 
         // Open the shell if nothing is loaded

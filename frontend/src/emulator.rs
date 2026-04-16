@@ -218,19 +218,21 @@ impl Emulator {
                 continue;
             }
 
-            let samples = system.run_frame(self.show_vram);
+            system.run_frame(self.show_vram);
 
             // Blocking send
             if !self.full_speed {
-                let mut audio = samples.as_slice();
+                let mut audio = system.audio_samples.as_slice();
 
                 while !audio.is_empty() {
                     let written = prod.push_slice(audio);
-                    audio = &audio[written..];
 
                     if written == 0 {
-                        std::thread::sleep(Duration::from_micros(200));
+                        std::thread::sleep(Duration::from_micros(500));
+                        continue;
                     }
+
+                    audio = &audio[written..];
                 }
             }
 

@@ -87,7 +87,7 @@ Options:
 | Gamepad     |   🟢   | Full analog pad support                              |
 | Memory Card |   🟢   | Per-title and shared cards implemented               |
 | MDEC        |   🟢   | Passes most test ROMs                                |
-| SPU         |   🟡   | No reverb or sweep implementation                    |
+| SPU         |   🟡   | No sweep volume implementation                       |
 
 ## Acknowledgements
 
