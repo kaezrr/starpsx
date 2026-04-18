@@ -4,21 +4,19 @@ mod util;
 
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::sync::mpsc::TryRecvError;
 use std::task::Context;
 use std::task::Poll;
 use std::task::Waker;
 use std::time::Duration;
 
 use anyhow::anyhow;
+use crossbeam::channel::TryRecvError;
 use eframe::egui::Color32;
 use eframe::egui::ColorImage;
 use eframe::egui::ViewportCommand;
 use eframe::egui::vec2;
 use eframe::egui::{self};
 use egui_notify::Toasts;
-use starpsx_core::SystemSnapshot;
-use starpsx_renderer::FrameBuffer;
 use tracing::error;
 use tracing::info;
 use tracing::trace;
@@ -32,10 +30,8 @@ use crate::config::{self};
 use crate::debugger::Debugger;
 use crate::emulator::SharedState;
 use crate::emulator::UiChannels;
-use crate::emulator::UiCommand;
 use crate::emulator::{self};
 use crate::input::ActionValue;
-use crate::input::GamepadState;
 use crate::input::PhysicalInput;
 use crate::input::{self};
 
@@ -130,6 +126,7 @@ impl eframe::App for Application {
                 }
 
                 Err(TryRecvError::Empty) => (), // Do nothing
+
                 Err(TryRecvError::Disconnected) => {
                     info!("emulator thread exited, closing UI");
                     return ctx.send_viewport_cmd(ViewportCommand::Close);
@@ -294,10 +291,10 @@ impl Application {
             .ok_or_else(|| anyhow!("bios path missing"))?;
 
         // Message channels for thread communication
-        let (frame_tx, frame_rx) = std::sync::mpsc::sync_channel::<FrameBuffer>(1);
-        let (ui_command_tx, ui_command_rx) = std::sync::mpsc::sync_channel::<UiCommand>(2);
-        let (input_tx, input_rx) = std::sync::mpsc::sync_channel::<GamepadState>(2);
-        let (snapshot_tx, snapshot_rx) = std::sync::mpsc::sync_channel::<SystemSnapshot>(1);
+        let (frame_tx, frame_rx) = crossbeam::channel::bounded(1);
+        let (ui_command_tx, ui_command_rx) = crossbeam::channel::bounded(1);
+        let (input_tx, input_rx) = crossbeam::channel::bounded(1);
+        let (snapshot_tx, snapshot_rx) = crossbeam::channel::bounded(1);
 
         let shared_state = Arc::new(SharedState::default());
 

@@ -3,9 +3,9 @@ pub mod snapshot;
 
 use std::collections::HashSet;
 use std::sync::Arc;
-use std::sync::mpsc::Receiver;
-use std::sync::mpsc::SyncSender;
 
+use crossbeam::channel::Receiver;
+use crossbeam::channel::Sender;
 use eframe::egui::Align;
 use eframe::egui::Color32;
 use eframe::egui::RichText;
@@ -22,7 +22,7 @@ pub struct Debugger {
     address_input: String,
 
     shared_state: Arc<SharedState>,
-    input_tx: SyncSender<UiCommand>,
+    input_tx: Sender<UiCommand>,
     snapshot_rx: Receiver<SystemSnapshot>,
 
     prev_snapshot: Option<SystemSnapshot>,
@@ -34,7 +34,7 @@ pub struct Debugger {
 impl Debugger {
     pub fn new(
         shared_state: Arc<SharedState>,
-        input_tx: SyncSender<UiCommand>,
+        input_tx: Sender<UiCommand>,
         snapshot_rx: Receiver<SystemSnapshot>,
     ) -> Self {
         Self {

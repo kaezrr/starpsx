@@ -1,6 +1,5 @@
-use std::sync::mpsc::Receiver;
-use std::sync::mpsc::SyncSender;
-
+use crossbeam::channel::Receiver;
+use crossbeam::channel::Sender;
 use eframe::egui::TextureOptions;
 use eframe::egui::{self};
 use starpsx_renderer::FrameBuffer;
@@ -13,7 +12,7 @@ use crate::input::GamepadState;
 pub struct AppState {
     pub debugger: Debugger,
     pub frame_rx: Receiver<FrameBuffer>,
-    pub input_tx: SyncSender<GamepadState>,
+    pub input_tx: Sender<GamepadState>,
     pub texture: egui::TextureHandle,
 }
 

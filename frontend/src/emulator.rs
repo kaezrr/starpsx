@@ -5,8 +5,6 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
-use std::sync::mpsc::Receiver;
-use std::sync::mpsc::SyncSender;
 use std::time::Duration;
 
 use anyhow::Context;
@@ -15,6 +13,8 @@ use cpal::default_host;
 use cpal::traits::DeviceTrait;
 use cpal::traits::HostTrait;
 use cpal::traits::StreamTrait;
+use crossbeam::channel::Receiver;
+use crossbeam::channel::Sender;
 use ringbuf::HeapCons;
 use ringbuf::HeapProd;
 use ringbuf::traits::Consumer;
@@ -47,10 +47,10 @@ pub enum UiCommand {
 }
 
 pub struct UiChannels {
-    pub frame_tx: SyncSender<FrameBuffer>,
+    pub frame_tx: Sender<FrameBuffer>,
     pub ui_command_rx: Receiver<UiCommand>,
     pub input_rx: Receiver<GamepadState>,
-    pub snapshot_tx: SyncSender<SystemSnapshot>,
+    pub snapshot_tx: Sender<SystemSnapshot>,
 }
 
 pub struct Emulator {
