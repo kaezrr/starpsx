@@ -7,33 +7,19 @@ use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 use std::time::Duration;
 
-use anyhow::Context;
-use cpal::StreamConfig;
-use cpal::default_host;
-use cpal::traits::DeviceTrait;
-use cpal::traits::HostTrait;
 use cpal::traits::StreamTrait;
 use crossbeam::channel::Receiver;
 use crossbeam::channel::Sender;
-use ringbuf::HeapCons;
-use ringbuf::HeapProd;
-use ringbuf::traits::Consumer;
-use ringbuf::traits::Producer;
-use ringbuf::traits::Split;
 use starpsx_core::SystemSnapshot;
 use starpsx_renderer::FrameBuffer;
 use tracing::error;
 use tracing::info;
 use tracing::warn;
 
+use crate::audio;
+use crate::audio::AudioSample;
 use crate::config::MediaPath;
 use crate::input::GamepadState;
-
-const AUDIO_STREAM_CONFIG: StreamConfig = StreamConfig {
-    channels: 2,
-    sample_rate: 44100_u32,
-    buffer_size: cpal::BufferSize::Default,
-};
 
 pub enum UiCommand {
     SetVramDisplay(bool),
@@ -89,12 +75,11 @@ impl Emulator {
     }
 
     pub fn run(self) -> anyhow::Result<()> {
-        let (prod, cons) = ringbuf::HeapRb::new(0x1000).split();
-        let audio_stream = build_audio_stream(cons)?;
+        let (audio_stream, prod) = audio::build_audio_stream()?;
 
         std::thread::spawn(move || {
             info!("emulator thread started...");
-            self.main_loop(&audio_stream, prod);
+            self.main_loop(&audio_stream, &prod);
         });
 
         Ok(())
@@ -182,7 +167,7 @@ impl Emulator {
         false
     }
 
-    fn main_loop(mut self, audio_stream: &cpal::Stream, mut prod: HeapProd<i16>) {
+    fn main_loop(mut self, audio_stream: &cpal::Stream, prod: &Sender<AudioSample>) {
         let mut last_paused = true;
 
         loop {
@@ -220,19 +205,9 @@ impl Emulator {
 
             system.run_frame(self.show_vram);
 
-            // Blocking send
             if !self.full_speed {
-                let mut audio = system.audio_samples.as_slice();
-
-                while !audio.is_empty() {
-                    let written = prod.push_slice(audio);
-
-                    if written == 0 {
-                        std::thread::sleep(Duration::from_micros(500));
-                        continue;
-                    }
-
-                    audio = &audio[written..];
+                for sample in &system.audio_samples {
+                    prod.send(*sample).expect("should send sample");
                 }
             }
 
@@ -245,29 +220,6 @@ impl Emulator {
 
         info!("emulator thread stopped!");
     }
-}
-
-fn build_audio_stream(mut cons: HeapCons<i16>) -> anyhow::Result<cpal::Stream> {
-    let device = default_host()
-        .default_output_device()
-        .context("no output device available")?;
-
-    let stream = device.build_output_stream(
-        &AUDIO_STREAM_CONFIG,
-        move |data: &mut [i16], _: &cpal::OutputCallbackInfo| {
-            let written = cons.pop_slice(data);
-
-            // Fill the rest with silence
-            if written < data.len() {
-                warn!("audio buffer underrun");
-                data[written..].fill(0);
-            }
-        },
-        move |err| error!("an error occurred on the output audio stream: {err}"),
-        None,
-    )?;
-
-    Ok(stream)
 }
 
 #[derive(Default)]

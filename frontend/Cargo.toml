@@ -20,7 +20,6 @@ egui_extras = "0.33.3"
 egui-notify = "0.21.0"
 gilrs = "0.11.0"
 rfd = "0.17.2"
-ringbuf = "0.4.8"
 serde = { version = "1.0.228", features = ["derive"] }
 starpsx-core = { path = "../core" }
 starpsx-renderer = { path = "../renderer" }

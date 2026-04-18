@@ -14,3 +14,5 @@ pub const AVG_RATE_INT1: u64 = 0x6E1CD;
 
 pub const POS_ADPCM_TABLE: [i32; 5] = [0, 60, 115, 98, 122];
 pub const NEG_ADPCM_TABLE: [i32; 5] = [0, 0, -52, -55, -60];
+
+pub const SAMPLES_PER_FRAME: usize = 735;

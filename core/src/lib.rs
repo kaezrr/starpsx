@@ -14,35 +14,34 @@ mod timers;
 use std::collections::HashSet;
 
 use anyhow::Context;
-use cdrom::CdRom;
-use cdrom::Image;
-use cpu::Cpu;
-use dma::DMAController;
-use gpu::Gpu;
-pub use gpu::Snapshot as GpuSnapshot;
-pub use gpu::VMode;
-use irq::InterruptController;
-use mem::bios::Bios;
-use mem::ram::Ram;
-use mem::scratch::Scratch;
-use sched::Event;
-use sched::EventScheduler;
-use sio::Sio0;
-pub use sio::gamepad;
-pub use spu::AdsrPhase;
-pub use spu::Snapshot as SpuSnapshot;
-pub use spu::VoiceSnapshot;
 use starpsx_renderer::FrameBuffer;
-use timers::Timers;
 use tracing::info;
 
+use crate::cdrom::CdRom;
+use crate::cdrom::Image;
+use crate::consts::SAMPLES_PER_FRAME;
+use crate::cpu::Cpu;
+use crate::dma::DMAController;
+use crate::gpu::Gpu;
+pub use crate::gpu::Snapshot as GpuSnapshot;
+pub use crate::gpu::VMode;
+use crate::irq::InterruptController;
 use crate::mdec::MacroDecoder;
+use crate::mem::bios::Bios;
+use crate::mem::ram::Ram;
+use crate::mem::scratch::Scratch;
+use crate::sched::Event;
+use crate::sched::EventScheduler;
+use crate::sio::Sio0;
 use crate::sio::Sio1;
+pub use crate::sio::gamepad;
 use crate::sio::gamepad::Gamepad;
 use crate::sio::memory_card::MemoryCard;
+pub use crate::spu::AdsrPhase;
+pub use crate::spu::Snapshot as SpuSnapshot;
 use crate::spu::Spu;
-
-const SAMPLES_PER_FRAME: usize = 735 * 2;
+pub use crate::spu::VoiceSnapshot;
+use crate::timers::Timers;
 
 pub enum Media {
     Disc(cue::Disc),
@@ -74,7 +73,7 @@ pub struct System {
 
     // RGBA frame buffer
     pub frame_buffer: Option<FrameBuffer>,
-    pub audio_samples: Vec<i16>,
+    pub audio_samples: Vec<[i16; 2]>,
 }
 
 impl System {
@@ -204,7 +203,7 @@ impl System {
                     Event::DsrOff => self.sio0.turn_off_dsr(),
                     Event::SpuTick => {
                         let samples = Spu::tick(self);
-                        self.audio_samples.extend(samples);
+                        self.audio_samples.push(samples);
                     }
                 }
             }
