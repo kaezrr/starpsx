@@ -248,6 +248,34 @@ impl Renderer {
         }
     }
 
+    fn clip_rect(
+        &self,
+        min_x: i32,
+        min_y: i32,
+        max_x: i32,
+        max_y: i32,
+    ) -> Option<(usize, usize, usize, usize)> {
+        // Don't draw large ass primitives
+        if (max_x - min_x) > 1023 || (max_y - min_y) > 511 {
+            return None;
+        }
+
+        let tl = self.ctx.drawing_area_top_left;
+        let br = self.ctx.drawing_area_bottom_right;
+
+        // Trivial reject
+        if max_x < tl.x || min_x > br.x || max_y < tl.y || min_y > br.y {
+            return None;
+        }
+
+        Some((
+            min_x.max(tl.x) as usize,
+            min_y.max(tl.y) as usize,
+            max_x.min(br.x) as usize,
+            max_y.min(br.y) as usize,
+        ))
+    }
+
     pub fn draw_rectangle<const SEMI_TRANS: bool>(
         &mut self,
         mut r: Vec2,
@@ -255,32 +283,21 @@ impl Renderer {
         color: Color,
     ) {
         r += self.ctx.drawing_area_offset;
-        let min_x = r.x.max(self.ctx.drawing_area_top_left.x);
-        let min_y = r.y.max(self.ctx.drawing_area_top_left.y);
-        let max_x = (r.x + side.x - 1).min(self.ctx.drawing_area_bottom_right.x);
-        let max_y = (r.y + side.y - 1).min(self.ctx.drawing_area_bottom_right.y);
 
-        // Out of screen
-        if max_x < self.ctx.drawing_area_top_left.x
-            || min_x > self.ctx.drawing_area_bottom_right.x
-            || max_y < self.ctx.drawing_area_top_left.y
-            || min_y > self.ctx.drawing_area_bottom_right.y
-        {
+        let Some((min_x, min_y, max_x, max_y)) =
+            self.clip_rect(r.x, r.y, r.x + side.x - 1, r.y + side.y - 1)
+        else {
             return;
-        }
+        };
 
         for y in min_y..=max_y {
             for x in min_x..=max_x {
                 let mut color = color;
                 if SEMI_TRANS {
-                    let old = self.vram_read(x as usize, y as usize);
+                    let old = self.vram_read(x, y);
                     color.blend_screen(Color::new_5bit(old), self.ctx.transparency_weights);
                 }
-                self.vram_write(
-                    x as usize,
-                    y as usize,
-                    color.to_5bit(Some(self.ctx.force_set_masked_bit)),
-                );
+                self.vram_write(x, y, color.to_5bit(Some(self.ctx.force_set_masked_bit)));
             }
         }
     }
@@ -293,25 +310,18 @@ impl Renderer {
         tex: &RectTextureOptions,
     ) {
         r += self.ctx.drawing_area_offset;
-        let min_x = r.x.max(self.ctx.drawing_area_top_left.x);
-        let min_y = r.y.max(self.ctx.drawing_area_top_left.y);
-        let max_x = (r.x + side.x - 1).min(self.ctx.drawing_area_bottom_right.x);
-        let max_y = (r.y + side.y - 1).min(self.ctx.drawing_area_bottom_right.y);
 
-        // Out of screen
-        if max_x < self.ctx.drawing_area_top_left.x
-            || min_x > self.ctx.drawing_area_bottom_right.x
-            || max_y < self.ctx.drawing_area_top_left.y
-            || min_y > self.ctx.drawing_area_bottom_right.y
-        {
+        let Some((min_x, min_y, max_x, max_y)) =
+            self.clip_rect(r.x, r.y, r.x + side.x - 1, r.y + side.y - 1)
+        else {
             return;
-        }
+        };
 
         self.ctx.rect_texture.set_clut(tex.clut);
 
         for y in min_y..=max_y {
             for x in min_x..=max_x {
-                let uv = tex.uv + Vec2::new(x, y) - r;
+                let uv = tex.uv + Vec2::new(x as i32, y as i32) - r;
                 let texel = self.ctx.rect_texture.get_texel(self, uv);
                 if texel == 0 {
                     continue;
@@ -323,11 +333,11 @@ impl Renderer {
                 }
 
                 if SEMI_TRANS && (texel & 0x8000) != 0 {
-                    let old = self.vram_read(x as usize, y as usize);
+                    let old = self.vram_read(x, y);
                     tex_color.blend_screen(Color::new_5bit(old), self.ctx.transparency_weights);
                 }
                 let mask = self.ctx.force_set_masked_bit.then_some(true);
-                self.vram_write(x as usize, y as usize, tex_color.to_5bit(mask));
+                self.vram_write(x, y, tex_color.to_5bit(mask));
             }
         }
     }
@@ -336,22 +346,14 @@ impl Renderer {
         l[0] += self.ctx.drawing_area_offset;
         l[1] += self.ctx.drawing_area_offset;
 
-        let x0 = l[0].x.clamp(
-            self.ctx.drawing_area_top_left.x,
-            self.ctx.drawing_area_bottom_right.x,
-        );
-        let x1 = l[1].x.clamp(
-            self.ctx.drawing_area_top_left.x,
-            self.ctx.drawing_area_bottom_right.x,
-        );
-        let y0 = l[0].y.clamp(
-            self.ctx.drawing_area_top_left.y,
-            self.ctx.drawing_area_bottom_right.y,
-        );
-        let y1 = l[1].y.clamp(
-            self.ctx.drawing_area_top_left.y,
-            self.ctx.drawing_area_bottom_right.y,
-        );
+        let Some((x0, y0, x1, y1)) = self.clip_rect(l[0].x, l[0].y, l[1].x, l[1].y) else {
+            return;
+        };
+
+        let x0 = x0 as i32;
+        let x1 = x1 as i32;
+        let y0 = y0 as i32;
+        let y1 = y1 as i32;
 
         let dx = (x1 - x0).abs();
         let dy = -(y1 - y0).abs();
@@ -403,22 +405,14 @@ impl Renderer {
         l[0] += self.ctx.drawing_area_offset;
         l[1] += self.ctx.drawing_area_offset;
 
-        let x0 = l[0].x.clamp(
-            self.ctx.drawing_area_top_left.x,
-            self.ctx.drawing_area_bottom_right.x,
-        );
-        let x1 = l[1].x.clamp(
-            self.ctx.drawing_area_top_left.x,
-            self.ctx.drawing_area_bottom_right.x,
-        );
-        let y0 = l[0].y.clamp(
-            self.ctx.drawing_area_top_left.y,
-            self.ctx.drawing_area_bottom_right.y,
-        );
-        let y1 = l[1].y.clamp(
-            self.ctx.drawing_area_top_left.y,
-            self.ctx.drawing_area_bottom_right.y,
-        );
+        let Some((x0, y0, x1, y1)) = self.clip_rect(l[0].x, l[0].y, l[1].x, l[1].y) else {
+            return;
+        };
+
+        let x0 = x0 as i32;
+        let x1 = x1 as i32;
+        let y0 = y0 as i32;
+        let y1 = y1 as i32;
 
         let dx = (x1 - x0).abs();
         let dy = -(y1 - y0).abs();
@@ -487,32 +481,22 @@ impl Renderer {
     }
 
     pub fn draw_triangle<const SEMI_TRANS: bool>(&mut self, mut t: [Vec2; 3], mono: Color) {
-        t[0] += self.ctx.drawing_area_offset;
-        t[1] += self.ctx.drawing_area_offset;
-        t[2] += self.ctx.drawing_area_offset;
-
         if needs_vertex_reordering(&t) {
             t.swap(0, 1);
         }
+
+        t[0] += self.ctx.drawing_area_offset;
+        t[1] += self.ctx.drawing_area_offset;
+        t[2] += self.ctx.drawing_area_offset;
 
         let min_x = t[0].x.min(t[1].x).min(t[2].x);
         let min_y = t[0].y.min(t[1].y).min(t[2].y);
         let max_x = t[0].x.max(t[1].x).max(t[2].x);
         let max_y = t[0].y.max(t[1].y).max(t[2].y);
 
-        // Out of screen
-        if max_x < self.ctx.drawing_area_top_left.x
-            || min_x > self.ctx.drawing_area_bottom_right.x
-            || max_y < self.ctx.drawing_area_top_left.y
-            || min_y > self.ctx.drawing_area_bottom_right.y
-        {
+        let Some((min_x, min_y, max_x, max_y)) = self.clip_rect(min_x, min_y, max_x, max_y) else {
             return;
-        }
-
-        let min_x = min_x.max(self.ctx.drawing_area_top_left.x) as usize;
-        let min_y = min_y.max(self.ctx.drawing_area_top_left.y) as usize;
-        let max_x = max_x.min(self.ctx.drawing_area_bottom_right.x) as usize;
-        let max_y = max_y.min(self.ctx.drawing_area_bottom_right.y) as usize;
+        };
 
         let start = Vec2::new(min_x as i32, min_y as i32);
         let (mut e1_row, a1, b1) = edge_function(start, t[0], t[1]);
@@ -560,33 +544,23 @@ impl Renderer {
         mut t: [Vec2; 3],
         mut shaded: [Color; 3],
     ) {
-        t[0] += self.ctx.drawing_area_offset;
-        t[1] += self.ctx.drawing_area_offset;
-        t[2] += self.ctx.drawing_area_offset;
-
         if needs_vertex_reordering(&t) {
             t.swap(0, 1);
             shaded.swap(0, 1);
         }
+
+        t[0] += self.ctx.drawing_area_offset;
+        t[1] += self.ctx.drawing_area_offset;
+        t[2] += self.ctx.drawing_area_offset;
 
         let min_x = t[0].x.min(t[1].x).min(t[2].x);
         let min_y = t[0].y.min(t[1].y).min(t[2].y);
         let max_x = t[0].x.max(t[1].x).max(t[2].x);
         let max_y = t[0].y.max(t[1].y).max(t[2].y);
 
-        // Out of screen
-        if max_x < self.ctx.drawing_area_top_left.x
-            || min_x > self.ctx.drawing_area_bottom_right.x
-            || max_y < self.ctx.drawing_area_top_left.y
-            || min_y > self.ctx.drawing_area_bottom_right.y
-        {
+        let Some((min_x, min_y, max_x, max_y)) = self.clip_rect(min_x, min_y, max_x, max_y) else {
             return;
-        }
-
-        let min_x = min_x.max(self.ctx.drawing_area_top_left.x) as usize;
-        let min_y = min_y.max(self.ctx.drawing_area_top_left.y) as usize;
-        let max_x = max_x.min(self.ctx.drawing_area_bottom_right.x) as usize;
-        let max_y = max_y.min(self.ctx.drawing_area_bottom_right.y) as usize;
+        };
 
         let start = Vec2::new(min_x as i32, min_y as i32);
         let (mut e1_row, a1, b1) = edge_function(start, t[0], t[1]);
@@ -668,33 +642,23 @@ impl Renderer {
         mono: Color,
         mut tex: TextureOptions,
     ) {
-        t[0] += self.ctx.drawing_area_offset;
-        t[1] += self.ctx.drawing_area_offset;
-        t[2] += self.ctx.drawing_area_offset;
-
         if needs_vertex_reordering(&t) {
             t.swap(0, 1);
             tex.uvs.swap(0, 1);
         }
+
+        t[0] += self.ctx.drawing_area_offset;
+        t[1] += self.ctx.drawing_area_offset;
+        t[2] += self.ctx.drawing_area_offset;
 
         let min_x = t[0].x.min(t[1].x).min(t[2].x);
         let min_y = t[0].y.min(t[1].y).min(t[2].y);
         let max_x = t[0].x.max(t[1].x).max(t[2].x);
         let max_y = t[0].y.max(t[1].y).max(t[2].y);
 
-        // Out of screen
-        if max_x < self.ctx.drawing_area_top_left.x
-            || min_x > self.ctx.drawing_area_bottom_right.x
-            || max_y < self.ctx.drawing_area_top_left.y
-            || min_y > self.ctx.drawing_area_bottom_right.y
-        {
+        let Some((min_x, min_y, max_x, max_y)) = self.clip_rect(min_x, min_y, max_x, max_y) else {
             return;
-        }
-
-        let min_x = min_x.max(self.ctx.drawing_area_top_left.x) as usize;
-        let min_y = min_y.max(self.ctx.drawing_area_top_left.y) as usize;
-        let max_x = max_x.min(self.ctx.drawing_area_bottom_right.x) as usize;
-        let max_y = max_y.min(self.ctx.drawing_area_bottom_right.y) as usize;
+        };
 
         let start = Vec2::new(min_x as i32, min_y as i32);
         let (mut e1_row, a1, b1) = edge_function(start, t[0], t[1]);
@@ -775,34 +739,24 @@ impl Renderer {
         mut shaded: [Color; 3],
         mut tex: TextureOptions,
     ) {
-        t[0] += self.ctx.drawing_area_offset;
-        t[1] += self.ctx.drawing_area_offset;
-        t[2] += self.ctx.drawing_area_offset;
-
         if needs_vertex_reordering(&t) {
             t.swap(0, 1);
             shaded.swap(0, 1);
             tex.uvs.swap(0, 1);
         }
 
+        t[0] += self.ctx.drawing_area_offset;
+        t[1] += self.ctx.drawing_area_offset;
+        t[2] += self.ctx.drawing_area_offset;
+
         let min_x = t[0].x.min(t[1].x).min(t[2].x);
         let min_y = t[0].y.min(t[1].y).min(t[2].y);
         let max_x = t[0].x.max(t[1].x).max(t[2].x);
         let max_y = t[0].y.max(t[1].y).max(t[2].y);
 
-        // Out of screen
-        if max_x < self.ctx.drawing_area_top_left.x
-            || min_x > self.ctx.drawing_area_bottom_right.x
-            || max_y < self.ctx.drawing_area_top_left.y
-            || min_y > self.ctx.drawing_area_bottom_right.y
-        {
+        let Some((min_x, min_y, max_x, max_y)) = self.clip_rect(min_x, min_y, max_x, max_y) else {
             return;
-        }
-
-        let min_x = min_x.max(self.ctx.drawing_area_top_left.x) as usize;
-        let min_y = min_y.max(self.ctx.drawing_area_top_left.y) as usize;
-        let max_x = max_x.min(self.ctx.drawing_area_bottom_right.x) as usize;
-        let max_y = max_y.min(self.ctx.drawing_area_bottom_right.y) as usize;
+        };
 
         let start = Vec2::new(min_x as i32, min_y as i32);
         let (mut e1_row, a1, b1) = edge_function(start, t[0], t[1]);
