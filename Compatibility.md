@@ -22,7 +22,7 @@ Below is a list of games that I test for compatibility, getting these games work
 |       Klonoa - Door to Phantomile       |   🟢   | Random has heavy stutters, likely due to DMA                         |
 |               Mega Man 8                |   🟢   |                                                                      |
 |               Mega Man X4               |   🟢   | Random black screens at the start before getting to gameplay         |
-|            Metal Gear Solid             |   🟢   | Minor graphical bugs                                                 |
+|            Metal Gear Solid             |   🟢   |                                                                      |
 |            Mortal Kombat II             |   🟢   |                                                                      |
 |              Parasite Eve               |   🟢   |                                                                      |
 |             Puzzle Bobble 2             |   🟢   |                                                                      |
@@ -30,7 +30,7 @@ Below is a list of games that I test for compatibility, getting these games work
 |             Resident Evil 2             |   🟡   | Gets stuck after starting a new game                                 |
 |        Resident Evil 3 - Nemesis        |   🟢   |                                                                      |
 |               Ridge Racer               |   🟢   |                                                                      |
-|               Silent Hill               |   🟢   | Random snowflakes vertex explosions                                  |
+|               Silent Hill               |   🟢   |                                                                      |
 |            Spyro the Dragon             |   🟢   | Random heavy stutters in pause menu and while unlocking dragons      |
 |         Street Fighter Alpha 3          |   🟢   |                                                                      |
 |                 Tekken                  |   🟡   | Some CDDA issues, first few seconds of audio track repeats endlessly |
