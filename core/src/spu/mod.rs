@@ -10,7 +10,6 @@ use std::ops::IndexMut;
 pub use envelope::AdsrPhase;
 pub use snapshot::Snapshot;
 pub use snapshot::VoiceSnapshot;
-use tracing::debug;
 
 use crate::System;
 use crate::spu::reverb::Reverb;
@@ -333,8 +332,6 @@ impl Spu {
 pub fn read<const WIDTH: usize>(system: &System, addr: u32) -> u32 {
     let spu = &system.spu;
 
-    debug!("spu read {addr:08x}");
-
     match addr {
         // 24 Voices
         0x1F80_1C00..=0x1F80_1D7F => {
@@ -426,8 +423,6 @@ pub fn write<const WIDTH: usize>(system: &mut System, addr: u32, val: u32) {
 
     let spu = &mut system.spu;
     let val = val as u16;
-
-    debug!("spu write {addr:08x} <- {val:04x}");
 
     match addr {
         // 24 Voices

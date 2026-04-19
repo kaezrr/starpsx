@@ -262,7 +262,7 @@ impl CdRom {
         let cdrom = &mut system.cdrom;
 
         // Certain commands stop read responses
-        if let 0x08..=0x09 = cmd {
+        if matches!(cmd, 0x08 | 0x09 | 0x15 | 0x16) {
             system
                 .scheduler
                 .unschedule(&Event::CdromResultIrq(ResponseType::INT1));

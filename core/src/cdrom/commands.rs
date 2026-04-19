@@ -78,8 +78,8 @@ impl CdRom {
         let ss = self.parameters[1];
         let ff = self.parameters[2];
 
-        let (Some(m), Some(s), Some(f)) = (from_bcd(mm), from_bcd(ss), from_bcd(ff)) else {
-            error!("invalid/out of range seek to {mm:2X}:{ss:2X}:{ff:2X}",);
+        let Some((m, s, f)) = validate_seek(mm, ss, ff) else {
+            error!("invalid/out of range seek to {mm:02x}:{ss:02x}:{ff:02x}",);
             return CommandResponse::new()
                 .int5([self.status.with_error(), 0x10], AVG_1ST_RESP_GENERIC);
         };
@@ -371,7 +371,19 @@ const fn to_bcd(val: u8) -> Option<u8> {
     Some((tens << 4) | ones)
 }
 
-#[derive(PartialEq, Eq, Clone)]
+fn validate_seek(mins: u8, secs: u8, sect: u8) -> Option<(u8, u8, u8)> {
+    let mins = from_bcd(mins)?;
+    let secs = from_bcd(secs)?;
+    let sect = from_bcd(sect)?;
+
+    if secs > 59 || sect > 74 {
+        return None;
+    }
+
+    Some((mins, secs, sect))
+}
+
+#[derive(PartialEq, Eq, Clone, Debug)]
 pub enum ResponseType {
     INT3(ArrayVec<u8, 8>),
     INT2(ArrayVec<u8, 8>),
