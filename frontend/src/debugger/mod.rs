@@ -552,14 +552,6 @@ impl Debugger {
             ("Offset", coord(gpu.drawing_area_offset)),
             // Texturing
             ("", "Texturing".into()),
-            ("Dithering", bool_str(gpu.dithering).into()),
-            (
-                "Semi-Transparency",
-                format!(
-                    "({:.2}, {:.2})",
-                    gpu.transparency_weights.0, gpu.transparency_weights.1
-                ),
-            ),
             ("Tex Window Mask", coord(gpu.texture_window_mask)),
             ("Tex Window Offset", coord(gpu.texture_window_offset)),
             // Masking

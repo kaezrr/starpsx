@@ -130,9 +130,6 @@ pub struct Snapshot {
     pub drawing_area_bottom_right: (i32, i32),
     pub drawing_area_offset: (i32, i32),
 
-    pub dithering: bool,
-    pub transparency_weights: (f32, f32),
-
     pub texture_window_mask: (i32, i32),
     pub texture_window_offset: (i32, i32),
 
@@ -198,12 +195,6 @@ impl Gpu {
                 ctx.drawing_area_bottom_right.y,
             ),
             drawing_area_offset: (ctx.drawing_area_offset.x, ctx.drawing_area_offset.y),
-
-            dithering: ctx.dithering,
-            transparency_weights: (
-                ctx.transparency_weights.0 as f32 / 4.,
-                ctx.transparency_weights.1 as f32 / 4.,
-            ),
 
             texture_window_mask: (ctx.texture_window_mask.x, ctx.texture_window_mask.y),
             texture_window_offset: (ctx.texture_window_offset.x, ctx.texture_window_offset.y),

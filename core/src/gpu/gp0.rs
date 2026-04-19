@@ -35,18 +35,7 @@ impl Gpu {
         self.status.set_dithering(cmd.dithering());
         self.status.set_draw_to_display(cmd.draw_to_display());
         self.status.set_texture_disable(cmd.texture_disable());
-
-        let ctx = &mut self.renderer.ctx;
-
-        ctx.rect_texture = Texture::new(cmd.0 as u16, None);
-        ctx.dithering = self.status.dithering();
-        ctx.transparency_weights = match self.status.semi_transparency() {
-            0 => (2, 2),  //0.5, 0.5,
-            1 => (4, 4),  //1.0, 1.0,
-            2 => (4, -4), //1.0, -1.0,
-            3 => (4, 1),  //1.0, 0.25,
-            _ => unreachable!("2 bit value cant reach here"),
-        };
+        self.renderer.ctx.rect_texture = Texture::new(cmd.0 as u16, None);
 
         GP0State::AwaitCommand
     }

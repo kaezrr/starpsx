@@ -136,9 +136,6 @@ pub struct DrawContext {
     pub drawing_area_bottom_right: Vec2,
     pub drawing_area_offset: Vec2,
 
-    pub dithering: bool,
-    pub transparency_weights: (i32, i32),
-
     pub texture_window_mask: Vec2,
     pub texture_window_offset: Vec2,
 
@@ -206,6 +203,10 @@ pub struct Texture {
     page_y: usize,
     depth: PageColor,
     clut: Option<Clut>,
+
+    pub transparency_weights: (i32, i32),
+    pub dithering: bool,
+    pub draw_to_display: bool,
 }
 
 impl Texture {
@@ -214,11 +215,27 @@ impl Texture {
         let base_x = ((data & 0xF) << 6).into();
         let base_y = (((data >> 4) & 1) << 8).into();
         let depth = PageColor::from(((data >> 7) & 3) as u8);
+
+        let transparency_weights = match (data >> 5) & 3 {
+            0 => (2, 2),  //0.5, 0.5,
+            1 => (4, 4),  //1.0, 1.0,
+            2 => (4, -4), //1.0, -1.0,
+            3 => (4, 1),  //1.0, 0.25,
+            _ => unreachable!("2 bit value cant reach here"),
+        };
+
+        let dithering = (data >> 9) & 1 != 0;
+        let draw_to_display = (data >> 10) & 1 != 0;
+
         Self {
             page_x: base_x,
             page_y: base_y,
             depth,
             clut,
+
+            transparency_weights,
+            dithering,
+            draw_to_display,
         }
     }
 

@@ -295,7 +295,10 @@ impl Renderer {
                 let mut color = color;
                 if SEMI_TRANS {
                     let old = self.vram_read(x, y);
-                    color.blend_screen(Color::new_5bit(old), self.ctx.transparency_weights);
+                    color.blend_screen(
+                        Color::new_5bit(old),
+                        self.ctx.rect_texture.transparency_weights,
+                    );
                 }
                 self.vram_write(x, y, color.to_5bit(Some(self.ctx.force_set_masked_bit)));
             }
@@ -334,7 +337,10 @@ impl Renderer {
 
                 if SEMI_TRANS && (texel & 0x8000) != 0 {
                     let old = self.vram_read(x, y);
-                    tex_color.blend_screen(Color::new_5bit(old), self.ctx.transparency_weights);
+                    tex_color.blend_screen(
+                        Color::new_5bit(old),
+                        self.ctx.rect_texture.transparency_weights,
+                    );
                 }
                 let mask = self.ctx.force_set_masked_bit.then_some(true);
                 self.vram_write(x, y, tex_color.to_5bit(mask));
@@ -370,7 +376,10 @@ impl Renderer {
 
             if SEMI_TRANS {
                 let old = self.vram_read(x as usize, y as usize);
-                color.blend_screen(Color::new_5bit(old), self.ctx.transparency_weights);
+                color.blend_screen(
+                    Color::new_5bit(old),
+                    self.ctx.rect_texture.transparency_weights,
+                );
             }
 
             self.vram_write(
@@ -453,7 +462,10 @@ impl Renderer {
 
             if SEMI_TRANS {
                 let old = self.vram_read(x as usize, y as usize);
-                color.blend_screen(Color::new_5bit(old), self.ctx.transparency_weights);
+                color.blend_screen(
+                    Color::new_5bit(old),
+                    self.ctx.rect_texture.transparency_weights,
+                );
             }
 
             self.vram_write(
@@ -518,10 +530,13 @@ impl Renderer {
 
                     if SEMI_TRANS {
                         let old = self.vram_read(x, y);
-                        color.blend_screen(Color::new_5bit(old), self.ctx.transparency_weights);
+                        color.blend_screen(
+                            Color::new_5bit(old),
+                            self.ctx.rect_texture.transparency_weights,
+                        );
                     }
 
-                    if self.ctx.dithering {
+                    if self.ctx.rect_texture.dithering {
                         color.apply_dithering(x, y);
                     }
 
@@ -609,10 +624,13 @@ impl Renderer {
 
                     if SEMI_TRANS {
                         let old = self.vram_read(x, y);
-                        color.blend_screen(Color::new_5bit(old), self.ctx.transparency_weights);
+                        color.blend_screen(
+                            Color::new_5bit(old),
+                            self.ctx.rect_texture.transparency_weights,
+                        );
                     }
 
-                    if self.ctx.dithering {
+                    if self.ctx.rect_texture.dithering {
                         color.apply_dithering(x, y);
                     }
 
@@ -703,10 +721,13 @@ impl Renderer {
 
                         if SEMI_TRANS && (texel & 0x8000) != 0 {
                             let old = self.vram_read(x, y);
-                            color.blend_screen(Color::new_5bit(old), self.ctx.transparency_weights);
+                            color.blend_screen(
+                                Color::new_5bit(old),
+                                tex.texture.transparency_weights,
+                            );
                         }
 
-                        if self.ctx.dithering {
+                        if tex.texture.dithering {
                             color.apply_dithering(x, y);
                         }
 
@@ -825,10 +846,13 @@ impl Renderer {
 
                         if SEMI_TRANS && (texel >> 15) & 1 == 1 {
                             let old = self.vram_read(x, y);
-                            color.blend_screen(Color::new_5bit(old), self.ctx.transparency_weights);
+                            color.blend_screen(
+                                Color::new_5bit(old),
+                                tex.texture.transparency_weights,
+                            );
                         }
 
-                        if self.ctx.dithering {
+                        if tex.texture.dithering {
                             color.apply_dithering(x, y);
                         }
 
