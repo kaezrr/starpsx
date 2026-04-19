@@ -26,6 +26,7 @@ Below is a list of games that I test for compatibility, getting these games work
 |            Mortal Kombat II             |   🟢   |                                                                      |
 |              Parasite Eve               |   🟢   |                                                                      |
 |             Puzzle Bobble 2             |   🟢   |                                                                      |
+|                Quake II                 |   🟢   |                                                                      |
 |              Resident Evil              |   🟢   | Audio issues                                                         |
 |             Resident Evil 2             |   🟡   | Gets stuck after starting a new game                                 |
 |        Resident Evil 3 - Nemesis        |   🟢   |                                                                      |

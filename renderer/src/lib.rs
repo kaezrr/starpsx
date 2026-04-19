@@ -237,11 +237,11 @@ impl Renderer {
     pub fn vram_quick_fill(&mut self, r: Vec2, side_x: i32, side_y: i32, color: Color) {
         let min_x = r.x.max(0) as usize;
         let min_y = r.y.max(0) as usize;
-        let max_x = (r.x + side_x - 1).min(0x3FF) as usize;
-        let max_y = (r.y + side_y - 1).min(0x1FF) as usize;
+        let max_x = (r.x + side_x).min(0x400) as usize;
+        let max_y = (r.y + side_y).min(0x200) as usize;
 
-        for x in min_x..=max_x {
-            for y in min_y..=max_y {
+        for x in min_x..max_x {
+            for y in min_y..max_y {
                 let index = VRAM_WIDTH * y + x;
                 self.vram[index] = color.to_5bit(None);
             }
