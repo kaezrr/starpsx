@@ -64,19 +64,19 @@ impl Default for Renderer {
 
 impl Renderer {
     pub fn change_resolution(&mut self, width: u16, height: u16) {
-        // Dont do anything if frame buffer size didnt change
-        if width == self.ctx.display_width && height == self.ctx.display_height {
-            return;
-        }
-
         self.ctx.display_width = width;
         self.ctx.display_height = height;
 
-        let width = width as usize;
-        let height = height as usize * if self.ctx.interlaced { 1 } else { 2 };
+        let new_width = width as usize;
+        let new_height = height as usize * if self.ctx.interlaced { 1 } else { 2 };
 
-        // Replace the frame buffer because resolution changed
-        self.frame = FrameBuffer::new(width, height, self.ctx.interlaced);
+        // If width is same, just resize the frame, otherwise allocate a new one
+        if new_width == self.frame.resolution[0] {
+            self.frame.rgba.resize(new_width * new_height, Color::BLACK);
+            self.frame.resolution[1] = new_height;
+        } else {
+            self.frame = FrameBuffer::new(new_width, new_height, self.ctx.interlaced);
+        }
     }
 
     #[must_use]

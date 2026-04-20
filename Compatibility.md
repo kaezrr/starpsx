@@ -14,11 +14,11 @@ Below is a list of games that I test for compatibility, getting these games work
 |               Dino Crisis               |   🔴   | Gets stuck at the gore disclaimer screen                             |
 |                  Doom                   |   🔴   | Gets stuck after Sony screen                                         |
 |             Earthworm Jim 2             |   🟢   |                                                                      |
-|               Einhaender                |   🔴   | Index out of bounds in renderer                                      |
+|               Einhaender                |   🟢   |                                                                      |
 |            Final Fantasy IX             |   🔴   | Gets stuck after Sony screen                                         |
 |            Final Fantasy VII            |   🟢   | Minor UI glitches in the menus.                                      |
-|              Gran Turismo               |   🔴   | Unimplemented CDROM command 10h                                      |
-|             Gran Turismo 2              |   🔴   | Unimplemented CDROM command 10h                                      |
+|              Gran Turismo               |   🟡   | Gets stuck after play                                                |
+|             Gran Turismo 2              |   🟡   | Gets stuck after play                                                |
 |       Klonoa - Door to Phantomile       |   🟢   | Random has heavy stutters, likely due to DMA                         |
 |               Mega Man 8                |   🟢   |                                                                      |
 |               Mega Man X4               |   🟢   | Random black screens at the start before getting to gameplay         |
