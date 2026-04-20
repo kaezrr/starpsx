@@ -31,6 +31,7 @@ Below is a list of games that I test for compatibility, getting these games work
 |             Resident Evil 2             |   🟡   | Gets stuck after starting a new game                                 |
 |        Resident Evil 3 - Nemesis        |   🟢   |                                                                      |
 |               Ridge Racer               |   🟢   |                                                                      |
+|           Ridge Racer Type 4            |   🟡   | Gets stuck after main menu                                           |
 |               Silent Hill               |   🟢   |                                                                      |
 |            Spyro the Dragon             |   🟢   | Random heavy stutters in pause menu and while unlocking dragons      |
 |         Street Fighter Alpha 3          |   🟢   |                                                                      |

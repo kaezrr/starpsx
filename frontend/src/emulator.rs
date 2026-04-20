@@ -269,6 +269,12 @@ fn build_system(
         builder = builder.with_card(load_or_create_card(path)?);
     }
 
+    // // -----------------REDUX--------------------
+    // builder = builder.with_media(starpsx_core::Media::Disc(cue::build_disk(
+    //     "../dev/redux/test.cue",
+    // )?));
+    // // ------------------------------------------
+
     builder.build()
 }
 
