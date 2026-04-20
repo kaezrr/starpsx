@@ -190,55 +190,46 @@ impl CdRom {
         let is_form2 = submode & (1 << 5) != 0;
         let mode = &self.mode; // cdrom mode
 
-        if sector_mode == 2 {
+        if sector_mode == 2 && mode.adpcm_enabled && is_realtime_audio {
             // Filter rejects both ADPCM and data delivery if file/channel doesn't match
             if mode.filter_enabled && (file != self.filter_file || channel != self.filter_channel) {
                 return false;
             }
 
-            // ADPCM delivery
-            if mode.adpcm_enabled && is_realtime_audio {
-                let audio_header = cdxa_audio::AudioHeader(sector[0x13]);
+            let audio_header = cdxa_audio::AudioHeader(sector[0x13]);
 
-                debug_assert!(is_form2);
-                debug_assert_eq!(audio_header.bits_per_channel(), BitsPerSample::Bit4);
-                debug_assert_ne!(audio_header.channel(), Channel::Reserved);
+            debug_assert!(is_form2);
+            debug_assert_eq!(audio_header.bits_per_channel(), BitsPerSample::Bit4);
+            debug_assert_ne!(audio_header.channel(), Channel::Reserved);
 
-                let audio_samples = match (audio_header.channel(), audio_header.sample_rate()) {
-                    (Channel::Mono, SampleRate::R37800) => decode_audio_sector::<false>(
-                        &sector,
-                        &mut self.adpcm_history,
-                        &mut self.high_res_resamplers,
-                    ),
-                    (Channel::Stereo, SampleRate::R37800) => decode_audio_sector::<true>(
-                        &sector,
-                        &mut self.adpcm_history,
-                        &mut self.high_res_resamplers,
-                    ),
-                    (Channel::Mono, SampleRate::R18900) => decode_audio_sector::<false>(
-                        &sector,
-                        &mut self.adpcm_history,
-                        &mut self.low_res_resamplers,
-                    ),
-                    (Channel::Stereo, SampleRate::R18900) => decode_audio_sector::<true>(
-                        &sector,
-                        &mut self.adpcm_history,
-                        &mut self.low_res_resamplers,
-                    ),
+            let audio_samples = match (audio_header.channel(), audio_header.sample_rate()) {
+                (Channel::Mono, SampleRate::R37800) => decode_audio_sector::<false>(
+                    &sector,
+                    &mut self.adpcm_history,
+                    &mut self.high_res_resamplers,
+                ),
+                (Channel::Stereo, SampleRate::R37800) => decode_audio_sector::<true>(
+                    &sector,
+                    &mut self.adpcm_history,
+                    &mut self.high_res_resamplers,
+                ),
+                (Channel::Mono, SampleRate::R18900) => decode_audio_sector::<false>(
+                    &sector,
+                    &mut self.adpcm_history,
+                    &mut self.low_res_resamplers,
+                ),
+                (Channel::Stereo, SampleRate::R18900) => decode_audio_sector::<true>(
+                    &sector,
+                    &mut self.adpcm_history,
+                    &mut self.low_res_resamplers,
+                ),
 
-                    (Channel::Reserved, _) => unimplemented!("Reserved cdxa audio num channels"),
-                    (_, SampleRate::Reserved) => unimplemented!("Reserved cdxa sample rate"),
-                };
+                (Channel::Reserved, _) => unimplemented!("Reserved cdxa audio num channels"),
+                (_, SampleRate::Reserved) => unimplemented!("Reserved cdxa sample rate"),
+            };
 
-                self.audio_buffer.extend(audio_samples);
-                return true;
-            }
-
-            // Even if ADPCM is disabled, don't deliver realtime audio sectors as data
-            // when filter is enabled
-            if mode.filter_enabled && is_realtime_audio {
-                return false;
-            }
+            self.audio_buffer.extend(audio_samples);
+            return true;
         }
 
         let mut sector_data = VecDeque::from(sector);
@@ -326,9 +317,7 @@ impl CdRom {
             }
 
             ResponseType::INT1 => {
-                let Some(inserted_disk) = cdrom.disk.as_mut() else {
-                    panic!("int1 but no inserted disk");
-                };
+                let inserted_disk = cdrom.disk.as_mut().expect("int1 but no inserted disk");
 
                 let sector = inserted_disk.advance_sector();
                 let sector_was_audio = cdrom.process_sector(sector);

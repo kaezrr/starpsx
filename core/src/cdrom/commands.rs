@@ -315,12 +315,11 @@ impl CdRom {
         debug!(target: "cdrom", "cdrom getlocp");
 
         let disk = self.disk.as_ref().expect("get_locp inserted disk");
+        let info = disk
+            .current_position_info()
+            .map(|x| to_bcd(x).expect("track position is valid bcd"));
 
-        CommandResponse::new().int3(
-            disk.current_position_info()
-                .map(|x| to_bcd(x).expect("track position is valid bcd")),
-            AVG_1ST_RESP_GENERIC,
-        )
+        CommandResponse::new().int3(info, AVG_1ST_RESP_GENERIC)
     }
 
     pub fn get_locl(&self) -> CommandResponse {
@@ -339,8 +338,9 @@ impl CdRom {
         debug!(target: "cdrom", "cdrom getlocl");
 
         let disk = self.disk.as_ref().expect("get_locl inserted disk");
+        let info = disk.current_header_info();
 
-        CommandResponse::new().int3(disk.current_header_info(), AVG_1ST_RESP_GENERIC)
+        CommandResponse::new().int3(info, AVG_1ST_RESP_GENERIC)
     }
 }
 
