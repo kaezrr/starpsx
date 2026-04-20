@@ -87,15 +87,6 @@ impl Image {
         ]
     }
 
-    pub fn current_header_info(&self) -> [u8; 8] {
-        let current_sector = &self.data[self.read_head..self.read_head + SECTOR_SIZE];
-
-        // Copy of header and subheader
-        current_sector[0xC..0xC + 8]
-            .try_into()
-            .expect("header_info")
-    }
-
     pub const fn seek_location(&mut self, mins: u8, secs: u8, sect: u8) {
         let total_sectors = ((mins as usize) * 60 * 75) + ((secs as usize) * 75) + (sect as usize);
         self.read_head = total_sectors * SECTOR_SIZE;

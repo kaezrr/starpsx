@@ -337,10 +337,7 @@ impl CdRom {
 
         debug!(target: "cdrom", "cdrom getlocl");
 
-        let disk = self.disk.as_ref().expect("get_locl inserted disk");
-        let info = disk.current_header_info();
-
-        CommandResponse::new().int3(info, AVG_1ST_RESP_GENERIC)
+        CommandResponse::new().int3(self.last_sector_info, AVG_1ST_RESP_GENERIC)
     }
 }
 

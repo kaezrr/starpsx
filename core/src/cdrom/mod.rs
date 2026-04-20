@@ -48,6 +48,8 @@ pub struct CdRom {
     filter_channel: u8,
 
     disk: Option<Image>,
+
+    last_sector_info: [u8; 8],
 }
 
 impl Default for CdRom {
@@ -74,6 +76,7 @@ impl Default for CdRom {
             filter_channel: 0,
 
             disk: None,
+            last_sector_info: [0; 8],
         }
     }
 }
@@ -182,15 +185,17 @@ impl CdRom {
             return true;
         }
 
+        self.last_sector_info.copy_from_slice(&sector[0x0C..0x14]);
+
         let sector_mode = sector[0xF];
         let file = sector[0x10];
         let channel = sector[0x11];
         let submode = sector[0x12];
-        let is_realtime_audio = (submode & 0x44) == 0x44;
+        let is_audio = submode & 4 != 0;
         let is_form2 = submode & (1 << 5) != 0;
         let mode = &self.mode; // cdrom mode
 
-        if sector_mode == 2 && mode.adpcm_enabled && is_realtime_audio {
+        if mode.adpcm_enabled && sector_mode == 2 && is_audio {
             // Filter rejects both ADPCM and data delivery if file/channel doesn't match
             if mode.filter_enabled && (file != self.filter_file || channel != self.filter_channel) {
                 return false;
