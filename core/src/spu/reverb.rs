@@ -143,12 +143,12 @@ impl Reverb {
 
         l_out -= mul_16(
             self.v_apf1,
-            self.read_sample(ram, self.m_lapf1 - self.d_apf1),
+            self.read_sample(ram, self.m_lapf1.saturating_sub(self.d_apf1)),
         );
 
         r_out -= mul_16(
             self.v_apf1,
-            self.read_sample(ram, self.m_rapf1 - self.d_apf1),
+            self.read_sample(ram, self.m_rapf1.saturating_sub(self.d_apf1)),
         );
 
         if write_to_ram {
@@ -156,8 +156,10 @@ impl Reverb {
             self.write_sample(ram, self.m_rapf1, r_out);
         }
 
-        l_out = mul_16(l_out, self.v_apf1) + self.read_sample(ram, self.m_lapf1 - self.d_apf1);
-        r_out = mul_16(r_out, self.v_apf1) + self.read_sample(ram, self.m_rapf1 - self.d_apf1);
+        l_out = mul_16(l_out, self.v_apf1)
+            + self.read_sample(ram, self.m_lapf1.saturating_sub(self.d_apf1));
+        r_out = mul_16(r_out, self.v_apf1)
+            + self.read_sample(ram, self.m_rapf1.saturating_sub(self.d_apf1));
 
         //   ___Late Reverb APF2 (All Pass Filter 2, with input from APF1)________________
         // Lout=Lout-vAPF2*[mLAPF2-dAPF2], [mLAPF2]=Lout, Lout=Lout*vAPF2+[mLAPF2-dAPF2]
@@ -178,8 +180,10 @@ impl Reverb {
             self.write_sample(ram, self.m_rapf2, r_out);
         }
 
-        l_out = mul_16(l_out, self.v_apf2) + self.read_sample(ram, self.m_lapf2 - self.d_apf2);
-        r_out = mul_16(r_out, self.v_apf2) + self.read_sample(ram, self.m_rapf2 - self.d_apf2);
+        l_out = mul_16(l_out, self.v_apf2)
+            + self.read_sample(ram, self.m_lapf2.saturating_sub(self.d_apf2));
+        r_out = mul_16(r_out, self.v_apf2)
+            + self.read_sample(ram, self.m_rapf2.saturating_sub(self.d_apf2));
 
         // ___Output to Mixer (Output volume multiplied with input from APF2)___________
         // LeftOutput  = Lout*vLOUT
