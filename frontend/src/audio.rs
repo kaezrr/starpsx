@@ -15,7 +15,7 @@ const AUDIO_STREAM_CONFIG: StreamConfig = StreamConfig {
 };
 
 pub fn build_audio_stream() -> anyhow::Result<(cpal::Stream, Sender<AudioSample>)> {
-    let (prod, cons) = crossbeam::channel::bounded(8096);
+    let (prod, cons) = crossbeam::channel::bounded(735);
 
     let device = default_host()
         .default_output_device()
