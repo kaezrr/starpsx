@@ -16,3 +16,5 @@ logs/
 # Contains mutation testing data
 **/mutants.out*/
 profile.json.gz
+
+.direnv
